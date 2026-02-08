@@ -1,0 +1,72 @@
+[package]
+name = "force"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Canonical Salesforce Platform API client for Rust"
+keywords = ["salesforce", "api", "oauth", "rest", "crm"]
+categories = ["api-bindings", "web-programming::http-client"]
+
+[lints]
+workspace = true
+
+[dependencies]
+# Core dependencies (always compiled)
+tokio = { workspace = true }
+reqwest = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+thiserror = { workspace = true }
+secrecy = { workspace = true }
+base64 = { workspace = true }
+url = { workspace = true }
+tracing = { workspace = true }
+futures = { workspace = true }
+async-trait = { workspace = true }
+bytes = { workspace = true }
+
+# Feature-gated dependencies
+jsonwebtoken = { workspace = true, optional = true }
+csv = { workspace = true, optional = true }
+quick-xml = { workspace = true, optional = true }
+tonic = { workspace = true, optional = true }
+prost = { workspace = true, optional = true }
+apache-avro = { workspace = true, optional = true }
+wiremock = { workspace = true, optional = true }
+
+[dev-dependencies]
+tokio-test = "0.4"
+anyhow = { workspace = true }
+wiremock = { workspace = true }
+
+[features]
+default = ["rest"]
+
+# Platform API surfaces
+rest = []
+bulk = ["dep:csv"]
+composite = ["rest"]
+tooling = ["rest"]
+metadata = []
+graphql = []
+pub_sub = ["dep:tonic", "dep:prost", "dep:apache-avro"]
+streaming = []
+analytics = ["rest"]
+connect = ["rest"]
+apex_rest = ["rest"]
+ui = ["rest"]
+soap = ["dep:quick-xml"]
+
+# Auth flows
+jwt = ["dep:jsonwebtoken"]
+
+# Testing utilities
+mock = ["dep:wiremock"]
+
+# Meta features
+full = ["rest", "bulk", "composite", "tooling", "metadata",
+        "graphql", "analytics", "connect", "apex_rest", "ui", "jwt"]
+all = ["full", "pub_sub", "streaming", "soap"]
