@@ -7,7 +7,7 @@ version = "0.1.0"
 edition = "2024"
 authors = ["Mark M"]
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/markm/force-rs"
+repository = "https://github.com/madmax983/force-rs"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

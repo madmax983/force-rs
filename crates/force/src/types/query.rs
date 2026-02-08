@@ -477,4 +477,117 @@ mod tests {
         assert_eq!(iter.page_count(), 0);
         assert_eq!(iter.total_count(), 0);
     }
+
+    // Property-based tests using proptest
+    mod proptests {
+        use super::*;
+        use proptest::prelude::*;
+
+        // Strategy for generating QueryResult
+        fn arbitrary_query_result() -> impl Strategy<Value = QueryResult<i32>> {
+            (
+                any::<usize>(),
+                any::<bool>(),
+                prop::collection::vec(any::<i32>(), 0..100),
+                prop::option::of("[a-z/]{1,50}"),
+            )
+                .prop_map(|(total_size, done, records, next_url)| {
+                    let mut result = QueryResult {
+                        total_size,
+                        done,
+                        records,
+                        next_records_url: next_url,
+                    };
+
+                    // Fix inconsistencies: if done=true, no next_url
+                    if result.done {
+                        result.next_records_url = None;
+                    }
+
+                    result
+                })
+        }
+
+        proptest! {
+            // Property 1: If has_more() is true, done is false
+            #[test]
+            fn prop_has_more_implies_not_done(result in arbitrary_query_result()) {
+                if result.has_more() {
+                    prop_assert!(!result.is_done());
+                    prop_assert!(!result.done);
+                }
+            }
+
+            // Property 2: If done is true, has_more() is false
+            #[test]
+            fn prop_done_implies_not_has_more(result in arbitrary_query_result()) {
+                if result.is_done() {
+                    prop_assert!(!result.has_more());
+                    prop_assert_eq!(result.next_records_url, None);
+                }
+            }
+
+            // Property 3: len() matches records.len()
+            #[test]
+            fn prop_len_matches_records(result in arbitrary_query_result()) {
+                prop_assert_eq!(result.len(), result.records.len());
+            }
+
+            // Property 4: is_empty() consistent with len()
+            #[test]
+            fn prop_is_empty_consistent(result in arbitrary_query_result()) {
+                prop_assert_eq!(result.is_empty(), result.records.is_empty());
+                prop_assert_eq!(result.is_empty(), result.len() == 0);
+            }
+
+            // Property 5: map preserves metadata
+            #[test]
+            fn prop_map_preserves_metadata(result in arbitrary_query_result()) {
+                let original_total = result.total_size;
+                let original_done = result.done;
+                let original_next = result.next_records_url.clone();
+
+                // Use saturating_add to avoid overflow
+                let mapped = result.map(|x| x.saturating_add(1));
+
+                prop_assert_eq!(mapped.total_size, original_total);
+                prop_assert_eq!(mapped.done, original_done);
+                prop_assert_eq!(mapped.next_records_url, original_next);
+            }
+
+            // Property 6: map transforms records correctly
+            #[test]
+            fn prop_map_transforms_records(result in arbitrary_query_result()) {
+                let expected: Vec<i32> = result.records.iter().map(|x| x.saturating_add(1)).collect();
+                let mapped = result.map(|x| x.saturating_add(1));
+
+                prop_assert_eq!(mapped.records, expected);
+            }
+
+            // Property 7: Default is empty and done
+            #[test]
+            fn prop_default_is_empty_and_done(_x in 0..1) {
+                let default: QueryResult<i32> = QueryResult::default();
+
+                prop_assert!(default.is_done());
+                prop_assert!(default.is_empty());
+                prop_assert_eq!(default.total_size, 0);
+                prop_assert_eq!(default.next_records_url, None);
+            }
+
+            // Property 8: with_next_page always sets done=false
+            #[test]
+            fn prop_with_next_page_not_done(
+                total in any::<usize>(),
+                records in prop::collection::vec(any::<i32>(), 0..50),
+                url in "[a-z/]{1,50}"
+            ) {
+                let result = QueryResult::with_next_page(total, records, url.clone());
+
+                prop_assert!(!result.is_done());
+                prop_assert!(result.has_more());
+                prop_assert_eq!(result.next_records_url, Some(url));
+            }
+        }
+    }
 }

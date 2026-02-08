@@ -478,4 +478,104 @@ mod tests {
         let lines: Vec<&str> = csv_str.lines().collect();
         assert_eq!(lines.len(), 1001); // header + 1000 records
     }
+
+    // Property-based tests using proptest
+    mod proptests {
+        use super::*;
+        use proptest::prelude::*;
+
+        // Strategy for generating arbitrary TestRecords
+        fn arbitrary_test_record() -> impl Strategy<Value = TestRecord> {
+            (
+                "[a-zA-Z0-9]{1,18}",
+                "[a-zA-Z0-9 ]{1,80}",
+                any::<i32>(),
+            )
+                .prop_map(|(id, name, value)| TestRecord { id, name, value })
+        }
+
+        proptest! {
+            // Property 1: Serialize -> Deserialize roundtrip for any record
+            #[test]
+            fn prop_roundtrip_single_record(record in arbitrary_test_record()) {
+                let records = vec![record.clone()];
+                let mut output = Vec::new();
+
+                serialize_to_csv(&records, &mut output).unwrap();
+                let deserialized: Vec<TestRecord> = deserialize_from_csv(output.as_slice()).unwrap();
+
+                prop_assert_eq!(deserialized.len(), 1);
+                prop_assert_eq!(&deserialized[0], &record);
+            }
+
+            // Property 2: Roundtrip with multiple records
+            #[test]
+            fn prop_roundtrip_multiple_records(records in prop::collection::vec(arbitrary_test_record(), 0..50)) {
+                let mut output = Vec::new();
+
+                serialize_to_csv(&records, &mut output).unwrap();
+                let deserialized: Vec<TestRecord> = deserialize_from_csv(output.as_slice()).unwrap();
+
+                prop_assert_eq!(deserialized.len(), records.len());
+                prop_assert_eq!(deserialized, records);
+            }
+
+            // Property 3: Batch processing handles all records
+            #[test]
+            fn prop_batch_processing_complete(
+                records in prop::collection::vec(arbitrary_test_record(), 1..100),
+                batch_size in 1usize..20usize
+            ) {
+                let mut output = Vec::new();
+                serialize_to_csv(&records, &mut output).unwrap();
+
+                let mut collected = Vec::new();
+                process_csv_batches(
+                    output.as_slice(),
+                    batch_size,
+                    |batch: Vec<TestRecord>| {
+                        collected.extend(batch);
+                        Ok(())
+                    }
+                ).unwrap();
+
+                prop_assert_eq!(collected.len(), records.len());
+                prop_assert_eq!(collected, records);
+            }
+
+            // Property 4: Batch sizes are respected
+            #[test]
+            fn prop_batch_sizes_respected(
+                records in prop::collection::vec(arbitrary_test_record(), 10..50),
+                batch_size in 1usize..10usize
+            ) {
+                let mut output = Vec::new();
+                serialize_to_csv(&records, &mut output).unwrap();
+
+                let mut batch_sizes = Vec::new();
+                process_csv_batches(
+                    output.as_slice(),
+                    batch_size,
+                    |batch: Vec<TestRecord>| {
+                        batch_sizes.push(batch.len());
+                        Ok(())
+                    }
+                ).unwrap();
+
+                // All batches except possibly the last should be full size
+                for &size in &batch_sizes[..batch_sizes.len().saturating_sub(1)] {
+                    prop_assert_eq!(size, batch_size);
+                }
+
+                // Last batch can be any size up to batch_size
+                if let Some(&last) = batch_sizes.last() {
+                    prop_assert!(last > 0 && last <= batch_size);
+                }
+
+                // Total records should match
+                let total: usize = batch_sizes.iter().sum();
+                prop_assert_eq!(total, records.len());
+            }
+        }
+    }
 }

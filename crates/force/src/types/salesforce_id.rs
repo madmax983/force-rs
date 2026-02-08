@@ -312,4 +312,147 @@ mod tests {
         // Their checksums should differ
         assert_ne!(id1.to_18().as_str(), id2.to_18().as_str());
     }
+
+    // Property-based tests using proptest
+    mod proptests {
+        use super::*;
+        use proptest::prelude::*;
+
+        // Strategy to generate valid 15-character Salesforce IDs
+        fn valid_15_char_id() -> impl Strategy<Value = String> {
+            prop::collection::vec(
+                prop::char::range('0', 'z')
+                    .prop_filter("Must be alphanumeric", |c| c.is_ascii_alphanumeric()),
+                15..=15,
+            )
+            .prop_map(|chars| chars.into_iter().collect())
+        }
+
+        // Strategy to generate invalid length strings
+        fn invalid_length_string() -> impl Strategy<Value = String> {
+            prop::collection::vec(prop::char::range('a', 'z'), 1..100)
+                .prop_filter("Must not be 15 or 18 chars", |v| {
+                    v.len() != 15 && v.len() != 18
+                })
+                .prop_map(|chars| chars.into_iter().collect())
+        }
+
+        proptest! {
+            // Property 1: 15-char -> to_18() -> to_15() roundtrip
+            #[test]
+            fn prop_roundtrip_15_to_18_to_15(id_str in valid_15_char_id()) {
+                let id_15 = SalesforceId::new(&id_str).unwrap();
+                let id_18 = id_15.clone().to_18();
+                let back_to_15 = id_18.to_15();
+
+                prop_assert_eq!(id_15.as_str(), back_to_15.as_str());
+            }
+
+            // Property 2: 18-char -> to_15() -> to_18() roundtrip
+            #[test]
+            fn prop_roundtrip_18_to_15_to_18(id_str in valid_15_char_id()) {
+                let id_15 = SalesforceId::new(&id_str).unwrap();
+                let id_18 = id_15.to_18();
+                let id_18_str = id_18.as_str().to_string();
+
+                // Now roundtrip from 18
+                let back_to_15 = id_18.to_15();
+                let back_to_18 = back_to_15.to_18();
+
+                prop_assert_eq!(id_18_str, back_to_18.as_str());
+            }
+
+            // Property 3: to_18() always produces valid 18-char ID
+            #[test]
+            fn prop_to_18_produces_valid_id(id_str in valid_15_char_id()) {
+                let id_15 = SalesforceId::new(&id_str).unwrap();
+                let id_18 = id_15.to_18();
+
+                prop_assert_eq!(id_18.as_str().len(), 18);
+
+                // Should be parseable as valid ID
+                let reparsed = SalesforceId::new(id_18.as_str());
+                prop_assert!(reparsed.is_ok());
+            }
+
+            // Property 4: Invalid lengths always reject
+            #[test]
+            fn prop_invalid_length_rejects(id_str in invalid_length_string()) {
+                let result = SalesforceId::new(&id_str);
+
+                prop_assert!(result.is_err());
+                if let Err(SalesforceIdError::InvalidLength(len)) = result {
+                    prop_assert_eq!(len, id_str.len());
+                }
+            }
+
+            // Property 5: IDs with non-alphanumeric chars reject
+            #[test]
+            fn prop_non_alphanumeric_rejects(
+                prefix in "[a-zA-Z0-9]{7}",
+                special_char in "[@#$%^&*()!]",  // ASCII special chars only
+                suffix in "[a-zA-Z0-9]{7}"
+            ) {
+                let id_str = format!("{}{}{}", prefix, special_char, suffix);
+                let result = SalesforceId::new(&id_str);
+
+                prop_assert!(matches!(result, Err(SalesforceIdError::InvalidCharacters)));
+            }
+
+            // Property 6: to_15() is idempotent for 15-char IDs
+            #[test]
+            fn prop_to_15_idempotent_on_15_char(id_str in valid_15_char_id()) {
+                let id = SalesforceId::new(&id_str).unwrap();
+                let once = id.clone().to_15();
+                let twice = once.clone().to_15();
+
+                prop_assert_eq!(once.as_str(), twice.as_str());
+                prop_assert_eq!(once.as_str(), id_str);
+            }
+
+            // Property 7: to_18() is idempotent for 18-char IDs
+            #[test]
+            fn prop_to_18_idempotent_on_18_char(id_str in valid_15_char_id()) {
+                let id_15 = SalesforceId::new(&id_str).unwrap();
+                let id_18 = id_15.to_18();
+                let id_18_str = id_18.as_str().to_string();
+
+                let once = id_18.to_18();
+                let once_str = once.as_str().to_string();
+                let twice = once.to_18();
+
+                prop_assert_eq!(once_str, twice.as_str());
+                prop_assert_eq!(id_18_str, twice.as_str());
+            }
+
+            // Property 8: Display and as_str are consistent
+            #[test]
+            fn prop_display_consistent_with_as_str(id_str in valid_15_char_id()) {
+                let id = SalesforceId::new(&id_str).unwrap();
+                let displayed = format!("{}", id);
+
+                prop_assert_eq!(displayed, id.as_str());
+            }
+
+            // Property 9: Checksum validation catches corruption
+            #[test]
+            fn prop_bad_checksum_rejects(
+                id_str in valid_15_char_id(),
+                bad_checksum in "[A-Z0-5]{3}"
+            ) {
+                let id_15 = SalesforceId::new(&id_str).unwrap();
+                let id_18 = id_15.to_18();
+                let id_18_str = id_18.as_str().to_string();
+                let correct_checksum = &id_18_str[15..];
+
+                // Only test if we actually generated a different checksum
+                prop_assume!(bad_checksum != correct_checksum);
+
+                let bad_id = format!("{}{}", &id_18_str[..15], bad_checksum);
+                let result = SalesforceId::new(&bad_id);
+
+                prop_assert!(matches!(result, Err(SalesforceIdError::InvalidChecksum)));
+            }
+        }
+    }
 }

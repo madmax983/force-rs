@@ -307,4 +307,86 @@ mod tests {
 
         assert_eq!(set.len(), 2); // Only 2 unique versions
     }
+
+    // Property-based tests using proptest
+    mod proptests {
+        use super::*;
+        use proptest::prelude::*;
+
+        proptest! {
+            // Property 1: Parse -> Display roundtrip
+            #[test]
+            fn prop_parse_display_roundtrip(major in 1u16..1000u16) {
+                let version = ApiVersion::new(major);
+                let displayed = format!("{}", version);
+                let parsed: ApiVersion = displayed.parse().unwrap();
+
+                prop_assert_eq!(parsed, version);
+                prop_assert_eq!(parsed.major(), major);
+            }
+
+            // Property 2: as_str() matches Display format
+            #[test]
+            fn prop_as_str_matches_display(major in 1u16..1000u16) {
+                let version = ApiVersion::new(major);
+                let as_str = version.as_str();
+                let displayed = format!("{}", version);
+
+                prop_assert_eq!(as_str, displayed);
+            }
+
+            // Property 3: Valid version strings parse successfully
+            #[test]
+            fn prop_valid_format_parses(major in 1u16..1000u16) {
+                let version_str = format!("v{}.0", major);
+                let parsed = version_str.parse::<ApiVersion>();
+
+                prop_assert!(parsed.is_ok());
+                prop_assert_eq!(parsed.unwrap().major(), major);
+            }
+
+            // Property 4: Missing 'v' prefix always fails
+            #[test]
+            fn prop_missing_prefix_fails(major in 1u16..1000u16) {
+                let version_str = format!("{}.0", major);
+                let parsed = version_str.parse::<ApiVersion>();
+
+                prop_assert!(matches!(parsed, Err(ApiVersionError::MissingPrefix)));
+            }
+
+            // Property 5: Wrong minor version always fails
+            #[test]
+            fn prop_wrong_minor_fails(major in 1u16..1000u16, minor in 1u16..100u16) {
+                let version_str = format!("v{}.{}", major, minor);
+                let parsed = version_str.parse::<ApiVersion>();
+
+                prop_assert!(matches!(parsed, Err(ApiVersionError::InvalidFormat)));
+            }
+
+            // Property 6: Ordering is consistent with major version
+            #[test]
+            fn prop_ordering_consistent(major1 in 1u16..500u16, major2 in 1u16..500u16) {
+                let v1 = ApiVersion::new(major1);
+                let v2 = ApiVersion::new(major2);
+
+                if major1 < major2 {
+                    prop_assert!(v1 < v2);
+                } else if major1 > major2 {
+                    prop_assert!(v1 > v2);
+                } else {
+                    prop_assert_eq!(v1, v2);
+                }
+            }
+
+            // Property 7: Equality is based on major version only
+            #[test]
+            fn prop_equality_by_major(major in 1u16..1000u16) {
+                let v1 = ApiVersion::new(major);
+                let v2 = ApiVersion::new(major);
+
+                prop_assert_eq!(v1, v2);
+                prop_assert_eq!(v1.major(), v2.major());
+            }
+        }
+    }
 }

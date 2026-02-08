@@ -5,9 +5,12 @@ edition.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Canonical Salesforce Platform API client for Rust"
-keywords = ["salesforce", "api", "oauth", "rest", "crm"]
-categories = ["api-bindings", "web-programming::http-client"]
+description = "Production-ready Salesforce Platform API client with REST and Bulk API 2.0 support"
+keywords = ["salesforce", "api", "rest", "bulk", "crm"]
+categories = ["api-bindings", "web-programming"]
+documentation = "https://docs.rs/force"
+homepage = "https://github.com/madmax983/force-rs"
+readme = "README.md"
 
 [lints]
 workspace = true
@@ -42,6 +45,7 @@ tokio-test = "0.4"
 anyhow = { workspace = true }
 wiremock = { workspace = true }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+proptest = "1.5"
 
 [features]
 default = ["rest"]
