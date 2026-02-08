@@ -15,13 +15,13 @@ use std::sync::Arc;
 ///
 /// This is generic over the authenticator type to avoid trait object overhead.
 #[derive(Debug, Clone)]
-struct Inner<A: crate::auth::Authenticator> {
+pub(crate) struct Inner<A: crate::auth::Authenticator> {
     /// Client configuration.
-    config: ClientConfig,
+    pub(crate) config: ClientConfig,
     /// HTTP client for making requests.
-    http_client: reqwest::Client,
+    pub(crate) http_client: reqwest::Client,
     /// Token manager for automatic token refresh (wrapped in Arc for cloning).
-    token_manager: Arc<TokenManager<A>>,
+    pub(crate) token_manager: Arc<TokenManager<A>>,
 }
 
 /// Salesforce API client with compile-time authentication safety.
@@ -30,9 +30,17 @@ struct Inner<A: crate::auth::Authenticator> {
 /// API calls can be made. Clients are cheaply cloneable via `Arc`.
 ///
 /// The client is generic over the authenticator type for zero-cost abstraction.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct ForceClient<A: crate::auth::Authenticator> {
     inner: Arc<Inner<A>>,
+}
+
+impl<A: crate::auth::Authenticator> Clone for ForceClient<A> {
+    fn clone(&self) -> Self {
+        Self {
+            inner: Arc::clone(&self.inner),
+        }
+    }
 }
 
 /// Public builder constructor (not tied to a specific authenticator).
@@ -46,6 +54,41 @@ impl<A: crate::auth::Authenticator> ForceClient<A> {
     #[must_use]
     pub fn config(&self) -> &ClientConfig {
         &self.inner.config
+    }
+
+    /// Returns the current access token, refreshing if necessary.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if authentication or token refresh fails.
+    pub async fn token(&self) -> crate::error::Result<crate::auth::AccessToken> {
+        self.inner.token_manager.token().await
+    }
+
+    /// Returns a reference to the inner state (for internal use by handlers).
+    ///
+    /// # Internal API
+    ///
+    /// This method is internal to the crate and should not be used directly.
+    #[must_use]
+    pub(crate) fn inner(&self) -> &Arc<Inner<A>> {
+        &self.inner
+    }
+
+    /// Creates a REST API handler for this client.
+    ///
+    /// The REST handler provides access to CRUD operations, queries, and metadata.
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// let client = builder().authenticate(auth).build().await?;
+    /// let rest = client.rest();
+    /// ```
+    #[cfg(feature = "rest")]
+    #[must_use]
+    pub fn rest(&self) -> crate::api::rest::RestHandler<A> {
+        crate::api::rest::RestHandler::new(Arc::clone(&self.inner))
     }
 }
 

@@ -49,7 +49,7 @@ impl Attributes {
         Self { type_, url }
     }
 
-    /// Returns the SObject type name.
+    /// Returns the `SObject` type name.
     #[must_use]
     pub fn object_type(&self) -> &str {
         &self.type_
@@ -147,7 +147,7 @@ impl DynamicSObject {
         self.fields.contains_key(name)
     }
 
-    /// Returns the SObject type name.
+    /// Returns the `SObject` type name.
     #[must_use]
     pub fn object_type(&self) -> &str {
         &self.attributes.type_
@@ -164,7 +164,7 @@ impl DynamicSObject {
         self.fields.len()
     }
 
-    /// Converts the SObject to a JSON value.
+    /// Converts the `SObject` to a JSON value.
     #[must_use]
     pub fn to_value(&self) -> Value {
         serde_json::to_value(self).unwrap_or(Value::Null)
@@ -194,7 +194,7 @@ pub struct DynamicSObjectBuilder {
 }
 
 impl DynamicSObjectBuilder {
-    /// Creates a new builder for the given SObject type and ID.
+    /// Creates a new builder for the given `SObject` type and ID.
     #[must_use]
     pub fn new(type_name: impl Into<String>, id: &SalesforceId, api_version: &str) -> Self {
         let attributes = Attributes::new(type_name, id, api_version);
@@ -203,7 +203,7 @@ impl DynamicSObjectBuilder {
         }
     }
 
-    /// Adds a field to the SObject.
+    /// Adds a field to the `SObject`.
     #[must_use]
     pub fn field(mut self, name: impl Into<String>, value: impl Serialize) -> Self {
         self.sobject.set_field(name, value);

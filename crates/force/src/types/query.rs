@@ -165,34 +165,32 @@ impl<T> Default for QueryResult<T> {
 /// assert_eq!(locator.url(), "/services/data/v60.0/query/01gxx0000000001-2000");
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct QueryLocator {
-    /// The next records URL from a previous query.
-    url: String,
-}
+#[serde(transparent)]
+pub struct QueryLocator(String);
 
 impl QueryLocator {
     /// Creates a new query locator from a URL.
     #[must_use]
     pub fn from_url(url: impl Into<String>) -> Self {
-        Self { url: url.into() }
+        Self(url.into())
     }
 
     /// Returns the URL for fetching the next page.
     #[must_use]
     pub fn url(&self) -> &str {
-        &self.url
+        &self.0
     }
 
     /// Returns true if this is the initial query (not a continuation).
     #[must_use]
     pub fn is_initial(&self) -> bool {
-        !self.url.contains("/query/")
+        !self.0.contains("/query/")
     }
 
     /// Returns true if this is a continuation query.
     #[must_use]
     pub fn is_continuation(&self) -> bool {
-        self.url.contains("/query/")
+        self.0.contains("/query/")
     }
 }
 
@@ -210,7 +208,7 @@ impl From<&str> for QueryLocator {
 
 impl AsRef<str> for QueryLocator {
     fn as_ref(&self) -> &str {
-        &self.url
+        &self.0
     }
 }
 

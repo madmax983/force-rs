@@ -40,11 +40,12 @@ ADRs follow this structure:
 | [004](004-feature-gates.md) | Feature Flag Strategy for API Surfaces | Accepted | 2026-02-07 |
 | [005](005-compile-time-auth-safety.md) | Compile-Time Auth Safety with Phantom Types | Accepted | 2026-02-07 |
 | [006](006-handler-pattern.md) | Handler Pattern for API Operations | Accepted | 2026-02-07 |
+| [007](007-rest-api-design.md) | REST API Design Decisions | Accepted | 2026-02-07 |
 
 ### Future ADRs
 
 Planned ADRs for upcoming decisions:
-- **ADR-007**: HTTP Client and Middleware Architecture
+- **ADR-008**: HTTP Client and Middleware Architecture
 - **ADR-008**: Rate Limiting and Retry Strategy
 - **ADR-009**: Token Storage and Caching
 - **ADR-010**: SOQL Query Builder Design
@@ -83,13 +84,15 @@ graph TD
 
     ADR004 --> ADR006
     ADR006 --> ADR002
+    ADR006 --> ADR007[ADR-007: REST API Design]
+    ADR003 --> ADR007
 
-    ADR002 -.-> ADR007[ADR-007: HTTP Middleware]
-    ADR003 -.-> ADR007
-    ADR004 -.-> ADR007
+    ADR002 -.-> ADR008[ADR-008: HTTP Middleware]
+    ADR003 -.-> ADR008
+    ADR004 -.-> ADR008
 
-    ADR002 -.-> ADR009[ADR-009: Token Storage]
-    ADR007 -.-> ADR008[ADR-008: Retry Strategy]
+    ADR002 -.-> ADR010[ADR-010: Token Storage]
+    ADR008 -.-> ADR009[ADR-009: Retry Strategy]
 
     style ADR001 fill:#4a9eff
     style ADR002 fill:#ffd43b
@@ -97,9 +100,10 @@ graph TD
     style ADR004 fill:#51cf66
     style ADR005 fill:#a78bfa
     style ADR006 fill:#f472b6
-    style ADR007 fill:#ddd
+    style ADR007 fill:#fb923c
     style ADR008 fill:#ddd
     style ADR009 fill:#ddd
+    style ADR010 fill:#ddd
 ```
 
 ## Key Decisions Summary
@@ -133,6 +137,11 @@ graph TD
 - **Decision**: Lightweight handler objects for API operations (`client.rest()`, `client.bulk()`)
 - **Rationale**: Clear namespacing, feature isolation, organized documentation
 - **Impact**: Slightly longer calls but better organization and discoverability
+
+### ADR-007: REST API Design
+- **Decision**: Hybrid approach with both dynamic (`query()`) and typed (`query_typed<T>()`) methods
+- **Rationale**: Flexibility for dynamic queries, type safety when needed, zero-cost abstraction
+- **Impact**: Two query patterns to learn, but clear upgrade path from dynamic to typed
 
 ## Contributing ADRs
 

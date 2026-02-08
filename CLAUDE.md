@@ -293,28 +293,38 @@ use force::testing::{MockForceClient, MockAuthenticator};
 
 ## Feature Roadmap
 
-### Phase 1: Foundation (Current)
+### Phase 1: Foundation ✓ COMPLETE
 - [x] Workspace structure with lints
-- [ ] Core types (SalesforceId, ApiVersion)
-- [ ] Error hierarchy with thiserror
-- [ ] Authenticator trait
-- [ ] AccessToken & TokenManager
-- [ ] HTTP layer with middleware
-- [ ] ForceClient with compile-time auth safety
+- [x] Core types (SalesforceId, ApiVersion)
+- [x] Error hierarchy with thiserror
+- [x] Authenticator trait
+- [x] AccessToken & TokenManager
+- [x] HTTP layer with reqwest
+- [x] ForceClient with compile-time auth safety
 
-### Phase 2: Core Auth Flows
-- [ ] Client credentials flow (OAuth 2.0)
+### Phase 2: Core Auth Flows (In Progress)
+- [x] Client credentials flow (OAuth 2.0)
 - [ ] JWT bearer flow (feature: jwt)
 - [ ] SAML bearer flow (feature: jwt)
 - [ ] Username/password flow
 - [ ] Refresh token flow
 
-### Phase 3: REST API (Default Feature)
-- [ ] Query (SOQL)
-- [ ] QueryMore (pagination)
-- [ ] CRUD operations (create, read, update, delete)
-- [ ] Search (SOSL)
-- [ ] Describe (metadata)
+### Phase 3: REST API (Default Feature) - Current Focus
+- [x] RestHandler foundation
+- [x] Org Limits API (see `examples/org_limits.rs`)
+- [x] Query types (QueryResult, DynamicSObject)
+- [ ] Query (SOQL) - See `examples/soql_query.rs` for intended API
+- [ ] QueryMore (pagination) - See `examples/soql_query.rs`
+- [ ] CRUD operations - See `examples/basic_crud.rs` for intended API
+  - [ ] Create
+  - [ ] Read (Get)
+  - [ ] Update
+  - [ ] Delete
+  - [ ] Upsert
+- [ ] Search (SOSL) - See `examples/search.rs` for intended API
+- [ ] Describe (metadata) - See `examples/describe.rs` for intended API
+  - [ ] Describe Global
+  - [ ] Describe SObject
 
 ### Phase 4: Advanced APIs
 - [ ] Bulk API 2.0 (feature: bulk)
@@ -399,6 +409,103 @@ let client = ForceClient::builder()
 - Certificate verification enforced
 - Minimum TLS 1.2
 
+## Usage Examples
+
+The `examples/` directory contains complete, runnable examples demonstrating best practices:
+
+### REST API Examples
+
+1. **`org_limits.rs`** - Retrieve and display org limits with threshold warnings
+   ```bash
+   SF_CLIENT_ID=xxx SF_CLIENT_SECRET=yyy cargo run --example org_limits
+   ```
+
+2. **`basic_crud.rs`** - Full CRUD lifecycle (Create, Read, Update, Delete, Upsert)
+   ```bash
+   SF_CLIENT_ID=xxx SF_CLIENT_SECRET=yyy cargo run --example basic_crud
+   ```
+
+3. **`soql_query.rs`** - Typed SOQL queries with pagination and aggregates
+   ```bash
+   SF_CLIENT_ID=xxx SF_CLIENT_SECRET=yyy cargo run --example soql_query
+   ```
+
+4. **`dynamic_query.rs`** - Dynamic queries using `DynamicSObject` for flexibility
+   ```bash
+   SF_CLIENT_ID=xxx SF_CLIENT_SECRET=yyy cargo run --example dynamic_query
+   ```
+
+5. **`search.rs`** - Multi-object SOSL search with various patterns
+   ```bash
+   SF_CLIENT_ID=xxx SF_CLIENT_SECRET=yyy cargo run --example search
+   ```
+
+6. **`describe.rs`** - Schema introspection and metadata exploration
+   ```bash
+   SF_CLIENT_ID=xxx SF_CLIENT_SECRET=yyy cargo run --example describe
+   ```
+
+### Quick Start
+
+```rust
+use force::auth::ClientCredentials;
+use force::client::builder;
+use serde_json::json;
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    // Authenticate
+    let auth = ClientCredentials::new(client_id, client_secret);
+    let client = builder().authenticate(auth).build().await?;
+
+    // Query with dynamic results
+    let result = client.rest()
+        .query("SELECT Id, Name FROM Account LIMIT 5")
+        .await?;
+
+    for record in result.records {
+        let name: String = record.get_field("Name")?;
+        println!("{}", name);
+    }
+
+    // Query with typed results
+    #[derive(serde::Deserialize)]
+    struct Account {
+        #[serde(rename = "Id")]
+        id: String,
+        #[serde(rename = "Name")]
+        name: String,
+    }
+
+    let typed_result = client.rest()
+        .query_typed::<Account>("SELECT Id, Name FROM Account")
+        .await?;
+
+    // Create a record
+    let contact_id = client.rest()
+        .create("Contact", &json!({
+            "FirstName": "Jane",
+            "LastName": "Doe",
+            "Email": "jane@example.com"
+        }))
+        .await?;
+
+    // Update a record
+    client.rest()
+        .update("Contact", &contact_id, &json!({
+            "Phone": "+1-555-0100"
+        }))
+        .await?;
+
+    // Delete a record
+    client.rest()
+        .delete("Contact", &contact_id)
+        .await?;
+
+    Ok(())
+}
+```
+
 ## Related Projects
 
 This crate integrates with the Mark's Rust ecosystem:
@@ -413,6 +520,9 @@ Significant architectural decisions are documented in `docs/adr/`:
 - [ADR-002](docs/adr/002-authentication-strategy.md) - Authentication trait design and flow support
 - [ADR-003](docs/adr/003-error-handling.md) - Error hierarchy with thiserror
 - [ADR-004](docs/adr/004-feature-gates.md) - Feature flag strategy for API surfaces
+- [ADR-005](docs/adr/005-compile-time-auth-safety.md) - Compile-time authentication safety with phantom types
+- [ADR-006](docs/adr/006-handler-pattern.md) - Handler pattern for API organization
+- [ADR-007](docs/adr/007-rest-api-design.md) - REST API design decisions and type patterns
 
 ## Contributing
 

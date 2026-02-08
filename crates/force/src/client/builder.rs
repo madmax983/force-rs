@@ -78,6 +78,7 @@ impl<A: Authenticator> AuthenticatedBuilder<A> {
     ///
     /// Returns an error if:
     /// - HTTP client construction fails
+    #[allow(clippy::unused_async)]  // Async signature for future auth initialization
     pub async fn build(self) -> Result<ForceClient<A>> {
         use crate::client::Inner;
         use std::sync::Arc;

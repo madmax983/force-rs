@@ -41,6 +41,7 @@ wiremock = { workspace = true, optional = true }
 tokio-test = "0.4"
 anyhow = { workspace = true }
 wiremock = { workspace = true }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 [features]
 default = ["rest"]

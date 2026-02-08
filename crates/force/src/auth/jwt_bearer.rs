@@ -31,7 +31,7 @@ use crate::error::{AuthenticationError, ForceError, HttpError, Result};
 #[cfg(feature = "jwt")]
 use async_trait::async_trait;
 #[cfg(feature = "jwt")]
-use jsonwebtoken::{encode, EncodingKey, Header};
+use jsonwebtoken::{EncodingKey, Header, encode};
 #[cfg(feature = "jwt")]
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "jwt")]
@@ -94,9 +94,9 @@ impl JwtBearerFlow {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_err(|e| {
-                ForceError::Authentication(AuthenticationError::JwtCreationFailed(
-                    format!("System time error: {e}")
-                ))
+                ForceError::Authentication(AuthenticationError::JwtCreationFailed(format!(
+                    "System time error: {e}"
+                )))
             })?
             .as_secs();
 
@@ -107,12 +107,16 @@ impl JwtBearerFlow {
             exp: now + 300, // JWT valid for 5 minutes
         };
 
-        encode(&Header::new(jsonwebtoken::Algorithm::RS256), &claims, &self.private_key)
-            .map_err(|e| {
-                ForceError::Authentication(AuthenticationError::JwtCreationFailed(
-                    format!("JWT encoding failed: {e}")
-                ))
-            })
+        encode(
+            &Header::new(jsonwebtoken::Algorithm::RS256),
+            &claims,
+            &self.private_key,
+        )
+        .map_err(|e| {
+            ForceError::Authentication(AuthenticationError::JwtCreationFailed(format!(
+                "JWT encoding failed: {e}"
+            )))
+        })
     }
 }
 
@@ -270,15 +274,18 @@ impl JwtBearerBuilder {
             ))
         })?;
 
-        let private_key = EncodingKey::from_rsa_pem(private_key_pem.as_bytes())
-            .map_err(|e| {
-                ForceError::Authentication(AuthenticationError::InvalidJwtConfig(
-                    format!("Invalid RSA private key: {e}")
-                ))
-            })?;
+        let private_key = EncodingKey::from_rsa_pem(private_key_pem.as_bytes()).map_err(|e| {
+            ForceError::Authentication(AuthenticationError::InvalidJwtConfig(format!(
+                "Invalid RSA private key: {e}"
+            )))
+        })?;
 
-        let audience = self.audience.unwrap_or_else(|| "https://login.salesforce.com".to_string());
-        let token_url = self.token_url.unwrap_or_else(|| "https://login.salesforce.com/services/oauth2/token".to_string());
+        let audience = self
+            .audience
+            .unwrap_or_else(|| "https://login.salesforce.com".to_string());
+        let token_url = self
+            .token_url
+            .unwrap_or_else(|| "https://login.salesforce.com/services/oauth2/token".to_string());
         let http_client = self.http_client.unwrap_or_else(reqwest::Client::new);
 
         Ok(JwtBearerFlow {
@@ -389,7 +396,8 @@ QcWLHR6ul3bFRWNhXoThNBQ=
             .build();
 
         assert!(result.is_err());
-        if let Err(ForceError::Authentication(AuthenticationError::InvalidJwtConfig(msg))) = result {
+        if let Err(ForceError::Authentication(AuthenticationError::InvalidJwtConfig(msg))) = result
+        {
             assert!(msg.contains("Invalid RSA private key"));
         } else {
             panic!("Expected InvalidJwtConfig error");
