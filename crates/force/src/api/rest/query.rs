@@ -89,16 +89,47 @@ impl<A: crate::auth::Authenticator> ForceClient<A> {
     ///     println!("{:?}", record);
     /// }
     /// ```
-    #[allow(clippy::unused_async)]  // Async signature needed for future implementation
-    pub async fn query<T>(&self, _soql: &str) -> Result<QueryResult<T>, ForceError>
+    pub async fn query<T>(&self, soql: &str) -> Result<QueryResult<T>, ForceError>
     where
         T: DeserializeOwned,
     {
-        // GREEN phase implementation placeholder
-        // Will be implemented once RestHandler is complete (Task #1)
-        Err(ForceError::NotImplemented(
-            "query not yet implemented - blocked on Task #1 RestHandler".to_string(),
-        ))
+        // Get access token
+        let token = self.token().await?;
+
+        // Construct query URL
+        let url = format!(
+            "{}/services/data/{}/query",
+            token.instance_url(),
+            self.config().api_version
+        );
+
+        // Execute query
+        let response = self
+            .inner()
+            .http_client
+            .get(&url)
+            .query(&[("q", soql)])
+            .bearer_auth(token.as_str())
+            .send()
+            .await
+            .map_err(crate::error::HttpError::from)?;
+
+        // Handle error responses
+        if !response.status().is_success() {
+            return Err(crate::error::HttpError::StatusError {
+                status_code: response.status().as_u16(),
+                message: format!("SOQL query failed: {}", response.status()),
+            }
+            .into());
+        }
+
+        // Deserialize response
+        let result = response
+            .json::<QueryResult<T>>()
+            .await
+            .map_err(crate::error::HttpError::from)?;
+
+        Ok(result)
     }
 
     /// Executes a SOQL query and returns a Stream of all results with automatic pagination.
@@ -127,17 +158,17 @@ impl<A: crate::auth::Authenticator> ForceClient<A> {
     ///     }
     /// }
     /// ```
-    pub fn query_all<T>(&self, _soql: &str) -> QueryStream<T, A>
+    pub fn query_all<T>(&self, soql: &str) -> QueryStream<T, A>
     where
         T: DeserializeOwned + Unpin,
     {
-        // GREEN phase implementation placeholder
-        // Will be implemented once RestHandler is complete (Task #1)
+        // Store the initial SOQL query and client for lazy execution
+        // The stream will execute the query on first poll
         QueryStream {
             inner: Arc::clone(self.inner()),
-            next_url: None,
+            next_url: Some(format!("INITIAL:{}", soql)), // Marker for initial query
             current_batch: Vec::new(),
-            done: true,
+            done: false,
             _marker: std::marker::PhantomData,
         }
     }
