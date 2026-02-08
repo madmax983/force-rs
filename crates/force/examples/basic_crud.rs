@@ -17,7 +17,6 @@
 
 use force::auth::ClientCredentials;
 use force::client::builder;
-use force::types::SalesforceId;
 use serde_json::json;
 
 #[tokio::main]
@@ -32,7 +31,11 @@ async fn main() -> anyhow::Result<()> {
         std::env::var("SF_CLIENT_SECRET").expect("SF_CLIENT_SECRET environment variable not set");
 
     println!("═══ Authenticating ═══");
-    let auth = ClientCredentials::new(client_id, client_secret);
+    let auth = ClientCredentials::new(
+        client_id,
+        client_secret,
+        "https://login.salesforce.com/services/oauth2/token",
+    );
     let client = builder().authenticate(auth).build().await?;
     println!("✓ Authentication successful\n");
 
@@ -46,7 +49,8 @@ async fn main() -> anyhow::Result<()> {
         "Description": "Leading provider of innovative solutions"
     });
 
-    let account_id: SalesforceId = client.rest().create("Account", &account_data).await?;
+    let account_response = client.rest().create("Account", &account_data).await?;
+    let account_id = account_response.id.expect("Account ID should be present");
 
     println!("✓ Created Account: {}", account_id);
 
@@ -60,7 +64,8 @@ async fn main() -> anyhow::Result<()> {
         "Title": "Chief Technology Officer"
     });
 
-    let contact_id: SalesforceId = client.rest().create("Contact", &contact_data).await?;
+    let contact_response = client.rest().create("Contact", &contact_data).await?;
+    let contact_id = contact_response.id.expect("Contact ID should be present");
 
     println!("✓ Created Contact: {}\n", contact_id);
 
@@ -69,23 +74,23 @@ async fn main() -> anyhow::Result<()> {
     let account = client.rest().get("Account", &account_id).await?;
 
     println!("Account Details:");
-    println!("  ID: {}", account.get_field::<String>("Id")?);
-    println!("  Name: {}", account.get_field::<String>("Name")?);
-    println!("  Industry: {}", account.get_field::<String>("Industry")?);
-    println!("  Website: {}", account.get_field::<String>("Website")?);
+    println!("  ID: {}", account["Id"].as_str().unwrap_or("N/A"));
+    println!("  Name: {}", account["Name"].as_str().unwrap_or("N/A"));
+    println!("  Industry: {}", account["Industry"].as_str().unwrap_or("N/A"));
+    println!("  Website: {}", account["Website"].as_str().unwrap_or("N/A"));
 
     // READ - Retrieve the Contact
     let contact = client.rest().get("Contact", &contact_id).await?;
 
     println!("\nContact Details:");
-    println!("  ID: {}", contact.get_field::<String>("Id")?);
+    println!("  ID: {}", contact["Id"].as_str().unwrap_or("N/A"));
     println!(
         "  Name: {} {}",
-        contact.get_field::<String>("FirstName")?,
-        contact.get_field::<String>("LastName")?
+        contact["FirstName"].as_str().unwrap_or("N/A"),
+        contact["LastName"].as_str().unwrap_or("N/A")
     );
-    println!("  Email: {}", contact.get_field::<String>("Email")?);
-    println!("  Title: {}\n", contact.get_field::<String>("Title")?);
+    println!("  Email: {}", contact["Email"].as_str().unwrap_or("N/A"));
+    println!("  Title: {}\n", contact["Title"].as_str().unwrap_or("N/A"));
 
     // UPDATE - Modify the Account
     println!("═══ UPDATE ═══");
@@ -122,20 +127,20 @@ async fn main() -> anyhow::Result<()> {
     println!("Updated Account:");
     println!(
         "  Industry: {}",
-        updated_account.get_field::<String>("Industry")?
+        updated_account["Industry"].as_str().unwrap_or("N/A")
     );
     println!(
         "  Employees: {}",
-        updated_account.get_field::<i32>("NumberOfEmployees")?
+        updated_account["NumberOfEmployees"].as_i64().unwrap_or(0)
     );
 
     let updated_contact = client.rest().get("Contact", &contact_id).await?;
 
     println!("\nUpdated Contact:");
-    println!("  Title: {}", updated_contact.get_field::<String>("Title")?);
+    println!("  Title: {}", updated_contact["Title"].as_str().unwrap_or("N/A"));
     println!(
         "  Phone: {}\n",
-        updated_contact.get_field::<String>("Phone")?
+        updated_contact["Phone"].as_str().unwrap_or("N/A")
     );
 
     // UPSERT - Update or insert using external ID
@@ -159,13 +164,10 @@ async fn main() -> anyhow::Result<()> {
         )
         .await?;
 
-    match upsert_result_1 {
-        force::api::rest::UpsertResult::Created(id) => {
-            println!("✓ Created new contact: {}", id);
-        }
-        force::api::rest::UpsertResult::Updated(id) => {
-            println!("✓ Updated existing contact: {}", id);
-        }
+    if upsert_result_1.is_created() {
+        println!("✓ Created new contact: {}", upsert_result_1.id);
+    } else {
+        println!("✓ Updated existing contact: {}", upsert_result_1.id);
     }
 
     // Second upsert - will create new contact (different email)
@@ -187,16 +189,12 @@ async fn main() -> anyhow::Result<()> {
         )
         .await?;
 
-    let jane_id = match upsert_result_2 {
-        force::api::rest::UpsertResult::Created(id) => {
-            println!("✓ Created new contact: {}\n", id);
-            id
-        }
-        force::api::rest::UpsertResult::Updated(id) => {
-            println!("✓ Updated existing contact: {}\n", id);
-            id
-        }
-    };
+    let jane_id = upsert_result_2.id.clone();
+    if upsert_result_2.is_created() {
+        println!("✓ Created new contact: {}\n", jane_id);
+    } else {
+        println!("✓ Updated existing contact: {}\n", jane_id);
+    }
 
     // DELETE - Remove records (cleanup)
     println!("═══ DELETE (Cleanup) ═══");

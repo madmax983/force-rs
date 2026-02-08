@@ -63,9 +63,10 @@ async fn main() -> anyhow::Result<()> {
     while let Some(account) = stream.next().await? {
         count += 1;
         println!(
-            "{}. {} ({})",
+            "{}. {} [{}] ({})",
             count,
             account.name,
+            account.id,
             account.industry.unwrap_or_else(|| "N/A".to_string())
         );
 

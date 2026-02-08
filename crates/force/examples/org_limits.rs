@@ -32,7 +32,11 @@ async fn main() -> anyhow::Result<()> {
     println!("Authenticating with Salesforce...");
 
     // Create client with OAuth 2.0 Client Credentials flow
-    let auth = ClientCredentials::new(client_id, client_secret);
+    let auth = ClientCredentials::new(
+        client_id,
+        client_secret,
+        "https://login.salesforce.com/services/oauth2/token",
+    );
     let client = builder().authenticate(auth).build().await?;
 
     println!("✓ Authentication successful\n");

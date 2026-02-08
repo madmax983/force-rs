@@ -30,7 +30,11 @@ async fn main() -> anyhow::Result<()> {
         std::env::var("SF_CLIENT_SECRET").expect("SF_CLIENT_SECRET environment variable not set");
 
     println!("═══ Authenticating ═══");
-    let auth = ClientCredentials::new(client_id, client_secret);
+    let auth = ClientCredentials::new(
+        client_id,
+        client_secret,
+        "https://login.salesforce.com/services/oauth2/token",
+    );
     let client = builder().authenticate(auth).build().await?;
     println!("✓ Authentication successful\n");
 
@@ -47,17 +51,13 @@ async fn main() -> anyhow::Result<()> {
     let standard_objects: Vec<_> = global_describe
         .sobjects
         .iter()
-        .filter(|obj| !obj.custom && obj.createable && obj.queryable)
+        .filter(|obj| !obj.custom && obj.queryable)
         .take(10)
         .collect();
 
-    println!("\nStandard objects (createable and queryable, first 10):");
+    println!("\nStandard objects (queryable, first 10):");
     for obj in standard_objects {
         println!("  • {} ({})", obj.label, obj.name);
-        println!(
-            "    Updateable: {}, Deletable: {}",
-            obj.updateable, obj.deleteable
-        );
     }
 
     // Filter and display custom objects
@@ -86,11 +86,13 @@ async fn main() -> anyhow::Result<()> {
         account_describe.label, account_describe.name
     );
     println!("Label Plural: {}", account_describe.label_plural);
-    println!("Key Prefix: {}", account_describe.key_prefix);
+    if let Some(key_prefix) = &account_describe.key_prefix {
+        println!("Key Prefix: {}", key_prefix);
+    }
     println!("\nPermissions:");
     println!("  Createable: {}", account_describe.createable);
     println!("  Updateable: {}", account_describe.updateable);
-    println!("  Deleteable: {}", account_describe.deleteable);
+    println!("  Deletable: {}", account_describe.deletable);
     println!("  Queryable: {}", account_describe.queryable);
     println!("  Searchable: {}", account_describe.searchable);
 
@@ -107,8 +109,8 @@ async fn main() -> anyhow::Result<()> {
         println!("\nRequired fields for creation:");
         for field in required_fields {
             println!(
-                "  • {} ({}) - {}",
-                field.label, field.name, field.field_type
+                "  • {} ({}) - {:?}",
+                field.label, field.name, field.type_
             );
         }
     }
@@ -124,7 +126,7 @@ async fn main() -> anyhow::Result<()> {
             .find(|f| &f.name == field_name)
         {
             println!("  • {} ({})", field.label, field.name);
-            println!("    Type: {}, Length: {:?}", field.field_type, field.length);
+            println!("    Type: {:?}, Length: {:?}", field.type_, field.length);
             println!(
                 "    Updateable: {}, Nillable: {}",
                 field.updateable, field.nillable
@@ -145,7 +147,7 @@ async fn main() -> anyhow::Result<()> {
     let relationship_fields: Vec<_> = contact_describe
         .fields
         .iter()
-        .filter(|f| f.field_type == "reference")
+        .filter(|f| matches!(f.type_, force::api::rest::describe::FieldType::Reference))
         .collect();
 
     println!(
@@ -155,19 +157,19 @@ async fn main() -> anyhow::Result<()> {
     for field in relationship_fields.iter().take(10) {
         print!("  • {} ({}) → ", field.label, field.name);
 
-        if let Some(ref_to) = &field.reference_to {
-            if ref_to.len() == 1 {
-                println!("{}", ref_to[0]);
-            } else {
-                println!("{:?}", ref_to);
-            }
-        } else {
+        let ref_to = &field.reference_to;
+        if ref_to.len() == 1 {
+            println!("{}", ref_to[0]);
+        } else if ref_to.is_empty() {
             println!("(unknown)");
+        } else {
+            println!("{:?}", ref_to);
         }
     }
 
     // Child relationships
-    if let Some(child_relationships) = &contact_describe.child_relationships {
+    let child_relationships = &contact_describe.child_relationships;
+    if !child_relationships.is_empty() {
         println!(
             "\nChild relationships ({} total):",
             child_relationships.len()
@@ -191,7 +193,7 @@ async fn main() -> anyhow::Result<()> {
         .find(|f| f.name == "StageName")
     {
         println!("Field: {} ({})", stage_field.label, stage_field.name);
-        println!("Type: {}", stage_field.field_type);
+        println!("Type: {:?}", stage_field.type_);
 
         if let Some(picklist_values) = &stage_field.picklist_values {
             println!("\nAvailable stage values:");
@@ -276,8 +278,8 @@ async fn main() -> anyhow::Result<()> {
         println!("Custom fields on Account ({} total):", custom_fields.len());
         for field in custom_fields.iter().take(10) {
             println!(
-                "  • {} ({}) - {}",
-                field.label, field.name, field.field_type
+                "  • {} ({}) - {:?}",
+                field.label, field.name, field.type_
             );
             if let Some(help) = &field.inline_help_text {
                 println!("    Help: {}", help);
@@ -295,10 +297,11 @@ async fn main() -> anyhow::Result<()> {
         .fields
         .iter()
         .filter(|f| !f.name.starts_with("Is") && f.name != "Id") // Skip boolean and Id for brevity
-        .filter(|f| match f.field_type.as_str() {
-            "address" | "location" | "base64" => false, // Skip complex types
-            _ => true,
-        })
+        .filter(|f| !matches!(f.type_,
+            force::api::rest::describe::FieldType::Address
+            | force::api::rest::describe::FieldType::Location
+            | force::api::rest::describe::FieldType::Base64
+        ))
         .take(15)
         .map(|f| f.name.as_str())
         .collect();
@@ -332,7 +335,7 @@ async fn main() -> anyhow::Result<()> {
             if describe.createable { "✓" } else { "✗" },
             if describe.queryable { "✓" } else { "✗" },
             if describe.updateable { "✓" } else { "✗" },
-            if describe.deleteable { "✓" } else { "✗" },
+            if describe.deletable { "✓" } else { "✗" },
             if describe.searchable { "✓" } else { "✗" },
         );
     }

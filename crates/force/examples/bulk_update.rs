@@ -18,20 +18,15 @@ use force::auth::ClientCredentials;
 use force::client::builder;
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize)]
-struct AccountUpdate {
-    #[serde(rename = "Id")]
-    id: String,
-    #[serde(rename = "Industry")]
-    industry: String,
-}
-
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
 struct Account {
     #[serde(rename = "Id")]
     id: String,
     #[serde(rename = "Name")]
     name: String,
+    #[serde(rename = "Industry")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    industry: Option<String>,
 }
 
 #[tokio::main]
@@ -56,34 +51,26 @@ async fn main() -> anyhow::Result<()> {
 
     // Query for Technology accounts to update
     println!("═══ Querying Accounts ═══");
-    let soql = "SELECT Id, Name FROM Account WHERE Industry = 'Technology' LIMIT 10";
+    let soql = "SELECT Id, Name, Industry FROM Account WHERE Industry = 'Technology' LIMIT 10";
     let mut stream = client.bulk().bulk_query::<Account>(soql).await?;
 
-    let mut account_ids = Vec::new();
-    while let Some(account) = stream.next().await? {
+    let mut accounts = Vec::new();
+    while let Some(mut account) = stream.next().await? {
         println!("Found: {} ({})", account.name, account.id);
-        account_ids.push(account.id);
+        // Update the industry field
+        account.industry = Some("Software".to_string());
+        accounts.push(account);
     }
 
-    if account_ids.is_empty() {
+    if accounts.is_empty() {
         println!("\nNo Technology accounts found to update");
         return Ok(());
     }
 
-    // Prepare bulk update data
-    println!("\n═══ Bulk Update ═══");
-    let updates: Vec<AccountUpdate> = account_ids
-        .iter()
-        .map(|id| AccountUpdate {
-            id: id.clone(),
-            industry: "Software".to_string(),
-        })
-        .collect();
-
-    println!("Updating {} accounts...", updates.len());
-
     // Perform bulk update (creates job, uploads CSV, closes, and polls)
-    let job_info = client.bulk().bulk_update("Account", &updates).await?;
+    println!("\n═══ Bulk Update ═══");
+    println!("Updating {} accounts...", accounts.len());
+    let job_info = client.bulk().bulk_update("Account", &accounts).await?;
 
     println!("\n═══ Results ═══");
     println!("Job ID: {}", job_info.id);

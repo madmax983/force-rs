@@ -86,7 +86,11 @@ async fn main() -> anyhow::Result<()> {
         std::env::var("SF_CLIENT_SECRET").expect("SF_CLIENT_SECRET environment variable not set");
 
     println!("═══ Authenticating ═══");
-    let auth = ClientCredentials::new(client_id, client_secret);
+    let auth = ClientCredentials::new(
+        client_id,
+        client_secret,
+        "https://login.salesforce.com/services/oauth2/token",
+    );
     let client = builder().authenticate(auth).build().await?;
     println!("✓ Authentication successful\n");
 
@@ -98,7 +102,7 @@ async fn main() -> anyhow::Result<()> {
                 ORDER BY Name \
                 LIMIT 10";
 
-    let result = client.rest().query_typed::<Account>(soql).await?;
+    let result = client.query::<Account>(soql).await?;
 
     println!("Found {} total accounts", result.total_size);
     println!("Retrieved {} accounts in this page\n", result.len());
@@ -126,7 +130,7 @@ async fn main() -> anyhow::Result<()> {
 
     let mut page_num = 1;
     let mut total_processed = 0;
-    let mut current_result = client.rest().query_typed::<Contact>(soql_paginated).await?;
+    let mut current_result = client.query::<Contact>(soql_paginated).await?;
 
     println!(
         "Total contacts to retrieve: {}\n",
@@ -166,8 +170,12 @@ async fn main() -> anyhow::Result<()> {
             break;
         }
 
-        // Fetch next page
-        current_result = client.rest().query_more(&current_result).await?;
+        // Fetch next page using the nextRecordsUrl
+        if let Some(next_url) = &current_result.next_records_url {
+            current_result = client.query_more(next_url).await?;
+        } else {
+            break;
+        }
 
         page_num += 1;
     }
@@ -186,8 +194,7 @@ async fn main() -> anyhow::Result<()> {
                              LIMIT 5";
 
     let contacts_result = client
-        .rest()
-        .query_typed::<Contact>(soql_relationship)
+        .query::<Contact>(soql_relationship)
         .await?;
 
     println!("Contacts from Technology companies:\n");
@@ -236,8 +243,7 @@ async fn main() -> anyhow::Result<()> {
                           LIMIT 10";
 
     let stats_result = client
-        .rest()
-        .query_typed::<IndustryStats>(soql_aggregate)
+        .query::<IndustryStats>(soql_aggregate)
         .await?;
 
     println!("Top 10 Industries by Account Count:\n");
@@ -273,8 +279,7 @@ async fn main() -> anyhow::Result<()> {
                       LIMIT 5";
 
     let recent_result = client
-        .rest()
-        .query_typed::<RecentAccount>(soql_dates)
+        .query::<RecentAccount>(soql_dates)
         .await?;
 
     println!(

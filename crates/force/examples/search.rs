@@ -30,7 +30,11 @@ async fn main() -> anyhow::Result<()> {
         std::env::var("SF_CLIENT_SECRET").expect("SF_CLIENT_SECRET environment variable not set");
 
     println!("═══ Authenticating ═══");
-    let auth = ClientCredentials::new(client_id, client_secret);
+    let auth = ClientCredentials::new(
+        client_id,
+        client_secret,
+        "https://login.salesforce.com/services/oauth2/token",
+    );
     let client = builder().authenticate(auth).build().await?;
     println!("✓ Authentication successful\n");
 
@@ -47,7 +51,7 @@ async fn main() -> anyhow::Result<()> {
     );
 
     for search_records in &search_result.search_records {
-        let object_type = search_records.sobject_type();
+        let object_type = &search_records.attributes.type_;
         println!(
             "--- {} (found: {}) ---",
             object_type,
@@ -57,19 +61,20 @@ async fn main() -> anyhow::Result<()> {
         for record in &search_records.records {
             print!("  • ");
 
-            match object_type {
+            match object_type.as_str() {
                 "Account" => {
-                    let id = record.get_field::<String>("Id")?;
-                    let name = record.get_field::<String>("Name")?;
+                    let id = record.get("Id").and_then(|v| v.as_str()).unwrap_or("");
+                    let name = record.get("Name").and_then(|v| v.as_str()).unwrap_or("");
                     println!("{} (ID: {})", name, id);
                 }
                 "Contact" => {
-                    let id = record.get_field::<String>("Id")?;
+                    let id = record.get("Id").and_then(|v| v.as_str()).unwrap_or("");
                     let first = record
-                        .get_field_opt::<String>("FirstName")?
-                        .unwrap_or_default();
-                    let last = record.get_field::<String>("LastName")?;
-                    let email = record.get_field_opt::<String>("Email")?;
+                        .get("FirstName")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
+                    let last = record.get("LastName").and_then(|v| v.as_str()).unwrap_or("");
+                    let email = record.get("Email").and_then(|v| v.as_str());
 
                     print!("{} {} (ID: {})", first, last, id);
                     if let Some(email) = email {
@@ -93,13 +98,14 @@ async fn main() -> anyhow::Result<()> {
     let email_search = client.rest().search(sosl_email).await?;
 
     for search_records in &email_search.search_records {
-        println!("--- {} ---", search_records.sobject_type());
+        println!("--- {} ---", &search_records.attributes.type_);
 
         for record in &search_records.records {
-            let name = record.get_field::<String>("Name")?;
+            let name = record.get("Name").and_then(|v| v.as_str()).unwrap_or("");
             let email = record
-                .get_field_opt::<String>("Email")?
-                .unwrap_or_else(|| "(no email)".to_string());
+                .get("Email")
+                .and_then(|v| v.as_str())
+                .unwrap_or("(no email)");
 
             println!("  • {} - {}", name, email);
         }
@@ -117,15 +123,16 @@ async fn main() -> anyhow::Result<()> {
     for search_records in &filtered_search.search_records {
         println!(
             "--- {} ({}filtered and sorted) ---",
-            search_records.sobject_type(),
+            &search_records.attributes.type_,
             search_records.records.len()
         );
 
         for (idx, record) in search_records.records.iter().enumerate() {
-            let name = record.get_field::<String>("Name")?;
+            let name = record.get("Name").and_then(|v| v.as_str()).unwrap_or("");
             let industry = record
-                .get_field_opt::<String>("Industry")?
-                .unwrap_or_else(|| "(no industry)".to_string());
+                .get("Industry")
+                .and_then(|v| v.as_str())
+                .unwrap_or("(no industry)");
 
             println!("  {}. {} - {}", idx + 1, name, industry);
         }
@@ -147,12 +154,12 @@ async fn main() -> anyhow::Result<()> {
             continue;
         }
 
-        println!("--- {} ---", search_records.sobject_type());
+        println!("--- {} ---", &search_records.attributes.type_);
 
         for record in &search_records.records {
-            let name = record.get_field::<String>("Name")?;
-            let phone = record.get_field_opt::<String>("Phone")?;
-            let mobile = record.get_field_opt::<String>("MobilePhone")?;
+            let name = record.get("Name").and_then(|v| v.as_str()).unwrap_or("");
+            let phone = record.get("Phone").and_then(|v| v.as_str());
+            let mobile = record.get("MobilePhone").and_then(|v| v.as_str());
 
             print!("  • {}", name);
             if let Some(p) = phone {
@@ -182,17 +189,18 @@ async fn main() -> anyhow::Result<()> {
 
         println!(
             "--- {} (found: {}) ---",
-            search_records.sobject_type(),
+            &search_records.attributes.type_,
             search_records.records.len()
         );
 
         for record in &search_records.records {
-            let name = record.get_field::<String>("Name")?;
+            let name = record.get("Name").and_then(|v| v.as_str()).unwrap_or("");
 
-            if search_records.sobject_type() == "Opportunity" {
+            if search_records.attributes.type_ == "Opportunity" {
                 let stage = record
-                    .get_field_opt::<String>("StageName")?
-                    .unwrap_or_default();
+                    .get("StageName")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
                 println!("  • {} [{}]", name, stage);
             } else {
                 println!("  • {}", name);
@@ -210,13 +218,14 @@ async fn main() -> anyhow::Result<()> {
     let advanced_search = client.rest().search(sosl_advanced).await?;
 
     for search_records in &advanced_search.search_records {
-        println!("--- {} ---", search_records.sobject_type());
+        println!("--- {} ---", &search_records.attributes.type_);
 
         for record in &search_records.records {
-            let name = record.get_field::<String>("Name")?;
+            let name = record.get("Name").and_then(|v| v.as_str()).unwrap_or("");
             let country = record
-                .get_field_opt::<String>("BillingCountry")?
-                .unwrap_or_else(|| "Unknown".to_string());
+                .get("BillingCountry")
+                .and_then(|v| v.as_str())
+                .unwrap_or("Unknown");
 
             println!("  • {} ({})", name, country);
         }
@@ -236,7 +245,7 @@ async fn main() -> anyhow::Result<()> {
     for search_records in &summary_search.search_records {
         let count = search_records.records.len();
         total_results += count;
-        println!("  {}: {} results", search_records.sobject_type(), count);
+        println!("  {}: {} results", &search_records.attributes.type_, count);
     }
 
     println!(

@@ -31,7 +31,11 @@ async fn main() -> anyhow::Result<()> {
         std::env::var("SF_CLIENT_SECRET").expect("SF_CLIENT_SECRET environment variable not set");
 
     println!("═══ Authenticating ═══");
-    let auth = ClientCredentials::new(client_id, client_secret);
+    let auth = ClientCredentials::new(
+        client_id,
+        client_secret,
+        "https://login.salesforce.com/services/oauth2/token",
+    );
     let client = builder().authenticate(auth).build().await?;
     println!("✓ Authentication successful\n");
 
@@ -39,21 +43,27 @@ async fn main() -> anyhow::Result<()> {
     println!("═══ EXAMPLE 1: Basic Dynamic Query ═══");
     let soql = "SELECT Id, Name, Industry, Website FROM Account LIMIT 5";
 
-    let result = client.rest().query(soql).await?;
+    let result = client.query::<DynamicSObject>(soql).await?;
 
     println!("Found {} total accounts\n", result.total_size);
 
     for (idx, record) in result.records.iter().enumerate() {
         println!("{}. Record Type: {}", idx + 1, record.object_type());
-        println!("   ID: {}", record.get_field::<String>("Id")?);
-        println!("   Name: {}", record.get_field::<String>("Name")?);
+
+        // Use get_field_as for typed field access
+        if let Some(id) = record.get_field_as::<String>("Id")? {
+            println!("   ID: {}", id);
+        }
+        if let Some(name) = record.get_field_as::<String>("Name")? {
+            println!("   Name: {}", name);
+        }
 
         // Handle optional fields gracefully
-        if let Some(industry) = record.get_field_opt::<String>("Industry")? {
+        if let Some(industry) = record.get_field_as::<String>("Industry")? {
             println!("   Industry: {}", industry);
         }
 
-        if let Some(website) = record.get_field_opt::<String>("Website")? {
+        if let Some(website) = record.get_field_as::<String>("Website")? {
             println!("   Website: {}", website);
         }
         println!();
@@ -63,7 +73,7 @@ async fn main() -> anyhow::Result<()> {
     println!("═══ EXAMPLE 2: Field Introspection ═══");
     let soql2 = "SELECT Id, Name, Email, Phone, Title FROM Contact LIMIT 1";
 
-    let result2 = client.rest().query(soql2).await?;
+    let result2 = client.query::<DynamicSObject>(soql2).await?;
 
     if let Some(first_contact) = result2.records.first() {
         println!("Object Type: {}", first_contact.object_type());
@@ -90,29 +100,32 @@ async fn main() -> anyhow::Result<()> {
                  FROM Account \
                  LIMIT 3";
 
-    let result3 = client.rest().query(soql3).await?;
+    let result3 = client.query::<DynamicSObject>(soql3).await?;
 
     for record in &result3.records {
-        let name = record.get_field::<String>("Name")?;
-        println!("Account: {}", name);
+        if let Some(name) = record.get_field_as::<String>("Name")? {
+            println!("Account: {}", name);
+        }
 
         // Integer field
-        if let Some(employees) = record.get_field_opt::<i32>("NumberOfEmployees")? {
+        if let Some(employees) = record.get_field_as::<i32>("NumberOfEmployees")? {
             println!("  Employees: {}", employees);
         }
 
         // Float field
-        if let Some(revenue) = record.get_field_opt::<f64>("AnnualRevenue")? {
+        if let Some(revenue) = record.get_field_as::<f64>("AnnualRevenue")? {
             println!("  Revenue: ${:.2}", revenue);
         }
 
         // Boolean field
-        let is_deleted = record.get_field::<bool>("IsDeleted")?;
-        println!("  Deleted: {}", is_deleted);
+        if let Some(is_deleted) = record.get_field_as::<bool>("IsDeleted")? {
+            println!("  Deleted: {}", is_deleted);
+        }
 
         // Date field (as string)
-        let created = record.get_field::<String>("CreatedDate")?;
-        println!("  Created: {}", created);
+        if let Some(created) = record.get_field_as::<String>("CreatedDate")? {
+            println!("  Created: {}", created);
+        }
         println!();
     }
 
@@ -120,19 +133,20 @@ async fn main() -> anyhow::Result<()> {
     println!("═══ EXAMPLE 4: Null Value Handling ═══");
     let soql4 = "SELECT Id, Name, Description, Website FROM Account LIMIT 5";
 
-    let result4 = client.rest().query(soql4).await?;
+    let result4 = client.query::<DynamicSObject>(soql4).await?;
 
     for record in &result4.records {
-        let name = record.get_field::<String>("Name")?;
-        println!("Account: {}", name);
+        if let Some(name) = record.get_field_as::<String>("Name")? {
+            println!("Account: {}", name);
+        }
 
         // Option pattern for nullable fields
-        match record.get_field_opt::<String>("Description")? {
+        match record.get_field_as::<String>("Description")? {
             Some(desc) => println!("  Description: {}", desc),
             None => println!("  Description: (none)"),
         }
 
-        match record.get_field_opt::<String>("Website")? {
+        match record.get_field_as::<String>("Website")? {
             Some(web) => println!("  Website: {}", web),
             None => println!("  Website: (none)"),
         }
@@ -147,14 +161,15 @@ async fn main() -> anyhow::Result<()> {
                  WHERE Id IN (SELECT AccountId FROM Contact) \
                  LIMIT 2";
 
-    let result5 = client.rest().query(soql5).await?;
+    let result5 = client.query::<DynamicSObject>(soql5).await?;
 
     for account in &result5.records {
-        let account_name = account.get_field::<String>("Name")?;
-        println!("Account: {}", account_name);
+        if let Some(account_name) = account.get_field_as::<String>("Name")? {
+            println!("Account: {}", account_name);
+        }
 
-        // Access nested subquery results
-        if let Some(contacts_value) = account.get_field_opt::<serde_json::Value>("Contacts")? {
+        // Access nested subquery results using get_field (returns Option<&Value>)
+        if let Some(contacts_value) = account.get_field("Contacts") {
             if let Some(contacts_obj) = contacts_value.as_object() {
                 if let Some(records) = contacts_obj.get("records") {
                     if let Some(records_array) = records.as_array() {
@@ -184,25 +199,28 @@ async fn main() -> anyhow::Result<()> {
     println!("═══ EXAMPLE 6: Error Handling ═══");
     let soql6 = "SELECT Id, Name FROM Account LIMIT 1";
 
-    let result6 = client.rest().query(soql6).await?;
+    let result6 = client.query::<DynamicSObject>(soql6).await?;
 
     if let Some(record) = result6.records.first() {
         // This will work
-        match record.get_field::<String>("Name") {
-            Ok(name) => println!("✓ Successfully got Name: {}", name),
+        match record.get_field_as::<String>("Name") {
+            Ok(Some(name)) => println!("✓ Successfully got Name: {}", name),
+            Ok(None) => println!("✗ Name field is null"),
             Err(e) => println!("✗ Error getting Name: {}", e),
         }
 
-        // This will error - field not in query
-        match record.get_field::<String>("Industry") {
-            Ok(industry) => println!("✓ Industry: {}", industry),
-            Err(e) => println!("✗ Expected error for Industry (not queried): {}", e),
+        // This will return None - field not in query
+        match record.get_field_as::<String>("Industry") {
+            Ok(Some(industry)) => println!("✓ Industry: {}", industry),
+            Ok(None) => println!("✓ Industry field not present (as expected)"),
+            Err(e) => println!("✗ Error deserializing Industry: {}", e),
         }
 
         // Safe way to check for fields
         if record.has_field("Industry") {
-            let industry = record.get_field::<String>("Industry")?;
-            println!("Industry: {}", industry);
+            if let Some(industry) = record.get_field_as::<String>("Industry")? {
+                println!("Industry: {}", industry);
+            }
         } else {
             println!("✓ Industry field not present (as expected)");
         }
@@ -214,13 +232,13 @@ async fn main() -> anyhow::Result<()> {
                  WHERE AnnualRevenue != null \
                  LIMIT 10";
 
-    let result7 = client.rest().query(soql7).await?;
+    let result7 = client.query::<DynamicSObject>(soql7).await?;
 
     // Collect revenue values
     let revenues: Vec<f64> = result7
         .records
         .iter()
-        .filter_map(|record| record.get_field_opt::<f64>("AnnualRevenue").ok().flatten())
+        .filter_map(|record| record.get_field_as::<f64>("AnnualRevenue").ok().flatten())
         .collect();
 
     if !revenues.is_empty() {
