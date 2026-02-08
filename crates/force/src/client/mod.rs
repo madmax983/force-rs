@@ -90,6 +90,22 @@ impl<A: crate::auth::Authenticator> ForceClient<A> {
     pub fn rest(&self) -> crate::api::rest::RestHandler<A> {
         crate::api::rest::RestHandler::new(Arc::clone(&self.inner))
     }
+
+    /// Creates a Bulk API 2.0 handler for this client.
+    ///
+    /// The Bulk handler provides access to high-volume data operations and bulk queries.
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// let client = builder().authenticate(auth).build().await?;
+    /// let bulk = client.bulk();
+    /// ```
+    #[cfg(feature = "bulk")]
+    #[must_use]
+    pub fn bulk(&self) -> crate::api::bulk::BulkHandler<A> {
+        crate::api::bulk::BulkHandler::new(Arc::clone(&self.inner))
+    }
 }
 
 #[cfg(test)]

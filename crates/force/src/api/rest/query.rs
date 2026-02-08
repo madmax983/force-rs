@@ -17,7 +17,7 @@ use std::task::{Context, Poll};
 /// This stream fetches pages on-demand using `nextRecordsUrl` until all
 /// results are retrieved.
 #[derive(Debug)]
-#[allow(dead_code)]  // Will be used when query() is implemented
+#[allow(dead_code)] // Will be used when query() is implemented
 pub struct QueryStream<T, A: crate::auth::Authenticator> {
     inner: Arc<crate::client::Inner<A>>,
     next_url: Option<String>,
@@ -28,7 +28,7 @@ pub struct QueryStream<T, A: crate::auth::Authenticator> {
 
 impl<T, A: crate::auth::Authenticator> QueryStream<T, A> {
     /// Creates a new query stream from an initial query result.
-    #[allow(dead_code)]  // Will be used when query() is implemented
+    #[allow(dead_code)] // Will be used when query() is implemented
     fn new(inner: Arc<crate::client::Inner<A>>, initial_result: QueryResult<T>) -> Self {
         Self {
             inner,

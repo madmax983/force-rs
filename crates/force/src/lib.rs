@@ -25,7 +25,7 @@
 #![allow(clippy::collapsible_if)]
 #![allow(clippy::unwrap_or_default)]
 #![allow(clippy::useless_format)]
-#![allow(dead_code)]  // Phase 2 in progress, some placeholder code exists
+#![allow(dead_code)] // Phase 2 in progress, some placeholder code exists
 
 pub mod api;
 pub mod auth;
