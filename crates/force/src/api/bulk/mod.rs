@@ -11,8 +11,67 @@ pub mod types;
 pub mod csv;
 
 use crate::error::Result;
+use std::time::Duration;
 use std::sync::Arc;
 use types::{CreateJobRequest, JobInfo, UpdateJobRequest};
+
+/// Polling behavior for asynchronous Bulk API jobs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BulkPollPolicy {
+    /// Maximum number of polling retries while a job remains non-terminal.
+    pub max_attempts: u32,
+    /// Initial backoff delay before the next poll attempt.
+    pub initial_backoff: Duration,
+    /// Upper bound for exponential polling backoff.
+    pub max_backoff: Duration,
+}
+
+impl BulkPollPolicy {
+    /// Creates a new polling policy.
+    #[must_use]
+    pub const fn new(
+        max_attempts: u32,
+        initial_backoff: Duration,
+        max_backoff: Duration,
+    ) -> Self {
+        Self {
+            max_attempts,
+            initial_backoff,
+            max_backoff,
+        }
+    }
+
+    #[must_use]
+    fn backoff_for_attempt(self, attempt: u32) -> Duration {
+        let shift = attempt.min(31);
+        let multiplier = 1_u32 << shift;
+        let Some(backoff) = self.initial_backoff.checked_mul(multiplier) else {
+            return self.max_backoff;
+        };
+        backoff.min(self.max_backoff)
+    }
+
+    #[must_use]
+    fn timeout_seconds(self) -> u64 {
+        let mut total = Duration::ZERO;
+        let mut attempt = 0;
+        while attempt < self.max_attempts {
+            total = total.saturating_add(self.backoff_for_attempt(attempt));
+            attempt += 1;
+        }
+        total.as_secs()
+    }
+}
+
+impl Default for BulkPollPolicy {
+    fn default() -> Self {
+        Self {
+            max_attempts: 10,
+            initial_backoff: Duration::from_secs(1),
+            max_backoff: Duration::from_secs(30),
+        }
+    }
+}
 
 /// Bulk API 2.0 handler for performing Salesforce bulk operations.
 ///
@@ -523,26 +582,47 @@ impl<A: crate::auth::Authenticator> BulkHandler<A> {
     where
         T: for<'de> serde::Deserialize<'de>,
     {
+        self.bulk_query_with_policy(soql, BulkPollPolicy::default())
+            .await
+    }
+
+    /// Creates a bulk query job with a custom polling policy and returns a stream of results.
+    ///
+    /// This variant lets callers tune polling behavior for long-running jobs.
+    #[cfg(feature = "bulk")]
+    pub async fn bulk_query_with_policy<T>(
+        &self,
+        soql: &str,
+        poll_policy: BulkPollPolicy,
+    ) -> Result<query::BulkQueryStream<T, A>>
+    where
+        T: for<'de> serde::Deserialize<'de>,
+    {
         use query::BulkQueryRequest;
-        use std::time::Duration;
-        use types::JobState;
 
         // Create query job
         let request = BulkQueryRequest::new(soql);
         let job = self.create_query_job(request).await?;
+        self.poll_query_job_until_complete(&job.id, poll_policy).await?;
 
-        // Poll until complete with exponential backoff
-        #[allow(clippy::items_after_statements)]
-        const MAX_ATTEMPTS: u32 = 10;
-        #[allow(clippy::items_after_statements)]
-        const MAX_BACKOFF_SECS: u64 = 30;
+        // Return results stream
+        self.query_results(&job.id).await
+    }
+
+    #[cfg(feature = "bulk")]
+    async fn poll_query_job_until_complete(
+        &self,
+        job_id: &str,
+        poll_policy: BulkPollPolicy,
+    ) -> Result<()> {
+        use types::JobState;
 
         let mut attempt = 0;
         loop {
-            let job_info = self.get_query_job(&job.id).await?;
+            let job_info = self.get_query_job(job_id).await?;
 
             match job_info.state {
-                JobState::JobComplete => break,
+                JobState::JobComplete => return Ok(()),
                 JobState::Failed => {
                     return Err(crate::error::HttpError::StatusError {
                         status_code: 500,
@@ -558,22 +638,18 @@ impl<A: crate::auth::Authenticator> BulkHandler<A> {
                     .into());
                 }
                 _ => {
-                    if attempt >= MAX_ATTEMPTS {
+                    if attempt >= poll_policy.max_attempts {
                         return Err(crate::error::HttpError::Timeout {
-                            timeout_seconds: MAX_BACKOFF_SECS * u64::from(MAX_ATTEMPTS),
+                            timeout_seconds: poll_policy.timeout_seconds(),
                         }
                         .into());
                     }
 
-                    let backoff_secs = std::cmp::min(2_u64.pow(attempt), MAX_BACKOFF_SECS);
-                    tokio::time::sleep(Duration::from_secs(backoff_secs)).await;
+                    tokio::time::sleep(poll_policy.backoff_for_attempt(attempt)).await;
                     attempt += 1;
                 }
             }
         }
-
-        // Return results stream
-        self.query_results(&job.id).await
     }
 }
 #[cfg(test)]
@@ -1562,6 +1638,126 @@ use crate::test_support::{Must, MustMsg};
 
         let soql = "SELECT Id FROM InvalidObject";
         let result = handler.bulk_query::<Account>(soql).await;
+        assert!(result.is_err());
+    }
+
+    #[cfg(feature = "bulk")]
+    #[tokio::test]
+    async fn test_bulk_query_with_policy_retries_then_succeeds() {
+        use serde::Deserialize;
+        use std::time::Duration;
+
+        #[derive(Deserialize, Debug)]
+        struct Account {
+            #[serde(rename = "Id")]
+            id: String,
+        }
+
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/services/data/v60.0/jobs/query"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "id": "750xx0000000010AAA",
+                "operation": "query",
+                "state": "UploadComplete",
+                "createdDate": "2024-01-01T00:00:00.000Z",
+                "createdById": "005xx0000000001AAA"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path("/services/data/v60.0/jobs/query/750xx0000000010AAA"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "id": "750xx0000000010AAA",
+                "operation": "query",
+                "state": "InProgress",
+                "createdDate": "2024-01-01T00:00:00.000Z",
+                "createdById": "005xx0000000001AAA"
+            })))
+            .up_to_n_times(1)
+            .mount(&mock_server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path("/services/data/v60.0/jobs/query/750xx0000000010AAA"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "id": "750xx0000000010AAA",
+                "operation": "query",
+                "state": "JobComplete",
+                "createdDate": "2024-01-01T00:00:00.000Z",
+                "createdById": "005xx0000000001AAA",
+                "numberRecordsProcessed": 1
+            })))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path("/services/data/v60.0/jobs/query/750xx0000000010AAA/results"))
+            .respond_with(ResponseTemplate::new(200).set_body_string("Id\n001xx0000000001AAA\n"))
+            .mount(&mock_server)
+            .await;
+
+        let client = create_test_client(mock_server.uri()).await;
+        let handler = client.bulk();
+        let policy = BulkPollPolicy::new(2, Duration::from_millis(1), Duration::from_millis(1));
+
+        let mut results = handler
+            .bulk_query_with_policy::<Account>("SELECT Id FROM Account LIMIT 1", policy)
+            .await
+            .must();
+        let record = results.next().await.must().must();
+        assert_eq!(record.id, "001xx0000000001AAA");
+    }
+
+    #[cfg(feature = "bulk")]
+    #[tokio::test]
+    async fn test_bulk_query_with_policy_times_out_immediately_when_attempts_are_zero() {
+        use serde::Deserialize;
+        use std::time::Duration;
+
+        #[derive(Deserialize, Debug)]
+        struct Account {
+            #[serde(rename = "Id")]
+            id: String,
+        }
+
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/services/data/v60.0/jobs/query"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "id": "750xx0000000011AAA",
+                "operation": "query",
+                "state": "UploadComplete",
+                "createdDate": "2024-01-01T00:00:00.000Z",
+                "createdById": "005xx0000000001AAA"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path("/services/data/v60.0/jobs/query/750xx0000000011AAA"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "id": "750xx0000000011AAA",
+                "operation": "query",
+                "state": "InProgress",
+                "createdDate": "2024-01-01T00:00:00.000Z",
+                "createdById": "005xx0000000001AAA"
+            })))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let client = create_test_client(mock_server.uri()).await;
+        let handler = client.bulk();
+        let policy = BulkPollPolicy::new(0, Duration::from_millis(1), Duration::from_millis(1));
+        let result = handler
+            .bulk_query_with_policy::<Account>("SELECT Id FROM Account LIMIT 1", policy)
+            .await;
+
         assert!(result.is_err());
     }
 }
