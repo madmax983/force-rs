@@ -116,17 +116,14 @@ impl<A: crate::auth::Authenticator> BulkHandler<A> {
     /// ```
     pub async fn create_job(&self, request: CreateJobRequest) -> Result<JobInfo> {
         let url = self.base_url().await?;
-        let token = self.inner.token_manager.token().await?;
-
-        let response = self
+        let request = self
             .inner
             .http_client
             .post(&url)
-            .bearer_auth(token.as_str())
             .json(&request)
-            .send()
-            .await
+            .build()
             .map_err(crate::error::HttpError::from)?;
+        let response = self.inner.execute_request(request).await?;
 
         if !response.status().is_success() {
             return Err(crate::error::HttpError::StatusError {
@@ -167,16 +164,13 @@ impl<A: crate::auth::Authenticator> BulkHandler<A> {
     /// ```
     pub async fn get_job(&self, job_id: &str) -> Result<JobInfo> {
         let url = format!("{}/{}", self.base_url().await?, job_id);
-        let token = self.inner.token_manager.token().await?;
-
-        let response = self
+        let request = self
             .inner
             .http_client
             .get(&url)
-            .bearer_auth(token.as_str())
-            .send()
-            .await
+            .build()
             .map_err(crate::error::HttpError::from)?;
+        let response = self.inner.execute_request(request).await?;
 
         if !response.status().is_success() {
             return Err(crate::error::HttpError::StatusError {
@@ -225,17 +219,14 @@ impl<A: crate::auth::Authenticator> BulkHandler<A> {
     /// ```
     pub async fn update_job(&self, job_id: &str, request: UpdateJobRequest) -> Result<JobInfo> {
         let url = format!("{}/{}", self.base_url().await?, job_id);
-        let token = self.inner.token_manager.token().await?;
-
-        let response = self
+        let request = self
             .inner
             .http_client
             .patch(&url)
-            .bearer_auth(token.as_str())
             .json(&request)
-            .send()
-            .await
+            .build()
             .map_err(crate::error::HttpError::from)?;
+        let response = self.inner.execute_request(request).await?;
 
         if !response.status().is_success() {
             return Err(crate::error::HttpError::StatusError {
@@ -275,16 +266,13 @@ impl<A: crate::auth::Authenticator> BulkHandler<A> {
     /// ```
     pub async fn delete_job(&self, job_id: &str) -> Result<()> {
         let url = format!("{}/{}", self.base_url().await?, job_id);
-        let token = self.inner.token_manager.token().await?;
-
-        let response = self
+        let request = self
             .inner
             .http_client
             .delete(&url)
-            .bearer_auth(token.as_str())
-            .send()
-            .await
+            .build()
             .map_err(crate::error::HttpError::from)?;
+        let response = self.inner.execute_request(request).await?;
 
         if !response.status().is_success() {
             return Err(crate::error::HttpError::StatusError {
@@ -584,9 +572,9 @@ impl<A: crate::auth::Authenticator> BulkHandler<A> {
         self.query_results(&job.id).await
     }
 }
-
 #[cfg(test)]
 mod tests {
+use crate::test_support::{Must, MustMsg};
     use super::*;
     use crate::auth::{AccessToken, Authenticator, TokenResponse};
     use crate::client::{ForceClient, builder};
@@ -637,7 +625,7 @@ mod tests {
             .authenticate(auth)
             .build()
             .await
-            .expect("failed to create test client")
+            .must_msg("failed to create test client")
     }
 
     #[cfg(feature = "bulk")]
@@ -658,8 +646,8 @@ mod tests {
         let handler2 = handler1.clone();
 
         // Both should produce the same base URL
-        let url1 = handler1.base_url().await.unwrap();
-        let url2 = handler2.base_url().await.unwrap();
+        let url1 = handler1.base_url().await.must();
+        let url2 = handler2.base_url().await.must();
         assert_eq!(url1, url2);
     }
 
@@ -670,7 +658,7 @@ mod tests {
         let client = create_test_client(mock_server.uri()).await;
         let handler = client.bulk();
 
-        let base_url = handler.base_url().await.unwrap();
+        let base_url = handler.base_url().await.must();
         assert!(base_url.contains(&mock_server.uri()));
         assert!(base_url.contains("/services/data/"));
         assert!(base_url.ends_with("v60.0/jobs/ingest")); // Default API version
@@ -687,10 +675,10 @@ mod tests {
             .config(config)
             .build()
             .await
-            .unwrap();
+            .must();
 
         let handler = client.bulk();
-        let base_url = handler.base_url().await.unwrap();
+        let base_url = handler.base_url().await.must();
 
         assert!(base_url.ends_with("v59.0/jobs/ingest"));
     }
@@ -728,7 +716,7 @@ mod tests {
             column_delimiter: None,
         };
 
-        let job = handler.create_job(request).await.unwrap();
+        let job = handler.create_job(request).await.must();
         assert_eq!(job.id, "750xx0000000001AAA");
         assert_eq!(job.operation, JobOperation::Insert);
         assert_eq!(job.object, "Account");
@@ -767,7 +755,7 @@ mod tests {
             column_delimiter: None,
         };
 
-        let job = handler.create_job(request).await.unwrap();
+        let job = handler.create_job(request).await.must();
         assert_eq!(job.operation, JobOperation::Upsert);
         assert_eq!(
             job.external_id_field_name,
@@ -826,7 +814,7 @@ mod tests {
         let client = create_test_client(mock_server.uri()).await;
         let handler = client.bulk();
 
-        let job = handler.get_job("750xx0000000001AAA").await.unwrap();
+        let job = handler.get_job("750xx0000000001AAA").await.must();
         assert_eq!(job.id, "750xx0000000001AAA");
         assert_eq!(job.state, JobState::JobComplete);
         assert_eq!(job.number_records_processed, Some(100));
@@ -881,7 +869,7 @@ mod tests {
         let job = handler
             .update_job("750xx0000000001AAA", request)
             .await
-            .unwrap();
+            .must();
         assert_eq!(job.state, JobState::UploadComplete);
     }
 
@@ -1030,7 +1018,7 @@ mod tests {
             },
         ];
 
-        let job_info = handler.bulk_insert("Account", &records).await.unwrap();
+        let job_info = handler.bulk_insert("Account", &records).await.must();
         assert_eq!(job_info.state, JobState::JobComplete);
         assert_eq!(job_info.number_records_processed, Some(2));
         assert_eq!(job_info.number_records_failed, Some(0));
@@ -1107,11 +1095,11 @@ mod tests {
                 name: "Valid Account".to_string(),
             },
             Account {
-                name: "".to_string(), // Invalid - empty name
+                name: String::new(), // Invalid - empty name
             },
         ];
 
-        let job_info = handler.bulk_insert("Account", &records).await.unwrap();
+        let job_info = handler.bulk_insert("Account", &records).await.must();
         assert_eq!(job_info.state, JobState::JobComplete);
         assert_eq!(job_info.number_records_failed, Some(2));
     }
@@ -1195,7 +1183,7 @@ mod tests {
             },
         ];
 
-        let job_info = handler.bulk_update("Account", &records).await.unwrap();
+        let job_info = handler.bulk_update("Account", &records).await.must();
         assert_eq!(job_info.operation, JobOperation::Update);
         assert_eq!(job_info.state, JobState::JobComplete);
     }
@@ -1264,7 +1252,7 @@ mod tests {
             "001xx0000000003AAA".to_string(),
         ];
 
-        let job_info = handler.bulk_delete("Account", &ids).await.unwrap();
+        let job_info = handler.bulk_delete("Account", &ids).await.must();
         assert_eq!(job_info.operation, JobOperation::Delete);
         assert_eq!(job_info.state, JobState::JobComplete);
         assert_eq!(job_info.number_records_processed, Some(5));
@@ -1329,11 +1317,75 @@ mod tests {
 
         let ids = vec!["001xx0000000001AAA".to_string(), "INVALID_ID".to_string()];
 
-        let job_info = handler.bulk_delete("Account", &ids).await.unwrap();
+        let job_info = handler.bulk_delete("Account", &ids).await.must();
         assert_eq!(job_info.number_records_failed, Some(1));
     }
 
-    // Note: bulk_query() is tested via examples/bulk_query.rs (compiles and demonstrates correct usage)
+    #[cfg(feature = "bulk")]
+    #[tokio::test]
+    async fn test_bulk_query_success() {
+        use serde::Deserialize;
+
+        #[derive(Deserialize, Debug)]
+        struct Account {
+            #[serde(rename = "Id")]
+            id: String,
+            #[serde(rename = "Name")]
+            name: String,
+        }
+
+        let mock_server = MockServer::start().await;
+
+        // Mock: Create query job
+        Mock::given(method("POST"))
+            .and(path("/services/data/v60.0/jobs/query"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "id": "750xx0000000006AAA",
+                "operation": "query",
+                "state": "UploadComplete",
+                "createdDate": "2024-01-01T00:00:00.000Z",
+                "createdById": "005xx0000000001AAA"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        // Mock: Poll query job
+        Mock::given(method("GET"))
+            .and(path("/services/data/v60.0/jobs/query/750xx0000000006AAA"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "id": "750xx0000000006AAA",
+                "operation": "query",
+                "state": "JobComplete",
+                "createdDate": "2024-01-01T00:00:00.000Z",
+                "createdById": "005xx0000000001AAA",
+                "numberRecordsProcessed": 2
+            })))
+            .mount(&mock_server)
+            .await;
+
+        // Mock: Download results
+        Mock::given(method("GET"))
+            .and(path("/services/data/v60.0/jobs/query/750xx0000000006AAA/results"))
+            .respond_with(ResponseTemplate::new(200).set_body_string(
+                "Id,Name\n001xx0000000001AAA,Acme Corp\n001xx0000000002AAA,Global Industries\n",
+            ))
+            .mount(&mock_server)
+            .await;
+
+        let client = create_test_client(mock_server.uri()).await;
+        let handler = client.bulk();
+
+        let soql = "SELECT Id, Name FROM Account WHERE Industry = 'Technology'";
+        let mut results = handler.bulk_query::<Account>(soql).await.must();
+
+        let mut count = 0;
+        while let Some(record) = results.next().await.must() {
+            count += 1;
+            assert!(!record.id.is_empty());
+            assert!(!record.name.is_empty());
+        }
+        assert_eq!(count, 2);
+    }
 
     #[cfg(feature = "bulk")]
     #[tokio::test]
@@ -1385,9 +1437,9 @@ mod tests {
         let handler = client.bulk();
 
         let soql = "SELECT Id FROM Account WHERE Name = 'NonExistent'";
-        let mut results = handler.bulk_query::<Account>(soql).await.unwrap();
+        let mut results = handler.bulk_query::<Account>(soql).await.must();
 
-        let record = results.next().await.unwrap();
+        let record = results.next().await.must();
         assert!(record.is_none());
     }
 
@@ -1509,3 +1561,7 @@ mod tests {
         assert!(result.is_err());
     }
 }
+
+
+
+

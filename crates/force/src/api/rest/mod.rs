@@ -92,16 +92,13 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
     /// ```
     pub async fn limits(&self) -> Result<limits::OrgLimits> {
         let url = format!("{}/limits", self.base_url().await?);
-        let token = self.inner.token_manager.token().await?;
-
-        let response = self
+        let request = self
             .inner
             .http_client
             .get(&url)
-            .bearer_auth(token.as_str())
-            .send()
-            .await
+            .build()
             .map_err(crate::error::HttpError::from)?;
+        let response = self.inner.execute_request(request).await?;
 
         if !response.status().is_success() {
             return Err(crate::error::HttpError::StatusError {
@@ -158,17 +155,14 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
     /// ```
     pub async fn search(&self, sosl: &str) -> Result<search::SearchResult> {
         let url = format!("{}/search", self.base_url().await?);
-        let token = self.inner.token_manager.token().await?;
-
-        let response = self
+        let request = self
             .inner
             .http_client
             .get(&url)
             .query(&[("q", sosl)])
-            .bearer_auth(token.as_str())
-            .send()
-            .await
+            .build()
             .map_err(crate::error::HttpError::from)?;
+        let response = self.inner.execute_request(request).await?;
 
         if !response.status().is_success() {
             return Err(crate::error::HttpError::StatusError {
@@ -211,16 +205,13 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
     /// ```
     pub async fn describe_global(&self) -> Result<describe::GlobalDescribe> {
         let url = format!("{}/sobjects", self.base_url().await?);
-        let token = self.inner.token_manager.token().await?;
-
-        let response = self
+        let request = self
             .inner
             .http_client
             .get(&url)
-            .bearer_auth(token.as_str())
-            .send()
-            .await
+            .build()
             .map_err(crate::error::HttpError::from)?;
+        let response = self.inner.execute_request(request).await?;
 
         if !response.status().is_success() {
             return Err(crate::error::HttpError::StatusError {
@@ -271,16 +262,13 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
             self.base_url().await?,
             sobject_name
         );
-        let token = self.inner.token_manager.token().await?;
-
-        let response = self
+        let request = self
             .inner
             .http_client
             .get(&url)
-            .bearer_auth(token.as_str())
-            .send()
-            .await
+            .build()
             .map_err(crate::error::HttpError::from)?;
+        let response = self.inner.execute_request(request).await?;
 
         if !response.status().is_success() {
             return Err(crate::error::HttpError::StatusError {
@@ -297,9 +285,9 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
         Ok(describe)
     }
 }
-
 #[cfg(test)]
 mod tests {
+use crate::test_support::{Must, MustMsg};
     use crate::auth::{AccessToken, Authenticator, TokenResponse};
     use crate::client::{ForceClient, builder};
     use crate::config::ClientConfigBuilder;
@@ -347,7 +335,7 @@ mod tests {
             .authenticate(auth)
             .build()
             .await
-            .expect("failed to create test client")
+            .must_msg("failed to create test client")
     }
 
     #[tokio::test]
@@ -364,8 +352,8 @@ mod tests {
         let handler2 = handler1.clone();
 
         // Both should produce the same base URL
-        let url1: String = handler1.base_url().await.unwrap();
-        let url2: String = handler2.base_url().await.unwrap();
+        let url1: String = handler1.base_url().await.must();
+        let url2: String = handler2.base_url().await.must();
         assert_eq!(url1, url2);
     }
 
@@ -374,7 +362,7 @@ mod tests {
         let client: ForceClient<MockAuthenticator> = create_test_client().await;
         let handler = client.rest();
 
-        let base_url: String = handler.base_url().await.unwrap();
+        let base_url: String = handler.base_url().await.must();
         assert!(base_url.starts_with("https://test.salesforce.com"));
         assert!(base_url.contains("/services/data/"));
         assert!(base_url.ends_with("v60.0")); // Default API version
@@ -389,10 +377,10 @@ mod tests {
             .config(config)
             .build()
             .await
-            .unwrap();
+            .must();
 
         let handler = client.rest();
-        let base_url = handler.base_url().await.unwrap();
+        let base_url = handler.base_url().await.must();
 
         assert_eq!(
             base_url,
@@ -403,10 +391,10 @@ mod tests {
     #[tokio::test]
     async fn test_base_url_with_different_instance() {
         let auth = MockAuthenticator::new("token", "https://na139.salesforce.com");
-        let client = builder().authenticate(auth).build().await.unwrap();
+        let client = builder().authenticate(auth).build().await.must();
 
         let handler = client.rest();
-        let base_url = handler.base_url().await.unwrap();
+        let base_url = handler.base_url().await.must();
 
         assert!(base_url.starts_with("https://na139.salesforce.com"));
     }
@@ -420,10 +408,10 @@ mod tests {
             .config(config)
             .build()
             .await
-            .unwrap();
+            .must();
 
         let handler = client.rest();
-        let base_url = handler.base_url().await.unwrap();
+        let base_url = handler.base_url().await.must();
 
         // Verify the handler uses the same config as the client
         assert!(base_url.contains("shared.salesforce.com"));
@@ -438,8 +426,8 @@ mod tests {
         let handler2 = client.rest();
 
         // Both should have the same base URL
-        let url1: String = handler1.base_url().await.unwrap();
-        let url2: String = handler2.base_url().await.unwrap();
+        let url1: String = handler1.base_url().await.must();
+        let url2: String = handler2.base_url().await.must();
         assert_eq!(url1, url2);
     }
 
@@ -452,3 +440,7 @@ mod tests {
         assert!(!debug_str.is_empty());
     }
 }
+
+
+
+

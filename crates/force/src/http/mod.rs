@@ -18,6 +18,7 @@ use std::time::Duration;
 ///
 /// The executor manages all HTTP communication with Salesforce, applying
 /// middleware for authentication, retries, and error handling.
+#[derive(Debug, Clone)]
 pub struct HttpExecutor {
     /// The underlying HTTP client.
     client: reqwest::Client,
@@ -48,26 +49,21 @@ impl HttpExecutor {
         }
     }
 
-    /// Executes an HTTP request with full middleware stack.
+    /// Creates a new HTTP executor with a preconfigured reqwest client.
+    #[must_use]
+    pub fn with_client(client: reqwest::Client, max_retries: u32, timeout: Duration) -> Self {
+        Self {
+            client,
+            max_retries,
+            timeout,
+        }
+    }
+
+    /// Executes a request with auth/retry behavior and returns the raw response.
     ///
-    /// This method applies all middleware layers:
-    /// 1. Injects authentication token
-    /// 2. Sends request with timeout
-    /// 3. Handles 401 by triggering refresh callback and retrying
-    /// 4. Handles 429 by respecting Retry-After header
-    /// 5. Handles 503 with exponential backoff
-    /// 6. Parses API errors from response
-    ///
-    /// # Arguments
-    ///
-    /// * `request` - The HTTP request to execute
-    /// * `token` - The access token for authentication
-    /// * `refresh_token` - Async callback to refresh the token on 401
-    ///
-    /// # Returns
-    ///
-    /// The HTTP response on success, or a detailed error.
-    pub async fn execute<F, Fut>(
+    /// This method does not parse non-success status bodies into API errors.
+    /// It is intended for higher-level handlers that need status-dependent behavior.
+    pub async fn execute_response<F, Fut>(
         &self,
         mut request: Request,
         token: &AccessToken,
@@ -91,10 +87,11 @@ impl HttpExecutor {
                 HttpError::InvalidUrl("cannot clone request for retry".to_string())
             })?;
 
-            let response = self
-                .client
-                .execute(req_clone)
+            let response = tokio::time::timeout(self.timeout, self.client.execute(req_clone))
                 .await
+                .map_err(|_| HttpError::Timeout {
+                    timeout_seconds: self.timeout.as_secs(),
+                })?
                 .map_err(HttpError::from)?;
 
             match response.status() {
@@ -115,11 +112,7 @@ impl HttpExecutor {
                         attempt += 1;
                         continue;
                     }
-                    return Err(HttpError::StatusError {
-                        status_code: 401,
-                        message: "Unauthorized after token refresh".to_string(),
-                    }
-                    .into());
+                    return Ok(response);
                 }
                 StatusCode::TOO_MANY_REQUESTS => {
                     // 429: Rate limit - respect Retry-After header
@@ -136,15 +129,55 @@ impl HttpExecutor {
                     attempt += 1;
                     continue;
                 }
-                status if status.is_success() => {
-                    return Ok(response);
-                }
-                status => {
-                    // Parse API error from response body
-                    let error_text = response.text().await.map_err(HttpError::from)?;
-                    return Err(parse_api_error(status.as_u16(), &error_text).into());
-                }
+                _ => return Ok(response),
             }
+        }
+    }
+
+    /// Executes an HTTP request with full middleware stack.
+    ///
+    /// This method applies all middleware layers:
+    /// 1. Injects authentication token
+    /// 2. Sends request with timeout
+    /// 3. Handles 401 by triggering refresh callback and retrying
+    /// 4. Handles 429 by respecting Retry-After header
+    /// 5. Handles 503 with exponential backoff
+    /// 6. Parses API errors from response
+    ///
+    /// # Arguments
+    ///
+    /// * `request` - The HTTP request to execute
+    /// * `token` - The access token for authentication
+    /// * `refresh_token` - Async callback to refresh the token on 401
+    ///
+    /// # Returns
+    ///
+    /// The HTTP response on success, or a detailed error.
+    pub async fn execute<F, Fut>(
+        &self,
+        request: Request,
+        token: &AccessToken,
+        refresh_token: F,
+    ) -> Result<Response>
+    where
+        F: Fn() -> Fut,
+        Fut: std::future::Future<Output = Result<AccessToken>>,
+    {
+        let response = self.execute_response(request, token, refresh_token).await?;
+        let status = response.status();
+
+        if status.is_success() {
+            Ok(response)
+        } else if status == StatusCode::UNAUTHORIZED {
+            Err(HttpError::StatusError {
+                status_code: 401,
+                message: "Unauthorized after token refresh".to_string(),
+            }
+            .into())
+        } else {
+            // Parse API error from response body
+            let error_text = response.text().await.map_err(HttpError::from)?;
+            Err(parse_api_error(status.as_u16(), &error_text).into())
         }
     }
 
@@ -291,3 +324,4 @@ mod unit_tests {
         }
     }
 }
+

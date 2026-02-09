@@ -108,6 +108,10 @@ pub struct BulkQueryStream<T, A: crate::auth::Authenticator> {
     records: Vec<T>,
     /// Index of the next record to return.
     current_index: usize,
+    /// Result locator for the next page (`None` means first page).
+    next_locator: Option<String>,
+    /// Whether the first page has been fetched.
+    first_page_fetched: bool,
     /// Whether all records have been fetched.
     exhausted: bool,
 }
@@ -121,6 +125,8 @@ impl<T, A: crate::auth::Authenticator> BulkQueryStream<T, A> {
             job_id,
             records: Vec::new(),
             current_index: 0,
+            next_locator: None,
+            first_page_fetched: false,
             exhausted: false,
         }
     }
@@ -159,27 +165,37 @@ impl<T, A: crate::auth::Authenticator> BulkQueryStream<T, A> {
 
         // If we have records in the buffer, return the next one
         if self.current_index < self.records.len() {
-            let record = self.records.remove(0);
+            let record = self.records.remove(self.current_index);
             return Ok(Some(record));
+        }
+
+        self.records.clear();
+        self.current_index = 0;
+
+        if self.first_page_fetched && self.next_locator.is_none() {
+            self.exhausted = true;
+            return Ok(None);
         }
 
         // Fetch results from the API
         let token = self.inner.token_manager.token().await?;
-        let url = format!(
+        let mut url = format!(
             "{}/services/data/{}/jobs/query/{}/results",
             token.instance_url(),
             self.inner.config.api_version,
             self.job_id
         );
+        if let Some(locator) = &self.next_locator {
+            url.push_str(&format!("?locator={}", locator));
+        }
 
         let response = self
             .inner
             .http_client
             .get(&url)
-            .bearer_auth(token.as_str())
-            .send()
-            .await
+            .build()
             .map_err(crate::error::HttpError::from)?;
+        let response = self.inner.execute_request(response).await?;
 
         if !response.status().is_success() {
             return Err(handle_error_response(
@@ -189,6 +205,17 @@ impl<T, A: crate::auth::Authenticator> BulkQueryStream<T, A> {
         }
 
         // Get CSV text
+        let locator_header = response
+            .headers()
+            .get("Sforce-Locator")
+            .and_then(|value| value.to_str().ok())
+            .map(std::string::ToString::to_string);
+        self.first_page_fetched = true;
+        self.next_locator = match locator_header.as_deref() {
+            Some("null") | None => None,
+            Some(value) => Some(value.to_string()),
+        };
+
         let csv_text = response
             .text()
             .await
@@ -276,16 +303,13 @@ impl<A: crate::auth::Authenticator> super::BulkHandler<A> {
     pub async fn create_query_job(&self, request: BulkQueryRequest) -> Result<BulkQueryJobInfo> {
         let url = self.query_base_url().await?;
         let inner = self.inner();
-        let token = inner.token_manager.token().await?;
-
-        let response = inner
+        let request = inner
             .http_client
             .post(&url)
-            .bearer_auth(token.as_str())
             .json(&request)
-            .send()
-            .await
+            .build()
             .map_err(crate::error::HttpError::from)?;
+        let response = inner.execute_request(request).await?;
 
         if !response.status().is_success() {
             return Err(handle_error_response(
@@ -326,15 +350,12 @@ impl<A: crate::auth::Authenticator> super::BulkHandler<A> {
     pub async fn get_query_job(&self, job_id: &str) -> Result<BulkQueryJobInfo> {
         let url = format!("{}/{}", self.query_base_url().await?, job_id);
         let inner = self.inner();
-        let token = inner.token_manager.token().await?;
-
-        let response = inner
+        let request = inner
             .http_client
             .get(&url)
-            .bearer_auth(token.as_str())
-            .send()
-            .await
+            .build()
             .map_err(crate::error::HttpError::from)?;
+        let response = inner.execute_request(request).await?;
 
         if !response.status().is_success() {
             return Err(handle_error_response(
@@ -375,20 +396,18 @@ impl<A: crate::auth::Authenticator> super::BulkHandler<A> {
     pub async fn abort_query_job(&self, job_id: &str) -> Result<BulkQueryJobInfo> {
         let url = format!("{}/{}", self.query_base_url().await?, job_id);
         let inner = self.inner();
-        let token = inner.token_manager.token().await?;
 
         let update_request = super::types::UpdateJobRequest {
             state: super::types::JobState::Aborted,
         };
 
-        let response = inner
+        let request = inner
             .http_client
             .patch(&url)
-            .bearer_auth(token.as_str())
             .json(&update_request)
-            .send()
-            .await
+            .build()
             .map_err(crate::error::HttpError::from)?;
+        let response = inner.execute_request(request).await?;
 
         if !response.status().is_success() {
             return Err(handle_error_response(
@@ -427,15 +446,12 @@ impl<A: crate::auth::Authenticator> super::BulkHandler<A> {
     pub async fn delete_query_job(&self, job_id: &str) -> Result<()> {
         let url = format!("{}/{}", self.query_base_url().await?, job_id);
         let inner = self.inner();
-        let token = inner.token_manager.token().await?;
-
-        let response = inner
+        let request = inner
             .http_client
             .delete(&url)
-            .bearer_auth(token.as_str())
-            .send()
-            .await
+            .build()
             .map_err(crate::error::HttpError::from)?;
+        let response = inner.execute_request(request).await?;
 
         if !response.status().is_success() {
             return Err(handle_error_response(
@@ -487,9 +503,9 @@ impl<A: crate::auth::Authenticator> super::BulkHandler<A> {
         ))
     }
 }
-
 #[cfg(test)]
 mod tests {
+use crate::test_support::{Must, MustMsg};
     use super::*;
     use crate::api::bulk::types::JobState;
     use crate::auth::{AccessToken, Authenticator, TokenResponse};
@@ -539,7 +555,7 @@ mod tests {
             .authenticate(auth)
             .build()
             .await
-            .expect("failed to create test client")
+            .must_msg("failed to create test client")
     }
 
     // RED PHASE - Write failing tests first
@@ -554,7 +570,7 @@ mod tests {
     #[test]
     fn test_bulk_query_request_serialization() {
         let request = BulkQueryRequest::new("SELECT Id, Name FROM Contact");
-        let json = serde_json::to_string(&request).unwrap();
+        let json = serde_json::to_string(&request).must();
         assert!(json.contains(r#""query":"SELECT Id, Name FROM Contact""#));
         assert!(json.contains(r#""operation":"query""#));
     }
@@ -565,7 +581,7 @@ mod tests {
         let client = create_test_client(mock_server.uri()).await;
         let handler = client.bulk();
 
-        let base_url = handler.query_base_url().await.unwrap();
+        let base_url = handler.query_base_url().await.must();
         assert!(base_url.contains(&mock_server.uri()));
         assert!(base_url.contains("/services/data/"));
         assert!(base_url.ends_with("v60.0/jobs/query"));
@@ -594,7 +610,7 @@ mod tests {
         let handler = client.bulk();
 
         let request = BulkQueryRequest::new("SELECT Id FROM Account");
-        let job = handler.create_query_job(request).await.unwrap();
+        let job = handler.create_query_job(request).await.must();
 
         assert_eq!(job.id, "750xx0000000001AAA");
         assert_eq!(job.operation, "query");
@@ -625,7 +641,7 @@ mod tests {
 
         let request =
             BulkQueryRequest::new("SELECT Id, Name, (SELECT FirstName FROM Contacts) FROM Account");
-        let job = handler.create_query_job(request).await.unwrap();
+        let job = handler.create_query_job(request).await.must();
 
         assert_eq!(job.id, "750xx0000000002AAA");
     }
@@ -672,7 +688,7 @@ mod tests {
         let client = create_test_client(mock_server.uri()).await;
         let handler = client.bulk();
 
-        let job = handler.get_query_job("750xx0000000001AAA").await.unwrap();
+        let job = handler.get_query_job("750xx0000000001AAA").await.must();
 
         assert_eq!(job.id, "750xx0000000001AAA");
         assert_eq!(job.state, JobState::InProgress);
@@ -700,7 +716,7 @@ mod tests {
         let client = create_test_client(mock_server.uri()).await;
         let handler = client.bulk();
 
-        let job = handler.get_query_job("750xx0000000001AAA").await.unwrap();
+        let job = handler.get_query_job("750xx0000000001AAA").await.must();
 
         assert_eq!(job.state, JobState::JobComplete);
         assert_eq!(job.number_records_processed, Some(1500));
@@ -746,7 +762,7 @@ mod tests {
         let client = create_test_client(mock_server.uri()).await;
         let handler = client.bulk();
 
-        let job = handler.abort_query_job("750xx0000000001AAA").await.unwrap();
+        let job = handler.abort_query_job("750xx0000000001AAA").await.must();
 
         assert_eq!(job.state, JobState::Aborted);
     }
@@ -816,7 +832,7 @@ mod tests {
         let stream = handler
             .query_results::<serde_json::Value>("750xx0000000001AAA")
             .await
-            .unwrap();
+            .must();
 
         assert_eq!(stream.job_id, "750xx0000000001AAA");
         assert!(!stream.exhausted);
@@ -844,10 +860,10 @@ mod tests {
         let mut stream = handler
             .query_results::<serde_json::Value>("750xx0000000001AAA")
             .await
-            .unwrap();
+            .must();
 
         // This will fail in RED phase because next() is not implemented
-        let record = stream.next().await.unwrap();
+        let record = stream.next().await.must();
         assert!(record.is_some());
     }
 
@@ -869,10 +885,40 @@ mod tests {
         let mut stream = handler
             .query_results::<serde_json::Value>("750xx0000000001AAA")
             .await
-            .unwrap();
+            .must();
 
-        let record = stream.next().await.unwrap();
+        let record = stream.next().await.must();
         assert!(record.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_query_results_stream_terminates_after_records_consumed() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path(
+                "/services/data/v60.0/jobs/query/750xx0000000001AAA/results",
+            ))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .insert_header("Sforce-Locator", "null")
+                    .set_body_string("Id,Name\n001xx000000001AAA,Acme\n001xx000000002AAA,Globex"),
+            )
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let client = create_test_client(mock_server.uri()).await;
+        let handler = client.bulk();
+
+        let mut stream = handler
+            .query_results::<serde_json::Value>("750xx0000000001AAA")
+            .await
+            .must();
+
+        assert!(stream.next().await.must().is_some());
+        assert!(stream.next().await.must().is_some());
+        assert!(stream.next().await.must().is_none());
     }
 
     #[tokio::test]
@@ -888,7 +934,7 @@ mod tests {
             "apiVersion": "60.0"
         }"#;
 
-        let info: BulkQueryJobInfo = serde_json::from_str(json).unwrap();
+        let info: BulkQueryJobInfo = serde_json::from_str(json).must();
         assert_eq!(info.id, "750xx0000000001AAA");
         assert_eq!(info.operation, "query");
         assert_eq!(info.state, JobState::JobComplete);
@@ -897,3 +943,8 @@ mod tests {
         assert_eq!(info.api_version, Some("60.0".to_string()));
     }
 }
+
+
+
+
+

@@ -53,21 +53,18 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
     /// });
     ///
     /// let response = client.rest().create("Account", &account_data).await?;
-    /// println!("Created account with ID: {}", response.id.unwrap());
+    /// println!("Created account with ID: {}", response.id.must());
     /// ```
     pub async fn create(&self, sobject: &str, data: &serde_json::Value) -> Result<CreateResponse> {
         let url = format!("{}/sobjects/{}", self.base_url().await?, sobject);
-        let token = self.inner.token_manager.token().await?;
-
-        let response = self
+        let request = self
             .inner
             .http_client
             .post(&url)
-            .bearer_auth(token.as_str())
             .json(data)
-            .send()
-            .await
+            .build()
             .map_err(crate::error::HttpError::from)?;
+        let response = self.inner.execute_request(request).await?;
 
         if response.status().is_success() {
             response
@@ -96,7 +93,7 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
     /// # Examples
     ///
     /// ```ignore
-    /// let account_id = SalesforceId::new("001xx000003DHP0AAO").unwrap();
+    /// let account_id = SalesforceId::new("001xx000003DHP0AAO").must();
     /// let account = client.rest().get("Account", &account_id).await?;
     /// println!("Account name: {}", account["Name"]);
     /// ```
@@ -107,16 +104,13 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
             sobject,
             id.as_str()
         );
-        let token = self.inner.token_manager.token().await?;
-
-        let response = self
+        let request = self
             .inner
             .http_client
             .get(&url)
-            .bearer_auth(token.as_str())
-            .send()
-            .await
+            .build()
             .map_err(crate::error::HttpError::from)?;
+        let response = self.inner.execute_request(request).await?;
 
         if response.status().is_success() {
             response
@@ -154,7 +148,7 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
     ///     "Industry": "Finance"
     /// });
     ///
-    /// let account_id = SalesforceId::new("001xx000003DHP0AAO").unwrap();
+    /// let account_id = SalesforceId::new("001xx000003DHP0AAO").must();
     /// client.rest().update("Account", &account_id, &updates).await?;
     /// ```
     pub async fn update(
@@ -169,17 +163,14 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
             sobject,
             id.as_str()
         );
-        let token = self.inner.token_manager.token().await?;
-
-        let response = self
+        let request = self
             .inner
             .http_client
             .patch(&url)
-            .bearer_auth(token.as_str())
             .json(data)
-            .send()
-            .await
+            .build()
             .map_err(crate::error::HttpError::from)?;
+        let response = self.inner.execute_request(request).await?;
 
         if response.status().is_success() {
             Ok(UpdateResponse::success())
@@ -205,7 +196,7 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
     /// # Examples
     ///
     /// ```ignore
-    /// let account_id = SalesforceId::new("001xx000003DHP0AAO").unwrap();
+    /// let account_id = SalesforceId::new("001xx000003DHP0AAO").must();
     /// client.rest().delete("Account", &account_id).await?;
     /// ```
     pub async fn delete(&self, sobject: &str, id: &SalesforceId) -> Result<DeleteResponse> {
@@ -215,16 +206,13 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
             sobject,
             id.as_str()
         );
-        let token = self.inner.token_manager.token().await?;
-
-        let response = self
+        let request = self
             .inner
             .http_client
             .delete(&url)
-            .bearer_auth(token.as_str())
-            .send()
-            .await
+            .build()
             .map_err(crate::error::HttpError::from)?;
+        let response = self.inner.execute_request(request).await?;
 
         if response.status().is_success() {
             Ok(DeleteResponse::success())
@@ -287,17 +275,14 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
             external_id_field,
             external_id_value
         );
-        let token = self.inner.token_manager.token().await?;
-
-        let response = self
+        let request = self
             .inner
             .http_client
             .patch(&url)
-            .bearer_auth(token.as_str())
             .json(data)
-            .send()
-            .await
+            .build()
             .map_err(crate::error::HttpError::from)?;
+        let response = self.inner.execute_request(request).await?;
 
         match response.status().as_u16() {
             201 => {
@@ -325,13 +310,13 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
         }
     }
 }
-
 #[cfg(test)]
 mod tests {
+use crate::test_support::Must;
     use super::*;
     use crate::auth::{AccessToken, Authenticator, TokenResponse};
     use crate::client::builder;
-    use crate::types::common::ApiError;
+    
     use async_trait::async_trait;
     use serde_json::json;
     use wiremock::matchers::{body_json, header, method, path};
@@ -380,7 +365,7 @@ mod tests {
     async fn test_create_success() {
         let mock_server = MockServer::start().await;
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
-        let client = builder().authenticate(auth).build().await.unwrap();
+        let client = builder().authenticate(auth).build().await.must();
 
         Mock::given(method("POST"))
             .and(path("/services/data/v60.0/sobjects/Account"))
@@ -399,10 +384,10 @@ mod tests {
         let response = rest
             .create("Account", &json!({"Name": "Test Account"}))
             .await
-            .unwrap();
+            .must();
 
         assert!(response.is_success());
-        assert_eq!(response.id.unwrap().as_str(), "001xx000003DHP0AAO");
+        assert_eq!(response.id.must().as_str(), "001xx000003DHP0AAO");
         assert!(response.errors.is_empty());
     }
 
@@ -410,7 +395,7 @@ mod tests {
     async fn test_create_missing_required_field() {
         let mock_server = MockServer::start().await;
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
-        let client = builder().authenticate(auth).build().await.unwrap();
+        let client = builder().authenticate(auth).build().await.must();
 
         Mock::given(method("POST"))
             .and(path("/services/data/v60.0/sobjects/Account"))
@@ -433,7 +418,7 @@ mod tests {
     async fn test_create_invalid_field() {
         let mock_server = MockServer::start().await;
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
-        let client = builder().authenticate(auth).build().await.unwrap();
+        let client = builder().authenticate(auth).build().await.must();
 
         Mock::given(method("POST"))
             .and(path("/services/data/v60.0/sobjects/Account"))
@@ -460,7 +445,7 @@ mod tests {
     async fn test_get_success() {
         let mock_server = MockServer::start().await;
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
-        let client = builder().authenticate(auth).build().await.unwrap();
+        let client = builder().authenticate(auth).build().await.must();
 
         Mock::given(method("GET"))
             .and(path("/services/data/v60.0/sobjects/Contact/003xx000004TmiQAAS"))
@@ -477,8 +462,8 @@ mod tests {
             .await;
 
         let rest = client.rest();
-        let id = SalesforceId::new("003xx000004TmiQAAS").unwrap();
-        let record = rest.get("Contact", &id).await.unwrap();
+        let id = SalesforceId::new("003xx000004TmiQAAS").must();
+        let record = rest.get("Contact", &id).await.must();
 
         assert_eq!(record["Id"], "003xx000004TmiQAAS");
         assert_eq!(record["FirstName"], "John");
@@ -489,7 +474,7 @@ mod tests {
     async fn test_get_not_found() {
         let mock_server = MockServer::start().await;
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
-        let client = builder().authenticate(auth).build().await.unwrap();
+        let client = builder().authenticate(auth).build().await.must();
 
         Mock::given(method("GET"))
             .and(path(
@@ -504,7 +489,7 @@ mod tests {
             .await;
 
         let rest = client.rest();
-        let id = SalesforceId::new("003000000000001").unwrap();
+        let id = SalesforceId::new("003000000000001").must();
         let result = rest.get("Contact", &id).await;
 
         assert!(result.is_err());
@@ -516,7 +501,7 @@ mod tests {
     async fn test_update_success() {
         let mock_server = MockServer::start().await;
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
-        let client = builder().authenticate(auth).build().await.unwrap();
+        let client = builder().authenticate(auth).build().await.must();
 
         Mock::given(method("PATCH"))
             .and(path(
@@ -530,11 +515,11 @@ mod tests {
             .await;
 
         let rest = client.rest();
-        let id = SalesforceId::new("001xx000003DHP0AAO").unwrap();
+        let id = SalesforceId::new("001xx000003DHP0AAO").must();
         let response = rest
             .update("Account", &id, &json!({"Phone": "555-0100"}))
             .await
-            .unwrap();
+            .must();
 
         assert!(response.is_success());
         assert!(response.errors.is_empty());
@@ -544,7 +529,7 @@ mod tests {
     async fn test_update_not_found() {
         let mock_server = MockServer::start().await;
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
-        let client = builder().authenticate(auth).build().await.unwrap();
+        let client = builder().authenticate(auth).build().await.must();
 
         Mock::given(method("PATCH"))
             .and(path(
@@ -559,7 +544,7 @@ mod tests {
             .await;
 
         let rest = client.rest();
-        let id = SalesforceId::new("001000000000002").unwrap();
+        let id = SalesforceId::new("001000000000002").must();
         let result = rest
             .update("Account", &id, &json!({"Phone": "555-0100"}))
             .await;
@@ -571,7 +556,7 @@ mod tests {
     async fn test_update_invalid_field() {
         let mock_server = MockServer::start().await;
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
-        let client = builder().authenticate(auth).build().await.unwrap();
+        let client = builder().authenticate(auth).build().await.must();
 
         Mock::given(method("PATCH"))
             .and(path(
@@ -587,7 +572,7 @@ mod tests {
             .await;
 
         let rest = client.rest();
-        let id = SalesforceId::new("001xx000003DHP0AAO").unwrap();
+        let id = SalesforceId::new("001xx000003DHP0AAO").must();
         let result = rest
             .update("Account", &id, &json!({"BadField": "value"}))
             .await;
@@ -601,7 +586,7 @@ mod tests {
     async fn test_delete_success() {
         let mock_server = MockServer::start().await;
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
-        let client = builder().authenticate(auth).build().await.unwrap();
+        let client = builder().authenticate(auth).build().await.must();
 
         Mock::given(method("DELETE"))
             .and(path(
@@ -614,8 +599,8 @@ mod tests {
             .await;
 
         let rest = client.rest();
-        let id = SalesforceId::new("001xx000003DHP0AAO").unwrap();
-        let response = rest.delete("Account", &id).await.unwrap();
+        let id = SalesforceId::new("001xx000003DHP0AAO").must();
+        let response = rest.delete("Account", &id).await.must();
 
         assert!(response.is_success());
         assert!(response.errors.is_empty());
@@ -625,7 +610,7 @@ mod tests {
     async fn test_delete_not_found() {
         let mock_server = MockServer::start().await;
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
-        let client = builder().authenticate(auth).build().await.unwrap();
+        let client = builder().authenticate(auth).build().await.must();
 
         Mock::given(method("DELETE"))
             .and(path(
@@ -640,7 +625,7 @@ mod tests {
             .await;
 
         let rest = client.rest();
-        let id = SalesforceId::new("001000000000003").unwrap();
+        let id = SalesforceId::new("001000000000003").must();
         let result = rest.delete("Account", &id).await;
 
         assert!(result.is_err());
@@ -652,7 +637,7 @@ mod tests {
     async fn test_upsert_create() {
         let mock_server = MockServer::start().await;
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
-        let client = builder().authenticate(auth).build().await.unwrap();
+        let client = builder().authenticate(auth).build().await.must();
 
         Mock::given(method("PATCH"))
             .and(path(
@@ -679,7 +664,7 @@ mod tests {
                 &json!({"Name": "Acme Corp"}),
             )
             .await
-            .unwrap();
+            .must();
 
         assert!(response.is_success());
         assert!(response.is_created());
@@ -690,7 +675,7 @@ mod tests {
     async fn test_upsert_update() {
         let mock_server = MockServer::start().await;
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
-        let client = builder().authenticate(auth).build().await.unwrap();
+        let client = builder().authenticate(auth).build().await.must();
 
         Mock::given(method("PATCH"))
             .and(path(
@@ -720,7 +705,7 @@ mod tests {
     async fn test_upsert_invalid_external_id_field() {
         let mock_server = MockServer::start().await;
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
-        let client = builder().authenticate(auth).build().await.unwrap();
+        let client = builder().authenticate(auth).build().await.must();
 
         Mock::given(method("PATCH"))
             .and(path(
@@ -742,3 +727,8 @@ mod tests {
         assert!(result.is_err());
     }
 }
+
+
+
+
+

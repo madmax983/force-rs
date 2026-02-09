@@ -111,12 +111,11 @@ impl<A: Authenticator> IngestJob<Open, A> {
             .inner
             .http_client
             .put(&url)
-            .bearer_auth(token.as_str())
             .header("Content-Type", "text/csv")
             .body(data.to_vec())
-            .send()
-            .await
+            .build()
             .map_err(crate::error::HttpError::from)?;
+        let response = self.inner.execute_request(response).await?;
 
         if !response.status().is_success() {
             return Err(crate::error::HttpError::StatusError {
@@ -155,11 +154,10 @@ impl<A: Authenticator> IngestJob<Open, A> {
             .inner
             .http_client
             .patch(&url)
-            .bearer_auth(token.as_str())
             .json(&request)
-            .send()
-            .await
+            .build()
             .map_err(crate::error::HttpError::from)?;
+        let response = self.inner.execute_request(response).await?;
 
         if !response.status().is_success() {
             return Err(crate::error::HttpError::StatusError {
@@ -196,11 +194,10 @@ impl<A: Authenticator> IngestJob<UploadComplete, A> {
             .inner
             .http_client
             .patch(&url)
-            .bearer_auth(token.as_str())
             .json(&request)
-            .send()
-            .await
+            .build()
             .map_err(crate::error::HttpError::from)?;
+        let response = self.inner.execute_request(response).await?;
 
         if !response.status().is_success() {
             return Err(crate::error::HttpError::StatusError {
@@ -321,10 +318,9 @@ impl<A: Authenticator> IngestJob<InProgress, A> {
             .inner
             .http_client
             .get(&url)
-            .bearer_auth(token.as_str())
-            .send()
-            .await
+            .build()
             .map_err(crate::error::HttpError::from)?;
+        let response = self.inner.execute_request(response).await?;
 
         if !response.status().is_success() {
             return Err(crate::error::HttpError::StatusError {
@@ -400,10 +396,9 @@ impl<A: Authenticator> IngestJob<JobComplete, A> {
             .inner
             .http_client
             .get(&url)
-            .bearer_auth(token.as_str())
-            .send()
-            .await
+            .build()
             .map_err(crate::error::HttpError::from)?;
+        let response = self.inner.execute_request(response).await?;
 
         if !response.status().is_success() {
             return Err(crate::error::HttpError::StatusError {
@@ -504,11 +499,10 @@ impl IngestJobBuilder {
         let response = inner
             .http_client
             .post(&url)
-            .bearer_auth(token.as_str())
             .json(&request)
-            .send()
-            .await
+            .build()
             .map_err(crate::error::HttpError::from)?;
+        let response = inner.execute_request(response).await?;
 
         if !response.status().is_success() {
             return Err(crate::error::HttpError::StatusError {
@@ -526,13 +520,11 @@ impl IngestJobBuilder {
         Ok(IngestJob::new(job_info.id, inner))
     }
 }
-
 #[cfg(test)]
 mod tests {
+use crate::test_support::{Must, MustMsg};
     use super::*;
-    use crate::api::bulk::types::{
-        ContentType, CreateJobRequest, JobInfo, JobOperation, JobState, UpdateJobRequest,
-    };
+    use crate::api::bulk::types::JobOperation;
     use crate::auth::{AccessToken, Authenticator, TokenResponse};
     use crate::client::{ForceClient, builder};
     use async_trait::async_trait;
@@ -580,7 +572,7 @@ mod tests {
             .authenticate(auth)
             .build()
             .await
-            .expect("failed to create test client")
+            .must_msg("failed to create test client")
     }
 
     #[tokio::test]
@@ -609,7 +601,7 @@ mod tests {
         let job = IngestJobBuilder::new("Account", JobOperation::Insert)
             .build(&handler)
             .await
-            .unwrap();
+            .must();
 
         // Job should be in Open state (compile-time enforced via typestate)
         // This compiles, so the job is in Open state
@@ -655,10 +647,10 @@ mod tests {
         let job = IngestJobBuilder::new("Account", JobOperation::Insert)
             .build(&handler)
             .await
-            .unwrap();
+            .must();
 
         let csv_data = "Name,Industry\nAcme Corp,Technology\n";
-        let _job = job.upload(csv_data.as_bytes()).await.unwrap();
+        let _job = job.upload(csv_data.as_bytes()).await.must();
     }
 
     #[tokio::test]
@@ -692,11 +684,11 @@ mod tests {
         let job = IngestJobBuilder::new("Account", JobOperation::Insert)
             .build(&handler)
             .await
-            .unwrap();
+            .must();
 
         // Test streaming upload of large CSV (>10MB)
         let large_csv = "Name,Industry\n".to_string() + &"Row,Data\n".repeat(10000);
-        let _job = job.upload(large_csv.as_bytes()).await.unwrap();
+        let _job = job.upload(large_csv.as_bytes()).await.must();
     }
 
     #[tokio::test]
@@ -745,11 +737,11 @@ mod tests {
         let job = IngestJobBuilder::new("Account", JobOperation::Insert)
             .build(&handler)
             .await
-            .unwrap();
+            .must();
 
         let csv_data = "Name\nTest\n";
-        let job = job.upload(csv_data.as_bytes()).await.unwrap();
-        let _job = job.close().await.unwrap();
+        let job = job.upload(csv_data.as_bytes()).await.must();
+        let _job = job.close().await.must();
     }
 
     #[tokio::test]
@@ -780,7 +772,7 @@ mod tests {
             Arc::clone(&handler.inner),
         );
 
-        let _job = job.poll().await.unwrap();
+        let _job = job.poll().await.must();
     }
 
     #[tokio::test]
@@ -825,7 +817,7 @@ mod tests {
             Arc::clone(&handler.inner),
         );
 
-        let _job = job.poll_until_complete().await.unwrap();
+        let _job = job.poll_until_complete().await.must();
     }
 
     #[tokio::test]
@@ -882,8 +874,8 @@ mod tests {
             Arc::clone(&handler.inner),
         );
 
-        let results = job.successful_results().await.unwrap();
-        let results_str = String::from_utf8(results).unwrap();
+        let results = job.successful_results().await.must();
+        let results_str = String::from_utf8(results).must();
         assert!(results_str.contains("001xx0000000001AAA"));
     }
 
@@ -911,8 +903,8 @@ mod tests {
             Arc::clone(&handler.inner),
         );
 
-        let results = job.failed_results().await.unwrap();
-        let results_str = String::from_utf8(results).unwrap();
+        let results = job.failed_results().await.must();
+        let results_str = String::from_utf8(results).must();
         assert!(results_str.contains("DUPLICATE_VALUE"));
     }
 
@@ -940,8 +932,8 @@ mod tests {
             Arc::clone(&handler.inner),
         );
 
-        let results = job.unprocessed_results().await.unwrap();
-        let results_str = String::from_utf8(results).unwrap();
+        let results = job.unprocessed_results().await.must();
+        let results_str = String::from_utf8(results).must();
         assert!(results_str.contains("Pending Corp"));
     }
 
@@ -978,9 +970,9 @@ mod tests {
         let job = IngestJobBuilder::new("Account", JobOperation::Insert)
             .build(&handler)
             .await
-            .unwrap();
+            .must();
 
-        let result = job.upload("bad csv".as_bytes()).await;
+        let result = job.upload(b"bad csv").await;
         assert!(result.is_err());
     }
 
@@ -1101,7 +1093,7 @@ mod tests {
             Arc::clone(&handler.inner),
         );
 
-        job.abort().await.unwrap();
+        job.abort().await.must();
     }
 
     #[tokio::test]
@@ -1142,3 +1134,7 @@ mod tests {
         // If this test compiles, typestate safety is working
     }
 }
+
+
+
+

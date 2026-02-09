@@ -37,26 +37,22 @@ impl<A: crate::auth::Authenticator> ForceClient<A> {
     where
         T: DeserializeOwned,
     {
-        // Get access token
-        let token = self.token().await?;
-
         // Construct query URL
         let url = format!(
             "{}/services/data/{}/query",
-            token.instance_url(),
+            self.token().await?.instance_url(),
             self.config().api_version
         );
 
         // Execute query
-        let response = self
+        let request = self
             .inner()
             .http_client
             .get(&url)
             .query(&[("q", soql)])
-            .bearer_auth(token.as_str())
-            .send()
-            .await
+            .build()
             .map_err(crate::error::HttpError::from)?;
+        let response = self.inner().execute_request(request).await?;
 
         // Handle error responses
         if !response.status().is_success() {
@@ -105,21 +101,17 @@ impl<A: crate::auth::Authenticator> ForceClient<A> {
     where
         T: DeserializeOwned,
     {
-        // Get access token
-        let token = self.token().await?;
-
         // Construct full URL (next_records_url is relative)
-        let url = format!("{}{}", token.instance_url(), next_records_url);
+        let url = format!("{}{}", self.token().await?.instance_url(), next_records_url);
 
         // Execute query
-        let response = self
+        let request = self
             .inner()
             .http_client
             .get(&url)
-            .bearer_auth(token.as_str())
-            .send()
-            .await
+            .build()
             .map_err(crate::error::HttpError::from)?;
+        let response = self.inner().execute_request(request).await?;
 
         // Handle error responses
         if !response.status().is_success() {
@@ -139,9 +131,9 @@ impl<A: crate::auth::Authenticator> ForceClient<A> {
         Ok(result)
     }
 }
-
 #[cfg(test)]
 mod tests {
+use crate::test_support::Must;
     use super::*;
     use crate::auth::{AccessToken, Authenticator, TokenResponse};
     use crate::client::builder;
@@ -212,7 +204,7 @@ mod tests {
             ]
         });
 
-        let result: QueryResult<TestAccount> = serde_json::from_value(json).unwrap();
+        let result: QueryResult<TestAccount> = serde_json::from_value(json).must();
 
         assert_eq!(result.total_size, 2);
         assert!(result.is_done());
@@ -237,7 +229,7 @@ mod tests {
             }]
         });
 
-        let result: QueryResult<DynamicSObject> = serde_json::from_value(json).unwrap();
+        let result: QueryResult<DynamicSObject> = serde_json::from_value(json).must();
 
         assert_eq!(result.total_size, 1);
         assert_eq!(result.records[0].object_type(), "Account");
@@ -262,7 +254,7 @@ mod tests {
             ]
         });
 
-        let result: QueryResult<TestAccount> = serde_json::from_value(json).unwrap();
+        let result: QueryResult<TestAccount> = serde_json::from_value(json).must();
 
         assert_eq!(result.total_size, 4);
         assert!(!result.is_done());
@@ -282,7 +274,7 @@ mod tests {
             "records": []
         });
 
-        let result: QueryResult<TestAccount> = serde_json::from_value(json).unwrap();
+        let result: QueryResult<TestAccount> = serde_json::from_value(json).must();
 
         assert_eq!(result.total_size, 0);
         assert!(result.is_done());
@@ -306,7 +298,7 @@ mod tests {
             }]
         });
 
-        let result: QueryResult<serde_json::Value> = serde_json::from_value(json).unwrap();
+        let result: QueryResult<serde_json::Value> = serde_json::from_value(json).must();
         assert_eq!(result.total_size, 1);
     }
 
@@ -323,7 +315,7 @@ mod tests {
             ]
         });
 
-        let result: QueryResult<TestAccount> = serde_json::from_value(json).unwrap();
+        let result: QueryResult<TestAccount> = serde_json::from_value(json).must();
 
         // Verify pagination state
         assert!(!result.is_done());
@@ -331,7 +323,7 @@ mod tests {
         assert!(result.next_records_url.is_some());
 
         // The next_records_url can be used with query_more()
-        let next_url = result.next_records_url.unwrap();
+        let next_url = result.next_records_url.must();
         assert!(next_url.starts_with("/services/data"));
     }
 
@@ -358,12 +350,12 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = builder().authenticate(auth).build().await.unwrap();
+        let client = builder().authenticate(auth).build().await.must();
 
         let result: QueryResult<TestAccount> = client
             .query("SELECT Id, Name FROM Account LIMIT 2")
             .await
-            .unwrap();
+            .must();
 
         assert_eq!(result.total_size, 2);
         assert!(result.is_done());
@@ -394,12 +386,12 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = builder().authenticate(auth).build().await.unwrap();
+        let client = builder().authenticate(auth).build().await.must();
 
         let result: QueryResult<TestAccount> = client
             .query("SELECT Id, Name FROM Account")
             .await
-            .unwrap();
+            .must();
 
         assert_eq!(result.total_size, 4);
         assert!(!result.is_done());
@@ -448,13 +440,13 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = builder().authenticate(auth).build().await.unwrap();
+        let client = builder().authenticate(auth).build().await.must();
 
         // First page
         let page1: QueryResult<TestAccount> = client
             .query("SELECT Id, Name FROM Account")
             .await
-            .unwrap();
+            .must();
 
         assert!(!page1.is_done());
         assert_eq!(page1.len(), 2);
@@ -462,9 +454,9 @@ mod tests {
 
         // Second page using query_more
         let page2: QueryResult<TestAccount> = client
-            .query_more(page1.next_records_url.as_ref().unwrap())
+            .query_more(page1.next_records_url.as_ref().must())
             .await
-            .unwrap();
+            .must();
 
         assert!(page2.is_done());
         assert_eq!(page2.len(), 2);
@@ -521,20 +513,20 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = builder().authenticate(auth).build().await.unwrap();
+        let client = builder().authenticate(auth).build().await.must();
 
         // Collect all records by manually paginating
         let mut all_records = Vec::new();
         let mut result: QueryResult<TestAccount> = client
             .query("SELECT Id, Name FROM Account")
             .await
-            .unwrap();
+            .must();
 
         all_records.extend(result.records.clone());
 
         while !result.is_done() {
             if let Some(next_url) = result.next_records_url.as_ref() {
-                result = client.query_more(next_url).await.unwrap();
+                result = client.query_more(next_url).await.must();
                 all_records.extend(result.records.clone());
             } else {
                 break;
@@ -562,14 +554,15 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = builder().authenticate(auth).build().await.unwrap();
+        let client = builder().authenticate(auth).build().await.must();
 
         let result: Result<QueryResult<TestAccount>, _> = client
             .query_more("/services/data/v60.0/query/invalid-locator")
             .await;
 
-        assert!(result.is_err());
-        let err = result.unwrap_err();
+        let Err(err) = result else {
+            panic!("expected query_more to fail for invalid locator");
+        };
         assert!(
             err.to_string().contains("404") || err.to_string().contains("Query pagination failed")
         );
@@ -590,12 +583,12 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = builder().authenticate(auth).build().await.unwrap();
+        let client = builder().authenticate(auth).build().await.must();
 
         let result: QueryResult<TestAccount> = client
             .query("SELECT Id, Name FROM Account WHERE Name = 'NonExistent'")
             .await
-            .unwrap();
+            .must();
 
         assert_eq!(result.total_size, 0);
         assert!(result.is_done());
@@ -603,3 +596,7 @@ mod tests {
         assert_eq!(result.len(), 0);
     }
 }
+
+
+
+

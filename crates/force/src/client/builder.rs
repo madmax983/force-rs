@@ -90,6 +90,8 @@ impl<A: Authenticator> AuthenticatedBuilder<A> {
             .timeout(config.timeout)
             .build()
             .map_err(crate::error::HttpError::from)?;
+        let http_executor =
+            crate::http::HttpExecutor::with_client(http_client.clone(), config.max_retries, config.timeout);
 
         // Create token manager with the authenticator
         let token_manager = Arc::new(TokenManager::new(self.authenticator));
@@ -97,6 +99,7 @@ impl<A: Authenticator> AuthenticatedBuilder<A> {
         let inner = Inner {
             config,
             http_client,
+            http_executor,
             token_manager,
         };
 
@@ -105,9 +108,9 @@ impl<A: Authenticator> AuthenticatedBuilder<A> {
         })
     }
 }
-
 #[cfg(test)]
 mod tests {
+use crate::test_support::Must;
     use super::*;
     use crate::auth::AccessToken;
     use crate::config::{ClientConfig, Environment};
@@ -161,7 +164,7 @@ mod tests {
             .authenticate(MockAuth)
             .build()
             .await
-            .unwrap();
+            .must();
 
         // Verify client was created
         assert!(Arc::strong_count(&client.inner) == 1);
@@ -181,7 +184,7 @@ mod tests {
             .authenticate(MockAuth)
             .build()
             .await
-            .unwrap();
+            .must();
 
         assert_eq!(client.config().api_version, "v60.0");
         assert_eq!(client.config().environment, Environment::Sandbox);
@@ -201,8 +204,12 @@ mod tests {
             .config(config)
             .build()
             .await
-            .unwrap();
+            .must();
 
         assert_eq!(client.config().api_version, "v61.0");
     }
 }
+
+
+
+
