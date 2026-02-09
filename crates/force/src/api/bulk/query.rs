@@ -31,6 +31,7 @@
 
 use crate::error::Result;
 use serde::{Deserialize, Serialize};
+use std::collections::VecDeque;
 use std::sync::Arc;
 
 /// Request to create a bulk query job.
@@ -105,9 +106,7 @@ pub struct BulkQueryStream<T, A: crate::auth::Authenticator> {
     /// Job ID for the query.
     job_id: String,
     /// Current batch of records being iterated.
-    records: Vec<T>,
-    /// Index of the next record to return.
-    current_index: usize,
+    records: VecDeque<T>,
     /// Result locator for the next page (`None` means first page).
     next_locator: Option<String>,
     /// Whether the first page has been fetched.
@@ -123,8 +122,7 @@ impl<T, A: crate::auth::Authenticator> BulkQueryStream<T, A> {
         Self {
             inner,
             job_id,
-            records: Vec::new(),
-            current_index: 0,
+            records: VecDeque::new(),
             next_locator: None,
             first_page_fetched: false,
             exhausted: false,
@@ -164,13 +162,9 @@ impl<T, A: crate::auth::Authenticator> BulkQueryStream<T, A> {
         }
 
         // If we have records in the buffer, return the next one
-        if self.current_index < self.records.len() {
-            let record = self.records.remove(self.current_index);
+        if let Some(record) = self.records.pop_front() {
             return Ok(Some(record));
         }
-
-        self.records.clear();
-        self.current_index = 0;
 
         if self.first_page_fetched && self.next_locator.is_none() {
             self.exhausted = true;
@@ -179,20 +173,18 @@ impl<T, A: crate::auth::Authenticator> BulkQueryStream<T, A> {
 
         // Fetch results from the API
         let token = self.inner.token_manager.token().await?;
-        let mut url = format!(
+        let base_url = format!(
             "{}/services/data/{}/jobs/query/{}/results",
             token.instance_url(),
             self.inner.config.api_version,
             self.job_id
         );
+        let mut request_builder = self.inner.http_client.get(&base_url);
         if let Some(locator) = &self.next_locator {
-            url.push_str(&format!("?locator={}", locator));
+            request_builder = request_builder.query(&[("locator", locator)]);
         }
 
-        let response = self
-            .inner
-            .http_client
-            .get(&url)
+        let response = request_builder
             .build()
             .map_err(crate::error::HttpError::from)?;
         let response = self.inner.execute_request(response).await?;
@@ -226,14 +218,14 @@ impl<T, A: crate::auth::Authenticator> BulkQueryStream<T, A> {
 
         // Parse CSV
         let mut reader = csv::Reader::from_reader(csv_text.as_bytes());
-        let mut records = Vec::new();
+        let mut records = VecDeque::new();
 
         for result in reader.deserialize() {
             let record: T = result.map_err(|e| crate::error::HttpError::StatusError {
                 status_code: 500,
                 message: format!("CSV deserialization failed: {}", e),
             })?;
-            records.push(record);
+            records.push_back(record);
         }
 
         // If no records, we're done
@@ -244,9 +236,7 @@ impl<T, A: crate::auth::Authenticator> BulkQueryStream<T, A> {
 
         // Store records and return the first one
         self.records = records;
-        self.current_index = 0;
-        let record = self.records.remove(0);
-        Ok(Some(record))
+        Ok(self.records.pop_front())
     }
 }
 
@@ -519,7 +509,10 @@ use crate::test_support::{Must, MustMsg};
     use crate::auth::{AccessToken, Authenticator, TokenResponse};
     use crate::client::{ForceClient, builder};
     use async_trait::async_trait;
-    use wiremock::matchers::{bearer_token, body_string_contains, header, method, path};
+    use wiremock::matchers::{
+        bearer_token, body_string_contains, header, method, path, query_param,
+        query_param_is_missing,
+    };
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
     // Mock authenticator for testing
@@ -911,6 +904,51 @@ use crate::test_support::{Must, MustMsg};
                 ResponseTemplate::new(200)
                     .insert_header("Sforce-Locator", "null")
                     .set_body_string("Id,Name\n001xx000000001AAA,Acme\n001xx000000002AAA,Globex"),
+            )
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let client = create_test_client(mock_server.uri()).await;
+        let handler = client.bulk();
+
+        let mut stream = handler
+            .query_results::<serde_json::Value>("750xx0000000001AAA")
+            .await
+            .must();
+
+        assert!(stream.next().await.must().is_some());
+        assert!(stream.next().await.must().is_some());
+        assert!(stream.next().await.must().is_none());
+    }
+
+    #[tokio::test]
+    async fn test_query_results_encodes_locator_query_parameter() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path(
+                "/services/data/v60.0/jobs/query/750xx0000000001AAA/results",
+            ))
+            .and(query_param_is_missing("locator"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .insert_header("Sforce-Locator", "next&page=2")
+                    .set_body_string("Id,Name\n001xx000000001AAA,Acme"),
+            )
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path(
+                "/services/data/v60.0/jobs/query/750xx0000000001AAA/results",
+            ))
+            .and(query_param("locator", "next&page=2"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .insert_header("Sforce-Locator", "null")
+                    .set_body_string("Id,Name\n001xx000000002AAA,Globex"),
             )
             .expect(1)
             .mount(&mock_server)
