@@ -4,6 +4,7 @@
 //! including environment management and client settings.
 
 use std::time::Duration;
+use crate::types::ApiVersion;
 
 /// Salesforce environment endpoints.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -44,7 +45,7 @@ pub struct ClientConfig {
 impl Default for ClientConfig {
     fn default() -> Self {
         Self {
-            api_version: "v60.0".to_string(),
+            api_version: ApiVersion::DEFAULT.as_str(),
             environment: Environment::Production,
             timeout: Duration::from_secs(30),
             max_retries: 3,
@@ -100,7 +101,7 @@ impl ClientConfigBuilder {
     #[must_use]
     pub fn build(self) -> ClientConfig {
         ClientConfig {
-            api_version: self.api_version.unwrap_or_else(|| "v60.0".to_string()),
+            api_version: self.api_version.unwrap_or_else(|| ApiVersion::DEFAULT.as_str()),
             environment: self.environment.unwrap_or(Environment::Production),
             timeout: self.timeout.unwrap_or_else(|| Duration::from_secs(30)),
             max_retries: self.max_retries.unwrap_or(3),

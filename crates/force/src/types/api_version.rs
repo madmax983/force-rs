@@ -8,6 +8,17 @@
 use std::fmt;
 use std::str::FromStr;
 
+/// Compatibility tier for a Salesforce API version.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ApiVersionSupportTier {
+    /// Version is within the library's guaranteed tested window.
+    Tested,
+    /// Version is supported but outside the tested compatibility window.
+    SupportedUntested,
+    /// Version is below the minimum supported window.
+    Unsupported,
+}
+
 /// A validated Salesforce API version.
 ///
 /// API versions follow the format "vX.0" where X is a positive integer.
@@ -91,6 +102,17 @@ impl ApiVersion {
         Self::new(60)
     }
 
+    /// Minimum API version supported by this crate.
+    ///
+    /// Requests below this version are outside compatibility guarantees.
+    pub const MIN_SUPPORTED: Self = Self::V55;
+
+    /// Highest API version covered by the crate's compatibility test matrix.
+    pub const MAX_TESTED: Self = Self::V60;
+
+    /// Default API version used by client configuration.
+    pub const DEFAULT: Self = Self::V60;
+
     /// API version 60.0 (Winter '24).
     pub const V60: Self = Self::new(60);
     /// API version 59.0 (Summer '23).
@@ -103,6 +125,30 @@ impl ApiVersion {
     pub const V56: Self = Self::new(56);
     /// API version 55.0 (Spring '22).
     pub const V55: Self = Self::new(55);
+
+    /// Returns true if this version is supported by the crate.
+    #[must_use]
+    pub const fn is_supported(self) -> bool {
+        self.major >= Self::MIN_SUPPORTED.major
+    }
+
+    /// Returns true if this version is in the tested compatibility matrix window.
+    #[must_use]
+    pub const fn is_tested(self) -> bool {
+        self.major >= Self::MIN_SUPPORTED.major && self.major <= Self::MAX_TESTED.major
+    }
+
+    /// Returns compatibility tier for this version.
+    #[must_use]
+    pub const fn support_tier(self) -> ApiVersionSupportTier {
+        if !self.is_supported() {
+            ApiVersionSupportTier::Unsupported
+        } else if self.is_tested() {
+            ApiVersionSupportTier::Tested
+        } else {
+            ApiVersionSupportTier::SupportedUntested
+        }
+    }
 }
 
 impl fmt::Display for ApiVersion {
@@ -253,12 +299,45 @@ use crate::test_support::Must;
         assert_eq!(ApiVersion::V57.major(), 57);
         assert_eq!(ApiVersion::V56.major(), 56);
         assert_eq!(ApiVersion::V55.major(), 55);
+        assert_eq!(ApiVersion::MIN_SUPPORTED, ApiVersion::V55);
+        assert_eq!(ApiVersion::MAX_TESTED, ApiVersion::V60);
+        assert_eq!(ApiVersion::DEFAULT, ApiVersion::V60);
     }
 
     #[test]
     fn test_latest() {
         let latest = ApiVersion::latest();
         assert_eq!(latest, ApiVersion::V60);
+    }
+
+    #[test]
+    fn test_support_contract_flags() {
+        assert!(ApiVersion::V55.is_supported());
+        assert!(ApiVersion::V55.is_tested());
+        assert!(ApiVersion::V60.is_tested());
+        assert!(ApiVersion::new(61).is_supported());
+        assert!(!ApiVersion::new(61).is_tested());
+        assert!(!ApiVersion::new(54).is_supported());
+    }
+
+    #[test]
+    fn test_support_tier_matrix() {
+        assert_eq!(
+            ApiVersion::new(54).support_tier(),
+            ApiVersionSupportTier::Unsupported
+        );
+        assert_eq!(
+            ApiVersion::V55.support_tier(),
+            ApiVersionSupportTier::Tested
+        );
+        assert_eq!(
+            ApiVersion::V60.support_tier(),
+            ApiVersionSupportTier::Tested
+        );
+        assert_eq!(
+            ApiVersion::new(61).support_tier(),
+            ApiVersionSupportTier::SupportedUntested
+        );
     }
 
     #[test]
