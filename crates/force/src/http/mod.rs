@@ -272,6 +272,23 @@ fn parse_api_error(status_code: u16, body: &str) -> HttpError {
     }
 }
 
+/// Converts an HTTP error response into a `ForceError` using Salesforce-aware parsing.
+///
+/// If the response body is empty or unreadable, falls back to `fallback_message`.
+pub(crate) async fn response_to_force_error(
+    response: Response,
+    fallback_message: &str,
+) -> crate::error::ForceError {
+    let status_code = response.status().as_u16();
+    let body = response.text().await.unwrap_or_default();
+    let payload = if body.trim().is_empty() {
+        fallback_message.to_string()
+    } else {
+        body
+    };
+    parse_api_error(status_code, &payload).into()
+}
+
 #[cfg(test)]
 mod tests;
 

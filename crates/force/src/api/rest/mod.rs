@@ -101,11 +101,7 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
         let response = self.inner.execute_request(request).await?;
 
         if !response.status().is_success() {
-            return Err(crate::error::HttpError::StatusError {
-                status_code: response.status().as_u16(),
-                message: format!("Limits API request failed"),
-            }
-            .into());
+            return Err(crate::http::response_to_force_error(response, "Limits API request failed").await);
         }
 
         let limits = response
@@ -165,11 +161,9 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
         let response = self.inner.execute_request(request).await?;
 
         if !response.status().is_success() {
-            return Err(crate::error::HttpError::StatusError {
-                status_code: response.status().as_u16(),
-                message: format!("SOSL search request failed"),
-            }
-            .into());
+            return Err(
+                crate::http::response_to_force_error(response, "SOSL search request failed").await,
+            );
         }
 
         let results = response
@@ -214,11 +208,10 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
         let response = self.inner.execute_request(request).await?;
 
         if !response.status().is_success() {
-            return Err(crate::error::HttpError::StatusError {
-                status_code: response.status().as_u16(),
-                message: format!("Global describe request failed"),
-            }
-            .into());
+            return Err(
+                crate::http::response_to_force_error(response, "Global describe request failed")
+                    .await,
+            );
         }
 
         let global = response
@@ -271,11 +264,13 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
         let response = self.inner.execute_request(request).await?;
 
         if !response.status().is_success() {
-            return Err(crate::error::HttpError::StatusError {
-                status_code: response.status().as_u16(),
-                message: format!("Describe request for {} failed", sobject_name),
-            }
-            .into());
+            return Err(
+                crate::http::response_to_force_error(
+                    response,
+                    &format!("Describe request for {} failed", sobject_name),
+                )
+                .await,
+            );
         }
 
         let describe = response

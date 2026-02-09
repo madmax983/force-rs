@@ -126,11 +126,9 @@ impl<A: crate::auth::Authenticator> BulkHandler<A> {
         let response = self.inner.execute_request(request).await?;
 
         if !response.status().is_success() {
-            return Err(crate::error::HttpError::StatusError {
-                status_code: response.status().as_u16(),
-                message: "Create job request failed".to_string(),
-            }
-            .into());
+            return Err(
+                crate::http::response_to_force_error(response, "Create job request failed").await,
+            );
         }
 
         let job_info = response
@@ -173,11 +171,13 @@ impl<A: crate::auth::Authenticator> BulkHandler<A> {
         let response = self.inner.execute_request(request).await?;
 
         if !response.status().is_success() {
-            return Err(crate::error::HttpError::StatusError {
-                status_code: response.status().as_u16(),
-                message: format!("Get job request failed for job {}", job_id),
-            }
-            .into());
+            return Err(
+                crate::http::response_to_force_error(
+                    response,
+                    &format!("Get job request failed for job {}", job_id),
+                )
+                .await,
+            );
         }
 
         let job_info = response
@@ -229,11 +229,13 @@ impl<A: crate::auth::Authenticator> BulkHandler<A> {
         let response = self.inner.execute_request(request).await?;
 
         if !response.status().is_success() {
-            return Err(crate::error::HttpError::StatusError {
-                status_code: response.status().as_u16(),
-                message: format!("Update job request failed for job {}", job_id),
-            }
-            .into());
+            return Err(
+                crate::http::response_to_force_error(
+                    response,
+                    &format!("Update job request failed for job {}", job_id),
+                )
+                .await,
+            );
         }
 
         let job_info = response
@@ -275,11 +277,13 @@ impl<A: crate::auth::Authenticator> BulkHandler<A> {
         let response = self.inner.execute_request(request).await?;
 
         if !response.status().is_success() {
-            return Err(crate::error::HttpError::StatusError {
-                status_code: response.status().as_u16(),
-                message: format!("Delete job request failed for job {}", job_id),
-            }
-            .into());
+            return Err(
+                crate::http::response_to_force_error(
+                    response,
+                    &format!("Delete job request failed for job {}", job_id),
+                )
+                .await,
+            );
         }
 
         Ok(())

@@ -56,11 +56,14 @@ impl<A: crate::auth::Authenticator> ForceClient<A> {
 
         // Handle error responses
         if !response.status().is_success() {
-            return Err(crate::error::HttpError::StatusError {
-                status_code: response.status().as_u16(),
-                message: format!("SOQL query failed: {}", response.status()),
-            }
-            .into());
+            let status = response.status();
+            return Err(
+                crate::http::response_to_force_error(
+                    response,
+                    &format!("SOQL query failed: {}", status),
+                )
+                .await,
+            );
         }
 
         // Deserialize response
@@ -115,11 +118,14 @@ impl<A: crate::auth::Authenticator> ForceClient<A> {
 
         // Handle error responses
         if !response.status().is_success() {
-            return Err(crate::error::HttpError::StatusError {
-                status_code: response.status().as_u16(),
-                message: format!("Query pagination failed: {}", response.status()),
-            }
-            .into());
+            let status = response.status();
+            return Err(
+                crate::http::response_to_force_error(
+                    response,
+                    &format!("Query pagination failed: {}", status),
+                )
+                .await,
+            );
         }
 
         // Deserialize response

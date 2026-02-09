@@ -46,6 +46,13 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 use std::time::Duration;
 
+async fn handle_error_response(
+    response: reqwest::Response,
+    fallback_message: &str,
+) -> crate::error::ForceError {
+    crate::http::response_to_force_error(response, fallback_message).await
+}
+
 /// Marker type for job in Open state.
 #[derive(Debug)]
 pub struct Open;
@@ -118,11 +125,7 @@ impl<A: Authenticator> IngestJob<Open, A> {
         let response = self.inner.execute_request(response).await?;
 
         if !response.status().is_success() {
-            return Err(crate::error::HttpError::StatusError {
-                status_code: response.status().as_u16(),
-                message: "CSV upload failed".to_string(),
-            }
-            .into());
+            return Err(handle_error_response(response, "CSV upload failed").await);
         }
 
         Ok(IngestJob {
@@ -160,11 +163,7 @@ impl<A: Authenticator> IngestJob<Open, A> {
         let response = self.inner.execute_request(response).await?;
 
         if !response.status().is_success() {
-            return Err(crate::error::HttpError::StatusError {
-                status_code: response.status().as_u16(),
-                message: "Abort job failed".to_string(),
-            }
-            .into());
+            return Err(handle_error_response(response, "Abort job failed").await);
         }
 
         Ok(())
@@ -200,11 +199,7 @@ impl<A: Authenticator> IngestJob<UploadComplete, A> {
         let response = self.inner.execute_request(response).await?;
 
         if !response.status().is_success() {
-            return Err(crate::error::HttpError::StatusError {
-                status_code: response.status().as_u16(),
-                message: "Close job failed".to_string(),
-            }
-            .into());
+            return Err(handle_error_response(response, "Close job failed").await);
         }
 
         Ok(IngestJob {
@@ -323,11 +318,7 @@ impl<A: Authenticator> IngestJob<InProgress, A> {
         let response = self.inner.execute_request(response).await?;
 
         if !response.status().is_success() {
-            return Err(crate::error::HttpError::StatusError {
-                status_code: response.status().as_u16(),
-                message: "Get job status failed".to_string(),
-            }
-            .into());
+            return Err(handle_error_response(response, "Get job status failed").await);
         }
 
         let job_info = response
@@ -401,11 +392,9 @@ impl<A: Authenticator> IngestJob<JobComplete, A> {
         let response = self.inner.execute_request(response).await?;
 
         if !response.status().is_success() {
-            return Err(crate::error::HttpError::StatusError {
-                status_code: response.status().as_u16(),
-                message: format!("Get {} failed", result_type),
-            }
-            .into());
+            return Err(
+                handle_error_response(response, &format!("Get {} failed", result_type)).await,
+            );
         }
 
         let bytes = response
@@ -505,11 +494,7 @@ impl IngestJobBuilder {
         let response = inner.execute_request(response).await?;
 
         if !response.status().is_success() {
-            return Err(crate::error::HttpError::StatusError {
-                status_code: response.status().as_u16(),
-                message: "Create job request failed".to_string(),
-            }
-            .into());
+            return Err(handle_error_response(response, "Create job request failed").await);
         }
 
         let job_info = response

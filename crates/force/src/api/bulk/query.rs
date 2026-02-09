@@ -198,10 +198,13 @@ impl<T, A: crate::auth::Authenticator> BulkQueryStream<T, A> {
         let response = self.inner.execute_request(response).await?;
 
         if !response.status().is_success() {
-            return Err(handle_error_response(
-                response.status().as_u16(),
-                &format!("Failed to fetch query results for job {}", self.job_id),
-            ));
+            return Err(
+                handle_error_response(
+                    response,
+                    &format!("Failed to fetch query results for job {}", self.job_id),
+                )
+                .await,
+            );
         }
 
         // Get CSV text
@@ -248,12 +251,11 @@ impl<T, A: crate::auth::Authenticator> BulkQueryStream<T, A> {
 }
 
 /// Helper function to handle error responses from bulk query API.
-fn handle_error_response(status_code: u16, context: &str) -> crate::error::ForceError {
-    crate::error::HttpError::StatusError {
-        status_code,
-        message: context.to_string(),
-    }
-    .into()
+async fn handle_error_response(
+    response: reqwest::Response,
+    context: &str,
+) -> crate::error::ForceError {
+    crate::http::response_to_force_error(response, context).await
 }
 
 /// Extension methods for `BulkHandler` to support bulk queries.
@@ -312,10 +314,7 @@ impl<A: crate::auth::Authenticator> super::BulkHandler<A> {
         let response = inner.execute_request(request).await?;
 
         if !response.status().is_success() {
-            return Err(handle_error_response(
-                response.status().as_u16(),
-                "Create query job request failed",
-            ));
+            return Err(handle_error_response(response, "Create query job request failed").await);
         }
 
         let job_info = response
@@ -358,10 +357,13 @@ impl<A: crate::auth::Authenticator> super::BulkHandler<A> {
         let response = inner.execute_request(request).await?;
 
         if !response.status().is_success() {
-            return Err(handle_error_response(
-                response.status().as_u16(),
-                &format!("Get query job request failed for job {}", job_id),
-            ));
+            return Err(
+                handle_error_response(
+                    response,
+                    &format!("Get query job request failed for job {}", job_id),
+                )
+                .await,
+            );
         }
 
         let job_info = response
@@ -410,10 +412,13 @@ impl<A: crate::auth::Authenticator> super::BulkHandler<A> {
         let response = inner.execute_request(request).await?;
 
         if !response.status().is_success() {
-            return Err(handle_error_response(
-                response.status().as_u16(),
-                &format!("Abort query job request failed for job {}", job_id),
-            ));
+            return Err(
+                handle_error_response(
+                    response,
+                    &format!("Abort query job request failed for job {}", job_id),
+                )
+                .await,
+            );
         }
 
         let job_info = response
@@ -454,10 +459,13 @@ impl<A: crate::auth::Authenticator> super::BulkHandler<A> {
         let response = inner.execute_request(request).await?;
 
         if !response.status().is_success() {
-            return Err(handle_error_response(
-                response.status().as_u16(),
-                &format!("Delete query job request failed for job {}", job_id),
-            ));
+            return Err(
+                handle_error_response(
+                    response,
+                    &format!("Delete query job request failed for job {}", job_id),
+                )
+                .await,
+            );
         }
 
         Ok(())

@@ -13,18 +13,11 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
     /// Helper method to handle error responses from Salesforce API.
     ///
     /// Extracts the status code and response body to create a `HttpError`.
-    async fn handle_error_response(response: reqwest::Response) -> crate::error::ForceError {
-        let status = response.status();
-        let body = response
-            .text()
-            .await
-            .unwrap_or_else(|_| "Failed to read error response body".to_string());
-
-        crate::error::HttpError::StatusError {
-            status_code: status.as_u16(),
-            message: body,
-        }
-        .into()
+    async fn handle_error_response(
+        response: reqwest::Response,
+        fallback_message: &str,
+    ) -> crate::error::ForceError {
+        crate::http::response_to_force_error(response, fallback_message).await
     }
 
     /// Creates a new record in Salesforce.
@@ -72,7 +65,7 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
                 .await
                 .map_err(|e| crate::error::HttpError::from(e).into())
         } else {
-            Err(Self::handle_error_response(response).await)
+            Err(Self::handle_error_response(response, "Create request failed").await)
         }
     }
 
@@ -118,7 +111,7 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
                 .await
                 .map_err(|e| crate::error::HttpError::from(e).into())
         } else {
-            Err(Self::handle_error_response(response).await)
+            Err(Self::handle_error_response(response, "Get request failed").await)
         }
     }
 
@@ -175,7 +168,7 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
         if response.status().is_success() {
             Ok(UpdateResponse::success())
         } else {
-            Err(Self::handle_error_response(response).await)
+            Err(Self::handle_error_response(response, "Update request failed").await)
         }
     }
 
@@ -217,7 +210,7 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
         if response.status().is_success() {
             Ok(DeleteResponse::success())
         } else {
-            Err(Self::handle_error_response(response).await)
+            Err(Self::handle_error_response(response, "Delete request failed").await)
         }
     }
 
@@ -306,7 +299,7 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
                     .await
                     .map_err(|e| crate::error::HttpError::from(e).into())
             }
-            _ => Err(Self::handle_error_response(response).await),
+            _ => Err(Self::handle_error_response(response, "Upsert request failed").await),
         }
     }
 }
