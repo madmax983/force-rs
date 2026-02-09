@@ -163,9 +163,9 @@ pub enum ApiVersionError {
     #[error("invalid major version number (must be positive integer)")]
     InvalidMajorVersion,
 }
-
 #[cfg(test)]
 mod tests {
+use crate::test_support::Must;
     use super::*;
 
     // RED PHASE - Write failing tests first
@@ -190,7 +190,7 @@ mod tests {
 
     #[test]
     fn test_parse_valid_version() {
-        let version: ApiVersion = "v60.0".parse().unwrap();
+        let version: ApiVersion = "v60.0".parse().must();
         assert_eq!(version.major(), 60);
     }
 
@@ -264,7 +264,7 @@ mod tests {
     #[test]
     fn test_from_str_to_str_roundtrip() {
         let original = "v60.0";
-        let version: ApiVersion = original.parse().unwrap();
+        let version: ApiVersion = original.parse().must();
         assert_eq!(version.as_str(), original);
     }
 
@@ -274,7 +274,7 @@ mod tests {
         assert_eq!(version.as_str(), "v999.0");
         assert_eq!(version.major(), 999);
 
-        let parsed: ApiVersion = "v999.0".parse().unwrap();
+        let parsed: ApiVersion = "v999.0".parse().must();
         assert_eq!(parsed, version);
     }
 
@@ -283,7 +283,7 @@ mod tests {
         let version = ApiVersion::new(1);
         assert_eq!(version.as_str(), "v1.0");
 
-        let parsed: ApiVersion = "v1.0".parse().unwrap();
+        let parsed: ApiVersion = "v1.0".parse().must();
         assert_eq!(parsed, version);
     }
 
@@ -319,7 +319,7 @@ mod tests {
             fn prop_parse_display_roundtrip(major in 1u16..1000u16) {
                 let version = ApiVersion::new(major);
                 let displayed = format!("{}", version);
-                let parsed: ApiVersion = displayed.parse().unwrap();
+                let parsed: ApiVersion = displayed.parse().must();
 
                 prop_assert_eq!(parsed, version);
                 prop_assert_eq!(parsed.major(), major);
@@ -342,7 +342,7 @@ mod tests {
                 let parsed = version_str.parse::<ApiVersion>();
 
                 prop_assert!(parsed.is_ok());
-                prop_assert_eq!(parsed.unwrap().major(), major);
+                prop_assert_eq!(parsed.must().major(), major);
             }
 
             // Property 4: Missing 'v' prefix always fails
@@ -369,12 +369,10 @@ mod tests {
                 let v1 = ApiVersion::new(major1);
                 let v2 = ApiVersion::new(major2);
 
-                if major1 < major2 {
-                    prop_assert!(v1 < v2);
-                } else if major1 > major2 {
-                    prop_assert!(v1 > v2);
-                } else {
-                    prop_assert_eq!(v1, v2);
+                match major1.cmp(&major2) {
+                    std::cmp::Ordering::Less => prop_assert!(v1 < v2),
+                    std::cmp::Ordering::Greater => prop_assert!(v1 > v2),
+                    std::cmp::Ordering::Equal => prop_assert_eq!(v1, v2),
                 }
             }
 
@@ -390,3 +388,7 @@ mod tests {
         }
     }
 }
+
+
+
+

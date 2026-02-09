@@ -85,3 +85,4 @@ pub trait Authenticator: Debug + Send + Sync {
     /// ```
     async fn refresh(&self) -> Result<AccessToken>;
 }
+

@@ -2,6 +2,7 @@
 
 #[cfg(test)]
 mod integration_tests {
+    use crate::test_support::Must;
     use crate::auth::{AccessToken, TokenResponse};
     use crate::error::ForceError;
     use crate::http::HttpExecutor;
@@ -10,7 +11,18 @@ mod integration_tests {
     use wiremock::matchers::{header, method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
-    async fn create_test_token() -> AccessToken {
+    #[derive(serde::Deserialize, Debug)]
+    struct TestResponse {
+        id: String,
+        name: String,
+    }
+
+    #[derive(serde::Deserialize)]
+    struct IdOnlyResponse {
+        id: String,
+    }
+
+    fn create_test_token() -> AccessToken {
         let response = TokenResponse {
             access_token: "test_token_123".to_string(),
             instance_url: "https://test.salesforce.com".to_string(),
@@ -22,13 +34,12 @@ mod integration_tests {
         };
         AccessToken::from_response(response)
     }
-
     #[tokio::test]
     async fn test_successful_request_with_bearer_token() {
         // Arrange
         let mock_server = MockServer::start().await;
         let executor = HttpExecutor::new();
-        let token = create_test_token().await;
+        let token = create_test_token();
 
         Mock::given(method("GET"))
             .and(path("/services/data/v60.0/sobjects"))
@@ -41,7 +52,7 @@ mod integration_tests {
 
         // Act
         let url = format!("{}/services/data/v60.0/sobjects", mock_server.uri());
-        let request = reqwest::Client::new().get(&url).build().unwrap();
+        let request = reqwest::Client::new().get(&url).build().must();
 
         let result = executor
             .execute(request, &token, || async {
@@ -51,7 +62,7 @@ mod integration_tests {
 
         // Assert
         assert!(result.is_ok());
-        let response = result.unwrap();
+        let response = result.must();
         assert_eq!(response.status(), 200);
     }
 
@@ -60,7 +71,7 @@ mod integration_tests {
         // Arrange
         let mock_server = MockServer::start().await;
         let executor = HttpExecutor::new();
-        let token = create_test_token().await;
+        let token = create_test_token();
         let refresh_count = Arc::new(AtomicU32::new(0));
         let refresh_count_clone = Arc::clone(&refresh_count);
 
@@ -85,7 +96,7 @@ mod integration_tests {
 
         // Act
         let url = format!("{}/test", mock_server.uri());
-        let request = reqwest::Client::new().get(&url).build().unwrap();
+        let request = reqwest::Client::new().get(&url).build().must();
 
         let result = executor
             .execute(request, &token, || {
@@ -116,7 +127,7 @@ mod integration_tests {
         // Arrange
         let mock_server = MockServer::start().await;
         let executor = HttpExecutor::new();
-        let token = create_test_token().await;
+        let token = create_test_token();
 
         Mock::given(method("GET"))
             .and(path("/test"))
@@ -130,7 +141,7 @@ mod integration_tests {
 
         // Act
         let url = format!("{}/test", mock_server.uri());
-        let request = reqwest::Client::new().get(&url).build().unwrap();
+        let request = reqwest::Client::new().get(&url).build().must();
 
         let result = executor
             .execute(request, &token, || async {
@@ -155,7 +166,7 @@ mod integration_tests {
         // Arrange
         let mock_server = MockServer::start().await;
         let executor = HttpExecutor::with_config(2, std::time::Duration::from_secs(30));
-        let token = create_test_token().await;
+        let token = create_test_token();
 
         // First two requests return 503
         Mock::given(method("GET"))
@@ -176,7 +187,7 @@ mod integration_tests {
 
         // Act
         let url = format!("{}/test", mock_server.uri());
-        let request = reqwest::Client::new().get(&url).build().unwrap();
+        let request = reqwest::Client::new().get(&url).build().must();
 
         let start = std::time::Instant::now();
         let result = executor
@@ -197,7 +208,7 @@ mod integration_tests {
         // Arrange
         let mock_server = MockServer::start().await;
         let executor = HttpExecutor::new();
-        let token = create_test_token().await;
+        let token = create_test_token();
 
         let error_body = serde_json::json!([
             {
@@ -215,7 +226,7 @@ mod integration_tests {
 
         // Act
         let url = format!("{}/test", mock_server.uri());
-        let request = reqwest::Client::new().post(&url).build().unwrap();
+        let request = reqwest::Client::new().post(&url).build().must();
 
         let result = executor
             .execute(request, &token, || async {
@@ -243,13 +254,7 @@ mod integration_tests {
         // Arrange
         let mock_server = MockServer::start().await;
         let executor = HttpExecutor::new();
-        let token = create_test_token().await;
-
-        #[derive(serde::Deserialize, Debug)]
-        struct TestResponse {
-            id: String,
-            name: String,
-        }
+        let token = create_test_token();
 
         let response_data = serde_json::json!({
             "id": "001xx000003DGbm",
@@ -264,7 +269,7 @@ mod integration_tests {
 
         // Act
         let url = format!("{}/test", mock_server.uri());
-        let request = reqwest::Client::new().get(&url).build().unwrap();
+        let request = reqwest::Client::new().get(&url).build().must();
 
         let result: Result<TestResponse, ForceError> = executor
             .execute_json(request, &token, || async { panic!("Should not refresh") })
@@ -272,7 +277,7 @@ mod integration_tests {
 
         // Assert
         assert!(result.is_ok());
-        let response = result.unwrap();
+        let response = result.must();
         assert_eq!(response.id, "001xx000003DGbm");
         assert_eq!(response.name, "Test Account");
     }
@@ -282,12 +287,7 @@ mod integration_tests {
         // Arrange
         let mock_server = MockServer::start().await;
         let executor = HttpExecutor::new();
-        let token = create_test_token().await;
-
-        #[derive(serde::Deserialize)]
-        struct TestResponse {
-            id: String,
-        }
+        let token = create_test_token();
 
         Mock::given(method("GET"))
             .and(path("/test"))
@@ -297,9 +297,9 @@ mod integration_tests {
 
         // Act
         let url = format!("{}/test", mock_server.uri());
-        let request = reqwest::Client::new().get(&url).build().unwrap();
+        let request = reqwest::Client::new().get(&url).build().must();
 
-        let result: Result<TestResponse, ForceError> = executor
+        let result: Result<IdOnlyResponse, ForceError> = executor
             .execute_json(request, &token, || async { panic!("Should not refresh") })
             .await;
 
@@ -314,7 +314,7 @@ mod integration_tests {
         // Arrange
         let mock_server = MockServer::start().await;
         let executor = HttpExecutor::new();
-        let token = create_test_token().await;
+        let token = create_test_token();
 
         // Both requests return 401 (refresh doesn't help)
         Mock::given(method("GET"))
@@ -325,7 +325,7 @@ mod integration_tests {
 
         // Act
         let url = format!("{}/test", mock_server.uri());
-        let request = reqwest::Client::new().get(&url).build().unwrap();
+        let request = reqwest::Client::new().get(&url).build().must();
 
         let result = executor
             .execute(request, &token, || async {
@@ -356,3 +356,5 @@ mod integration_tests {
         }
     }
 }
+
+

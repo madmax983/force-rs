@@ -170,9 +170,9 @@ pub enum SerializationError {
 
 /// A specialized Result type for Force API operations.
 pub type Result<T> = std::result::Result<T, ForceError>;
-
 #[cfg(test)]
 mod tests {
+use crate::test_support::Must;
     use super::*;
 
     #[test]
@@ -323,7 +323,7 @@ mod tests {
     fn test_result_type_ok() {
         let result: Result<i32> = Ok(42);
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), 42);
+        assert_eq!(result.must(), 42);
     }
 
     #[test]
@@ -409,3 +409,7 @@ mod tests {
         assert_send_sync::<SerializationError>();
     }
 }
+
+
+
+

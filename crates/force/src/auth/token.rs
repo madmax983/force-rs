@@ -341,9 +341,9 @@ impl<A: crate::auth::Authenticator> TokenManager<A> {
         state.token = None;
     }
 }
-
 #[cfg(test)]
 mod tests {
+use crate::test_support::Must;
     use super::*;
     use crate::auth::Authenticator;
     use async_trait::async_trait;
@@ -360,7 +360,7 @@ mod tests {
             "signature": "signature_value"
         }"#;
 
-        let response: TokenResponse = serde_json::from_str(json).unwrap();
+        let response: TokenResponse = serde_json::from_str(json).must();
         assert_eq!(response.access_token, "00D123456789!token");
         assert_eq!(response.instance_url, "https://example.my.salesforce.com");
         assert_eq!(response.token_type, "Bearer");
@@ -375,7 +375,7 @@ mod tests {
             "expires_in": 7200
         }"#;
 
-        let response: TokenResponse = serde_json::from_str(json).unwrap();
+        let response: TokenResponse = serde_json::from_str(json).must();
         assert_eq!(response.expires_in, Some(7200));
         assert_eq!(response.token_type, "Bearer"); // default value
     }
@@ -559,7 +559,7 @@ mod tests {
         let auth = MockAuthenticator::new();
         let manager = TokenManager::new(auth);
 
-        let token = manager.token().await.unwrap();
+        let token = manager.token().await.must();
         assert_eq!(token.as_str(), "auth_token_1");
         assert_eq!(manager.authenticator.auth_count(), 1);
         assert_eq!(manager.authenticator.refresh_count(), 0);
@@ -571,11 +571,11 @@ mod tests {
         let manager = TokenManager::new(auth);
 
         // First call authenticates
-        let token1 = manager.token().await.unwrap();
+        let token1 = manager.token().await.must();
         assert_eq!(manager.authenticator.auth_count(), 1);
 
         // Second call reuses token
-        let token2 = manager.token().await.unwrap();
+        let token2 = manager.token().await.must();
         assert_eq!(manager.authenticator.auth_count(), 1); // No new auth
         assert_eq!(token1.as_str(), token2.as_str());
     }
@@ -586,7 +586,7 @@ mod tests {
         let manager = TokenManager::new(auth);
 
         // Get initial token
-        let _token1 = manager.token().await.unwrap();
+        let _token1 = manager.token().await.must();
         assert_eq!(manager.authenticator.auth_count(), 1);
 
         // Manually expire the token
@@ -603,7 +603,7 @@ mod tests {
         }
 
         // Next call should refresh
-        let token2 = manager.token().await.unwrap();
+        let token2 = manager.token().await.must();
         assert_eq!(manager.authenticator.auth_count(), 1); // No new auth
         assert_eq!(manager.authenticator.refresh_count(), 1); // Refreshed once
         assert_eq!(token2.as_str(), "refresh_token_1");
@@ -615,11 +615,11 @@ mod tests {
         let manager = TokenManager::new(auth);
 
         // Get initial token
-        let token1 = manager.token().await.unwrap();
+        let token1 = manager.token().await.must();
         assert_eq!(token1.as_str(), "auth_token_1");
 
         // Force refresh even though token is valid
-        let token2 = manager.force_refresh().await.unwrap();
+        let token2 = manager.force_refresh().await.must();
         assert_eq!(token2.as_str(), "refresh_token_1");
         assert_eq!(manager.authenticator.refresh_count(), 1);
     }
@@ -630,14 +630,14 @@ mod tests {
         let manager = TokenManager::new(auth);
 
         // Get initial token
-        let _token1 = manager.token().await.unwrap();
+        let _token1 = manager.token().await.must();
         assert_eq!(manager.authenticator.auth_count(), 1);
 
         // Clear the token
         manager.clear().await;
 
         // Next call should authenticate again
-        let _token2 = manager.token().await.unwrap();
+        let _token2 = manager.token().await.must();
         assert_eq!(manager.authenticator.auth_count(), 2); // Auth called again
     }
 
@@ -656,7 +656,7 @@ mod tests {
 
         // Wait for all tasks to complete
         for handle in handles {
-            let result = handle.await.unwrap();
+            let result = handle.await.must();
             assert!(result.is_ok());
         }
 
@@ -710,3 +710,7 @@ mod tests {
         }
     }
 }
+
+
+
+

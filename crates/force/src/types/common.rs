@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 /// # Examples
 ///
 /// ```
-/// use force::types::{CreateResponse, SalesforceId};
+/// use force::types::{ApiError, CreateResponse, SalesforceId};
 ///
 /// // Successful create
 /// let response = CreateResponse {
@@ -366,16 +366,16 @@ impl ApiError {
         }
     }
 }
-
 #[cfg(test)]
 mod tests {
+use crate::test_support::Must;
     use super::*;
 
     // RED PHASE - Write failing tests first
 
     #[test]
     fn test_create_response_success() {
-        let id = SalesforceId::new("001000000000001AAA").unwrap();
+        let id = SalesforceId::new("001000000000001AAA").must();
         let response = CreateResponse::success(id.clone());
 
         assert!(response.is_success());
@@ -397,10 +397,10 @@ mod tests {
 
     #[test]
     fn test_create_response_serialize() {
-        let id = SalesforceId::new("001000000000001AAA").unwrap();
+        let id = SalesforceId::new("001000000000001AAA").must();
         let response = CreateResponse::success(id);
 
-        let json = serde_json::to_string(&response).unwrap();
+        let json = serde_json::to_string(&response).must();
         assert!(json.contains("\"success\":true"));
         assert!(json.contains("001000000000001AAA"));
     }
@@ -413,7 +413,7 @@ mod tests {
             "errors": []
         }"#;
 
-        let response: CreateResponse = serde_json::from_str(json).unwrap();
+        let response: CreateResponse = serde_json::from_str(json).must();
         assert!(response.is_success());
         assert!(response.id.is_some());
     }
@@ -458,7 +458,7 @@ mod tests {
 
     #[test]
     fn test_upsert_response_created() {
-        let id = SalesforceId::new("001000000000001AAA").unwrap();
+        let id = SalesforceId::new("001000000000001AAA").must();
         let response = UpsertResponse::created(id.clone());
 
         assert!(response.is_success());
@@ -470,7 +470,7 @@ mod tests {
 
     #[test]
     fn test_upsert_response_updated() {
-        let id = SalesforceId::new("001000000000001AAA").unwrap();
+        let id = SalesforceId::new("001000000000001AAA").must();
         let response = UpsertResponse::updated(id.clone());
 
         assert!(response.is_success());
@@ -482,7 +482,7 @@ mod tests {
 
     #[test]
     fn test_upsert_response_failure() {
-        let id = SalesforceId::new("001000000000001AAA").unwrap();
+        let id = SalesforceId::new("001000000000001AAA").must();
         let errors = vec![ApiError::new("Upsert failed", "UPSERT_ERROR")];
         let response = UpsertResponse::failure(id.clone(), errors.clone());
 
@@ -520,7 +520,7 @@ mod tests {
             vec!["Name".to_string()],
         );
 
-        let json = serde_json::to_string(&error).unwrap();
+        let json = serde_json::to_string(&error).must();
         assert!(json.contains("\"statusCode\":\"REQUIRED_FIELD_MISSING\""));
         assert!(json.contains("\"message\":\"Required fields missing\""));
         assert!(json.contains("\"fields\""));
@@ -534,18 +534,18 @@ mod tests {
             "fields": ["Name"]
         }"#;
 
-        let error: ApiError = serde_json::from_str(json).unwrap();
+        let error: ApiError = serde_json::from_str(json).must();
         assert_eq!(error.error_code, "REQUIRED_FIELD_MISSING");
         assert_eq!(error.fields, vec!["Name"]);
     }
 
     #[test]
     fn test_response_roundtrip_serialization() {
-        let id = SalesforceId::new("001000000000001AAA").unwrap();
+        let id = SalesforceId::new("001000000000001AAA").must();
         let original = CreateResponse::success(id);
 
-        let json = serde_json::to_string(&original).unwrap();
-        let deserialized: CreateResponse = serde_json::from_str(&json).unwrap();
+        let json = serde_json::to_string(&original).must();
+        let deserialized: CreateResponse = serde_json::from_str(&json).must();
 
         assert_eq!(original, deserialized);
     }
@@ -553,10 +553,14 @@ mod tests {
     #[test]
     fn test_empty_errors_serialization() {
         let response = UpdateResponse::success();
-        let json = serde_json::to_string(&response).unwrap();
+        let json = serde_json::to_string(&response).must();
 
         // Empty errors array should still be serialized
-        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&json).must();
         assert!(parsed.get("errors").is_some());
     }
 }
+
+
+
+

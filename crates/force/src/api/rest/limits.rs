@@ -195,9 +195,9 @@ impl LimitInfo {
         self.percentage_used() > threshold
     }
 }
-
 #[cfg(test)]
 mod tests {
+    use crate::test_support::Must;
     use super::*;
 
     // RED PHASE - Write failing tests first
@@ -214,20 +214,20 @@ mod tests {
     #[test]
     fn test_limit_info_percentage_used() {
         let limit = LimitInfo::new(1000, 250, Some(750));
-        assert_eq!(limit.percentage_used(), 75.0);
+        assert!((limit.percentage_used() - 75.0).abs() < f64::EPSILON);
     }
 
     #[test]
     fn test_limit_info_percentage_used_without_explicit_used() {
         let limit = LimitInfo::new(1000, 300, None);
         // Should calculate: max - remaining = 1000 - 300 = 700
-        assert_eq!(limit.percentage_used(), 70.0);
+        assert!((limit.percentage_used() - 70.0).abs() < f64::EPSILON);
     }
 
     #[test]
     fn test_limit_info_percentage_used_zero_max() {
         let limit = LimitInfo::new(0, 0, Some(0));
-        assert_eq!(limit.percentage_used(), 0.0);
+        assert!((limit.percentage_used() - 0.0).abs() < f64::EPSILON);
     }
 
     #[test]
@@ -252,7 +252,7 @@ mod tests {
     #[test]
     fn test_limit_info_serialize() {
         let limit = LimitInfo::new(15000, 14850, Some(150));
-        let json = serde_json::to_string(&limit).unwrap();
+        let json = serde_json::to_string(&limit).must();
 
         assert!(json.contains("\"Max\":15000"));
         assert!(json.contains("\"Remaining\":14850"));
@@ -267,7 +267,7 @@ mod tests {
             "Used": 150
         }"#;
 
-        let limit: LimitInfo = serde_json::from_str(json).unwrap();
+        let limit: LimitInfo = serde_json::from_str(json).must();
         assert_eq!(limit.max, 15000);
         assert_eq!(limit.remaining, 14850);
         assert_eq!(limit.used, Some(150));
@@ -280,9 +280,9 @@ mod tests {
             "Remaining": 1999000
         }"#;
 
-        let limit: LimitInfo = serde_json::from_str(json).unwrap();
-        assert_eq!(limit.max, 2000000);
-        assert_eq!(limit.remaining, 1999000);
+        let limit: LimitInfo = serde_json::from_str(json).must();
+        assert_eq!(limit.max, 2_000_000);
+        assert_eq!(limit.remaining, 1_999_000);
         assert_eq!(limit.used, None);
     }
 
@@ -376,7 +376,7 @@ mod tests {
             }
         }"#;
 
-        let limits: OrgLimits = serde_json::from_str(json).unwrap();
+        let limits: OrgLimits = serde_json::from_str(json).must();
         assert_eq!(limits.daily_api_requests.max, 15000);
         assert_eq!(limits.daily_api_requests.remaining, 14850);
         assert_eq!(limits.daily_api_requests.used, Some(150));
@@ -411,7 +411,7 @@ mod tests {
             "FutureLimit": {"Max": 999, "Remaining": 888}
         }"#;
 
-        let limits: OrgLimits = serde_json::from_str(json).unwrap();
+        let limits: OrgLimits = serde_json::from_str(json).must();
         assert!(limits.additional_limits.contains_key("FutureLimit"));
         assert_eq!(limits.additional_limits["FutureLimit"].max, 999);
     }
@@ -420,8 +420,8 @@ mod tests {
     fn test_org_limits_roundtrip() {
         let original = OrgLimits {
             daily_api_requests: LimitInfo::new(15000, 14850, Some(150)),
-            daily_async_apex_executions: LimitInfo::new(250000, 250000, None),
-            daily_batch_apex_executions: LimitInfo::new(250000, 250000, None),
+            daily_async_apex_executions: LimitInfo::new(250_000, 250_000, None),
+            daily_batch_apex_executions: LimitInfo::new(250_000, 250_000, None),
             daily_durable_generic_streaming_api_events: LimitInfo::new(10000, 10000, None),
             daily_durable_streaming_api_events: LimitInfo::new(10000, 10000, None),
             daily_generic_streaming_api_events: LimitInfo::new(10000, 10000, None),
@@ -432,19 +432,19 @@ mod tests {
             hourly_async_report_runs: LimitInfo::new(1200, 1200, None),
             hourly_dashboard_refreshes: LimitInfo::new(200, 200, None),
             hourly_dashboard_results: LimitInfo::new(5000, 5000, None),
-            hourly_dashboard_statuses: LimitInfo::new(999999999, 999999999, None),
-            hourly_long_term_id_mapping: LimitInfo::new(100000, 100000, None),
+            hourly_dashboard_statuses: LimitInfo::new(999_999_999, 999_999_999, None),
+            hourly_long_term_id_mapping: LimitInfo::new(100_000, 100_000, None),
             hourly_managed_content_public_requests: LimitInfo::new(50000, 50000, None),
             hourly_o_data_callout: LimitInfo::new(10000, 10000, None),
-            hourly_short_term_id_mapping: LimitInfo::new(100000, 100000, None),
+            hourly_short_term_id_mapping: LimitInfo::new(100_000, 100_000, None),
             hourly_time_based_workflow: LimitInfo::new(1000, 1000, None),
             mass_email: LimitInfo::new(10, 10, None),
             single_email: LimitInfo::new(15, 15, None),
             additional_limits: HashMap::new(),
         };
 
-        let json = serde_json::to_string(&original).unwrap();
-        let deserialized: OrgLimits = serde_json::from_str(&json).unwrap();
+        let json = serde_json::to_string(&original).must();
+        let deserialized: OrgLimits = serde_json::from_str(&json).must();
 
         assert_eq!(original, deserialized);
     }
@@ -453,9 +453,9 @@ mod tests {
 // Integration tests with wiremock
 #[cfg(all(test, feature = "mock"))]
 mod integration_tests {
-    use super::*;
+    use crate::test_support::{Must, MustMsg};
     use crate::auth::{AccessToken, Authenticator, TokenResponse};
-    use crate::client::{ForceClient, builder};
+    use crate::client::builder;
     use crate::config::ClientConfigBuilder;
     use crate::error::Result;
     use async_trait::async_trait;
@@ -505,12 +505,12 @@ mod integration_tests {
                 "Used": 150
             },
             "DailyAsyncApexExecutions": {
-                "Max": 250000,
-                "Remaining": 250000
+                "Max": 250_000,
+                "Remaining": 250_000
             },
             "DailyBatchApexExecutions": {
-                "Max": 250000,
-                "Remaining": 250000
+                "Max": 250_000,
+                "Remaining": 250_000
             },
             "DailyDurableGenericStreamingApiEvents": {
                 "Max": 10000,
@@ -554,12 +554,12 @@ mod integration_tests {
                 "Remaining": 5000
             },
             "HourlyDashboardStatuses": {
-                "Max": 999999999,
-                "Remaining": 999999999
+                "Max": 999_999_999,
+                "Remaining": 999_999_999
             },
             "HourlyLongTermIdMapping": {
-                "Max": 100000,
-                "Remaining": 100000
+                "Max": 100_000,
+                "Remaining": 100_000
             },
             "HourlyManagedContentPublicRequests": {
                 "Max": 50000,
@@ -570,8 +570,8 @@ mod integration_tests {
                 "Remaining": 10000
             },
             "HourlyShortTermIdMapping": {
-                "Max": 100000,
-                "Remaining": 100000
+                "Max": 100_000,
+                "Remaining": 100_000
             },
             "HourlyTimeBasedWorkflow": {
                 "Max": 1000,
@@ -604,9 +604,9 @@ mod integration_tests {
             .authenticate(auth)
             .build()
             .await
-            .expect("Failed to build client");
+            .must_msg("Failed to build client");
 
-        let limits = client.rest().limits().await.expect("Failed to get limits");
+        let limits = client.rest().limits().await.must_msg("Failed to get limits");
 
         assert_eq!(limits.daily_api_requests.max, 15000);
         assert_eq!(limits.daily_api_requests.remaining, 14850);
@@ -633,9 +633,9 @@ mod integration_tests {
             .config(config)
             .build()
             .await
-            .expect("Failed to build client");
+            .must_msg("Failed to build client");
 
-        let limits = client.rest().limits().await.expect("Failed to get limits");
+        let limits = client.rest().limits().await.must_msg("Failed to get limits");
         assert_eq!(limits.daily_api_requests.max, 15000);
     }
 
@@ -654,7 +654,7 @@ mod integration_tests {
             .authenticate(auth)
             .build()
             .await
-            .expect("Failed to build client");
+            .must_msg("Failed to build client");
 
         let result = client.rest().limits().await;
         assert!(result.is_err());
@@ -675,7 +675,7 @@ mod integration_tests {
             .authenticate(auth)
             .build()
             .await
-            .expect("Failed to build client");
+            .must_msg("Failed to build client");
 
         let result = client.rest().limits().await;
         assert!(result.is_err());
@@ -698,9 +698,9 @@ mod integration_tests {
             .authenticate(auth)
             .build()
             .await
-            .expect("Failed to build client");
+            .must_msg("Failed to build client");
 
-        client.rest().limits().await.expect("Failed to get limits");
+        client.rest().limits().await.must_msg("Failed to get limits");
         // Mock will verify the headers were correct
     }
 
@@ -715,8 +715,8 @@ mod integration_tests {
                 "Remaining": 0,
                 "Used": 15000
             },
-            "DailyAsyncApexExecutions": {"Max": 250000, "Remaining": 250000},
-            "DailyBatchApexExecutions": {"Max": 250000, "Remaining": 250000},
+            "DailyAsyncApexExecutions": {"Max": 250_000, "Remaining": 250_000},
+            "DailyBatchApexExecutions": {"Max": 250_000, "Remaining": 250_000},
             "DailyDurableGenericStreamingApiEvents": {"Max": 10000, "Remaining": 10000},
             "DailyDurableStreamingApiEvents": {"Max": 10000, "Remaining": 10000},
             "DailyGenericStreamingApiEvents": {"Max": 10000, "Remaining": 10000},
@@ -727,11 +727,11 @@ mod integration_tests {
             "HourlyAsyncReportRuns": {"Max": 1200, "Remaining": 1200},
             "HourlyDashboardRefreshes": {"Max": 200, "Remaining": 200},
             "HourlyDashboardResults": {"Max": 5000, "Remaining": 5000},
-            "HourlyDashboardStatuses": {"Max": 999999999, "Remaining": 999999999},
-            "HourlyLongTermIdMapping": {"Max": 100000, "Remaining": 100000},
+            "HourlyDashboardStatuses": {"Max": 999_999_999, "Remaining": 999_999_999},
+            "HourlyLongTermIdMapping": {"Max": 100_000, "Remaining": 100_000},
             "HourlyManagedContentPublicRequests": {"Max": 50000, "Remaining": 50000},
             "HourlyODataCallout": {"Max": 10000, "Remaining": 10000},
-            "HourlyShortTermIdMapping": {"Max": 100000, "Remaining": 100000},
+            "HourlyShortTermIdMapping": {"Max": 100_000, "Remaining": 100_000},
             "HourlyTimeBasedWorkflow": {"Max": 1000, "Remaining": 1000},
             "MassEmail": {"Max": 10, "Remaining": 10},
             "SingleEmail": {"Max": 15, "Remaining": 15}
@@ -747,11 +747,11 @@ mod integration_tests {
             .authenticate(auth)
             .build()
             .await
-            .expect("Failed to build client");
+            .must_msg("Failed to build client");
 
-        let limits = client.rest().limits().await.expect("Failed to get limits");
+        let limits = client.rest().limits().await.must_msg("Failed to get limits");
         assert!(limits.daily_api_requests.is_at_limit());
-        assert_eq!(limits.daily_api_requests.percentage_used(), 100.0);
+        assert!((limits.daily_api_requests.percentage_used() - 100.0).abs() < f64::EPSILON);
     }
 
     #[tokio::test]
@@ -760,7 +760,7 @@ mod integration_tests {
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
 
         let mut response = sample_limits_response();
-        response.as_object_mut().unwrap().insert(
+        response.as_object_mut().must().insert(
             "FutureNewLimit".to_string(),
             serde_json::json!({"Max": 5000, "Remaining": 4500}),
         );
@@ -775,9 +775,9 @@ mod integration_tests {
             .authenticate(auth)
             .build()
             .await
-            .expect("Failed to build client");
+            .must_msg("Failed to build client");
 
-        let limits = client.rest().limits().await.expect("Failed to get limits");
+        let limits = client.rest().limits().await.must_msg("Failed to get limits");
         assert!(limits.additional_limits.contains_key("FutureNewLimit"));
         assert_eq!(limits.additional_limits["FutureNewLimit"].max, 5000);
     }
@@ -793,8 +793,8 @@ mod integration_tests {
                 "Remaining": 1500,
                 "Used": 13500
             },
-            "DailyAsyncApexExecutions": {"Max": 250000, "Remaining": 250000},
-            "DailyBatchApexExecutions": {"Max": 250000, "Remaining": 250000},
+            "DailyAsyncApexExecutions": {"Max": 250_000, "Remaining": 250_000},
+            "DailyBatchApexExecutions": {"Max": 250_000, "Remaining": 250_000},
             "DailyDurableGenericStreamingApiEvents": {"Max": 10000, "Remaining": 10000},
             "DailyDurableStreamingApiEvents": {"Max": 10000, "Remaining": 10000},
             "DailyGenericStreamingApiEvents": {"Max": 10000, "Remaining": 10000},
@@ -805,11 +805,11 @@ mod integration_tests {
             "HourlyAsyncReportRuns": {"Max": 1200, "Remaining": 1200},
             "HourlyDashboardRefreshes": {"Max": 200, "Remaining": 200},
             "HourlyDashboardResults": {"Max": 5000, "Remaining": 5000},
-            "HourlyDashboardStatuses": {"Max": 999999999, "Remaining": 999999999},
-            "HourlyLongTermIdMapping": {"Max": 100000, "Remaining": 100000},
+            "HourlyDashboardStatuses": {"Max": 999_999_999, "Remaining": 999_999_999},
+            "HourlyLongTermIdMapping": {"Max": 100_000, "Remaining": 100_000},
             "HourlyManagedContentPublicRequests": {"Max": 50000, "Remaining": 50000},
             "HourlyODataCallout": {"Max": 10000, "Remaining": 10000},
-            "HourlyShortTermIdMapping": {"Max": 100000, "Remaining": 100000},
+            "HourlyShortTermIdMapping": {"Max": 100_000, "Remaining": 100_000},
             "HourlyTimeBasedWorkflow": {"Max": 1000, "Remaining": 1000},
             "MassEmail": {"Max": 10, "Remaining": 10},
             "SingleEmail": {"Max": 15, "Remaining": 15}
@@ -825,11 +825,11 @@ mod integration_tests {
             .authenticate(auth)
             .build()
             .await
-            .expect("Failed to build client");
+            .must_msg("Failed to build client");
 
-        let limits = client.rest().limits().await.expect("Failed to get limits");
+        let limits = client.rest().limits().await.must_msg("Failed to get limits");
         assert!(limits.daily_api_requests.is_above_threshold(80.0));
-        assert_eq!(limits.daily_api_requests.percentage_used(), 90.0);
+        assert!((limits.daily_api_requests.percentage_used() - 90.0).abs() < f64::EPSILON);
     }
 
     #[tokio::test]
@@ -848,11 +848,11 @@ mod integration_tests {
             .authenticate(auth)
             .build()
             .await
-            .expect("Failed to build client");
+            .must_msg("Failed to build client");
 
         // Make multiple calls to verify endpoint can be called repeatedly
         for _ in 0..3 {
-            let limits = client.rest().limits().await.expect("Failed to get limits");
+            let limits = client.rest().limits().await.must_msg("Failed to get limits");
             assert_eq!(limits.daily_api_requests.max, 15000);
         }
     }
@@ -873,14 +873,14 @@ mod integration_tests {
             .authenticate(auth)
             .build()
             .await
-            .expect("Failed to build client");
+            .must_msg("Failed to build client");
 
         let handler1 = client.rest();
         let handler2 = handler1.clone();
 
         // Both handlers should work
-        let limits1 = handler1.limits().await.expect("Failed with handler1");
-        let limits2 = handler2.limits().await.expect("Failed with handler2");
+        let limits1 = handler1.limits().await.must_msg("Failed with handler1");
+        let limits2 = handler2.limits().await.must_msg("Failed with handler2");
 
         assert_eq!(
             limits1.daily_api_requests.max,
@@ -888,3 +888,9 @@ mod integration_tests {
         );
     }
 }
+
+
+
+
+
+

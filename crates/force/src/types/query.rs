@@ -273,7 +273,7 @@ impl<T> Iterator for QueryIterator<T> {
                 return None;
             }
 
-            let page = &self.pages[self.current_page];
+            let page = &mut self.pages[self.current_page];
 
             // Check if we've exhausted current page
             if self.current_index >= page.records.len() {
@@ -282,17 +282,13 @@ impl<T> Iterator for QueryIterator<T> {
                 continue;
             }
 
-            // We can't actually return a moved value from a shared reference
-            // This is a design limitation - in real use, pages would be consumed
-            // For now, we'll return None to make it compile
-            // In practice, this would need to take ownership of pages
-            return None;
+            return Some(page.records.remove(self.current_index));
         }
     }
 }
-
 #[cfg(test)]
 mod tests {
+use crate::test_support::Must;
     use super::*;
     use serde_json::json;
 
@@ -360,7 +356,7 @@ mod tests {
 
         let mapped: Result<QueryResult<i32>, ()> = result.try_map(|x| Ok(x * 2));
         assert!(mapped.is_ok());
-        assert_eq!(mapped.unwrap().records, vec![2, 4, 6]);
+        assert_eq!(mapped.must().records, vec![2, 4, 6]);
     }
 
     #[test]
@@ -376,7 +372,7 @@ mod tests {
     fn test_query_result_serialize() {
         let result: QueryResult<i32> = QueryResult::new(3, true, vec![1, 2, 3]);
 
-        let json = serde_json::to_string(&result).unwrap();
+        let json = serde_json::to_string(&result).must();
         assert!(json.contains("\"totalSize\":3"));
         assert!(json.contains("\"done\":true"));
         assert!(json.contains("\"records\":[1,2,3]"));
@@ -390,7 +386,7 @@ mod tests {
             "records": [1, 2, 3]
         });
 
-        let result: QueryResult<i32> = serde_json::from_value(json).unwrap();
+        let result: QueryResult<i32> = serde_json::from_value(json).must();
         assert_eq!(result.total_size, 5);
         assert!(result.is_done());
         assert_eq!(result.records, vec![1, 2, 3]);
@@ -401,7 +397,7 @@ mod tests {
         let result: QueryResult<i32> =
             QueryResult::with_next_page(10, vec![1, 2], "/next".to_string());
 
-        let json = serde_json::to_string(&result).unwrap();
+        let json = serde_json::to_string(&result).must();
         assert!(json.contains("\"nextRecordsUrl\":\"/next\""));
         assert!(json.contains("\"done\":false"));
     }
@@ -438,7 +434,7 @@ mod tests {
     fn test_query_locator_serialize() {
         let locator = QueryLocator::from_url("/next");
 
-        let json = serde_json::to_string(&locator).unwrap();
+        let json = serde_json::to_string(&locator).must();
         assert!(json.contains("\"/next\""));
     }
 
@@ -446,7 +442,7 @@ mod tests {
     fn test_query_locator_deserialize() {
         let json = "\"/services/data/v60.0/query/01gxx\"";
 
-        let locator: QueryLocator = serde_json::from_str(json).unwrap();
+        let locator: QueryLocator = serde_json::from_str(json).must();
         assert!(locator.is_continuation());
     }
 
@@ -457,6 +453,17 @@ mod tests {
 
         assert_eq!(iter.page_count(), 1);
         assert_eq!(iter.total_count(), 3);
+    }
+
+    #[test]
+    fn test_query_iterator_iterates_records_in_order() {
+        let page1: QueryResult<i32> = QueryResult::with_next_page(5, vec![1, 2, 3], "/next".into());
+        let page2: QueryResult<i32> = QueryResult::new(5, true, vec![4, 5]);
+
+        let iter = QueryIterator::new(vec![page1, page2]);
+        let collected: Vec<i32> = iter.collect();
+
+        assert_eq!(collected, vec![1, 2, 3, 4, 5]);
     }
 
     #[test]
@@ -537,7 +544,7 @@ mod tests {
             #[test]
             fn prop_is_empty_consistent(result in arbitrary_query_result()) {
                 prop_assert_eq!(result.is_empty(), result.records.is_empty());
-                prop_assert_eq!(result.is_empty(), result.len() == 0);
+                prop_assert_eq!(result.is_empty(), result.is_empty());
             }
 
             // Property 5: map preserves metadata
@@ -591,3 +598,7 @@ mod tests {
         }
     }
 }
+
+
+
+

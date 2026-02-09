@@ -33,6 +33,8 @@ pub mod client;
 pub mod config;
 pub mod error;
 pub mod http;
+#[cfg(test)]
+pub(crate) mod test_support;
 pub mod types;
 
 /// Force crate placeholder - foundation being built
@@ -50,3 +52,5 @@ mod tests {
         assert_eq!(version(), "0.1.0");
     }
 }
+
+

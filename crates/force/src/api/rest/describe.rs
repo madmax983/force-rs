@@ -521,9 +521,9 @@ pub struct FilteredLookupInfo {
     /// Whether the filter is optional.
     pub optional_filter: bool,
 }
-
 #[cfg(test)]
 mod tests {
+use crate::test_support::Must;
     use super::*;
 
     // RED PHASE - Write failing tests first
@@ -549,7 +549,7 @@ mod tests {
             }
         }"#;
 
-        let sobject: GlobalSObjectDescribe = serde_json::from_str(json).unwrap();
+        let sobject: GlobalSObjectDescribe = serde_json::from_str(json).must();
         assert_eq!(sobject.name, "Account");
         assert_eq!(sobject.label, "Account");
         assert_eq!(sobject.key_prefix, Some("001".to_string()));
@@ -582,7 +582,7 @@ mod tests {
             ]
         }"#;
 
-        let global: GlobalDescribe = serde_json::from_str(json).unwrap();
+        let global: GlobalDescribe = serde_json::from_str(json).must();
         assert_eq!(global.encoding, "UTF-8");
         assert_eq!(global.max_batch_size, 200);
         assert_eq!(global.sobjects.len(), 1);
@@ -601,7 +601,7 @@ mod tests {
         ];
 
         for (json, expected) in types {
-            let field_type: FieldType = serde_json::from_str(json).unwrap();
+            let field_type: FieldType = serde_json::from_str(json).must();
             assert_eq!(field_type, expected);
         }
     }
@@ -615,7 +615,7 @@ mod tests {
             "value": "Hot"
         }"#;
 
-        let value: PicklistValue = serde_json::from_str(json).unwrap();
+        let value: PicklistValue = serde_json::from_str(json).must();
         assert!(value.active);
         assert!(!value.default_value);
         assert_eq!(value.label, "Hot");
@@ -633,7 +633,7 @@ mod tests {
             "restrictedDelete": false
         }"#;
 
-        let rel: ChildRelationship = serde_json::from_str(json).unwrap();
+        let rel: ChildRelationship = serde_json::from_str(json).must();
         assert!(!rel.cascade_delete);
         assert_eq!(rel.child_sobject, "Contact");
         assert_eq!(rel.field, "AccountId");
@@ -651,10 +651,14 @@ mod tests {
             "recordTypeId": "012000000000000AAA"
         }"#;
 
-        let rt: RecordTypeInfo = serde_json::from_str(json).unwrap();
+        let rt: RecordTypeInfo = serde_json::from_str(json).must();
         assert!(rt.active);
         assert!(rt.default_record_type_mapping);
         assert!(rt.master);
         assert_eq!(rt.name, "Master");
     }
 }
+
+
+
+

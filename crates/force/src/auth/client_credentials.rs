@@ -165,9 +165,9 @@ struct OAuthErrorResponse {
     error: String,
     error_description: String,
 }
-
 #[cfg(test)]
 mod tests {
+use crate::test_support::Must;
     use super::*;
     use crate::auth::Authenticator;
 
@@ -246,7 +246,7 @@ mod tests {
             format!("{}/services/oauth2/token", mock_server.uri()),
         );
 
-        let token = auth.authenticate().await.unwrap();
+        let token = auth.authenticate().await.must();
         assert_eq!(token.as_str(), "00Dxx0000001gPL!test_token");
         assert_eq!(token.instance_url(), "https://test.my.salesforce.com");
         assert_eq!(token.token_type(), "Bearer");
@@ -320,10 +320,10 @@ mod tests {
         );
 
         // First authenticate
-        let _token1 = auth.authenticate().await.unwrap();
+        let _token1 = auth.authenticate().await.must();
 
         // Then refresh (should call authenticate again since client_credentials doesn't support refresh)
-        let token2 = auth.refresh().await.unwrap();
+        let token2 = auth.refresh().await.must();
         assert_eq!(token2.as_str(), "refreshed_token");
     }
 
@@ -377,3 +377,8 @@ mod tests {
         }
     }
 }
+
+
+
+
+

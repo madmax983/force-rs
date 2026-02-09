@@ -1,3 +1,5 @@
+
+
 //! Bulk Delete Example
 //!
 //! This example demonstrates deleting records in bulk using the Bulk API 2.0.
@@ -26,6 +28,11 @@ struct Account {
     name: String,
 }
 
+use anyhow::Context;
+
+fn required_env(name: &str) -> anyhow::Result<String> {
+    std::env::var(name).with_context(|| format!("{name} environment variable not set"))
+}
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     // Initialize tracing
@@ -33,9 +40,9 @@ async fn main() -> anyhow::Result<()> {
 
     // Get credentials from environment
     let client_id =
-        std::env::var("SF_CLIENT_ID").expect("SF_CLIENT_ID environment variable not set");
+        required_env("SF_CLIENT_ID")?;
     let client_secret =
-        std::env::var("SF_CLIENT_SECRET").expect("SF_CLIENT_SECRET environment variable not set");
+        required_env("SF_CLIENT_SECRET")?;
 
     println!("═══ Authenticating ═══");
     let auth = ClientCredentials::new(
@@ -95,3 +102,5 @@ async fn main() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+
