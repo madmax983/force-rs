@@ -5,7 +5,7 @@ mod integration_tests {
     use crate::test_support::Must;
     use crate::auth::{AccessToken, TokenResponse};
     use crate::error::ForceError;
-    use crate::http::HttpExecutor;
+    use crate::http::{HttpExecutor, RetryPolicy};
     use std::sync::Arc;
     use std::sync::atomic::{AtomicU32, Ordering};
     use wiremock::matchers::{header, method, path};
@@ -201,6 +201,68 @@ mod integration_tests {
         assert!(result.is_ok());
         // Should have waited ~500ms + ~1000ms = ~1500ms for backoff
         assert!(elapsed.as_millis() >= 1400);
+    }
+
+    #[tokio::test]
+    async fn test_503_does_not_retry_mutation_by_default() {
+        let mock_server = MockServer::start().await;
+        let executor = HttpExecutor::with_config(3, std::time::Duration::from_secs(30));
+        let token = create_test_token();
+
+        Mock::given(method("POST"))
+            .and(path("/test"))
+            .respond_with(ResponseTemplate::new(503).set_body_string("temporary outage"))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let url = format!("{}/test", mock_server.uri());
+        let request = reqwest::Client::new().post(&url).build().must();
+
+        let result = executor
+            .execute(request, &token, || async { panic!("Should not refresh on 503") })
+            .await;
+
+        assert!(result.is_err());
+        if let Err(ForceError::Http(crate::error::HttpError::StatusError { status_code, .. })) = result {
+            assert_eq!(status_code, 503);
+        } else {
+            panic!("Expected 503 status error for non-retried mutation");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_503_can_retry_mutation_with_explicit_policy() {
+        let mock_server = MockServer::start().await;
+        let executor = HttpExecutor::with_retry_policy(
+            RetryPolicy::new(3, 2),
+            std::time::Duration::from_secs(30),
+        );
+        let token = create_test_token();
+
+        Mock::given(method("POST"))
+            .and(path("/test"))
+            .respond_with(ResponseTemplate::new(503))
+            .up_to_n_times(2)
+            .mount(&mock_server)
+            .await;
+
+        Mock::given(method("POST"))
+            .and(path("/test"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "recovered": true
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let url = format!("{}/test", mock_server.uri());
+        let request = reqwest::Client::new().post(&url).build().must();
+
+        let result = executor
+            .execute(request, &token, || async { panic!("Should not refresh on 503") })
+            .await;
+
+        assert!(result.is_ok());
     }
 
     #[tokio::test]

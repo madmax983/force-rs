@@ -10,9 +10,35 @@
 
 use crate::auth::AccessToken;
 use crate::error::{HttpError, Result};
-use reqwest::{Request, Response, StatusCode};
+use reqwest::{Method, Request, Response, StatusCode};
 use serde::de::DeserializeOwned;
 use std::time::Duration;
+
+/// Retry behavior per request safety class.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RetryPolicy {
+    /// Maximum retries for read-style operations (e.g. GET query calls).
+    pub read_max_retries: u32,
+    /// Maximum retries for mutation operations (e.g. POST/PATCH/DELETE).
+    pub mutation_max_retries: u32,
+}
+
+impl RetryPolicy {
+    /// Creates a retry policy with explicit read/mutation retry limits.
+    #[must_use]
+    pub const fn new(read_max_retries: u32, mutation_max_retries: u32) -> Self {
+        Self {
+            read_max_retries,
+            mutation_max_retries,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RequestSafetyClass {
+    Read,
+    Mutation,
+}
 
 /// HTTP executor that handles middleware concerns.
 ///
@@ -22,8 +48,8 @@ use std::time::Duration;
 pub struct HttpExecutor {
     /// The underlying HTTP client.
     client: reqwest::Client,
-    /// Maximum number of retry attempts.
-    max_retries: u32,
+    /// Policy controlling retries based on request safety.
+    retry_policy: RetryPolicy,
     /// Base timeout for requests.
     timeout: Duration,
 }
@@ -34,7 +60,7 @@ impl HttpExecutor {
     pub fn new() -> Self {
         Self {
             client: reqwest::Client::new(),
-            max_retries: 3,
+            retry_policy: RetryPolicy::new(3, 0),
             timeout: Duration::from_secs(30),
         }
     }
@@ -44,7 +70,7 @@ impl HttpExecutor {
     pub fn with_config(max_retries: u32, timeout: Duration) -> Self {
         Self {
             client: reqwest::Client::new(),
-            max_retries,
+            retry_policy: RetryPolicy::new(max_retries, 0),
             timeout,
         }
     }
@@ -54,7 +80,17 @@ impl HttpExecutor {
     pub fn with_client(client: reqwest::Client, max_retries: u32, timeout: Duration) -> Self {
         Self {
             client,
-            max_retries,
+            retry_policy: RetryPolicy::new(max_retries, 0),
+            timeout,
+        }
+    }
+
+    /// Creates a new HTTP executor with an explicit retry policy.
+    #[must_use]
+    pub fn with_retry_policy(retry_policy: RetryPolicy, timeout: Duration) -> Self {
+        Self {
+            client: reqwest::Client::new(),
+            retry_policy,
             timeout,
         }
     }
@@ -65,9 +101,25 @@ impl HttpExecutor {
     /// It is intended for higher-level handlers that need status-dependent behavior.
     pub async fn execute_response<F, Fut>(
         &self,
+        request: Request,
+        token: &AccessToken,
+        refresh_token: F,
+    ) -> Result<Response>
+    where
+        F: Fn() -> Fut,
+        Fut: std::future::Future<Output = Result<AccessToken>>,
+    {
+        let request_class = classify_request(request.method());
+        self.execute_response_with_class(request, token, refresh_token, request_class)
+            .await
+    }
+
+    async fn execute_response_with_class<F, Fut>(
+        &self,
         mut request: Request,
         token: &AccessToken,
         refresh_token: F,
+        request_class: RequestSafetyClass,
     ) -> Result<Response>
     where
         F: Fn() -> Fut,
@@ -81,7 +133,9 @@ impl HttpExecutor {
         request.headers_mut().insert("Authorization", header_value);
 
         // Execute with retry logic
-        let mut attempt = 0;
+        let mut retry_attempt = 0;
+        let mut refreshed = false;
+        let max_retries = self.max_retries_for(request_class);
         loop {
             let req_clone = request.try_clone().ok_or_else(|| {
                 HttpError::InvalidUrl("cannot clone request for retry".to_string())
@@ -97,7 +151,7 @@ impl HttpExecutor {
             match response.status() {
                 StatusCode::UNAUTHORIZED => {
                     // 401: Refresh token and retry once
-                    if attempt == 0 {
+                    if !refreshed {
                         let new_token = refresh_token().await?;
                         let new_auth_header = format!("Bearer {}", new_token.as_str());
                         let new_header_value = new_auth_header.parse().map_err(|_| {
@@ -109,7 +163,7 @@ impl HttpExecutor {
                         request
                             .headers_mut()
                             .insert("Authorization", new_header_value);
-                        attempt += 1;
+                        refreshed = true;
                         continue;
                     }
                     return Ok(response);
@@ -122,15 +176,22 @@ impl HttpExecutor {
                     }
                     .into());
                 }
-                StatusCode::SERVICE_UNAVAILABLE if attempt < self.max_retries => {
+                StatusCode::SERVICE_UNAVAILABLE if retry_attempt < max_retries => {
                     // 503: Retry with exponential backoff
-                    let backoff = exponential_backoff(attempt);
+                    let backoff = exponential_backoff(retry_attempt);
                     tokio::time::sleep(backoff).await;
-                    attempt += 1;
+                    retry_attempt += 1;
                     continue;
                 }
                 _ => return Ok(response),
             }
+        }
+    }
+
+    fn max_retries_for(&self, request_class: RequestSafetyClass) -> u32 {
+        match request_class {
+            RequestSafetyClass::Read => self.retry_policy.read_max_retries,
+            RequestSafetyClass::Mutation => self.retry_policy.mutation_max_retries,
         }
     }
 
@@ -227,6 +288,14 @@ fn exponential_backoff(attempt: u32) -> Duration {
     let base = Duration::from_millis(500);
     let backoff_ms = base.as_millis() * 2_u128.pow(attempt);
     Duration::from_millis(backoff_ms.min(30_000) as u64)
+}
+
+fn classify_request(method: &Method) -> RequestSafetyClass {
+    if *method == Method::GET || *method == Method::HEAD || *method == Method::OPTIONS {
+        RequestSafetyClass::Read
+    } else {
+        RequestSafetyClass::Mutation
+    }
 }
 
 /// Parses Salesforce API error from response body.
