@@ -21,6 +21,8 @@ use std::time::Instant;
 pub struct RetryPolicy {
     /// Maximum retries for read-style operations (e.g. GET query calls).
     pub read_max_retries: u32,
+    /// Maximum retries for explicitly idempotent mutation operations.
+    pub idempotent_mutation_max_retries: u32,
     /// Maximum retries for mutation operations (e.g. POST/PATCH/DELETE).
     pub mutation_max_retries: u32,
 }
@@ -31,21 +33,35 @@ impl RetryPolicy {
     pub const fn new(read_max_retries: u32, mutation_max_retries: u32) -> Self {
         Self {
             read_max_retries,
+            idempotent_mutation_max_retries: read_max_retries,
             mutation_max_retries,
         }
     }
+
+    /// Overrides retries for explicitly idempotent mutations.
+    #[must_use]
+    pub const fn with_idempotent_mutation_retries(mut self, retries: u32) -> Self {
+        self.idempotent_mutation_max_retries = retries;
+        self
+    }
 }
 
+/// Retry safety class for request execution.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum RequestSafetyClass {
+pub enum RequestRetryClass {
+    /// Read-only request.
     Read,
+    /// Mutation explicitly treated as idempotent.
+    IdempotentMutation,
+    /// Potentially non-idempotent mutation.
     Mutation,
 }
 
-impl RequestSafetyClass {
+impl RequestRetryClass {
     const fn as_str(self) -> &'static str {
         match self {
             Self::Read => "read",
+            Self::IdempotentMutation => "idempotent_mutation",
             Self::Mutation => "mutation",
         }
     }
@@ -232,6 +248,22 @@ impl HttpExecutor {
         Fut: std::future::Future<Output = Result<AccessToken>>,
     {
         let request_class = classify_request(request.method());
+        self.execute_response_with_retry_class(request, token, refresh_token, request_class)
+            .await
+    }
+
+    /// Executes a request with an explicit retry class override.
+    pub async fn execute_response_with_retry_class<F, Fut>(
+        &self,
+        request: Request,
+        token: &AccessToken,
+        refresh_token: F,
+        request_class: RequestRetryClass,
+    ) -> Result<Response>
+    where
+        F: Fn() -> Fut,
+        Fut: std::future::Future<Output = Result<AccessToken>>,
+    {
         self.execute_response_with_class(request, token, refresh_token, request_class)
             .await
     }
@@ -242,7 +274,7 @@ impl HttpExecutor {
         mut request: Request,
         token: &AccessToken,
         refresh_token: F,
-        request_class: RequestSafetyClass,
+        request_class: RequestRetryClass,
     ) -> Result<Response>
     where
         F: Fn() -> Fut,
@@ -390,10 +422,13 @@ impl HttpExecutor {
         }
     }
 
-    fn max_retries_for(&self, request_class: RequestSafetyClass) -> u32 {
+    fn max_retries_for(&self, request_class: RequestRetryClass) -> u32 {
         match request_class {
-            RequestSafetyClass::Read => self.retry_policy.read_max_retries,
-            RequestSafetyClass::Mutation => self.retry_policy.mutation_max_retries,
+            RequestRetryClass::Read => self.retry_policy.read_max_retries,
+            RequestRetryClass::IdempotentMutation => {
+                self.retry_policy.idempotent_mutation_max_retries
+            }
+            RequestRetryClass::Mutation => self.retry_policy.mutation_max_retries,
         }
     }
 
@@ -513,11 +548,11 @@ fn exponential_backoff(attempt: u32) -> Duration {
     Duration::from_millis(backoff_ms.min(30_000) as u64)
 }
 
-fn classify_request(method: &Method) -> RequestSafetyClass {
+fn classify_request(method: &Method) -> RequestRetryClass {
     if *method == Method::GET || *method == Method::HEAD || *method == Method::OPTIONS {
-        RequestSafetyClass::Read
+        RequestRetryClass::Read
     } else {
-        RequestSafetyClass::Mutation
+        RequestRetryClass::Mutation
     }
 }
 

@@ -10,6 +10,7 @@ pub use builder::{AuthenticatedBuilder, ForceClientBuilder, HasAuth, NoAuth};
 use crate::auth::TokenManager;
 use crate::config::ClientConfig;
 use crate::http::HttpExecutor;
+use crate::http::RequestRetryClass;
 use std::sync::Arc;
 
 /// Inner state shared across cloned clients.
@@ -40,6 +41,22 @@ impl<A: crate::auth::Authenticator> Inner<A> {
                 let token_manager = Arc::clone(&token_manager);
                 async move { token_manager.force_refresh().await }
             })
+            .await
+    }
+
+    /// Executes a request with an explicit retry class override.
+    pub(crate) async fn execute_request_with_retry_class(
+        &self,
+        request: reqwest::Request,
+        retry_class: RequestRetryClass,
+    ) -> crate::error::Result<reqwest::Response> {
+        let token = self.token_manager.token().await?;
+        let token_manager = Arc::clone(&self.token_manager);
+        self.http_executor
+            .execute_response_with_retry_class(request, &token, move || {
+                let token_manager = Arc::clone(&token_manager);
+                async move { token_manager.force_refresh().await }
+            }, retry_class)
             .await
     }
 }

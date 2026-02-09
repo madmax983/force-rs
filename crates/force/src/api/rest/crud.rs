@@ -261,6 +261,48 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
         external_id_value: &str,
         data: &serde_json::Value,
     ) -> Result<UpsertResponse> {
+        self
+            .upsert_with_retry_class(
+                sobject,
+                external_id_field,
+                external_id_value,
+                data,
+                crate::http::RequestRetryClass::Mutation,
+            )
+            .await
+    }
+
+    /// Upserts an SObject by external ID with idempotent retry semantics.
+    ///
+    /// This method is intended for writes that are safe to retry when transient
+    /// infrastructure errors occur (for example 503). It routes through the HTTP
+    /// executor's `IdempotentMutation` retry class.
+    pub async fn upsert_idempotent(
+        &self,
+        sobject: &str,
+        external_id_field: &str,
+        external_id_value: &str,
+        data: &serde_json::Value,
+    ) -> Result<UpsertResponse> {
+        self
+            .upsert_with_retry_class(
+                sobject,
+                external_id_field,
+                external_id_value,
+                data,
+                crate::http::RequestRetryClass::IdempotentMutation,
+            )
+            .await
+    }
+
+    async fn upsert_with_retry_class(
+        &self,
+        sobject: &str,
+        external_id_field: &str,
+        external_id_value: &str,
+        data: &serde_json::Value,
+        retry_class: crate::http::RequestRetryClass,
+    ) -> Result<UpsertResponse> {
         let url = format!(
             "{}/sobjects/{}/{}/{}",
             self.base_url().await?,
@@ -275,7 +317,10 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
             .json(data)
             .build()
             .map_err(crate::error::HttpError::from)?;
-        let response = self.inner.execute_request(request).await?;
+        let response = self
+            .inner
+            .execute_request_with_retry_class(request, retry_class)
+            .await?;
 
         match response.status().as_u16() {
             201 => {
@@ -661,6 +706,78 @@ use crate::test_support::Must;
 
         assert!(response.is_success());
         assert!(response.is_created());
+        assert_eq!(response.id.as_str(), "001xx000003DHP0AAO");
+    }
+
+    #[tokio::test]
+    async fn test_upsert_does_not_retry_on_503_by_default() {
+        let mock_server = MockServer::start().await;
+        let auth = MockAuthenticator::new("test_token", &mock_server.uri());
+        let client = builder().authenticate(auth).build().await.must();
+
+        Mock::given(method("PATCH"))
+            .and(path(
+                "/services/data/v60.0/sobjects/Account/ExternalId__c/ACME-001",
+            ))
+            .respond_with(ResponseTemplate::new(503).set_body_string("temporary outage"))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let rest = client.rest();
+        let result = rest
+            .upsert(
+                "Account",
+                "ExternalId__c",
+                "ACME-001",
+                &json!({"Name": "Acme Corp"}),
+            )
+            .await;
+
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_upsert_idempotent_retries_on_503() {
+        let mock_server = MockServer::start().await;
+        let auth = MockAuthenticator::new("test_token", &mock_server.uri());
+        let client = builder().authenticate(auth).build().await.must();
+
+        Mock::given(method("PATCH"))
+            .and(path(
+                "/services/data/v60.0/sobjects/Account/ExternalId__c/ACME-001",
+            ))
+            .respond_with(ResponseTemplate::new(503))
+            .up_to_n_times(1)
+            .mount(&mock_server)
+            .await;
+
+        Mock::given(method("PATCH"))
+            .and(path(
+                "/services/data/v60.0/sobjects/Account/ExternalId__c/ACME-001",
+            ))
+            .respond_with(ResponseTemplate::new(201).set_body_json(json!({
+                "id": "001xx000003DHP0AAO",
+                "success": true,
+                "created": true,
+                "errors": []
+            })))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let rest = client.rest();
+        let response = rest
+            .upsert_idempotent(
+                "Account",
+                "ExternalId__c",
+                "ACME-001",
+                &json!({"Name": "Acme Corp"}),
+            )
+            .await
+            .must();
+
+        assert!(response.created);
         assert_eq!(response.id.as_str(), "001xx000003DHP0AAO");
     }
 
