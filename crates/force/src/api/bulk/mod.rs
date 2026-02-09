@@ -42,7 +42,7 @@ impl BulkPollPolicy {
     }
 
     #[must_use]
-    fn backoff_for_attempt(self, attempt: u32) -> Duration {
+    pub(crate) fn backoff_for_attempt(self, attempt: u32) -> Duration {
         let shift = attempt.min(31);
         let multiplier = 1_u32 << shift;
         let Some(backoff) = self.initial_backoff.checked_mul(multiplier) else {
@@ -52,7 +52,7 @@ impl BulkPollPolicy {
     }
 
     #[must_use]
-    fn timeout_seconds(self) -> u64 {
+    pub(crate) fn timeout_seconds(self) -> u64 {
         let mut total = Duration::ZERO;
         let mut attempt = 0;
         while attempt < self.max_attempts {

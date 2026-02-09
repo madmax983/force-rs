@@ -40,11 +40,11 @@
 use crate::api::bulk::types::{
     CreateJobRequest, JobInfo, JobOperation, JobState, UpdateJobRequest,
 };
+use crate::api::bulk::BulkPollPolicy;
 use crate::auth::Authenticator;
 use crate::error::Result;
 use std::marker::PhantomData;
 use std::sync::Arc;
-use std::time::Duration;
 
 async fn handle_error_response(
     response: reqwest::Response,
@@ -253,9 +253,19 @@ impl<A: Authenticator> IngestJob<InProgress, A> {
     ///
     /// Returns an error if polling fails or job fails/aborts.
     pub async fn poll_until_complete(self) -> Result<IngestJob<JobComplete, A>> {
-        const MAX_ATTEMPTS: u32 = 10;
-        const MAX_BACKOFF_SECS: u64 = 30;
+        self.poll_until_complete_with_policy(BulkPollPolicy::default())
+            .await
+    }
 
+    /// Polls until the job completes using the provided polling policy.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if polling fails or job fails/aborts.
+    pub async fn poll_until_complete_with_policy(
+        self,
+        poll_policy: BulkPollPolicy,
+    ) -> Result<IngestJob<JobComplete, A>> {
         let mut attempt = 0;
         loop {
             let job_info = self.get_job_info().await?;
@@ -284,15 +294,14 @@ impl<A: Authenticator> IngestJob<InProgress, A> {
                 }
                 _ => {
                     // Job still in progress, wait with exponential backoff
-                    if attempt >= MAX_ATTEMPTS {
+                    if attempt >= poll_policy.max_attempts {
                         return Err(crate::error::HttpError::Timeout {
-                            timeout_seconds: MAX_BACKOFF_SECS * u64::from(MAX_ATTEMPTS),
+                            timeout_seconds: poll_policy.timeout_seconds(),
                         }
                         .into());
                     }
 
-                    let backoff_secs = std::cmp::min(1u64 << attempt, MAX_BACKOFF_SECS);
-                    tokio::time::sleep(Duration::from_secs(backoff_secs)).await;
+                    tokio::time::sleep(poll_policy.backoff_for_attempt(attempt)).await;
                     attempt += 1;
                 }
             }
@@ -1104,6 +1113,86 @@ use crate::test_support::{Must, MustMsg};
 
         let result = job.poll_until_complete().await;
         assert!(result.is_err()); // Should timeout
+    }
+
+    #[tokio::test]
+    async fn test_poll_until_complete_with_policy_retries_then_succeeds() {
+        use crate::api::bulk::BulkPollPolicy;
+        use std::time::Duration;
+
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/services/data/v60.0/jobs/ingest/750xx0000000002AAA"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "id": "750xx0000000002AAA",
+                "operation": "insert",
+                "object": "Account",
+                "createdDate": "2024-01-01T00:00:00.000Z",
+                "createdById": "005xx0000000001AAA",
+                "state": "InProgress"
+            })))
+            .up_to_n_times(1)
+            .mount(&mock_server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path("/services/data/v60.0/jobs/ingest/750xx0000000002AAA"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "id": "750xx0000000002AAA",
+                "operation": "insert",
+                "object": "Account",
+                "createdDate": "2024-01-01T00:00:00.000Z",
+                "createdById": "005xx0000000001AAA",
+                "state": "JobComplete"
+            })))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let client = create_test_client(mock_server.uri()).await;
+        let handler = client.bulk();
+        let job = IngestJob::<InProgress, _>::new_for_test(
+            "750xx0000000002AAA".to_string(),
+            Arc::clone(&handler.inner),
+        );
+
+        let policy = BulkPollPolicy::new(2, Duration::from_millis(1), Duration::from_millis(1));
+        let result = job.poll_until_complete_with_policy(policy).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_poll_until_complete_with_policy_times_out_when_attempts_are_zero() {
+        use crate::api::bulk::BulkPollPolicy;
+        use std::time::Duration;
+
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/services/data/v60.0/jobs/ingest/750xx0000000003AAA"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "id": "750xx0000000003AAA",
+                "operation": "insert",
+                "object": "Account",
+                "createdDate": "2024-01-01T00:00:00.000Z",
+                "createdById": "005xx0000000001AAA",
+                "state": "InProgress"
+            })))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let client = create_test_client(mock_server.uri()).await;
+        let handler = client.bulk();
+        let job = IngestJob::<InProgress, _>::new_for_test(
+            "750xx0000000003AAA".to_string(),
+            Arc::clone(&handler.inner),
+        );
+
+        let policy = BulkPollPolicy::new(0, Duration::from_millis(1), Duration::from_millis(1));
+        let result = job.poll_until_complete_with_policy(policy).await;
+        assert!(result.is_err());
     }
 
     #[tokio::test]
