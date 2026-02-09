@@ -7,11 +7,14 @@
 //! - optional `SF_API_VERSION` (defaults to `v60.0`)
 
 use async_trait::async_trait;
+use force::api::bulk::BulkPollPolicy;
 use force::auth::{AccessToken, Authenticator, TokenResponse};
 use force::client::{builder, ForceClient};
 use force::config::ClientConfigBuilder;
+use force::error::HttpError;
 use force::error::Result;
 use serde::Deserialize;
+use std::time::Duration;
 
 #[derive(Debug, Clone)]
 struct EnvAuthenticator {
@@ -43,6 +46,47 @@ struct LiveConfig {
     access_token: String,
     instance_url: String,
     api_version: String,
+    runtime: LiveRuntimeConfig,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct LiveRuntimeConfig {
+    test_timeout: Duration,
+    bulk_poll_policy: BulkPollPolicy,
+    bulk_query_row_limit: usize,
+}
+
+fn env_u32(key: &str, default: u32) -> u32 {
+    std::env::var(key)
+        .ok()
+        .and_then(|value| value.parse::<u32>().ok())
+        .unwrap_or(default)
+}
+
+fn env_u64(key: &str, default: u64) -> u64 {
+    std::env::var(key)
+        .ok()
+        .and_then(|value| value.parse::<u64>().ok())
+        .unwrap_or(default)
+}
+
+fn load_runtime_config() -> LiveRuntimeConfig {
+    let timeout_secs = env_u64("SF_LIVE_TEST_TIMEOUT_SECS", 120);
+    let poll_attempts = env_u32("SF_LIVE_BULK_POLL_MAX_ATTEMPTS", 10);
+    let poll_initial_ms = env_u64("SF_LIVE_BULK_POLL_INITIAL_BACKOFF_MS", 1_000);
+    let poll_max_ms = env_u64("SF_LIVE_BULK_POLL_MAX_BACKOFF_MS", 30_000);
+    let bulk_query_row_limit =
+        usize::try_from(env_u64("SF_LIVE_BULK_QUERY_ROW_LIMIT", 5)).unwrap_or(5);
+
+    LiveRuntimeConfig {
+        test_timeout: Duration::from_secs(timeout_secs),
+        bulk_poll_policy: BulkPollPolicy::new(
+            poll_attempts,
+            Duration::from_millis(poll_initial_ms),
+            Duration::from_millis(poll_max_ms),
+        ),
+        bulk_query_row_limit,
+    }
 }
 
 fn load_live_config() -> Option<LiveConfig> {
@@ -53,6 +97,7 @@ fn load_live_config() -> Option<LiveConfig> {
         access_token,
         instance_url,
         api_version,
+        runtime: load_runtime_config(),
     })
 }
 
@@ -81,10 +126,16 @@ async fn live_rest_query_smoke() -> Result<()> {
         return Ok(());
     };
 
-    let client = create_live_client(&config).await?;
-    let result = client
-        .query::<force::types::DynamicSObject>("SELECT Id FROM Account LIMIT 1")
-        .await?;
+    let result = tokio::time::timeout(config.runtime.test_timeout, async {
+        let client = create_live_client(&config).await?;
+        client
+            .query::<force::types::DynamicSObject>("SELECT Id FROM Account LIMIT 1")
+            .await
+    })
+    .await
+    .map_err(|_| HttpError::Timeout {
+        timeout_seconds: config.runtime.test_timeout.as_secs(),
+    })??;
 
     assert!(result.total_size <= 1);
     assert!(result.records.len() <= 1);
@@ -105,21 +156,32 @@ async fn live_bulk_query_stream_smoke() -> Result<()> {
         return Ok(());
     };
 
-    let client = create_live_client(&config).await?;
-    let mut stream = client
-        .bulk()
-        .bulk_query::<LiveAccountRow>("SELECT Id FROM Account LIMIT 5")
-        .await?;
+    let seen = tokio::time::timeout(config.runtime.test_timeout, async {
+        let client = create_live_client(&config).await?;
+        let soql = format!(
+            "SELECT Id FROM Account LIMIT {}",
+            config.runtime.bulk_query_row_limit
+        );
+        let mut stream = client
+            .bulk()
+            .bulk_query_with_policy::<LiveAccountRow>(&soql, config.runtime.bulk_poll_policy)
+            .await?;
 
-    let mut seen = 0usize;
-    while let Some(row) = stream.next().await? {
-        assert!(!row.id.is_empty());
-        seen += 1;
-        if seen >= 5 {
-            break;
+        let mut seen = 0usize;
+        while let Some(row) = stream.next().await? {
+            assert!(!row.id.is_empty());
+            seen += 1;
+            if seen >= config.runtime.bulk_query_row_limit {
+                break;
+            }
         }
-    }
+        Ok::<usize, force::error::ForceError>(seen)
+    })
+    .await
+    .map_err(|_| HttpError::Timeout {
+        timeout_seconds: config.runtime.test_timeout.as_secs(),
+    })??;
 
-    assert!(seen <= 5);
+    assert!(seen <= config.runtime.bulk_query_row_limit);
     Ok(())
 }
