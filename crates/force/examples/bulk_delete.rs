@@ -52,7 +52,8 @@ async fn main() -> anyhow::Result<()> {
     // Query for test accounts to delete
     println!("═══ Querying Accounts ═══");
     let soql = "SELECT Id, Name FROM Account WHERE Name LIKE 'Test%' LIMIT 10";
-    let mut stream = client.bulk().bulk_query::<Account>(soql).await?;
+    let mut stream: force::api::bulk::query::BulkQueryStream<Account, ClientCredentials> =
+        client.bulk().bulk_query::<Account>(soql).await?;
 
     let mut account_ids = Vec::new();
     while let Some(account) = stream.next().await? {

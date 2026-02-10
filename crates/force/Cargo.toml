@@ -47,6 +47,50 @@ wiremock = { workspace = true }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 proptest = "1.5"
 
+[[example]]
+name = "dynamic_query"
+required-features = ["rest"]
+
+[[example]]
+name = "soql_query"
+required-features = ["rest"]
+
+[[example]]
+name = "basic_crud"
+required-features = ["rest"]
+
+[[example]]
+name = "describe"
+required-features = ["rest"]
+
+[[example]]
+name = "search"
+required-features = ["rest"]
+
+[[example]]
+name = "org_limits"
+required-features = ["rest"]
+
+[[example]]
+name = "bulk_insert"
+required-features = ["bulk"]
+
+[[example]]
+name = "bulk_update"
+required-features = ["bulk"]
+
+[[example]]
+name = "bulk_delete"
+required-features = ["bulk"]
+
+[[example]]
+name = "bulk_query"
+required-features = ["bulk"]
+
+[[example]]
+name = "bulk_error_handling"
+required-features = ["bulk"]
+
 [features]
 default = ["rest"]
 

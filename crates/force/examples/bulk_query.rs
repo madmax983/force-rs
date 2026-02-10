@@ -59,7 +59,8 @@ async fn main() -> anyhow::Result<()> {
     println!("Query: {soql}");
 
     // Creates job, polls until complete, returns streaming results
-    let mut stream = client.bulk().bulk_query::<Account>(soql).await?;
+    let mut stream: force::api::bulk::query::BulkQueryStream<Account, ClientCredentials> =
+        client.bulk().bulk_query::<Account>(soql).await?;
 
     println!("\n═══ Results ═══");
     let mut count = 0;

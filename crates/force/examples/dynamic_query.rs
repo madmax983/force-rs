@@ -38,7 +38,7 @@ async fn main() -> anyhow::Result<()> {
 
     println!("Accounts:");
     for record in &accounts.records {
-        let id = record.get_field_as::<String>("Id")?.unwrap_or_default();
+        let id: String = record.get_field_as::<String>("Id")?.unwrap_or_default();
         let name = record.get_field_as::<String>("Name")?.unwrap_or_default();
         let industry = record
             .get_field_as::<String>("Industry")?
@@ -55,7 +55,7 @@ async fn main() -> anyhow::Result<()> {
     let revenues: Vec<f64> = revenue_rows
         .records
         .iter()
-        .filter_map(|row| row.get_field_as::<f64>("AnnualRevenue").ok().flatten())
+        .filter_map(|row: &DynamicSObject| row.get_field_as::<f64>("AnnualRevenue").ok().flatten())
         .collect();
 
     if !revenues.is_empty() {
