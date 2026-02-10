@@ -1,3 +1,7 @@
+#![cfg_attr(feature = "rest", allow(unused_imports))]
+
+#[cfg(feature = "rest")]
+mod example {
 //! Organization Limits Example
 //!
 //! This example demonstrates how to retrieve and display Salesforce org limits,
@@ -162,8 +166,9 @@ fn print_summary(limits: &OrgLimits) {
     }
 }
 
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
+
+
+pub async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
 
     let client_id = required_env("SF_CLIENT_ID")?;
@@ -190,4 +195,16 @@ async fn main() -> anyhow::Result<()> {
     print_summary(&limits);
 
     Ok(())
+}
+}
+
+#[cfg(feature = "rest")]
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    example::main().await
+}
+
+#[cfg(not(feature = "rest"))]
+fn main() {
+    println!("This example requires the rest feature");
 }

@@ -1,3 +1,7 @@
+#![cfg_attr(feature = "rest", allow(unused_imports))]
+
+#[cfg(feature = "rest")]
+mod example {
 //! Basic CRUD Operations Example
 //!
 //! Demonstrates create, read, update, and delete flows with the REST API.
@@ -23,8 +27,9 @@ async fn build_client() -> anyhow::Result<ForceClient<ClientCredentials>> {
     builder().authenticate(auth).build().await.map_err(Into::into)
 }
 
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
+
+
+pub async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
 
     let client = build_client().await?;
@@ -63,4 +68,16 @@ async fn main() -> anyhow::Result<()> {
     println!("Deleted account: {account_id}");
 
     Ok(())
+}
+}
+
+#[cfg(feature = "rest")]
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    example::main().await
+}
+
+#[cfg(not(feature = "rest"))]
+fn main() {
+    println!("This example requires the rest feature");
 }

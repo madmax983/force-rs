@@ -1,3 +1,7 @@
+#![cfg_attr(feature = "bulk", allow(unused_imports))]
+
+#[cfg(feature = "bulk")]
+mod example {
 //! Bulk API Error Handling Example
 
 use anyhow::Context;
@@ -49,8 +53,9 @@ async fn build_client() -> anyhow::Result<ForceClient<ClientCredentials>> {
     builder().authenticate(auth).build().await.map_err(Into::into)
 }
 
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
+
+
+pub async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
     let client = build_client().await?;
 
@@ -91,4 +96,16 @@ async fn main() -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+}
+
+#[cfg(feature = "bulk")]
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    example::main().await
+}
+
+#[cfg(not(feature = "bulk"))]
+fn main() {
+    println!("This example requires the bulk feature");
 }

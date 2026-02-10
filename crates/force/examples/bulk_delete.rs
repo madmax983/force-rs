@@ -1,3 +1,7 @@
+#![cfg_attr(feature = "bulk", allow(unused_imports))]
+
+#[cfg(feature = "bulk")]
+mod example {
 
 
 //! Bulk Delete Example
@@ -33,8 +37,9 @@ use anyhow::Context;
 fn required_env(name: &str) -> anyhow::Result<String> {
     std::env::var(name).with_context(|| format!("{name} environment variable not set"))
 }
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
+
+
+pub async fn main() -> anyhow::Result<()> {
     // Initialize tracing
     tracing_subscriber::fmt::init();
 
@@ -102,5 +107,15 @@ async fn main() -> anyhow::Result<()> {
 
     Ok(())
 }
+}
 
+#[cfg(feature = "bulk")]
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    example::main().await
+}
 
+#[cfg(not(feature = "bulk"))]
+fn main() {
+    println!("This example requires the bulk feature");
+}
