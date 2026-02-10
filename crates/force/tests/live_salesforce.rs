@@ -12,6 +12,7 @@ use force::api::bulk::BulkPollPolicy;
 use force::auth::{AccessToken, Authenticator, TokenResponse};
 use force::client::{ForceClient, builder};
 use force::config::ClientConfig;
+use force::error::ForceError;
 use force::error::HttpError;
 use force::error::Result;
 use serde::Deserialize;
@@ -69,6 +70,33 @@ fn env_u64(key: &str, default: u64) -> u64 {
         .ok()
         .and_then(|value| value.parse::<u64>().ok())
         .unwrap_or(default)
+}
+
+fn env_flag(key: &str) -> bool {
+    std::env::var(key)
+        .map(|value| {
+            let value = value.to_ascii_lowercase();
+            matches!(value.as_str(), "1" | "true" | "yes" | "on")
+        })
+        .unwrap_or(false)
+}
+
+fn assert_status_error_with_code(err: &ForceError, expected_status: u16, expected_codes: &[&str]) {
+    match err {
+        ForceError::Http(HttpError::StatusError {
+            status_code,
+            message,
+        }) => {
+            assert_eq!(*status_code, expected_status);
+            assert!(
+                expected_codes
+                    .iter()
+                    .any(|code| message.contains(code) || message.contains(&format!("[{code}]"))),
+                "expected one of {expected_codes:?}, got message: {message}",
+            );
+        }
+        _ => panic!("expected Http::StatusError, got: {err:?}"),
+    }
 }
 
 fn load_runtime_config() -> LiveRuntimeConfig {
@@ -189,4 +217,185 @@ async fn live_bulk_query_stream_smoke() -> Result<()> {
 
     assert!(seen <= config.runtime.bulk_query_row_limit);
     Ok(())
+}
+
+#[tokio::test]
+#[ignore = "requires a live Salesforce org and SF_ACCESS_TOKEN/SF_INSTANCE_URL env vars"]
+async fn live_rest_query_malformed_soql_error_payload() -> Result<()> {
+    let Some(config) = load_live_config() else {
+        eprintln!(
+            "skipping live_rest_query_malformed_soql_error_payload: missing SF_ACCESS_TOKEN or SF_INSTANCE_URL"
+        );
+        return Ok(());
+    };
+
+    let result = tokio::time::timeout(config.runtime.test_timeout, async {
+        let client = create_live_client(&config).await?;
+        client
+            .rest()
+            .query::<force::types::DynamicSObject>("SELECT FROM Account")
+            .await
+    })
+    .await
+    .map_err(|_| HttpError::Timeout {
+        timeout_seconds: config.runtime.test_timeout.as_secs(),
+    })?;
+
+    let Err(error) = result else {
+        panic!("expected malformed query to fail");
+    };
+    assert_status_error_with_code(&error, 400, &["MALFORMED_QUERY", "INVALID_FIELD"]);
+    Ok(())
+}
+
+#[tokio::test]
+#[ignore = "requires a live Salesforce org and SF_ACCESS_TOKEN/SF_INSTANCE_URL env vars"]
+async fn live_rest_query_invalid_locator_error_payload() -> Result<()> {
+    let Some(config) = load_live_config() else {
+        eprintln!(
+            "skipping live_rest_query_invalid_locator_error_payload: missing SF_ACCESS_TOKEN or SF_INSTANCE_URL"
+        );
+        return Ok(());
+    };
+
+    let invalid_locator_path = format!(
+        "/services/data/{}/query/this-is-not-a-valid-locator",
+        config.api_version
+    );
+
+    let result = tokio::time::timeout(config.runtime.test_timeout, async {
+        let client = create_live_client(&config).await?;
+        client
+            .rest()
+            .query_more::<force::types::DynamicSObject>(&invalid_locator_path)
+            .await
+    })
+    .await
+    .map_err(|_| HttpError::Timeout {
+        timeout_seconds: config.runtime.test_timeout.as_secs(),
+    })?;
+
+    let Err(error) = result else {
+        panic!("expected invalid locator to fail");
+    };
+    assert_status_error_with_code(
+        &error,
+        404,
+        &["INVALID_QUERY_LOCATOR", "NOT_FOUND", "MALFORMED_QUERY"],
+    );
+    Ok(())
+}
+
+#[tokio::test]
+#[ignore = "requires a live Salesforce org and SF_ACCESS_TOKEN/SF_INSTANCE_URL env vars"]
+async fn live_bulk_ingest_partial_failure_results() -> Result<()> {
+    if !env_flag("SF_LIVE_RUN_PARTIAL_FAILURE") {
+        eprintln!(
+            "skipping live_bulk_ingest_partial_failure_results: set SF_LIVE_RUN_PARTIAL_FAILURE=1 to enable"
+        );
+        return Ok(());
+    }
+
+    let Some(config) = load_live_config() else {
+        eprintln!(
+            "skipping live_bulk_ingest_partial_failure_results: missing SF_ACCESS_TOKEN or SF_INSTANCE_URL"
+        );
+        return Ok(());
+    };
+
+    let result = tokio::time::timeout(config.runtime.test_timeout, async {
+        let client = create_live_client(&config).await?;
+        let handler = client.bulk();
+        let job = force::api::bulk::ingest::IngestJobBuilder::new(
+            "Account",
+            force::api::bulk::types::JobOperation::Insert,
+        )
+        .build(&handler)
+        .await?;
+
+        // First row should be valid in most orgs; second row intentionally exceeds
+        // standard Account.Name length to trigger a row-level validation failure.
+        let long_name = "X".repeat(400);
+        let csv_data = format!("Name\nLive Smoke Partial Row\n{long_name}\n");
+
+        let job = job.upload(csv_data.as_bytes()).await?;
+        let job = job.close().await?;
+        let job = job
+            .poll_until_complete_with_policy(config.runtime.bulk_poll_policy)
+            .await?;
+        let successful = String::from_utf8(job.successful_results().await?)
+            .map_err(|error| HttpError::InvalidUrl(error.to_string()))?;
+        let failed = String::from_utf8(job.failed_results().await?)
+            .map_err(|error| HttpError::InvalidUrl(error.to_string()))?;
+        Ok::<(String, String), force::error::ForceError>((successful, failed))
+    })
+    .await
+    .map_err(|_| HttpError::Timeout {
+        timeout_seconds: config.runtime.test_timeout.as_secs(),
+    })??;
+
+    let (successful, failed) = result;
+    let successful_rows = successful
+        .lines()
+        .skip(1)
+        .filter(|line| !line.is_empty())
+        .count();
+    let failed_rows = failed
+        .lines()
+        .skip(1)
+        .filter(|line| !line.is_empty())
+        .count();
+    assert!(
+        successful_rows >= 1,
+        "expected at least one successful row, got:\n{successful}",
+    );
+    assert!(
+        failed_rows >= 1,
+        "expected at least one failed row, got:\n{failed}",
+    );
+    Ok(())
+}
+
+#[tokio::test]
+#[ignore = "requires a live Salesforce org and SF_ACCESS_TOKEN/SF_INSTANCE_URL env vars"]
+async fn live_rest_throttling_error_payload() -> Result<()> {
+    if !env_flag("SF_LIVE_RUN_THROTTLE") {
+        eprintln!(
+            "skipping live_rest_throttling_error_payload: set SF_LIVE_RUN_THROTTLE=1 to enable"
+        );
+        return Ok(());
+    }
+
+    let Some(config) = load_live_config() else {
+        eprintln!(
+            "skipping live_rest_throttling_error_payload: missing SF_ACCESS_TOKEN or SF_INSTANCE_URL"
+        );
+        return Ok(());
+    };
+
+    let max_requests = env_u64("SF_LIVE_THROTTLE_MAX_REQUESTS", 5_000);
+    let client = create_live_client(&config).await?;
+
+    let mut attempts = 0_u64;
+    while attempts < max_requests {
+        attempts += 1;
+        let result = client
+            .rest()
+            .query::<force::types::DynamicSObject>("SELECT Id FROM Account LIMIT 1")
+            .await;
+        if let Err(error) = result {
+            match &error {
+                ForceError::Http(HttpError::RateLimitExceeded { .. }) => return Ok(()),
+                ForceError::Http(HttpError::StatusError {
+                    status_code: 429,
+                    message,
+                }) if message.contains("REQUEST_LIMIT_EXCEEDED") => return Ok(()),
+                _ => return Err(error),
+            }
+        }
+    }
+
+    panic!(
+        "did not hit throttling within {max_requests} requests; increase SF_LIVE_THROTTLE_MAX_REQUESTS"
+    );
 }
