@@ -67,8 +67,9 @@ The Salesforce Bulk API 2.0 provides:
 **Implementation:**
 ```rust
 // State transitions through types
-let job = IngestJobBuilder::new("Account", JobOperation::Insert)
-    .build(handler).await?;                    // Returns IngestJob<Open, A>
+let job = handler
+    .create_ingest_job("Account", JobOperation::Insert)
+    .await?;                                   // Returns IngestJob<Open, A>
 
 let job = job.upload(&csv_data).await?;        // Open → UploadComplete
 let job = job.close().await?;                  // UploadComplete → InProgress
@@ -134,7 +135,7 @@ bulk = ["csv"]
 **Rationale:**
 - 90% of users want simple insert/update/query
 - 10% need fine-grained control
-- Progressive disclosure: simple → builder → direct API
+- Progressive disclosure: simple → state machine → direct API
 
 **Methods Provided:**
 ```rust
