@@ -1,6 +1,6 @@
+//! SOQL Query with Typed Results Example
 #[cfg(feature = "rest")]
 mod example {
-    //! SOQL Query with Typed Results Example
 
     use anyhow::Context;
     use force::auth::ClientCredentials;
@@ -82,10 +82,10 @@ mod example {
         println!("\nContacts fetched across {pages} page(s): {count}");
 
         let stats = client
-            .query::<IndustryStats>(
-                "SELECT Industry, COUNT(Id) TotalAccounts FROM Account WHERE Industry != null GROUP BY Industry LIMIT 5",
-            )
-            .await?;
+        .query::<IndustryStats>(
+            "SELECT Industry, COUNT(Id) TotalAccounts FROM Account WHERE Industry != null GROUP BY Industry LIMIT 5",
+        )
+        .await?;
         println!("\nIndustry stats:");
         for row in &stats.records {
             println!(

@@ -1,21 +1,21 @@
+//! Organization Limits Example
+//!
+//! This example demonstrates how to retrieve and display Salesforce org limits,
+//! including API usage, storage capacity, and other resource constraints.
+//!
+//! # Setup
+//!
+//! Set the following environment variables:
+//! - `SF_CLIENT_ID` - OAuth client ID (Connected App Consumer Key)
+//! - `SF_CLIENT_SECRET` - OAuth client secret (Connected App Consumer Secret)
+//!
+//! # Run
+//!
+//! ```bash
+//! cargo run --example org_limits
+//! ```
 #[cfg(feature = "rest")]
 mod example {
-    //! Organization Limits Example
-    //!
-    //! This example demonstrates how to retrieve and display Salesforce org limits,
-    //! including API usage, storage capacity, and other resource constraints.
-    //!
-    //! # Setup
-    //!
-    //! Set the following environment variables:
-    //! - `SF_CLIENT_ID` - OAuth client ID (Connected App Consumer Key)
-    //! - `SF_CLIENT_SECRET` - OAuth client secret (Connected App Consumer Secret)
-    //!
-    //! # Run
-    //!
-    //! ```bash
-    //! cargo run --example org_limits
-    //! ```
 
     use anyhow::Context;
     use force::api::rest::limits::OrgLimits;

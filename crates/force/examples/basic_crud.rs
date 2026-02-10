@@ -1,8 +1,8 @@
+//! Basic CRUD Operations Example
+//!
+//! Demonstrates create, read, update, and delete flows with the REST API.
 #[cfg(feature = "rest")]
 mod example {
-    //! Basic CRUD Operations Example
-    //!
-    //! Demonstrates create, read, update, and delete flows with the REST API.
 
     use anyhow::Context;
     use force::auth::ClientCredentials;

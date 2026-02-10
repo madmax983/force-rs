@@ -1,20 +1,20 @@
+//! Bulk Query Example
+//!
+//! This example demonstrates querying large datasets using the Bulk API 2.0.
+//!
+//! # Setup
+//!
+//! Set the following environment variables:
+//! - `SF_CLIENT_ID` - OAuth client ID
+//! - `SF_CLIENT_SECRET` - OAuth client secret
+//!
+//! # Run
+//!
+//! ```bash
+//! cargo run --example bulk_query --features bulk
+//! ```
 #[cfg(feature = "bulk")]
 mod example {
-    //! Bulk Query Example
-    //!
-    //! This example demonstrates querying large datasets using the Bulk API 2.0.
-    //!
-    //! # Setup
-    //!
-    //! Set the following environment variables:
-    //! - `SF_CLIENT_ID` - OAuth client ID
-    //! - `SF_CLIENT_SECRET` - OAuth client secret
-    //!
-    //! # Run
-    //!
-    //! ```bash
-    //! cargo run --example bulk_query --features bulk
-    //! ```
 
     use force::auth::ClientCredentials;
     use force::client::builder;

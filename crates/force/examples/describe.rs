@@ -1,8 +1,8 @@
+//! Describe API Example
+//!
+//! Demonstrates global describe and object-specific describe operations.
 #[cfg(feature = "rest")]
 mod example {
-    //! Describe API Example
-    //!
-    //! Demonstrates global describe and object-specific describe operations.
 
     use anyhow::Context;
     use force::auth::ClientCredentials;

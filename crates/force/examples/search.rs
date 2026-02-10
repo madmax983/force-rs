@@ -1,8 +1,8 @@
+//! SOSL Search Example
+//!
+//! Demonstrates SOSL searches across multiple object types.
 #[cfg(feature = "rest")]
 mod example {
-    //! SOSL Search Example
-    //!
-    //! Demonstrates SOSL searches across multiple object types.
 
     use anyhow::Context;
     use force::auth::ClientCredentials;

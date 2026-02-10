@@ -1,8 +1,8 @@
+//! Dynamic Query Example
+//!
+//! Demonstrates querying dynamic records with `DynamicSObject`.
 #[cfg(feature = "rest")]
 mod example {
-    //! Dynamic Query Example
-    //!
-    //! Demonstrates querying dynamic records with `DynamicSObject`.
 
     use anyhow::Context;
     use force::auth::ClientCredentials;

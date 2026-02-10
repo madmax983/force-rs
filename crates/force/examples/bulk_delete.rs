@@ -1,20 +1,20 @@
+//! Bulk Delete Example
+//!
+//! This example demonstrates deleting records in bulk using the Bulk API 2.0.
+//!
+//! # Setup
+//!
+//! Set the following environment variables:
+//! - `SF_CLIENT_ID` - OAuth client ID
+//! - `SF_CLIENT_SECRET` - OAuth client secret
+//!
+//! # Run
+//!
+//! ```bash
+//! cargo run --example bulk_delete --features bulk
+//! ```
 #[cfg(feature = "bulk")]
 mod example {
-    //! Bulk Delete Example
-    //!
-    //! This example demonstrates deleting records in bulk using the Bulk API 2.0.
-    //!
-    //! # Setup
-    //!
-    //! Set the following environment variables:
-    //! - `SF_CLIENT_ID` - OAuth client ID
-    //! - `SF_CLIENT_SECRET` - OAuth client secret
-    //!
-    //! # Run
-    //!
-    //! ```bash
-    //! cargo run --example bulk_delete --features bulk
-    //! ```
 
     use force::auth::ClientCredentials;
     use force::client::builder;

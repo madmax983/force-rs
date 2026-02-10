@@ -1,6 +1,6 @@
+//! Bulk API Error Handling Example
 #[cfg(feature = "bulk")]
 mod example {
-    //! Bulk API Error Handling Example
 
     use anyhow::Context;
     use force::api::bulk::csv::{deserialize_from_csv, serialize_to_csv};
