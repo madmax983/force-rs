@@ -332,6 +332,7 @@ Nightly live-contract tests (ignored by default in local runs) are available in 
 - [Rate-Limit Incident Response](docs/runbooks/rate-limit-incident.md)
 - [Retry and Polling Tuning](docs/runbooks/retry-tuning.md)
 - [Salesforce API Version Upgrade](docs/runbooks/salesforce-api-version-upgrade.md)
+- [Documentation Index](docs/README.md)
 
 ### API Guarantees
 
