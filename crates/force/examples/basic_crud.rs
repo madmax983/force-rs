@@ -30,7 +30,7 @@ mod example {
     }
 
     #[tokio::main]
-    async fn main() -> anyhow::Result<()> {
+    pub async fn main() -> anyhow::Result<()> {
         tracing_subscriber::fmt::init();
 
         let client = build_client().await?;

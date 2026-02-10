@@ -38,7 +38,7 @@ mod example {
         std::env::var(name).with_context(|| format!("{name} environment variable not set"))
     }
     #[tokio::main]
-    async fn main() -> anyhow::Result<()> {
+    pub async fn main() -> anyhow::Result<()> {
         // Initialize tracing
         tracing_subscriber::fmt::init();
 

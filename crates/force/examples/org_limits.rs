@@ -168,7 +168,7 @@ mod example {
     }
 
     #[tokio::main]
-    async fn main() -> anyhow::Result<()> {
+    pub async fn main() -> anyhow::Result<()> {
         tracing_subscriber::fmt::init();
 
         let client_id = required_env("SF_CLIENT_ID")?;
