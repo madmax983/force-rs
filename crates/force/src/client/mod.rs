@@ -150,7 +150,7 @@ mod tests {
 
     #[test]
     fn test_builder_creates_noauth_state() {
-        let _builder = builder();
+        let _builder: ForceClientBuilder<NoAuth> = builder();
         // Compile-time check: builder starts in NoAuth state
     }
 }

@@ -893,6 +893,46 @@ use crate::test_support::{Must, MustMsg};
     }
 
     #[tokio::test]
+    async fn test_query_results_malformed_csv() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path(
+                "/services/data/v60.0/jobs/query/750xx0000000001AAA/results",
+            ))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_string("Id,Name\n001xx0000000001AAA,Acme\n002"),
+            )
+            .mount(&mock_server)
+            .await;
+
+        let client = create_test_client(mock_server.uri()).await;
+        let handler = client.bulk();
+
+        let mut stream = handler
+            .query_results::<serde_json::Value>("750xx0000000001AAA")
+            .await
+            .must();
+
+        // The stream processes the whole CSV at once. If any part is invalid,
+        // it should fail immediately (and drop any successfully parsed records).
+        let result = stream.next().await;
+
+        assert!(result.is_err());
+        if let Err(crate::error::ForceError::Http(crate::error::HttpError::StatusError {
+            status_code,
+            message,
+        })) = result
+        {
+            assert_eq!(status_code, 500);
+            assert!(message.contains("CSV deserialization failed"));
+        } else {
+            panic!("Expected StatusError with CSV failure, got {:?}", result);
+        }
+    }
+
+    #[tokio::test]
     async fn test_query_results_stream_terminates_after_records_consumed() {
         let mock_server = MockServer::start().await;
 
