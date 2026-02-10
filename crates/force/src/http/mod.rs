@@ -543,8 +543,12 @@ fn parse_retry_after(response: &Response) -> Option<u64> {
 ///
 /// Uses formula: base_delay * 2^attempt, capped at 30 seconds.
 fn exponential_backoff(attempt: u32) -> Duration {
+    // Cap attempt to avoid overflow on 2^attempt.
+    // 2^6 * 500 = 32,000ms > 30,000ms cap, so anything > 6 is capped anyway.
+    // We use 32 as a safe upper bound to prevent u128 overflow (which happens at 128).
+    let safe_attempt = attempt.min(32);
     let base = Duration::from_millis(500);
-    let backoff_ms = base.as_millis() * 2_u128.pow(attempt);
+    let backoff_ms = base.as_millis() * 2_u128.pow(safe_attempt);
     Duration::from_millis(backoff_ms.min(30_000) as u64)
 }
 
