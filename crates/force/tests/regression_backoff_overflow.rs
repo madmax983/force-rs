@@ -1,11 +1,14 @@
+#![cfg(feature = "rest")]
+#![allow(missing_docs)]
+
+use async_trait::async_trait;
 use force::auth::{AccessToken, Authenticator, TokenResponse};
 use force::client::builder;
 use force::config::{ClientConfig, Environment};
 use force::error::Result;
-use async_trait::async_trait;
+use std::time::Duration;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
-use std::time::Duration;
 
 #[derive(Debug, Clone)]
 struct MockAuth {
@@ -38,7 +41,7 @@ impl Authenticator for MockAuth {
 /// This test verifies that the backoff calculation is capped safely and does not panic
 /// even with a large number of retries.
 #[tokio::test]
-async fn test_exponential_backoff_overflow_regression() {
+async fn test_exponential_backoff_overflow_regression() -> anyhow::Result<()> {
     // Pause time to skip sleeps
     tokio::time::pause();
 
@@ -58,20 +61,21 @@ async fn test_exponential_backoff_overflow_regression() {
     let config = ClientConfig {
         api_version: "v60.0".to_string(),
         environment: Environment::Custom(mock_server.uri()),
-        timeout: Duration::from_secs(100000), // Long timeout to avoid timeout during time travel
-        max_retries: 200, // Enough to trigger panic (> 127)
+        timeout: Duration::from_secs(100_000), // Long timeout to avoid timeout during time travel
+        max_retries: 200,                      // Enough to trigger panic (> 127)
     };
 
     let client = builder()
         .config(config)
         .authenticate(auth)
         .build()
-        .await
-        .unwrap();
+        .await?;
 
     // Spawn the request in a separate task so we can advance time
     let handle = tokio::spawn(async move {
-        client.query::<serde_json::Value>("SELECT Id FROM Account").await
+        client
+            .query::<serde_json::Value>("SELECT Id FROM Account")
+            .await
     });
 
     // Advance time repeatedly to skip sleeps
@@ -87,19 +91,21 @@ async fn test_exponential_backoff_overflow_regression() {
     let result = handle.await;
 
     match result {
-        Ok(res) => {
-             match res {
-                 Ok(_) => panic!("Request succeeded unexpectedly"),
-                 Err(e) => println!("Request failed with error (as expected if no panic): {:?}", e),
-             }
+        Ok(res) => match res {
+            Ok(_) => panic!("Request succeeded unexpectedly"),
+            Err(e) => println!(
+                "Request failed with error (as expected if no panic): {e:?}"
+            ),
         },
         Err(e) => {
             if e.is_panic() {
                 // Let the panic propagate to fail the test
                 std::panic::resume_unwind(e.into_panic());
             } else {
-                panic!("Task failed with non-panic error: {:?}", e);
+                panic!("Task failed with non-panic error: {e:?}");
             }
         }
     }
+
+    Ok(())
 }

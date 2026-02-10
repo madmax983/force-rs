@@ -14,4 +14,3 @@ pub use common::{ApiError, CreateResponse, DeleteResponse, UpdateResponse, Upser
 pub use query::{QueryIterator, QueryLocator, QueryResult};
 pub use salesforce_id::SalesforceId;
 pub use sobject::{Attributes, DynamicSObject, DynamicSObjectBuilder};
-
