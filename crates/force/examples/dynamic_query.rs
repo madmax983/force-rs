@@ -1,3 +1,5 @@
+#![cfg(feature = "rest")]
+#![cfg(feature = "rest")]
 //! Dynamic Query Example
 //!
 //! Demonstrates querying dynamic records with `DynamicSObject`.

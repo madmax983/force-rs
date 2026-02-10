@@ -1,3 +1,5 @@
+#![cfg(feature = "rest")]
+#![cfg(feature = "rest")]
 //! Basic CRUD Operations Example
 //!
 //! Demonstrates create, read, update, and delete flows with the REST API.

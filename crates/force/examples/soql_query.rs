@@ -1,3 +1,5 @@
+#![cfg(feature = "rest")]
+#![cfg(feature = "rest")]
 //! SOQL Query with Typed Results Example
 
 use anyhow::Context;

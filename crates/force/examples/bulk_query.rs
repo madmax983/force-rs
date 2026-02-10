@@ -1,3 +1,5 @@
+#![cfg(all(feature = "rest", feature = "bulk"))]
+#![cfg(all(feature = "rest", feature = "bulk"))]
 //! Bulk Query Example
 //!
 //! This example demonstrates querying large datasets using the Bulk API 2.0.

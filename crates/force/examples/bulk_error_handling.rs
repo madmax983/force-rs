@@ -1,3 +1,5 @@
+#![cfg(all(feature = "rest", feature = "bulk"))]
+#![cfg(all(feature = "rest", feature = "bulk"))]
 //! Bulk API Error Handling Example
 
 use anyhow::Context;

@@ -1,3 +1,5 @@
+#![cfg(all(feature = "rest", feature = "bulk"))]
+#![cfg(all(feature = "rest", feature = "bulk"))]
 //! Bulk Delete Example
 //!
 //! This example demonstrates deleting records in bulk using the Bulk API 2.0.

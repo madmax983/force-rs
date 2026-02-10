@@ -1,3 +1,5 @@
+#![cfg(all(feature = "rest", feature = "bulk"))]
+#![cfg(all(feature = "rest", feature = "bulk"))]
 //! Bulk Insert Example
 //!
 //! This example demonstrates inserting records in bulk using the Bulk API 2.0.
