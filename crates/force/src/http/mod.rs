@@ -18,6 +18,7 @@ use std::time::Instant;
 
 /// Retry behavior per request safety class.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(clippy::struct_field_names)]
 pub struct RetryPolicy {
     /// Maximum retries for read-style operations (e.g. GET query calls).
     pub read_max_retries: u32,
@@ -602,7 +603,7 @@ fn parse_api_error(status_code: u16, body: &str) -> HttpError {
 /// Converts an HTTP error response into a `ForceError` using Salesforce-aware parsing.
 ///
 /// If the response body is empty or unreadable, falls back to `fallback_message`.
-pub(crate) async fn response_to_force_error(
+pub async fn response_to_force_error(
     response: Response,
     fallback_message: &str,
 ) -> crate::error::ForceError {

@@ -75,3 +75,23 @@ mock = ["dep:wiremock"]
 full = ["rest", "bulk", "composite", "tooling", "metadata",
         "graphql", "analytics", "connect", "apex_rest", "ui", "jwt"]
 all = ["full", "pub_sub", "streaming", "soap"]
+
+[[example]]
+name = "bulk_insert"
+required-features = ["bulk"]
+
+[[example]]
+name = "bulk_delete"
+required-features = ["bulk"]
+
+[[example]]
+name = "bulk_query"
+required-features = ["bulk"]
+
+[[example]]
+name = "bulk_update"
+required-features = ["bulk"]
+
+[[example]]
+name = "bulk_error_handling"
+required-features = ["bulk"]

@@ -32,7 +32,7 @@ pub mod auth;
 pub mod client;
 pub mod config;
 pub mod error;
-pub mod http;
+pub(crate) mod http;
 #[cfg(test)]
 pub(crate) mod test_support;
 pub mod types;
