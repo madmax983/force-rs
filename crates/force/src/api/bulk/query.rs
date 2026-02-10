@@ -30,9 +30,12 @@
 //! ```
 
 use crate::error::Result;
+use futures::stream::StreamExt;
+use futures::TryStreamExt;
 use serde::{Deserialize, Serialize};
-use std::collections::VecDeque;
 use std::sync::Arc;
+use tokio_util::compat::TokioAsyncReadCompatExt;
+use tokio_util::io::StreamReader;
 
 /// Request to create a bulk query job.
 #[derive(Debug, Clone, Serialize)]
@@ -95,6 +98,8 @@ pub struct BulkQueryJobInfo {
     pub api_version: Option<String>,
 }
 
+type BoxedAsyncReader = Box<dyn futures::io::AsyncRead + Unpin + Send>;
+
 /// Stream for iterating over bulk query results.
 ///
 /// This stream lazily fetches and deserializes CSV results from a completed
@@ -105,14 +110,16 @@ pub struct BulkQueryStream<T, A: crate::auth::Authenticator> {
     inner: Arc<crate::client::Inner<A>>,
     /// Job ID for the query.
     job_id: String,
-    /// Current batch of records being iterated.
-    records: VecDeque<T>,
+    /// Current CSV reader for the active result page.
+    reader: Option<csv_async::AsyncReader<BoxedAsyncReader>>,
     /// Result locator for the next page (`None` means first page).
     next_locator: Option<String>,
     /// Whether the first page has been fetched.
     first_page_fetched: bool,
     /// Whether all records have been fetched.
     exhausted: bool,
+    /// Phantom data for the record type.
+    _phantom: std::marker::PhantomData<T>,
 }
 
 impl<T, A: crate::auth::Authenticator> BulkQueryStream<T, A> {
@@ -122,10 +129,11 @@ impl<T, A: crate::auth::Authenticator> BulkQueryStream<T, A> {
         Self {
             inner,
             job_id,
-            records: VecDeque::new(),
+            reader: None,
             next_locator: None,
             first_page_fetched: false,
             exhausted: false,
+            _phantom: std::marker::PhantomData,
         }
     }
 
@@ -154,89 +162,103 @@ impl<T, A: crate::auth::Authenticator> BulkQueryStream<T, A> {
     /// - CSV deserialization fails
     pub async fn next(&mut self) -> Result<Option<T>>
     where
-        T: for<'de> Deserialize<'de>,
+        T: for<'de> Deserialize<'de> + Unpin + Send,
     {
-        // If we've already marked as exhausted, return None
-        if self.exhausted {
-            return Ok(None);
-        }
+        loop {
+            // If we have an active reader, try to read the next record
+            let next_result = if let Some(reader) = &mut self.reader {
+                let mut records = reader.records();
+                records.next().await
+            } else {
+                None
+            };
 
-        // If we have records in the buffer, return the next one
-        if let Some(record) = self.records.pop_front() {
-            return Ok(Some(record));
-        }
+            if let Some(result) = next_result {
+                match result {
+                    Ok(record) => {
+                        let obj: T = record.deserialize(None).map_err(|e| {
+                            crate::error::HttpError::StatusError {
+                                status_code: 500,
+                                message: format!("CSV deserialization failed: {}", e),
+                            }
+                        })?;
+                        return Ok(Some(obj));
+                    }
+                    Err(e) => {
+                        return Err(crate::error::HttpError::StatusError {
+                            status_code: 500,
+                            message: format!("CSV read failed: {}", e),
+                        }
+                        .into())
+                    }
+                }
+            } else if self.reader.is_some() {
+                // Current reader exhausted, drop it and continue loop to fetch next page
+                self.reader = None;
+            }
 
-        if self.first_page_fetched && self.next_locator.is_none() {
-            self.exhausted = true;
-            return Ok(None);
-        }
+            // If we've already marked as exhausted, return None
+            if self.exhausted {
+                return Ok(None);
+            }
 
-        // Fetch results from the API
-        let token = self.inner.token_manager.token().await?;
-        let base_url = format!(
-            "{}/services/data/{}/jobs/query/{}/results",
-            token.instance_url(),
-            self.inner.config.api_version,
-            self.job_id
-        );
-        let mut request_builder = self.inner.http_client.get(&base_url);
-        if let Some(locator) = &self.next_locator {
-            request_builder = request_builder.query(&[("locator", locator)]);
-        }
+            // If we have fetched the first page and there is no next locator, we are done
+            if self.first_page_fetched && self.next_locator.is_none() {
+                self.exhausted = true;
+                return Ok(None);
+            }
 
-        let response = request_builder
-            .build()
-            .map_err(crate::error::HttpError::from)?;
-        let response = self.inner.execute_request(response).await?;
+            // Fetch results from the API (next page)
+            let token = self.inner.token_manager.token().await?;
+            let base_url = format!(
+                "{}/services/data/{}/jobs/query/{}/results",
+                token.instance_url(),
+                self.inner.config.api_version,
+                self.job_id
+            );
+            let mut request_builder = self.inner.http_client.get(&base_url);
+            if let Some(locator) = &self.next_locator {
+                request_builder = request_builder.query(&[("locator", locator)]);
+            }
 
-        if !response.status().is_success() {
-            return Err(
-                handle_error_response(
+            let response = request_builder
+                .build()
+                .map_err(crate::error::HttpError::from)?;
+            let response = self.inner.execute_request(response).await?;
+
+            if !response.status().is_success() {
+                return Err(handle_error_response(
                     response,
                     &format!("Failed to fetch query results for job {}", self.job_id),
                 )
-                .await,
-            );
+                .await);
+            }
+
+            // Update locator
+            let locator_header = response
+                .headers()
+                .get("Sforce-Locator")
+                .and_then(|value| value.to_str().ok())
+                .map(std::string::ToString::to_string);
+            self.first_page_fetched = true;
+            self.next_locator = match locator_header.as_deref() {
+                Some("null") | None => None,
+                Some(value) => Some(value.to_string()),
+            };
+
+            // Create streaming reader
+            let stream = response
+                .bytes_stream()
+                .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e));
+            let reader = StreamReader::new(stream);
+            let compat_reader = reader.compat();
+            let boxed_reader: BoxedAsyncReader = Box::new(compat_reader);
+            let csv_reader = csv_async::AsyncReaderBuilder::new()
+                .flexible(true)
+                .create_reader(boxed_reader);
+
+            self.reader = Some(csv_reader);
         }
-
-        // Get CSV text
-        let locator_header = response
-            .headers()
-            .get("Sforce-Locator")
-            .and_then(|value| value.to_str().ok())
-            .map(std::string::ToString::to_string);
-        self.first_page_fetched = true;
-        self.next_locator = match locator_header.as_deref() {
-            Some("null") | None => None,
-            Some(value) => Some(value.to_string()),
-        };
-
-        let csv_text = response
-            .text()
-            .await
-            .map_err(crate::error::HttpError::from)?;
-
-        // Parse CSV
-        let mut reader = csv::Reader::from_reader(csv_text.as_bytes());
-        let mut records = VecDeque::new();
-
-        for result in reader.deserialize() {
-            let record: T = result.map_err(|e| crate::error::HttpError::StatusError {
-                status_code: 500,
-                message: format!("CSV deserialization failed: {}", e),
-            })?;
-            records.push_back(record);
-        }
-
-        // If no records, we're done
-        if records.is_empty() {
-            self.exhausted = true;
-            return Ok(None);
-        }
-
-        // Store records and return the first one
-        self.records = records;
-        Ok(self.records.pop_front())
     }
 }
 
@@ -989,8 +1011,3 @@ use crate::test_support::{Must, MustMsg};
         assert_eq!(info.api_version, Some("60.0".to_string()));
     }
 }
-
-
-
-
-

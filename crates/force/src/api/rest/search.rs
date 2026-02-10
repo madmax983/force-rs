@@ -118,7 +118,19 @@ impl SearchQueryBuilder {
     /// * `text` - The search text
     #[must_use]
     pub fn find(mut self, text: impl Into<String>) -> Self {
-        self.search_text = text.into();
+        let text = text.into();
+        let mut escaped = String::with_capacity(text.len());
+        for c in text.chars() {
+            match c {
+                '?' | '&' | '|' | '!' | '{' | '}' | '[' | ']' | '(' | ')' | '^' | '~' | '*'
+                | ':' | '\\' | '"' | '\'' | '+' | '-' => {
+                    escaped.push('\\');
+                    escaped.push(c);
+                }
+                _ => escaped.push(c),
+            }
+        }
+        self.search_text = escaped;
         self
     }
 
@@ -405,9 +417,10 @@ mod tests {
             .returning("Contact", &["Id", "Phone"])
             .build();
 
+        // Expect hyphens to be escaped
         assert_eq!(
             query,
-            "FIND {415-555-0100} IN PHONE FIELDS RETURNING Contact(Id, Phone)"
+            r"FIND {415\-555\-0100} IN PHONE FIELDS RETURNING Contact(Id, Phone)"
         );
     }
 
@@ -435,6 +448,35 @@ mod tests {
     #[should_panic(expected = "at least one object must be specified")]
     fn test_search_query_builder_no_returning() {
         let _ = SearchQueryBuilder::new().find("Test").build();
+    }
+
+    #[test]
+    fn test_search_query_builder_escaping() {
+        let query = SearchQueryBuilder::new()
+            .find("foo} bar")
+            .returning("Account", &["Id"])
+            .build();
+
+        assert_eq!(query, r"FIND {foo\} bar} RETURNING Account(Id)");
+    }
+
+    #[test]
+    fn test_search_query_builder_escaping_all_reserved() {
+        let reserved = r#"? & | ! { } [ ] ( ) ^ ~ * : \ " + -"#;
+        let query = SearchQueryBuilder::new()
+            .find(reserved)
+            .returning("Account", &["Id"])
+            .build();
+
+        // Check that backslashes are inserted
+        // Note: verify the escaping logic by manual inspection of expected string
+        // ? -> \?
+        // & -> \&
+        // ...
+        // \ -> \\
+        assert!(query.contains(r"\?"));
+        assert!(query.contains(r"\}"));
+        assert!(query.contains(r"\\"));
     }
 }
 
