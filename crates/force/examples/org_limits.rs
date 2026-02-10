@@ -1,5 +1,4 @@
 #![cfg(feature = "rest")]
-#![cfg(feature = "rest")]
 //! Organization Limits Example
 //!
 //! This example demonstrates how to retrieve and display Salesforce org limits,

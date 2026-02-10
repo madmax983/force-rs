@@ -1,5 +1,4 @@
 #![cfg(feature = "rest")]
-#![cfg(feature = "rest")]
 //! Describe API Example
 //!
 //! Demonstrates global describe and object-specific describe operations.

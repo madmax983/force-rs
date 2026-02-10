@@ -1,5 +1,4 @@
 #![cfg(feature = "rest")]
-#![cfg(feature = "rest")]
 //! SOSL Search Example
 //!
 //! Demonstrates SOSL searches across multiple object types.
