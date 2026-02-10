@@ -56,4 +56,3 @@ impl<T> MustMsg<T> for Option<T> {
         }
     }
 }
-

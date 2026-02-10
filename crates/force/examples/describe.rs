@@ -4,7 +4,7 @@
 
 use anyhow::Context;
 use force::auth::ClientCredentials;
-use force::client::{builder, ForceClient};
+use force::client::{ForceClient, builder};
 
 fn required_env(name: &str) -> anyhow::Result<String> {
     std::env::var(name).with_context(|| format!("{name} environment variable not set"))
@@ -19,7 +19,11 @@ async fn build_client() -> anyhow::Result<ForceClient<ClientCredentials>> {
         client_secret,
         "https://login.salesforce.com/services/oauth2/token",
     );
-    builder().authenticate(auth).build().await.map_err(Into::into)
+    builder()
+        .authenticate(auth)
+        .build()
+        .await
+        .map_err(Into::into)
 }
 
 #[tokio::main]
