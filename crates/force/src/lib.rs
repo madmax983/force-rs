@@ -33,6 +33,8 @@ pub mod client;
 pub mod config;
 pub mod error;
 pub mod http;
+#[cfg(feature = "nova")]
+pub mod experimental;
 #[cfg(test)]
 pub(crate) mod test_support;
 pub mod types;
