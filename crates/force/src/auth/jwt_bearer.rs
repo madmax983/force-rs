@@ -553,6 +553,3 @@ QcWLHR6ul3bFRWNhXoThNBQ=
         assert_eq!(token2.as_str(), "refreshed_jwt_token");
     }
 }
-
-
-

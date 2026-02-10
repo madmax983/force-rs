@@ -3,8 +3,8 @@
 //! This module provides configuration primitives for the Salesforce client,
 //! including environment management and client settings.
 
-use std::time::Duration;
 use crate::types::ApiVersion;
+use std::time::Duration;
 
 /// Salesforce environment endpoints.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -101,7 +101,9 @@ impl ClientConfigBuilder {
     #[must_use]
     pub fn build(self) -> ClientConfig {
         ClientConfig {
-            api_version: self.api_version.unwrap_or_else(|| ApiVersion::DEFAULT.as_str()),
+            api_version: self
+                .api_version
+                .unwrap_or_else(|| ApiVersion::DEFAULT.as_str()),
             environment: self.environment.unwrap_or(Environment::Production),
             timeout: self.timeout.unwrap_or_else(|| Duration::from_secs(30)),
             max_retries: self.max_retries.unwrap_or(3),
@@ -206,7 +208,3 @@ mod tests {
         }
     }
 }
-
-
-
-

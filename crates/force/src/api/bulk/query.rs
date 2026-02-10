@@ -30,8 +30,8 @@
 //! ```
 
 use crate::error::Result;
-use futures::stream::StreamExt;
 use futures::TryStreamExt;
+use futures::stream::StreamExt;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio_util::compat::TokioAsyncReadCompatExt;
@@ -112,6 +112,8 @@ pub struct BulkQueryStream<T, A: crate::auth::Authenticator> {
     job_id: String,
     /// Current CSV reader for the active result page.
     reader: Option<csv_async::AsyncReader<BoxedAsyncReader>>,
+    /// CSV headers for the current page (needed for deserialization).
+    headers: Option<csv_async::StringRecord>,
     /// Result locator for the next page (`None` means first page).
     next_locator: Option<String>,
     /// Whether the first page has been fetched.
@@ -130,6 +132,7 @@ impl<T, A: crate::auth::Authenticator> BulkQueryStream<T, A> {
             inner,
             job_id,
             reader: None,
+            headers: None,
             next_locator: None,
             first_page_fetched: false,
             exhausted: false,
@@ -176,7 +179,9 @@ impl<T, A: crate::auth::Authenticator> BulkQueryStream<T, A> {
             if let Some(result) = next_result {
                 match result {
                     Ok(record) => {
-                        let obj: T = record.deserialize(None).map_err(|e| {
+                        // Use stored headers for deserialization to ensure correct field mapping
+                        let headers = self.headers.as_ref();
+                        let obj: T = record.deserialize(headers).map_err(|e| {
                             crate::error::HttpError::StatusError {
                                 status_code: 500,
                                 message: format!("CSV deserialization failed: {}", e),
@@ -189,12 +194,13 @@ impl<T, A: crate::auth::Authenticator> BulkQueryStream<T, A> {
                             status_code: 500,
                             message: format!("CSV read failed: {}", e),
                         }
-                        .into())
+                        .into());
                     }
                 }
             } else if self.reader.is_some() {
                 // Current reader exhausted, drop it and continue loop to fetch next page
                 self.reader = None;
+                self.headers = None;
             }
 
             // If we've already marked as exhausted, return None
@@ -247,15 +253,24 @@ impl<T, A: crate::auth::Authenticator> BulkQueryStream<T, A> {
             };
 
             // Create streaming reader
-            let stream = response
-                .bytes_stream()
-                .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e));
+            let stream = response.bytes_stream().map_err(std::io::Error::other);
             let reader = StreamReader::new(stream);
             let compat_reader = reader.compat();
             let boxed_reader: BoxedAsyncReader = Box::new(compat_reader);
-            let csv_reader = csv_async::AsyncReaderBuilder::new()
+            let mut csv_reader = csv_async::AsyncReaderBuilder::new()
                 .flexible(true)
                 .create_reader(boxed_reader);
+
+            // Read headers immediately from the new stream
+            let headers = csv_reader
+                .headers()
+                .await
+                .map_err(|e| crate::error::HttpError::StatusError {
+                    status_code: 500,
+                    message: format!("Failed to read CSV headers: {}", e),
+                })?
+                .clone();
+            self.headers = Some(headers);
 
             self.reader = Some(csv_reader);
         }
@@ -369,13 +384,11 @@ impl<A: crate::auth::Authenticator> super::BulkHandler<A> {
         let response = inner.execute_request(request).await?;
 
         if !response.status().is_success() {
-            return Err(
-                handle_error_response(
-                    response,
-                    &format!("Get query job request failed for job {}", job_id),
-                )
-                .await,
-            );
+            return Err(handle_error_response(
+                response,
+                &format!("Get query job request failed for job {}", job_id),
+            )
+            .await);
         }
 
         let job_info = response
@@ -424,13 +437,11 @@ impl<A: crate::auth::Authenticator> super::BulkHandler<A> {
         let response = inner.execute_request(request).await?;
 
         if !response.status().is_success() {
-            return Err(
-                handle_error_response(
-                    response,
-                    &format!("Abort query job request failed for job {}", job_id),
-                )
-                .await,
-            );
+            return Err(handle_error_response(
+                response,
+                &format!("Abort query job request failed for job {}", job_id),
+            )
+            .await);
         }
 
         let job_info = response
@@ -471,13 +482,11 @@ impl<A: crate::auth::Authenticator> super::BulkHandler<A> {
         let response = inner.execute_request(request).await?;
 
         if !response.status().is_success() {
-            return Err(
-                handle_error_response(
-                    response,
-                    &format!("Delete query job request failed for job {}", job_id),
-                )
-                .await,
-            );
+            return Err(handle_error_response(
+                response,
+                &format!("Delete query job request failed for job {}", job_id),
+            )
+            .await);
         }
 
         Ok(())
@@ -525,11 +534,11 @@ impl<A: crate::auth::Authenticator> super::BulkHandler<A> {
 }
 #[cfg(test)]
 mod tests {
-use crate::test_support::{Must, MustMsg};
     use super::*;
     use crate::api::bulk::types::JobState;
     use crate::auth::{AccessToken, Authenticator, TokenResponse};
     use crate::client::{ForceClient, builder};
+    use crate::test_support::{Must, MustMsg};
     use async_trait::async_trait;
     use wiremock::matchers::{
         bearer_token, body_string_contains, header, method, path, query_param,
