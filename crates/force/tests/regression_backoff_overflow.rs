@@ -65,11 +65,7 @@ async fn test_exponential_backoff_overflow_regression() -> anyhow::Result<()> {
         max_retries: 200,                      // Enough to trigger panic (> 127)
     };
 
-    let client = builder()
-        .config(config)
-        .authenticate(auth)
-        .build()
-        .await?;
+    let client = builder().config(config).authenticate(auth).build().await?;
 
     // Spawn the request in a separate task so we can advance time
     let handle = tokio::spawn(async move {
@@ -93,9 +89,7 @@ async fn test_exponential_backoff_overflow_regression() -> anyhow::Result<()> {
     match result {
         Ok(res) => match res {
             Ok(_) => panic!("Request succeeded unexpectedly"),
-            Err(e) => println!(
-                "Request failed with error (as expected if no panic): {e:?}"
-            ),
+            Err(e) => println!("Request failed with error (as expected if no panic): {e:?}"),
         },
         Err(e) => {
             if e.is_panic() {
