@@ -64,10 +64,11 @@ impl<A: Authenticator> CompositeHandler<A> {
         let response = self.inner.execute_request(request).await?;
 
         if !response.status().is_success() {
-            return Err(
-                crate::http::response_to_force_error(response, "Composite graph request failed")
-                    .await,
-            );
+            return Err(crate::http::response_to_force_error(
+                response,
+                "Composite graph request failed",
+            )
+            .await);
         }
 
         let result = response
@@ -235,28 +236,34 @@ pub fn reference(reference_id: &str, field: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::client::builder;
     use crate::test_support::Must;
     use serde_json::json;
     use wiremock::matchers::{method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
-    use crate::client::builder;
 
     // Red Phase: Tests that would fail if implemented wrong (or verified here)
 
     #[test]
     fn test_graph_serialization() {
-        let item1 = CompositeRequestItem::new("POST", "/services/data/v60.0/sobjects/Account", "refAccount")
-            .json_body(json!({"Name": "Acme"}));
+        let item1 = CompositeRequestItem::new(
+            "POST",
+            "/services/data/v60.0/sobjects/Account",
+            "refAccount",
+        )
+        .json_body(json!({"Name": "Acme"}));
 
-        let item2 = CompositeRequestItem::new("POST", "/services/data/v60.0/sobjects/Contact", "refContact")
-            .json_body(json!({
-                "LastName": "Doe",
-                "AccountId": reference("refAccount", "id")
-            }));
+        let item2 = CompositeRequestItem::new(
+            "POST",
+            "/services/data/v60.0/sobjects/Contact",
+            "refContact",
+        )
+        .json_body(json!({
+            "LastName": "Doe",
+            "AccountId": reference("refAccount", "id")
+        }));
 
-        let graph = Graph::new("graph1")
-            .add_item(item1)
-            .add_item(item2);
+        let graph = Graph::new("graph1").add_item(item1).add_item(item2);
 
         let request = CompositeGraphRequest::new().add_graph(graph);
 
@@ -269,8 +276,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_composite_execution() {
-        use async_trait::async_trait;
         use crate::auth::{AccessToken, Authenticator, TokenResponse};
+        use async_trait::async_trait;
 
         #[derive(Debug, Clone)]
         struct MockAuthenticator {
@@ -336,24 +343,23 @@ mod tests {
 
         // Setup client
         let auth = MockAuthenticator::new("token", &mock_server.uri());
-        let client = builder()
-            .authenticate(auth)
-            .build()
-            .await
-            .must();
+        let client = builder().authenticate(auth).build().await.must();
 
         // Use extension trait
         let handler = client.composite();
 
-        let request = CompositeGraphRequest::new()
-            .add_graph(Graph::new("graph1")
-                .add_item(CompositeRequestItem::new("POST", "/url", "refAccount")));
+        let request = CompositeGraphRequest::new().add_graph(
+            Graph::new("graph1").add_item(CompositeRequestItem::new("POST", "/url", "refAccount")),
+        );
 
         let response = handler.execute(request).await.must();
 
         assert_eq!(response.graphs.len(), 1);
         assert!(response.graphs[0].is_successful);
         assert_eq!(response.graphs[0].graph_id, "graph1");
-        assert_eq!(response.graphs[0].graph_response.composite_response[0].http_status_code, 201);
+        assert_eq!(
+            response.graphs[0].graph_response.composite_response[0].http_status_code,
+            201
+        );
     }
 }

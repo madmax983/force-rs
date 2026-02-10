@@ -32,9 +32,9 @@ pub mod auth;
 pub mod client;
 pub mod config;
 pub mod error;
-pub mod http;
 #[cfg(feature = "nova")]
 pub mod experimental;
+pub mod http;
 #[cfg(test)]
 pub(crate) mod test_support;
 pub mod types;
@@ -54,5 +54,3 @@ mod tests {
         assert_eq!(version(), "0.1.0");
     }
 }
-
-

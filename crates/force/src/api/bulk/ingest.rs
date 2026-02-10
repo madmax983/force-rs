@@ -37,10 +37,10 @@
 //! let failed = job.failed_results().await?;
 //! ```
 
+use crate::api::bulk::BulkPollPolicy;
 use crate::api::bulk::types::{
     CreateJobRequest, JobInfo, JobOperation, JobState, UpdateJobRequest,
 };
-use crate::api::bulk::BulkPollPolicy;
 use crate::auth::Authenticator;
 use crate::error::Result;
 use std::marker::PhantomData;
@@ -516,11 +516,11 @@ impl IngestJobBuilder {
 }
 #[cfg(test)]
 mod tests {
-use crate::test_support::{Must, MustMsg};
     use super::*;
     use crate::api::bulk::types::JobOperation;
     use crate::auth::{AccessToken, Authenticator, TokenResponse};
     use crate::client::{ForceClient, builder};
+    use crate::test_support::{Must, MustMsg};
     use async_trait::async_trait;
     use wiremock::matchers::{bearer_token, body_bytes, header, method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -1208,7 +1208,3 @@ use crate::test_support::{Must, MustMsg};
         // If this test compiles, typestate safety is working
     }
 }
-
-
-
-
