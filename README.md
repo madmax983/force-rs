@@ -322,6 +322,29 @@ RUST_LOG=debug cargo test --all-features
 cargo test --test rest_crud_tests --features rest
 ```
 
+Nightly live-contract tests (ignored by default in local runs) are available in CI and can be run manually with org credentials.
+
+## Enterprise DX and Governance
+
+### Runbooks
+
+- [Auth Credential Rotation](docs/runbooks/auth-credential-rotation.md)
+- [Rate-Limit Incident Response](docs/runbooks/rate-limit-incident.md)
+- [Retry and Polling Tuning](docs/runbooks/retry-tuning.md)
+- [Salesforce API Version Upgrade](docs/runbooks/salesforce-api-version-upgrade.md)
+
+### API Guarantees
+
+The crate-level compatibility and feature-flag guarantees are documented in:
+
+- [API Stability and SemVer Policy](docs/governance/api-stability-policy.md)
+
+### CI Lanes
+
+- Fast unit/lint/format gates for PR velocity
+- Full test lanes for broader confidence
+- Nightly live-contract workflow for real Salesforce contract validation
+
 ## Contributing
 
 Contributions are welcome! force-rs follows strict TDD discipline and quality standards:

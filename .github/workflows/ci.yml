@@ -5,20 +5,48 @@ on:
     branches: [trunk, main]
   pull_request:
     branches: [trunk, main]
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  test:
-    name: Test Suite
+  fast-gates:
+    name: Fast Gates (fmt + clippy + unit)
     runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache cargo dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Clippy (deny warnings)
+        run: cargo clippy --workspace --all-features --all-targets -- -D warnings
+
+      - name: Unit-focused tests (all features)
+        run: cargo test --workspace --all-features --lib --tests -- --test-threads=1
+
+  full-matrix:
+    name: Full Matrix (${{ matrix.rust }})
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
     strategy:
       matrix:
-        rust:
-          - stable
-          - nightly
+        rust: [stable, nightly]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -40,50 +68,15 @@ jobs:
         run: cargo test --workspace
 
       - name: Run tests (all features)
-        run: cargo test --workspace --all-features
+        run: cargo test --workspace --all-features -- --test-threads=1
 
       - name: Run doc tests
         run: cargo test --workspace --doc --all-features
 
-  clippy:
-    name: Clippy
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: stable
-          components: clippy
-
-      - name: Cache cargo dependencies
-        uses: Swatinem/rust-cache@v2
-
-      - name: Run clippy (fail on warnings)
-        run: cargo clippy --workspace --all-features --all-targets -- -D warnings
-
-  fmt:
-    name: Format
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: stable
-          components: rustfmt
-
-      - name: Check formatting
-        run: cargo fmt --all -- --check
-
-  # Ensure we can build on all major platforms
   cross-platform:
-    name: Cross-Platform Build
+    name: Cross-Platform Build (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    if: github.event_name != 'pull_request'
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
@@ -102,5 +95,5 @@ jobs:
       - name: Build workspace
         run: cargo build --workspace --all-features
 
-      - name: Run quick smoke test
+      - name: Run smoke tests
         run: cargo test --workspace --all-features --lib
