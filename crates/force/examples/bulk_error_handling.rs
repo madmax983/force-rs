@@ -2,7 +2,6 @@
 
 use anyhow::Context;
 use force::api::bulk::csv::{deserialize_from_csv, serialize_to_csv};
-use force::api::bulk::ingest::IngestJobBuilder;
 use force::api::bulk::types::JobOperation;
 use force::auth::ClientCredentials;
 use force::client::{builder, ForceClient};
@@ -62,8 +61,7 @@ async fn main() -> anyhow::Result<()> {
     let mut csv = Vec::new();
     serialize_to_csv(&accounts, &mut csv)?;
 
-    let job = IngestJobBuilder::new("Account", JobOperation::Insert)
-        .build(&client.bulk())
+    let job = client.bulk().create_ingest_job("Account", JobOperation::Insert)
         .await?
         .upload(&csv)
         .await?

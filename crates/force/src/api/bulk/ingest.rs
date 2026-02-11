@@ -17,13 +17,10 @@
 //! # Examples
 //!
 //! ```ignore
-//! use force::api::bulk::ingest::IngestJobBuilder;
 //! use force::api::bulk::types::JobOperation;
 //!
 //! // Create and upload data
-//! let job = IngestJobBuilder::new("Account", JobOperation::Insert)
-//!     .build(&client)
-//!     .await?;
+//! let job = client.bulk().create_ingest_job("Account", JobOperation::Insert).await?;
 //!
 //! let csv_data = "Name,Industry\nAcme Corp,Technology\n";
 //! let job = job.upload(csv_data.as_bytes()).await?;
@@ -38,7 +35,7 @@
 //! ```
 
 use crate::api::bulk::types::{
-    CreateJobRequest, JobInfo, JobOperation, JobState, UpdateJobRequest,
+    JobInfo, JobState, UpdateJobRequest,
 };
 use crate::api::bulk::BulkPollPolicy;
 use crate::auth::Authenticator;
@@ -414,106 +411,6 @@ impl<A: Authenticator> IngestJob<JobComplete, A> {
     }
 }
 
-/// Builder for creating ingest jobs.
-pub struct IngestJobBuilder {
-    object: String,
-    operation: JobOperation,
-    external_id_field_name: Option<String>,
-}
-
-impl IngestJobBuilder {
-    /// Creates a new ingest job builder.
-    ///
-    /// # Arguments
-    ///
-    /// * `object` - The SObject type (e.g., "Account")
-    /// * `operation` - The operation to perform
-    #[must_use]
-    pub fn new(object: impl Into<String>, operation: JobOperation) -> Self {
-        Self {
-            object: object.into(),
-            operation,
-            external_id_field_name: None,
-        }
-    }
-
-    /// Sets the external ID field for upsert operations.
-    #[must_use]
-    pub fn external_id_field(mut self, field_name: impl Into<String>) -> Self {
-        self.external_id_field_name = Some(field_name.into());
-        self
-    }
-
-    /// Builds and creates the job.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if job creation fails.
-    pub async fn build<A: Authenticator>(
-        self,
-        handler: &crate::api::bulk::BulkHandler<A>,
-    ) -> Result<IngestJob<Open, A>> {
-        let request = CreateJobRequest {
-            object: self.object,
-            operation: self.operation,
-            content_type: None,
-            external_id_field_name: self.external_id_field_name,
-            line_ending: None,
-            column_delimiter: None,
-        };
-
-        let job_info = handler.create_job(request).await?;
-        Ok(IngestJob::new(job_info.id, Arc::clone(&handler.inner)))
-    }
-
-    /// Builds and creates the job using a raw Inner reference.
-    ///
-    /// This is used internally by convenience methods that already have an Inner reference.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if job creation fails.
-    pub(crate) async fn build_with_inner<A: Authenticator>(
-        self,
-        inner: Arc<crate::client::Inner<A>>,
-    ) -> Result<IngestJob<Open, A>> {
-        let request = CreateJobRequest {
-            object: self.object,
-            operation: self.operation,
-            content_type: None,
-            external_id_field_name: self.external_id_field_name,
-            line_ending: None,
-            column_delimiter: None,
-        };
-
-        // Call create_job directly
-        let token = inner.token_manager.token().await?;
-        let url = format!(
-            "{}/services/data/{}/jobs/ingest",
-            token.instance_url(),
-            inner.config.api_version
-        );
-
-        let response = inner
-            .http_client
-            .post(&url)
-            .json(&request)
-            .build()
-            .map_err(crate::error::HttpError::from)?;
-        let response = inner.execute_request(response).await?;
-
-        if !response.status().is_success() {
-            return Err(handle_error_response(response, "Create job request failed").await);
-        }
-
-        let job_info = response
-            .json::<JobInfo>()
-            .await
-            .map_err(crate::error::HttpError::from)?;
-
-        Ok(IngestJob::new(job_info.id, inner))
-    }
-}
 #[cfg(test)]
 mod tests {
 use crate::test_support::{Must, MustMsg};
@@ -592,8 +489,8 @@ use crate::test_support::{Must, MustMsg};
         let client = create_test_client(mock_server.uri()).await;
         let handler = client.bulk();
 
-        let job = IngestJobBuilder::new("Account", JobOperation::Insert)
-            .build(&handler)
+        let job = handler
+            .create_ingest_job("Account", JobOperation::Insert)
             .await
             .must();
 
@@ -638,8 +535,8 @@ use crate::test_support::{Must, MustMsg};
         let client = create_test_client(mock_server.uri()).await;
         let handler = client.bulk();
 
-        let job = IngestJobBuilder::new("Account", JobOperation::Insert)
-            .build(&handler)
+        let job = handler
+            .create_ingest_job("Account", JobOperation::Insert)
             .await
             .must();
 
@@ -675,8 +572,8 @@ use crate::test_support::{Must, MustMsg};
         let client = create_test_client(mock_server.uri()).await;
         let handler = client.bulk();
 
-        let job = IngestJobBuilder::new("Account", JobOperation::Insert)
-            .build(&handler)
+        let job = handler
+            .create_ingest_job("Account", JobOperation::Insert)
             .await
             .must();
 
@@ -728,8 +625,8 @@ use crate::test_support::{Must, MustMsg};
         let client = create_test_client(mock_server.uri()).await;
         let handler = client.bulk();
 
-        let job = IngestJobBuilder::new("Account", JobOperation::Insert)
-            .build(&handler)
+        let job = handler
+            .create_ingest_job("Account", JobOperation::Insert)
             .await
             .must();
 
@@ -961,8 +858,8 @@ use crate::test_support::{Must, MustMsg};
         let client = create_test_client(mock_server.uri()).await;
         let handler = client.bulk();
 
-        let job = IngestJobBuilder::new("Account", JobOperation::Insert)
-            .build(&handler)
+        let job = handler
+            .create_ingest_job("Account", JobOperation::Insert)
             .await
             .must();
 

@@ -348,6 +348,64 @@ impl<A: crate::auth::Authenticator> BulkHandler<A> {
         Ok(())
     }
 
+    /// Creates a new bulk ingest job.
+    ///
+    /// # Arguments
+    ///
+    /// * `object` - The SObject type (e.g., "Account")
+    /// * `operation` - The operation to perform
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if job creation fails.
+    #[must_use]
+    pub async fn create_ingest_job(
+        &self,
+        object: impl Into<String>,
+        operation: types::JobOperation,
+    ) -> Result<ingest::IngestJob<ingest::Open, A>> {
+        let request = types::CreateJobRequest {
+            object: object.into(),
+            operation,
+            content_type: None,
+            external_id_field_name: None,
+            line_ending: None,
+            column_delimiter: None,
+        };
+
+        let job_info = self.create_job(request).await?;
+        Ok(ingest::IngestJob::new(job_info.id, Arc::clone(&self.inner)))
+    }
+
+    /// Creates a new bulk upsert job.
+    ///
+    /// # Arguments
+    ///
+    /// * `object` - The SObject type (e.g., "Account")
+    /// * `external_id_field` - The external ID field name for upsert
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if job creation fails.
+    #[must_use]
+    pub async fn create_upsert_job(
+        &self,
+        object: impl Into<String>,
+        external_id_field: impl Into<String>,
+    ) -> Result<ingest::IngestJob<ingest::Open, A>> {
+        let request = types::CreateJobRequest {
+            object: object.into(),
+            operation: types::JobOperation::Upsert,
+            content_type: None,
+            external_id_field_name: Some(external_id_field.into()),
+            line_ending: None,
+            column_delimiter: None,
+        };
+
+        let job_info = self.create_job(request).await?;
+        Ok(ingest::IngestJob::new(job_info.id, Arc::clone(&self.inner)))
+    }
+
     /// Convenience method to perform a bulk insert operation.
     ///
     /// Creates an ingest job, uploads CSV data, closes the job, and polls until completion.
@@ -389,7 +447,6 @@ impl<A: crate::auth::Authenticator> BulkHandler<A> {
     where
         T: serde::Serialize + Sync,
     {
-        use ingest::IngestJobBuilder;
         use types::JobOperation;
 
         // Serialize records to CSV
@@ -397,9 +454,7 @@ impl<A: crate::auth::Authenticator> BulkHandler<A> {
         csv::serialize_to_csv(records, &mut csv_data)?;
 
         // Create job
-        let job = IngestJobBuilder::new(object, JobOperation::Insert)
-            .build_with_inner(Arc::clone(&self.inner))
-            .await?;
+        let job = self.create_ingest_job(object, JobOperation::Insert).await?;
 
         // Upload, close, and poll
         let job = job.upload(&csv_data).await?;
@@ -457,7 +512,6 @@ impl<A: crate::auth::Authenticator> BulkHandler<A> {
     where
         T: serde::Serialize + Sync,
     {
-        use ingest::IngestJobBuilder;
         use types::JobOperation;
 
         // Serialize records to CSV
@@ -465,9 +519,7 @@ impl<A: crate::auth::Authenticator> BulkHandler<A> {
         csv::serialize_to_csv(records, &mut csv_data)?;
 
         // Create job
-        let job = IngestJobBuilder::new(object, JobOperation::Update)
-            .build_with_inner(Arc::clone(&self.inner))
-            .await?;
+        let job = self.create_ingest_job(object, JobOperation::Update).await?;
 
         // Upload, close, and poll
         let job = job.upload(&csv_data).await?;
@@ -509,7 +561,6 @@ impl<A: crate::auth::Authenticator> BulkHandler<A> {
     /// ```
     #[cfg(feature = "bulk")]
     pub async fn bulk_delete(&self, object: &str, ids: &[String]) -> Result<types::JobInfo> {
-        use ingest::IngestJobBuilder;
         use types::JobOperation;
 
         // Create CSV with Id column
@@ -528,9 +579,7 @@ impl<A: crate::auth::Authenticator> BulkHandler<A> {
         csv::serialize_to_csv(&delete_records, &mut csv_data)?;
 
         // Create job
-        let job = IngestJobBuilder::new(object, JobOperation::Delete)
-            .build_with_inner(Arc::clone(&self.inner))
-            .await?;
+        let job = self.create_ingest_job(object, JobOperation::Delete).await?;
 
         // Upload, close, and poll
         let job = job.upload(&csv_data).await?;
