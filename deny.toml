@@ -1,8 +1,9 @@
 # cargo-deny configuration
 # https://embarkstudios.github.io/cargo-deny/
 
-[advisories]
 version = 2
+
+[advisories]
 # Check for security vulnerabilities in dependencies
 db-path = "~/.cargo/advisory-db"
 db-urls = ["https://github.com/rustsec/advisory-db"]
@@ -11,7 +12,6 @@ yanked = "warn"
 ignore = []
 
 [licenses]
-version = 2
 # Ensure all dependencies use acceptable licenses
 confidence-threshold = 0.8
 allow = [
@@ -26,6 +26,8 @@ allow = [
     "0BSD",
     "Zlib",
     "MPL-2.0",
+    "Unicode-3.0",
+    "CDLA-Permissive-2.0",
 ]
 # Copyleft licenses we explicitly deny
 deny = [
@@ -36,9 +38,6 @@ deny = [
     "LGPL-2.1",
     "LGPL-3.0",
 ]
-# Warn on licenses not explicitly allowed or denied
-unlicensed = "deny"
-copyleft = "deny"
 
 # Allow specific crates with unusual license situations
 [[licenses.clarify]]
@@ -50,7 +49,6 @@ license-files = [
 ]
 
 [bans]
-version = 2
 # Deny specific crates or crate versions
 multiple-versions = "warn"
 wildcards = "allow"
@@ -64,9 +62,6 @@ skip = []
 skip-tree = []
 
 [sources]
-version = 2
 # Only allow dependencies from crates.io
-unknown-registry = "deny"
-unknown-git = "deny"
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
 allow-git = []

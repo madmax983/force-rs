@@ -101,42 +101,7 @@ jobs:
         run: cargo install cargo-deny --locked
 
       - name: Check licenses and advisories
-        run: |
-          # Create basic deny.toml if it doesn't exist
-          if [ ! -f deny.toml ]; then
-            cat > deny.toml << 'EOF'
-          [advisories]
-          db-path = "~/.cargo/advisory-db"
-          db-urls = ["https://github.com/rustsec/advisory-db"]
-          vulnerability = "deny"
-          unmaintained = "warn"
-          yanked = "warn"
-          notice = "warn"
-
-          [licenses]
-          unlicensed = "deny"
-          allow = [
-              "MIT",
-              "Apache-2.0",
-              "Apache-2.0 WITH LLVM-exception",
-              "BSD-2-Clause",
-              "BSD-3-Clause",
-              "ISC",
-              "Unicode-DFS-2016",
-          ]
-          copyleft = "warn"
-
-          [bans]
-          multiple-versions = "warn"
-          wildcards = "warn"
-
-          [sources]
-          unknown-registry = "deny"
-          unknown-git = "deny"
-          EOF
-          fi
-
-          cargo deny check
+        run: cargo deny check
 
       - name: Generate summary
         if: always()
