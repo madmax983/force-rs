@@ -184,8 +184,8 @@ pub enum SalesforceIdError {
 }
 #[cfg(test)]
 mod tests {
-use crate::test_support::Must;
     use super::*;
+    use crate::test_support::Must;
 
     // RED PHASE - Write failing tests first
 
@@ -311,6 +311,27 @@ use crate::test_support::Must;
 
         // Their checksums should differ
         assert_ne!(id1.to_18().as_str(), id2.to_18().as_str());
+    }
+
+    #[test]
+    fn test_try_from_string() {
+        let id_str = "001000000000001".to_string();
+        let id = SalesforceId::try_from(id_str).must();
+        assert_eq!(id.as_str(), "001000000000001");
+    }
+
+    #[test]
+    fn test_try_from_string_invalid() {
+        let id_str = "invalid".to_string();
+        let result = SalesforceId::try_from(id_str);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_into_string() {
+        let id = SalesforceId::new("001000000000001").must();
+        let s: String = id.into();
+        assert_eq!(s, "001000000000001");
     }
 
     // Property-based tests using proptest
@@ -456,7 +477,3 @@ use crate::test_support::Must;
         }
     }
 }
-
-
-
-

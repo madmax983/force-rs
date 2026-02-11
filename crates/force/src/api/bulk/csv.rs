@@ -26,7 +26,7 @@ use std::io::{Read, Write};
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```
 /// use force::api::bulk::csv::serialize_to_csv;
 /// use serde::Serialize;
 ///
@@ -42,6 +42,7 @@ use std::io::{Read, Write};
 ///
 /// let mut output = Vec::new();
 /// serialize_to_csv(&accounts, &mut output)?;
+/// # Ok::<(), force::error::ForceError>(())
 /// ```
 pub fn serialize_to_csv<T, W>(records: &[T], writer: W) -> Result<()>
 where
@@ -82,7 +83,7 @@ where
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```
 /// use force::api::bulk::csv::deserialize_from_csv;
 /// use serde::Deserialize;
 ///
@@ -94,6 +95,7 @@ where
 ///
 /// let csv_data = "name,industry\nAcme,Technology\n";
 /// let accounts: Vec<Account> = deserialize_from_csv(csv_data.as_bytes())?;
+/// # Ok::<(), force::error::ForceError>(())
 /// ```
 pub fn deserialize_from_csv<T, R>(reader: R) -> Result<Vec<T>>
 where
@@ -131,7 +133,7 @@ where
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```
 /// use force::api::bulk::csv::process_csv_batches;
 /// use serde::Deserialize;
 ///
@@ -151,6 +153,7 @@ where
 ///         Ok(())
 ///     }
 /// )?;
+/// # Ok::<(), force::error::ForceError>(())
 /// ```
 pub fn process_csv_batches<T, R, F>(reader: R, batch_size: usize, mut callback: F) -> Result<()>
 where
@@ -180,8 +183,8 @@ where
 }
 #[cfg(test)]
 mod tests {
-use crate::test_support::Must;
     use super::*;
+    use crate::test_support::Must;
     use serde::{Deserialize, Serialize};
 
     #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -484,11 +487,7 @@ use crate::test_support::Must;
 
         // Strategy for generating arbitrary TestRecords
         fn arbitrary_test_record() -> impl Strategy<Value = TestRecord> {
-            (
-                "[a-zA-Z0-9]{1,18}",
-                "[a-zA-Z0-9 ]{1,80}",
-                any::<i32>(),
-            )
+            ("[a-zA-Z0-9]{1,18}", "[a-zA-Z0-9 ]{1,80}", any::<i32>())
                 .prop_map(|(id, name, value)| TestRecord { id, name, value })
         }
 
@@ -577,7 +576,3 @@ use crate::test_support::Must;
         }
     }
 }
-
-
-
-

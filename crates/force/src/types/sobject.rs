@@ -218,8 +218,8 @@ impl DynamicSObjectBuilder {
 }
 #[cfg(test)]
 mod tests {
-use crate::test_support::Must;
     use super::*;
+    use crate::test_support::Must;
     use serde_json::json;
 
     // RED PHASE - Write failing tests first
@@ -304,6 +304,19 @@ use crate::test_support::Must;
 
         let revenue: Option<i64> = sobject.get_field_as("AnnualRevenue").must();
         assert_eq!(revenue, Some(1_000_000));
+    }
+
+    #[test]
+    fn test_dynamic_sobject_get_field_as_type_mismatch() {
+        let id = SalesforceId::new("001000000000001AAA").must();
+        let attrs = Attributes::new("Account", &id, "v60.0");
+        let mut sobject = DynamicSObject::new(attrs);
+
+        sobject.set_field("Name", "Acme Corp");
+
+        // Try to get string field as integer
+        let result: Result<Option<i64>, _> = sobject.get_field_as("Name");
+        assert!(result.is_err());
     }
 
     #[test]
@@ -471,7 +484,3 @@ use crate::test_support::Must;
         assert_eq!(original, deserialized);
     }
 }
-
-
-
-
