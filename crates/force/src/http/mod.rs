@@ -543,6 +543,11 @@ fn parse_retry_after(response: &Response) -> Option<u64> {
 ///
 /// Uses formula: base_delay * 2^attempt, capped at 30 seconds.
 fn exponential_backoff(attempt: u32) -> Duration {
+    // 500ms * 2^6 = 32000ms > 30000ms (max backoff)
+    // We cap early to avoid u128 overflow at attempt ~120
+    if attempt >= 6 {
+        return Duration::from_millis(30_000);
+    }
     let base = Duration::from_millis(500);
     let backoff_ms = base.as_millis() * 2_u128.pow(attempt);
     Duration::from_millis(backoff_ms.min(30_000) as u64)
@@ -622,6 +627,15 @@ mod tests;
 #[cfg(test)]
 mod unit_tests {
     use super::*;
+    use proptest::prelude::*;
+
+    proptest! {
+        #[test]
+        fn regression_backoff_overflow(attempt in 0u32..u32::MAX) {
+            // This would panic for attempt >= 120 if not handled
+            let _ = exponential_backoff(attempt);
+        }
+    }
 
     #[test]
     fn test_exponential_backoff() {
