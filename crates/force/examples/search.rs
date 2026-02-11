@@ -6,7 +6,7 @@
 mod example {
     use anyhow::Context;
     use force::auth::ClientCredentials;
-    use force::client::{builder, ForceClient};
+    use force::client::{ForceClient, builder};
 
     fn required_env(name: &str) -> anyhow::Result<String> {
         std::env::var(name).with_context(|| format!("{name} environment variable not set"))
@@ -44,10 +44,7 @@ mod example {
             );
             for record in &bucket.records {
                 let id = record.get("Id").and_then(|v| v.as_str()).unwrap_or("N/A");
-                let name = record
-                    .get("Name")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("N/A");
+                let name = record.get("Name").and_then(|v| v.as_str()).unwrap_or("N/A");
                 println!("  - {name} ({id})");
             }
         }

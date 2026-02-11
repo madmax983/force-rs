@@ -6,7 +6,7 @@
 mod example {
     use anyhow::Context;
     use force::auth::ClientCredentials;
-    use force::client::{builder, ForceClient};
+    use force::client::{ForceClient, builder};
     use force::types::DynamicSObject;
 
     fn required_env(name: &str) -> anyhow::Result<String> {
