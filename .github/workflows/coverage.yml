@@ -15,6 +15,10 @@ jobs:
   coverage:
     name: Code Coverage
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -125,9 +129,17 @@ jobs:
 
             *Note: For v0.1, coverage is tracked but not enforced.*`;
 
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: comment
-            });
+            try {
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: comment
+              });
+            } catch (error) {
+              // Ignore 403/404 errors from forks
+              if (error.status !== 403 && error.status !== 404) {
+                throw error;
+              }
+              console.log('Skipping PR comment due to missing permissions (likely a fork)');
+            }
