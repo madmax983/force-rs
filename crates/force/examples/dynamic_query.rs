@@ -1,71 +1,71 @@
 //! Dynamic Query Example
-//!
-//! Demonstrates querying dynamic records with `DynamicSObject`.
 
-use anyhow::Context;
-use force::auth::ClientCredentials;
-use force::client::{ForceClient, builder};
-use force::types::DynamicSObject;
+#[cfg(feature = "rest")]
+mod example {
+    use anyhow::Context;
+    use force::auth::ClientCredentials;
+    use force::client::builder;
+    use force::types::DynamicSObject;
 
-fn required_env(name: &str) -> anyhow::Result<String> {
-    std::env::var(name).with_context(|| format!("{name} environment variable not set"))
-}
-
-async fn build_client() -> anyhow::Result<ForceClient<ClientCredentials>> {
-    let client_id = required_env("SF_CLIENT_ID")?;
-    let client_secret = required_env("SF_CLIENT_SECRET")?;
-
-    let auth = ClientCredentials::new(
-        client_id,
-        client_secret,
-        "https://login.salesforce.com/services/oauth2/token",
-    );
-    builder()
-        .authenticate(auth)
-        .build()
-        .await
-        .map_err(Into::into)
-}
-
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
-    tracing_subscriber::fmt::init();
-    let client = build_client().await?;
-
-    let accounts = client
-        .query::<DynamicSObject>("SELECT Id, Name, Industry FROM Account LIMIT 5")
-        .await?;
-
-    println!("Accounts:");
-    for record in &accounts.records {
-        let id = record.get_field_as::<String>("Id")?.unwrap_or_default();
-        let name = record.get_field_as::<String>("Name")?.unwrap_or_default();
-        let industry = record
-            .get_field_as::<String>("Industry")?
-            .unwrap_or_else(|| "(none)".to_string());
-        println!("- {name} ({id}) [{industry}]");
+    fn required_env(name: &str) -> anyhow::Result<String> {
+        std::env::var(name).with_context(|| format!("{name} environment variable not set"))
     }
 
-    let revenue_rows = client
-        .query::<DynamicSObject>(
-            "SELECT Name, AnnualRevenue FROM Account WHERE AnnualRevenue != null LIMIT 10",
-        )
-        .await?;
+    #[tokio::main]
+    pub async fn main() -> anyhow::Result<()> {
+        tracing_subscriber::fmt::init();
 
-    let revenues: Vec<f64> = revenue_rows
-        .records
-        .iter()
-        .filter_map(|row| row.get_field_as::<f64>("AnnualRevenue").ok().flatten())
-        .collect();
+        let client_id = required_env("SF_CLIENT_ID")?;
+        let client_secret = required_env("SF_CLIENT_SECRET")?;
 
-    if !revenues.is_empty() {
-        let total: f64 = revenues.iter().sum();
-        let count_u32 = u32::try_from(revenues.len()).context("too many revenues to aggregate")?;
-        let average = total / f64::from(count_u32);
-        println!("\nRevenue rows: {}", revenues.len());
-        println!("Total revenue: ${total:.2}");
-        println!("Average revenue: ${average:.2}");
+        let auth = ClientCredentials::new(
+            client_id,
+            client_secret,
+            "https://login.salesforce.com/services/oauth2/token",
+        );
+        let client = builder().authenticate(auth).build().await?;
+
+        // 1. Basic query with untyped results
+        println!("Querying Accounts...");
+        let accounts = client
+            .query::<DynamicSObject>("SELECT Id, Name, Industry FROM Account LIMIT 5")
+            .await?;
+
+        for record in accounts {
+            let id = record.get_field_as::<String>("Id")?.unwrap_or_default();
+            let name = record.get_field_as::<String>("Name")?.unwrap_or_default();
+            let industry = record.get_field_as::<String>("Industry")?;
+
+            println!("- {} ({}): {:?}", name, id, industry);
+        }
+
+        // 2. Query with manual deserialization for specific fields
+        println!("\nCalculating total revenue from top 10 accounts...");
+        let revenue_rows = client
+            .query::<DynamicSObject>(
+                "SELECT AnnualRevenue FROM Account WHERE AnnualRevenue != NULL ORDER BY AnnualRevenue DESC LIMIT 10",
+            )
+            .await?;
+
+        let total_revenue: f64 = revenue_rows
+            .into_iter()
+            .filter_map(|row| row.get_field_as::<f64>("AnnualRevenue").ok().flatten())
+            .sum();
+
+        println!("Total Revenue (Top 10): ${:,.2}", total_revenue);
+
+        Ok(())
     }
+}
 
-    Ok(())
+fn main() -> anyhow::Result<()> {
+    #[cfg(feature = "rest")]
+    {
+        example::main()
+    }
+    #[cfg(not(feature = "rest"))]
+    {
+        println!("This example requires the 'rest' feature.");
+        Ok(())
+    }
 }

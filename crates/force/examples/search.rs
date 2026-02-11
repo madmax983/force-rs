@@ -1,80 +1,64 @@
-//! SOSL Search Example
-//!
-//! Demonstrates SOSL searches across multiple object types.
+//! Search (SOSL) Example
 
-use anyhow::Context;
-use force::auth::ClientCredentials;
-use force::client::{ForceClient, builder};
+#[cfg(feature = "rest")]
+mod example {
+    use anyhow::Context;
+    use force::auth::ClientCredentials;
+    use force::client::builder;
+    use force::types::DynamicSObject;
 
-fn required_env(name: &str) -> anyhow::Result<String> {
-    std::env::var(name).with_context(|| format!("{name} environment variable not set"))
-}
-
-async fn build_client() -> anyhow::Result<ForceClient<ClientCredentials>> {
-    let client_id = required_env("SF_CLIENT_ID")?;
-    let client_secret = required_env("SF_CLIENT_SECRET")?;
-
-    let auth = ClientCredentials::new(
-        client_id,
-        client_secret,
-        "https://login.salesforce.com/services/oauth2/token",
-    );
-    builder()
-        .authenticate(auth)
-        .build()
-        .await
-        .map_err(Into::into)
-}
-
-async fn run_search(
-    client: &ForceClient<ClientCredentials>,
-    sosl: &str,
-    label: &str,
-) -> anyhow::Result<()> {
-    println!("\n=== {label} ===");
-    let result = client.rest().search(sosl).await?;
-
-    for bucket in &result.search_records {
-        println!(
-            "{}: {} results",
-            bucket.attributes.type_,
-            bucket.records.len()
-        );
-        for record in &bucket.records {
-            let id = record.get("Id").and_then(|v| v.as_str()).unwrap_or("N/A");
-            let name = record.get("Name").and_then(|v| v.as_str()).unwrap_or("N/A");
-            println!("  - {name} ({id})");
-        }
+    fn required_env(name: &str) -> anyhow::Result<String> {
+        std::env::var(name).with_context(|| format!("{name} environment variable not set"))
     }
 
-    Ok(())
+    #[tokio::main]
+    pub async fn main() -> anyhow::Result<()> {
+        tracing_subscriber::fmt::init();
+
+        let client_id = required_env("SF_CLIENT_ID")?;
+        let client_secret = required_env("SF_CLIENT_SECRET")?;
+
+        let auth = ClientCredentials::new(
+            client_id,
+            client_secret,
+            "https://login.salesforce.com/services/oauth2/token",
+        );
+        let client = builder().authenticate(auth).build().await?;
+
+        let query = "FIND {test} IN ALL FIELDS RETURNING Account(Name), Contact(FirstName, LastName)";
+        println!("Searching: {}", query);
+
+        let results = client.rest().search(query).await?;
+
+        println!("Found {} results:", results.search_records.len());
+        for record in results.search_records {
+            let attrs = &record.attributes;
+            let obj_type = &attrs.type_;
+
+            if obj_type == "Account" {
+                let name = record.get_field_as::<String>("Name")?.unwrap_or_default();
+                println!("- Account: {}", name);
+            } else if obj_type == "Contact" {
+                let first = record.get_field_as::<String>("FirstName")?.unwrap_or_default();
+                let last = record.get_field_as::<String>("LastName")?.unwrap_or_default();
+                println!("- Contact: {} {}", first, last);
+            } else {
+                println!("- Unknown type: {}", obj_type);
+            }
+        }
+
+        Ok(())
+    }
 }
 
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
-    tracing_subscriber::fmt::init();
-    let client = build_client().await?;
-
-    run_search(
-        &client,
-        "FIND {John} IN NAME FIELDS RETURNING Account(Id, Name), Contact(Id, Name)",
-        "Name Search",
-    )
-    .await?;
-
-    run_search(
-        &client,
-        "FIND {example.com} IN EMAIL FIELDS RETURNING Contact(Id, Name, Email)",
-        "Email Search",
-    )
-    .await?;
-
-    run_search(
-        &client,
-        "FIND {Acme*} IN NAME FIELDS RETURNING Account(Id, Name)",
-        "Wildcard Search",
-    )
-    .await?;
-
-    Ok(())
+fn main() -> anyhow::Result<()> {
+    #[cfg(feature = "rest")]
+    {
+        example::main()
+    }
+    #[cfg(not(feature = "rest"))]
+    {
+        println!("This example requires the 'rest' feature.");
+        Ok(())
+    }
 }
