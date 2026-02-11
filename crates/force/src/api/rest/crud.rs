@@ -261,14 +261,15 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
         external_id_value: &str,
         data: &serde_json::Value,
     ) -> Result<UpsertResponse> {
-        self.upsert_with_retry_class(
-            sobject,
-            external_id_field,
-            external_id_value,
-            data,
-            crate::http::RequestRetryClass::Mutation,
-        )
-        .await
+        self
+            .upsert_with_retry_class(
+                sobject,
+                external_id_field,
+                external_id_value,
+                data,
+                crate::http::RequestRetryClass::Mutation,
+            )
+            .await
     }
 
     /// Upserts an SObject by external ID with idempotent retry semantics.
@@ -283,14 +284,15 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
         external_id_value: &str,
         data: &serde_json::Value,
     ) -> Result<UpsertResponse> {
-        self.upsert_with_retry_class(
-            sobject,
-            external_id_field,
-            external_id_value,
-            data,
-            crate::http::RequestRetryClass::IdempotentMutation,
-        )
-        .await
+        self
+            .upsert_with_retry_class(
+                sobject,
+                external_id_field,
+                external_id_value,
+                data,
+                crate::http::RequestRetryClass::IdempotentMutation,
+            )
+            .await
     }
 
     async fn upsert_with_retry_class(
@@ -348,10 +350,10 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
 }
 #[cfg(test)]
 mod tests {
+use crate::test_support::Must;
     use super::*;
     use crate::auth::{AccessToken, Authenticator, TokenResponse};
     use crate::client::builder;
-    use crate::test_support::Must;
 
     use async_trait::async_trait;
     use serde_json::json;

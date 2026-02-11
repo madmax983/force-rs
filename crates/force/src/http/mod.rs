@@ -308,37 +308,36 @@ impl HttpExecutor {
                 HttpError::InvalidUrl("cannot clone request for retry".to_string())
             })?;
 
-            let response =
-                match tokio::time::timeout(self.timeout, self.client.execute(req_clone)).await {
-                    Err(_) => {
-                        self.record_completion(RequestCompletion {
-                            method: method.clone(),
-                            path: path.clone(),
-                            request_class: request_class_str,
-                            status_code: None,
-                            error_kind: Some(RequestErrorKind::Timeout),
-                            retries: retry_attempt,
-                            elapsed_ms: start.elapsed().as_millis(),
-                        });
-                        return Err(HttpError::Timeout {
-                            timeout_seconds: self.timeout.as_secs(),
-                        }
-                        .into());
+            let response = match tokio::time::timeout(self.timeout, self.client.execute(req_clone)).await {
+                Err(_) => {
+                    self.record_completion(RequestCompletion {
+                        method: method.clone(),
+                        path: path.clone(),
+                        request_class: request_class_str,
+                        status_code: None,
+                        error_kind: Some(RequestErrorKind::Timeout),
+                        retries: retry_attempt,
+                        elapsed_ms: start.elapsed().as_millis(),
+                    });
+                    return Err(HttpError::Timeout {
+                        timeout_seconds: self.timeout.as_secs(),
                     }
-                    Ok(Err(error)) => {
-                        self.record_completion(RequestCompletion {
-                            method: method.clone(),
-                            path: path.clone(),
-                            request_class: request_class_str,
-                            status_code: None,
-                            error_kind: Some(RequestErrorKind::Transport),
-                            retries: retry_attempt,
-                            elapsed_ms: start.elapsed().as_millis(),
-                        });
-                        return Err(HttpError::from(error).into());
-                    }
-                    Ok(Ok(response)) => response,
-                };
+                    .into());
+                }
+                Ok(Err(error)) => {
+                    self.record_completion(RequestCompletion {
+                        method: method.clone(),
+                        path: path.clone(),
+                        request_class: request_class_str,
+                        status_code: None,
+                        error_kind: Some(RequestErrorKind::Transport),
+                        retries: retry_attempt,
+                        elapsed_ms: start.elapsed().as_millis(),
+                    });
+                    return Err(HttpError::from(error).into());
+                }
+                Ok(Ok(response)) => response,
+            };
 
             match response.status() {
                 StatusCode::UNAUTHORIZED => {

@@ -67,8 +67,8 @@ The Salesforce Bulk API 2.0 provides:
 **Implementation:**
 ```rust
 // State transitions through types
-let job = handler.create_ingest_job("Account", JobOperation::Insert)
-    .await?;                                   // Returns IngestJob<Open, A>
+let job = IngestJobBuilder::new("Account", JobOperation::Insert)
+    .build(handler).await?;                    // Returns IngestJob<Open, A>
 
 let job = job.upload(&csv_data).await?;        // Open → UploadComplete
 let job = job.close().await?;                  // UploadComplete → InProgress
@@ -145,8 +145,6 @@ bulk_delete(object, ids)        // Delete + wait
 bulk_query(soql)                // Query + stream results
 
 // Advanced: Manual lifecycle control
-create_ingest_job(object, op)   // Typed job creation
-create_upsert_job(object, id)   // Typed upsert creation
 create_job(request)             // Fine-grained control
 upload(csv)
 close()

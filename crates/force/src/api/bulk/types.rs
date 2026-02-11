@@ -133,8 +133,8 @@ pub struct UpdateJobRequest {
 }
 #[cfg(test)]
 mod tests {
+use crate::test_support::Must;
     use super::*;
-    use crate::test_support::Must;
 
     #[test]
     fn test_job_operation_serialization() {
@@ -179,13 +179,19 @@ mod tests {
 
     #[test]
     fn test_content_type_serialization() {
-        assert_eq!(serde_json::to_string(&ContentType::Csv).must(), r#""CSV""#);
+        assert_eq!(
+            serde_json::to_string(&ContentType::Csv).must(),
+            r#""CSV""#
+        );
     }
 
     #[test]
     fn test_line_ending_serialization() {
         assert_eq!(serde_json::to_string(&LineEnding::Lf).must(), r#""LF""#);
-        assert_eq!(serde_json::to_string(&LineEnding::Crlf).must(), r#""CRLF""#);
+        assert_eq!(
+            serde_json::to_string(&LineEnding::Crlf).must(),
+            r#""CRLF""#
+        );
     }
 
     #[test]

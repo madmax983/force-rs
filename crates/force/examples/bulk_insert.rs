@@ -1,3 +1,5 @@
+
+
 //! Bulk Insert Example
 //!
 //! This example demonstrates inserting records in bulk using the Bulk API 2.0.
@@ -39,8 +41,10 @@ async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
 
     // Get credentials from environment
-    let client_id = required_env("SF_CLIENT_ID")?;
-    let client_secret = required_env("SF_CLIENT_SECRET")?;
+    let client_id =
+        required_env("SF_CLIENT_ID")?;
+    let client_secret =
+        required_env("SF_CLIENT_SECRET")?;
 
     println!("═══ Authenticating ═══");
     let auth = ClientCredentials::new(

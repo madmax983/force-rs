@@ -101,11 +101,7 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
         let response = self.inner.execute_request(request).await?;
 
         if !response.status().is_success() {
-            return Err(crate::http::response_to_force_error(
-                response,
-                "Limits API request failed",
-            )
-            .await);
+            return Err(crate::http::response_to_force_error(response, "Limits API request failed").await);
         }
 
         let limits = response
@@ -165,11 +161,9 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
         let response = self.inner.execute_request(request).await?;
 
         if !response.status().is_success() {
-            return Err(crate::http::response_to_force_error(
-                response,
-                "SOSL search request failed",
-            )
-            .await);
+            return Err(
+                crate::http::response_to_force_error(response, "SOSL search request failed").await,
+            );
         }
 
         let results = response
@@ -214,11 +208,10 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
         let response = self.inner.execute_request(request).await?;
 
         if !response.status().is_success() {
-            return Err(crate::http::response_to_force_error(
-                response,
-                "Global describe request failed",
-            )
-            .await);
+            return Err(
+                crate::http::response_to_force_error(response, "Global describe request failed")
+                    .await,
+            );
         }
 
         let global = response
@@ -271,11 +264,13 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
         let response = self.inner.execute_request(request).await?;
 
         if !response.status().is_success() {
-            return Err(crate::http::response_to_force_error(
-                response,
-                &format!("Describe request for {} failed", sobject_name),
-            )
-            .await);
+            return Err(
+                crate::http::response_to_force_error(
+                    response,
+                    &format!("Describe request for {} failed", sobject_name),
+                )
+                .await,
+            );
         }
 
         let describe = response
@@ -287,11 +282,11 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
 }
 #[cfg(test)]
 mod tests {
+use crate::test_support::{Must, MustMsg};
     use crate::auth::{AccessToken, Authenticator, TokenResponse};
     use crate::client::{ForceClient, builder};
     use crate::config::ClientConfigBuilder;
     use crate::error::Result;
-    use crate::test_support::{Must, MustMsg};
     use async_trait::async_trait;
 
     // Mock authenticator for testing

@@ -4,7 +4,7 @@
 
 use anyhow::Context;
 use force::auth::ClientCredentials;
-use force::client::{ForceClient, builder};
+use force::client::{builder, ForceClient};
 
 fn required_env(name: &str) -> anyhow::Result<String> {
     std::env::var(name).with_context(|| format!("{name} environment variable not set"))
@@ -19,27 +19,15 @@ async fn build_client() -> anyhow::Result<ForceClient<ClientCredentials>> {
         client_secret,
         "https://login.salesforce.com/services/oauth2/token",
     );
-    builder()
-        .authenticate(auth)
-        .build()
-        .await
-        .map_err(Into::into)
+    builder().authenticate(auth).build().await.map_err(Into::into)
 }
 
-async fn run_search(
-    client: &ForceClient<ClientCredentials>,
-    sosl: &str,
-    label: &str,
-) -> anyhow::Result<()> {
+async fn run_search(client: &ForceClient<ClientCredentials>, sosl: &str, label: &str) -> anyhow::Result<()> {
     println!("\n=== {label} ===");
     let result = client.rest().search(sosl).await?;
 
     for bucket in &result.search_records {
-        println!(
-            "{}: {} results",
-            bucket.attributes.type_,
-            bucket.records.len()
-        );
+        println!("{}: {} results", bucket.attributes.type_, bucket.records.len());
         for record in &bucket.records {
             let id = record.get("Id").and_then(|v: &serde_json::Value| v.as_str()).unwrap_or("N/A");
             let name = record.get("Name").and_then(|v: &serde_json::Value| v.as_str()).unwrap_or("N/A");

@@ -90,11 +90,8 @@ impl<A: Authenticator> AuthenticatedBuilder<A> {
             .timeout(config.timeout)
             .build()
             .map_err(crate::error::HttpError::from)?;
-        let http_executor = crate::http::HttpExecutor::with_client(
-            http_client.clone(),
-            config.max_retries,
-            config.timeout,
-        );
+        let http_executor =
+            crate::http::HttpExecutor::with_client(http_client.clone(), config.max_retries, config.timeout);
 
         // Create token manager with the authenticator
         let token_manager = Arc::new(TokenManager::new(self.authenticator));
@@ -113,10 +110,10 @@ impl<A: Authenticator> AuthenticatedBuilder<A> {
 }
 #[cfg(test)]
 mod tests {
+use crate::test_support::Must;
     use super::*;
     use crate::auth::AccessToken;
     use crate::config::{ClientConfig, Environment};
-    use crate::test_support::Must;
     use async_trait::async_trait;
     use std::sync::Arc;
 

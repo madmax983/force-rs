@@ -57,11 +57,13 @@ impl<A: crate::auth::Authenticator> ForceClient<A> {
         // Handle error responses
         if !response.status().is_success() {
             let status = response.status();
-            return Err(crate::http::response_to_force_error(
-                response,
-                &format!("SOQL query failed: {}", status),
-            )
-            .await);
+            return Err(
+                crate::http::response_to_force_error(
+                    response,
+                    &format!("SOQL query failed: {}", status),
+                )
+                .await,
+            );
         }
 
         // Deserialize response
@@ -117,11 +119,13 @@ impl<A: crate::auth::Authenticator> ForceClient<A> {
         // Handle error responses
         if !response.status().is_success() {
             let status = response.status();
-            return Err(crate::http::response_to_force_error(
-                response,
-                &format!("Query pagination failed: {}", status),
-            )
-            .await);
+            return Err(
+                crate::http::response_to_force_error(
+                    response,
+                    &format!("Query pagination failed: {}", status),
+                )
+                .await,
+            );
         }
 
         // Deserialize response
@@ -135,10 +139,10 @@ impl<A: crate::auth::Authenticator> ForceClient<A> {
 }
 #[cfg(test)]
 mod tests {
+use crate::test_support::Must;
     use super::*;
     use crate::auth::{AccessToken, Authenticator, TokenResponse};
     use crate::client::builder;
-    use crate::test_support::Must;
     use crate::types::DynamicSObject;
     use async_trait::async_trait;
     use serde::{Deserialize, Serialize};
@@ -390,8 +394,10 @@ mod tests {
 
         let client = builder().authenticate(auth).build().await.must();
 
-        let result: QueryResult<TestAccount> =
-            client.query("SELECT Id, Name FROM Account").await.must();
+        let result: QueryResult<TestAccount> = client
+            .query("SELECT Id, Name FROM Account")
+            .await
+            .must();
 
         assert_eq!(result.total_size, 4);
         assert!(!result.is_done());
@@ -443,8 +449,10 @@ mod tests {
         let client = builder().authenticate(auth).build().await.must();
 
         // First page
-        let page1: QueryResult<TestAccount> =
-            client.query("SELECT Id, Name FROM Account").await.must();
+        let page1: QueryResult<TestAccount> = client
+            .query("SELECT Id, Name FROM Account")
+            .await
+            .must();
 
         assert!(!page1.is_done());
         assert_eq!(page1.len(), 2);
@@ -515,8 +523,10 @@ mod tests {
 
         // Collect all records by manually paginating
         let mut all_records = Vec::new();
-        let mut result: QueryResult<TestAccount> =
-            client.query("SELECT Id, Name FROM Account").await.must();
+        let mut result: QueryResult<TestAccount> = client
+            .query("SELECT Id, Name FROM Account")
+            .await
+            .must();
 
         all_records.extend(result.records.clone());
 

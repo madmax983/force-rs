@@ -4,7 +4,7 @@
 
 use anyhow::Context;
 use force::auth::ClientCredentials;
-use force::client::{ForceClient, builder};
+use force::client::{builder, ForceClient};
 use force::types::DynamicSObject;
 
 fn required_env(name: &str) -> anyhow::Result<String> {
@@ -20,11 +20,7 @@ async fn build_client() -> anyhow::Result<ForceClient<ClientCredentials>> {
         client_secret,
         "https://login.salesforce.com/services/oauth2/token",
     );
-    builder()
-        .authenticate(auth)
-        .build()
-        .await
-        .map_err(Into::into)
+    builder().authenticate(auth).build().await.map_err(Into::into)
 }
 
 #[tokio::main]
@@ -47,15 +43,13 @@ async fn main() -> anyhow::Result<()> {
     }
 
     let revenue_rows = client
-        .query::<DynamicSObject>(
-            "SELECT Name, AnnualRevenue FROM Account WHERE AnnualRevenue != null LIMIT 10",
-        )
+        .query::<DynamicSObject>("SELECT Name, AnnualRevenue FROM Account WHERE AnnualRevenue != null LIMIT 10")
         .await?;
 
     let revenues: Vec<f64> = revenue_rows
         .records
         .iter()
-        .filter_map(|row| row.get_field_as::<f64>("AnnualRevenue").ok().flatten())
+        .filter_map(|row: &DynamicSObject| row.get_field_as::<f64>("AnnualRevenue").ok().flatten())
         .collect();
 
     if !revenues.is_empty() {
