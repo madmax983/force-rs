@@ -4,7 +4,7 @@
 mod example {
     use anyhow::Context;
     use force::auth::ClientCredentials;
-    use force::client::{builder, ForceClient};
+    use force::client::{ForceClient, builder};
     use serde::Deserialize;
 
     #[derive(Deserialize, Debug)]
@@ -52,7 +52,10 @@ mod example {
         while let Some(account) = stream.next().await? {
             count += 1;
             if count <= 5 {
-                println!("Account {}: {} ({:?})", count, account.name, account.industry);
+                println!(
+                    "Account {}: {} ({:?})",
+                    count, account.name, account.industry
+                );
             }
         }
 

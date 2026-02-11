@@ -6,7 +6,7 @@ mod example {
     use force::api::bulk::ingest::IngestJobBuilder;
     use force::api::bulk::types::JobOperation;
     use force::auth::ClientCredentials;
-    use force::client::{builder, ForceClient};
+    use force::client::{ForceClient, builder};
     use serde::Serialize;
 
     #[derive(Serialize, Debug)]
@@ -63,7 +63,9 @@ mod example {
 
         println!(
             "Job completed: {} (processed: {}, failed: {})",
-            job_info.id, job_info.number_records_processed, job_info.number_records_failed
+            job_info.id,
+            job_info.number_records_processed.unwrap_or(0),
+            job_info.number_records_failed.unwrap_or(0)
         );
 
         // 3. Alternatively, manual control:

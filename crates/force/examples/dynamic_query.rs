@@ -31,7 +31,7 @@ mod example {
             .query::<DynamicSObject>("SELECT Id, Name, Industry FROM Account LIMIT 5")
             .await?;
 
-        for record in accounts {
+        for record in accounts.records {
             let id = record.get_field_as::<String>("Id")?.unwrap_or_default();
             let name = record.get_field_as::<String>("Name")?.unwrap_or_default();
             let industry = record.get_field_as::<String>("Industry")?;
@@ -48,11 +48,12 @@ mod example {
             .await?;
 
         let total_revenue: f64 = revenue_rows
+            .records
             .into_iter()
             .filter_map(|row| row.get_field_as::<f64>("AnnualRevenue").ok().flatten())
             .sum();
 
-        println!("Total Revenue (Top 10): ${:,.2}", total_revenue);
+        println!("Total Revenue (Top 10): ${total_revenue:.2}");
 
         Ok(())
     }

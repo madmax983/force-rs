@@ -4,7 +4,7 @@
 mod example {
     use anyhow::Context;
     use force::auth::ClientCredentials;
-    use force::client::{builder, ForceClient};
+    use force::client::{ForceClient, builder};
     use force::types::DynamicSObject;
     use serde_json::json;
 
@@ -36,11 +36,12 @@ mod example {
             "Name": "New Account"
         });
         let created = client.rest().create("Account", &create).await?;
-        let account_id = created.id;
+    // The create response returns an Option<SalesforceId>, we assume it exists for this example.
+    let account_id = created.id.context("Failed to get ID from create response")?;
         println!("Created: {}", account_id);
 
         let fetched = client.rest().get("Account", &account_id).await?;
-        let sobject: DynamicSObject = fetched.json()?;
+    let sobject: DynamicSObject = fetched.json().await?;
         println!(
             "Fetched: {}",
             sobject
@@ -57,7 +58,7 @@ mod example {
             .update("Account", &account_id, &update)
             .await?;
         let updated = client.rest().get("Account", &account_id).await?;
-        let updated_sobject: DynamicSObject = updated.json()?;
+    let updated_sobject: DynamicSObject = updated.json().await?;
         println!(
             "Updated: {}",
             updated_sobject

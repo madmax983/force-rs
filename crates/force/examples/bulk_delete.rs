@@ -6,7 +6,7 @@ mod example {
     use force::api::bulk::ingest::IngestJobBuilder;
     use force::api::bulk::types::JobOperation;
     use force::auth::ClientCredentials;
-    use force::client::{builder, ForceClient};
+    use force::client::{ForceClient, builder};
     use serde::Deserialize;
 
     #[derive(Deserialize, Debug)]

@@ -25,25 +25,33 @@ mod example {
         );
         let client = builder().authenticate(auth).build().await?;
 
-        let query = "FIND {test} IN ALL FIELDS RETURNING Account(Name), Contact(FirstName, LastName)";
+        let query =
+            "FIND {test} IN ALL FIELDS RETURNING Account(Name), Contact(FirstName, LastName)";
         println!("Searching: {}", query);
 
         let results = client.rest().search(query).await?;
 
         println!("Found {} results:", results.search_records.len());
-        for record in results.search_records {
-            let attrs = &record.attributes;
-            let obj_type = &attrs.type_;
+        for record_set in results.search_records {
+            let obj_type = &record_set.attributes.type_;
 
-            if obj_type == "Account" {
-                let name = record.get_field_as::<String>("Name")?.unwrap_or_default();
-                println!("- Account: {}", name);
-            } else if obj_type == "Contact" {
-                let first = record.get_field_as::<String>("FirstName")?.unwrap_or_default();
-                let last = record.get_field_as::<String>("LastName")?.unwrap_or_default();
-                println!("- Contact: {} {}", first, last);
-            } else {
-                println!("- Unknown type: {}", obj_type);
+            for record in record_set.records {
+                if obj_type == "Account" {
+                    let name = record.get("Name").and_then(|v| v.as_str()).unwrap_or("N/A");
+                    println!("- Account: {}", name);
+                } else if obj_type == "Contact" {
+                    let first = record
+                        .get("FirstName")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("N/A");
+                    let last = record
+                        .get("LastName")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("N/A");
+                    println!("- Contact: {} {}", first, last);
+                } else {
+                    println!("- Unknown type: {}", obj_type);
+                }
             }
         }
 

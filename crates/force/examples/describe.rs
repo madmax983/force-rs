@@ -35,7 +35,7 @@ mod example {
 
         if let Some(field) = desc.fields.iter().find(|f| f.name == "Name") {
             println!("\nField 'Name':");
-            println!("  Type: {}", field.type_);
+            println!("  Type: {:?}", field.type_);
             println!("  Label: {}", field.label);
             println!("  Nillable: {}", field.nillable);
         }
