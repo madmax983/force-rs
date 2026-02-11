@@ -358,7 +358,6 @@ impl<A: crate::auth::Authenticator> BulkHandler<A> {
     /// # Errors
     ///
     /// Returns an error if job creation fails.
-    #[must_use]
     pub async fn create_ingest_job(
         &self,
         object: impl Into<String>,
@@ -387,7 +386,6 @@ impl<A: crate::auth::Authenticator> BulkHandler<A> {
     /// # Errors
     ///
     /// Returns an error if job creation fails.
-    #[must_use]
     pub async fn create_upsert_job(
         &self,
         object: impl Into<String>,
