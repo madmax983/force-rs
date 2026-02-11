@@ -69,6 +69,7 @@ async fn main() -> anyhow::Result<()> {
     let auth = ClientCredentials::new(
         "your-client-id",
         "your-client-secret",
+        "https://login.salesforce.com/services/oauth2/token"
     );
 
     let client = builder()
@@ -78,7 +79,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Execute typed SOQL query
     let soql = "SELECT Id, Name, Industry FROM Account WHERE Industry = 'Technology' LIMIT 10";
-    let result = client.rest().query_typed::<Account>(soql).await?;
+    let result = client.query::<Account>(soql).await?;
 
     // Process results
     for account in result.records {
@@ -114,7 +115,11 @@ struct Account {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let auth = ClientCredentials::new("client-id", "client-secret");
+    let auth = ClientCredentials::new(
+        "client-id",
+        "client-secret",
+        "https://login.salesforce.com/services/oauth2/token"
+    );
     let client = builder().authenticate(auth).build().await?;
 
     let accounts = vec![
@@ -142,7 +147,6 @@ Stream millions of records without loading the entire dataset into memory:
 use force::client::builder;
 use force::auth::ClientCredentials;
 use serde::Deserialize;
-use futures::StreamExt;
 
 #[derive(Debug, Deserialize)]
 struct Contact {
@@ -154,19 +158,22 @@ struct Contact {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let auth = ClientCredentials::new("client-id", "client-secret");
+    let auth = ClientCredentials::new(
+        "client-id",
+        "client-secret",
+        "https://login.salesforce.com/services/oauth2/token"
+    );
     let client = builder().authenticate(auth).build().await?;
 
     // Create bulk query job and stream results
     let mut stream = client.bulk()
-        .bulk_query_typed::<Contact>(
+        .bulk_query::<Contact>(
             "SELECT Id, Email FROM Contact WHERE Email != null"
         )
         .await?;
 
     let mut count = 0;
-    while let Some(result) = stream.next().await {
-        let contact = result?;
+    while let Some(contact) = stream.next().await? {
         println!("Processing: {} ({})", contact.id, contact.email.unwrap_or_default());
         count += 1;
     }
