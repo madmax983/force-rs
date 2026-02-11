@@ -55,10 +55,10 @@ mod example {
             let id = record.get_field_as::<String>("Id")?.unwrap_or_default();
             let name = record
                 .get_field_as::<String>("Name")?
-                .unwrap_or("Unknown".to_string());
+                .unwrap_or_else(|| "Unknown".to_string());
             let industry = record
                 .get_field_as::<String>("Industry")?
-                .unwrap_or("None".to_string());
+                .unwrap_or_else(|| "None".to_string());
 
             println!("{id}: {name} ({industry})");
         }
@@ -77,7 +77,7 @@ mod example {
             .filter_map(|row| row.get_field_as::<f64>("AnnualRevenue").ok().flatten())
             .sum();
 
-        println!("Total Revenue (from sample): ${:.2}", total_revenue);
+        println!("Total Revenue (from sample): ${total_revenue:.2}");
 
         Ok(())
     }

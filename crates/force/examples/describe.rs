@@ -1,4 +1,4 @@
-//! SObject Describe Example
+//! `SObject` Describe Example
 //!
 //! This example demonstrates how to retrieve metadata for Salesforce objects.
 //!

@@ -82,8 +82,8 @@ mod example {
         client.rest().update("Account", &account_id, &update_value).await?;
         println!("✓ Update successful");
 
-        let updated_value = client.rest().get("Account", &account_id).await?;
-        let updated: Account = serde_json::from_value(updated_value)?;
+        let refreshed_value = client.rest().get("Account", &account_id).await?;
+        let updated: Account = serde_json::from_value(refreshed_value)?;
         println!("  New Description: {:?}", updated.description);
 
         // 4. Delete

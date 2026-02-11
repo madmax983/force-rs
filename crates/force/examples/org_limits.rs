@@ -90,6 +90,9 @@ mod example {
         Ok(())
     }
 
+    #[allow(clippy::cast_precision_loss)]
+    #[allow(clippy::cast_sign_loss)]
+    #[allow(clippy::cast_possible_truncation)]
     fn print_limit_bar(info: &force::api::rest::limits::LimitInfo) {
         let percent = info.percentage_used();
         let bar_width: usize = 30;
