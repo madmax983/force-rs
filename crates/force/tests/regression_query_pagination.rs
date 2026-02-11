@@ -1,6 +1,7 @@
 #![cfg(feature = "rest")]
 #![allow(missing_docs)]
 #![allow(clippy::unwrap_used)]
+#![allow(clippy::uninlined_format_args)]
 
 use async_trait::async_trait;
 use force::auth::{AccessToken, Authenticator, TokenResponse};
