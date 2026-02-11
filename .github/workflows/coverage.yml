@@ -125,9 +125,19 @@ jobs:
 
             *Note: For v0.1, coverage is tracked but not enforced.*`;
 
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: comment
-            });
+            try {
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: comment
+              });
+            } catch (error) {
+              // Ignore 403 errors (Resource not accessible by integration)
+              // This can happen if the workflow doesn't have permissions to comment
+              if (error.status !== 403) {
+                throw error;
+              } else {
+                console.log('Skipping PR comment due to lack of permissions (403)');
+              }
+            }
