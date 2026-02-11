@@ -1,3 +1,7 @@
+#![cfg(feature = "rest")]
+#![allow(missing_docs)]
+#![allow(clippy::unwrap_used)]
+
 use async_trait::async_trait;
 use force::auth::{AccessToken, Authenticator, TokenResponse};
 use force::client::builder;
@@ -51,7 +55,7 @@ struct TestAccount {
 }
 
 #[tokio::test]
-async fn regression_query_more_with_absolute_url() {
+async fn regression_query_more_with_absolute_url() -> Result<()> {
     let mock_server = MockServer::start().await;
     let auth = MockAuthenticator::new("test_token", &mock_server.uri());
 
@@ -91,12 +95,9 @@ async fn regression_query_more_with_absolute_url() {
         .mount(&mock_server)
         .await;
 
-    let client = builder().authenticate(auth).build().await.unwrap();
+    let client = builder().authenticate(auth).build().await?;
 
-    let page1: QueryResult<TestAccount> = client
-        .query("SELECT Id, Name FROM Account")
-        .await
-        .unwrap();
+    let page1: QueryResult<TestAccount> = client.query("SELECT Id, Name FROM Account").await?;
 
     assert!(page1.next_records_url.is_some());
     let next_records_url = page1.next_records_url.as_ref().unwrap();
@@ -105,17 +106,10 @@ async fn regression_query_more_with_absolute_url() {
     assert!(next_records_url.starts_with("http"));
 
     // This call should fail if the bug exists (double URL)
-    let page2_result = client
-        .query_more::<TestAccount>(next_records_url)
-        .await;
+    let page2 = client.query_more::<TestAccount>(next_records_url).await?;
 
-    match page2_result {
-        Ok(page2) => {
-             assert_eq!(page2.len(), 2);
-             assert_eq!(page2.records[0].name, "Page2 Record1");
-        },
-        Err(e) => {
-            panic!("query_more failed with absolute URL: {}", e);
-        }
-    }
+    assert_eq!(page2.len(), 2);
+    assert_eq!(page2.records[0].name, "Page2 Record1");
+
+    Ok(())
 }

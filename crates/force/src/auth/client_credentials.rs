@@ -167,9 +167,7 @@ struct OAuthErrorResponse {
 }
 #[cfg(test)]
 mod tests {
-use crate::test_support::Must;
     use super::*;
-    use crate::auth::Authenticator;
 
     // RED PHASE - Write failing tests first
 
