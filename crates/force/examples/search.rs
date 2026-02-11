@@ -41,8 +41,8 @@ async fn run_search(
             bucket.records.len()
         );
         for record in &bucket.records {
-            let id = record.get("Id").and_then(|v| v.as_str()).unwrap_or("N/A");
-            let name = record.get("Name").and_then(|v| v.as_str()).unwrap_or("N/A");
+            let id = record.get("Id").and_then(|v: &serde_json::Value| v.as_str()).unwrap_or("N/A");
+            let name = record.get("Name").and_then(|v: &serde_json::Value| v.as_str()).unwrap_or("N/A");
             println!("  - {name} ({id})");
         }
     }
