@@ -1,5 +1,3 @@
-
-
 //! Bulk Delete Example
 //!
 //! This example demonstrates deleting records in bulk using the Bulk API 2.0.
@@ -16,11 +14,15 @@
 //! cargo run --example bulk_delete --features bulk
 //! ```
 
+#[cfg(feature = "bulk")]
 use force::auth::ClientCredentials;
+#[cfg(feature = "bulk")]
 use force::client::builder;
+#[cfg(feature = "bulk")]
 use serde::Deserialize;
 
-#[derive(Deserialize)]
+#[cfg(feature = "bulk")]
+#[derive(Deserialize, Debug)]
 struct Account {
     #[serde(rename = "Id")]
     id: String,
@@ -28,8 +30,10 @@ struct Account {
     name: String,
 }
 
+#[cfg(feature = "bulk")]
 use anyhow::Context;
 
+#[cfg(feature = "bulk")]
 fn required_env(name: &str) -> anyhow::Result<String> {
     std::env::var(name).with_context(|| format!("{name} environment variable not set"))
 }
@@ -38,69 +42,62 @@ async fn main() -> anyhow::Result<()> {
     // Initialize tracing
     tracing_subscriber::fmt::init();
 
-    // Get credentials from environment
-    let client_id =
-        required_env("SF_CLIENT_ID")?;
-    let client_secret =
-        required_env("SF_CLIENT_SECRET")?;
+    #[cfg(feature = "bulk")]
+    {
+        // Get credentials from environment
+        let client_id =
+            required_env("SF_CLIENT_ID")?;
+        let client_secret =
+            required_env("SF_CLIENT_SECRET")?;
 
-    println!("═══ Authenticating ═══");
-    let auth = ClientCredentials::new(
-        client_id,
-        client_secret,
-        "https://login.salesforce.com/services/oauth2/token",
-    );
-    let client = builder().authenticate(auth).build().await?;
-    println!("✓ Authentication successful\n");
+        println!("═══ Authenticating ═══");
+        let auth = ClientCredentials::new(
+            client_id,
+            client_secret,
+            "https://login.salesforce.com/services/oauth2/token",
+        );
+        let client = builder().authenticate(auth).build().await?;
+        println!("✓ Authentication successful\n");
 
-    // Query for test accounts to delete
-    println!("═══ Querying Accounts ═══");
-    let soql = "SELECT Id, Name FROM Account WHERE Name LIKE 'Test%' LIMIT 10";
-    let mut stream = client.bulk().bulk_query::<Account>(soql).await?;
+        // Query for accounts to delete (careful!)
+        println!("═══ Querying Accounts to Delete ═══");
+        let soql = "SELECT Id, Name FROM Account WHERE Name LIKE 'Delete Me%' LIMIT 10";
+        let mut stream: force::api::bulk::query::BulkQueryStream<Account, ClientCredentials> = client.bulk().bulk_query::<Account>(soql).await?;
 
-    let mut account_ids = Vec::new();
-    while let Some(account) = stream.next().await? {
-        println!("Found: {} ({})", account.name, account.id);
-        account_ids.push(account.id);
-    }
+        let mut account_ids = Vec::new();
+        while let Some(account) = stream.next().await? {
+            println!("Found: {} ({})", account.name, account.id);
+            account_ids.push(account.id);
+        }
 
-    if account_ids.is_empty() {
-        println!("\nNo test accounts found to delete");
-        return Ok(());
-    }
+        if account_ids.is_empty() {
+            println!("\nNo 'Delete Me' accounts found to delete");
+            return Ok(());
+        }
 
-    // Confirm deletion
-    println!("\n⚠ About to delete {} accounts!", account_ids.len());
-    println!("Press Ctrl+C to cancel, or Enter to continue...");
-    let mut input = String::new();
-    std::io::stdin().read_line(&mut input)?;
+        // Perform bulk delete (creates job, uploads CSV, closes, and polls)
+        println!("\n═══ Bulk Delete ═══");
+        println!("Deleting {} accounts...", account_ids.len());
+        let job_info = client.bulk().bulk_delete("Account", &account_ids).await?;
 
-    // Perform bulk delete
-    println!("\n═══ Bulk Delete ═══");
-    println!("Deleting {} accounts...", account_ids.len());
+        println!("\n═══ Results ═══");
+        println!("Job ID: {}", job_info.id);
+        println!("State: {:?}", job_info.state);
+        println!(
+            "Records Processed: {}",
+            job_info.number_records_processed.unwrap_or(0)
+        );
+        println!(
+            "Records Failed: {}",
+            job_info.number_records_failed.unwrap_or(0)
+        );
 
-    // Perform bulk delete (creates job, uploads IDs as CSV, closes, and polls)
-    let job_info = client.bulk().bulk_delete("Account", &account_ids).await?;
-
-    println!("\n═══ Results ═══");
-    println!("Job ID: {}", job_info.id);
-    println!("State: {:?}", job_info.state);
-    println!(
-        "Records Processed: {}",
-        job_info.number_records_processed.unwrap_or(0)
-    );
-    println!(
-        "Records Failed: {}",
-        job_info.number_records_failed.unwrap_or(0)
-    );
-
-    if job_info.number_records_failed.unwrap_or(0) == 0 {
-        println!("\n✓ All records deleted successfully!");
-    } else {
-        println!("\n⚠ Some records failed - check Salesforce logs");
+        if job_info.number_records_failed.unwrap_or(0) == 0 {
+            println!("\n✓ All records deleted successfully!");
+        } else {
+            println!("\n⚠ Some records failed - check Salesforce logs");
+        }
     }
 
     Ok(())
 }
-
-

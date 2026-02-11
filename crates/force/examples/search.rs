@@ -1,15 +1,22 @@
-//! SOSL Search Example
+//! Search with SOSL Example
 //!
-//! Demonstrates SOSL searches across multiple object types.
+//! Demonstrates searching for records using SOSL.
 
+#[cfg(feature = "rest")]
 use anyhow::Context;
+#[cfg(feature = "rest")]
+use force::api::rest::search::SearchQueryBuilder;
+#[cfg(feature = "rest")]
 use force::auth::ClientCredentials;
+#[cfg(feature = "rest")]
 use force::client::{builder, ForceClient};
 
+#[cfg(feature = "rest")]
 fn required_env(name: &str) -> anyhow::Result<String> {
     std::env::var(name).with_context(|| format!("{name} environment variable not set"))
 }
 
+#[cfg(feature = "rest")]
 async fn build_client() -> anyhow::Result<ForceClient<ClientCredentials>> {
     let client_id = required_env("SF_CLIENT_ID")?;
     let client_secret = required_env("SF_CLIENT_SECRET")?;
@@ -22,47 +29,33 @@ async fn build_client() -> anyhow::Result<ForceClient<ClientCredentials>> {
     builder().authenticate(auth).build().await.map_err(Into::into)
 }
 
-async fn run_search(client: &ForceClient<ClientCredentials>, sosl: &str, label: &str) -> anyhow::Result<()> {
-    println!("\n=== {label} ===");
-    let result = client.rest().search(sosl).await?;
-
-    for bucket in &result.search_records {
-        println!("{}: {} results", bucket.attributes.type_, bucket.records.len());
-        for record in &bucket.records {
-            let id = record.get("Id").and_then(|v| v.as_str()).unwrap_or("N/A");
-            let name = record.get("Name").and_then(|v| v.as_str()).unwrap_or("N/A");
-            println!("  - {name} ({id})");
-        }
-    }
-
-    Ok(())
-}
-
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
-    let client = build_client().await?;
 
-    run_search(
-        &client,
-        "FIND {John} IN NAME FIELDS RETURNING Account(Id, Name), Contact(Id, Name)",
-        "Name Search",
-    )
-    .await?;
+    #[cfg(feature = "rest")]
+    {
+        let client = build_client().await?;
 
-    run_search(
-        &client,
-        "FIND {example.com} IN EMAIL FIELDS RETURNING Contact(Id, Name, Email)",
-        "Email Search",
-    )
-    .await?;
+        let query = SearchQueryBuilder::new()
+            .find("Acme")
+            .in_all_fields()
+            .returning("Account", &["Id", "Name"])
+            .returning("Contact", &["Id", "Name", "Email"])
+            .limit(5)
+            .build();
 
-    run_search(
-        &client,
-        "FIND {Acme*} IN NAME FIELDS RETURNING Account(Id, Name)",
-        "Wildcard Search",
-    )
-    .await?;
+        let results = client.rest().search(&query).await?;
+
+        println!("Found {} search records", results.search_records.len());
+        for record_set in &results.search_records {
+            println!(
+                "Type: {} (count: {})",
+                record_set.attributes.type_,
+                record_set.records.len()
+            );
+        }
+    }
 
     Ok(())
 }

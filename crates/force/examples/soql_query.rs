@@ -1,10 +1,15 @@
 //! SOQL Query with Typed Results Example
 
+#[cfg(feature = "rest")]
 use anyhow::Context;
+#[cfg(feature = "rest")]
 use force::auth::ClientCredentials;
+#[cfg(feature = "rest")]
 use force::client::{builder, ForceClient};
+#[cfg(feature = "rest")]
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "rest")]
 #[derive(Debug, Serialize, Deserialize)]
 struct Account {
     #[serde(rename = "Id")]
@@ -15,6 +20,7 @@ struct Account {
     industry: Option<String>,
 }
 
+#[cfg(feature = "rest")]
 #[derive(Debug, Serialize, Deserialize)]
 struct Contact {
     #[serde(rename = "Id")]
@@ -25,6 +31,7 @@ struct Contact {
     email: Option<String>,
 }
 
+#[cfg(feature = "rest")]
 #[derive(Debug, Deserialize)]
 struct IndustryStats {
     #[serde(rename = "Industry")]
@@ -33,10 +40,12 @@ struct IndustryStats {
     total_accounts: i32,
 }
 
+#[cfg(feature = "rest")]
 fn required_env(name: &str) -> anyhow::Result<String> {
     std::env::var(name).with_context(|| format!("{name} environment variable not set"))
 }
 
+#[cfg(feature = "rest")]
 async fn build_client() -> anyhow::Result<ForceClient<ClientCredentials>> {
     let client_id = required_env("SF_CLIENT_ID")?;
     let client_secret = required_env("SF_CLIENT_SECRET")?;
@@ -52,37 +61,41 @@ async fn build_client() -> anyhow::Result<ForceClient<ClientCredentials>> {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
-    let client = build_client().await?;
 
-    let accounts = client
-        .query::<Account>("SELECT Id, Name, Industry FROM Account ORDER BY Name LIMIT 10")
-        .await?;
-    println!("Accounts fetched: {}", accounts.records.len());
-    for account in &accounts.records {
-        let industry = account.industry.as_deref().unwrap_or("(none)");
-        println!("- {} ({}) [{industry}]", account.name, account.id);
-    }
+    #[cfg(feature = "rest")]
+    {
+        let client = build_client().await?;
 
-    let mut contacts = client
-        .query::<Contact>("SELECT Id, LastName, Email FROM Contact ORDER BY LastName LIMIT 5")
-        .await?;
-    let mut pages = 1;
-    let mut count = contacts.records.len();
-    while let Some(next) = contacts.next_records_url.clone() {
-        contacts = client.query_more::<Contact>(&next).await?;
-        pages += 1;
-        count += contacts.records.len();
-    }
-    println!("\nContacts fetched across {pages} page(s): {count}");
+        let accounts = client
+            .query::<Account>("SELECT Id, Name, Industry FROM Account ORDER BY Name LIMIT 10")
+            .await?;
+        println!("Accounts fetched: {}", accounts.records.len());
+        for account in &accounts.records {
+            let industry = account.industry.as_deref().unwrap_or("(none)");
+            println!("- {} ({}) [{industry}]", account.name, account.id);
+        }
 
-    let stats = client
-        .query::<IndustryStats>(
-            "SELECT Industry, COUNT(Id) TotalAccounts FROM Account WHERE Industry != null GROUP BY Industry LIMIT 5",
-        )
-        .await?;
-    println!("\nIndustry stats:");
-    for row in &stats.records {
-        println!("- {}: {}", row.industry.as_deref().unwrap_or("(none)"), row.total_accounts);
+        let mut contacts = client
+            .query::<Contact>("SELECT Id, LastName, Email FROM Contact ORDER BY LastName LIMIT 5")
+            .await?;
+        let mut pages = 1;
+        let mut count = contacts.records.len();
+        while let Some(next) = contacts.next_records_url.clone() {
+            contacts = client.query_more::<Contact>(&next).await?;
+            pages += 1;
+            count += contacts.records.len();
+        }
+        println!("\nContacts fetched across {pages} page(s): {count}");
+
+        let stats = client
+            .query::<IndustryStats>(
+                "SELECT Industry, COUNT(Id) TotalAccounts FROM Account WHERE Industry != null GROUP BY Industry LIMIT 5",
+            )
+            .await?;
+        println!("\nIndustry stats:");
+        for row in &stats.records {
+            println!("- {}: {}", row.industry.as_deref().unwrap_or("(none)"), row.total_accounts);
+        }
     }
 
     Ok(())
