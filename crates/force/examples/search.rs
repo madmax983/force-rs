@@ -49,22 +49,22 @@ mod example {
 
         let result = client.rest().search(sosl).await?;
 
-        println!("\nFound {} records across {} objects.",
+        println!(
+            "\nFound {} records across {} objects.",
             result.search_records.len(),
-            result.search_records.iter().map(|r| r.attributes.type_.clone()).collect::<std::collections::HashSet<_>>().len()
+            result
+                .search_records
+                .iter()
+                .map(|r| r.attributes.type_.clone())
+                .collect::<std::collections::HashSet<_>>()
+                .len()
         );
 
         for group in result.search_records {
             let type_ = &group.attributes.type_;
             for record in group.records {
-                let id = record
-                    .get("Id")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("N/A");
-                let name = record
-                    .get("Name")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("N/A");
+                let id = record.get("Id").and_then(|v| v.as_str()).unwrap_or("N/A");
+                let name = record.get("Name").and_then(|v| v.as_str()).unwrap_or("N/A");
 
                 println!("[{type_}] {id}: {name}");
             }

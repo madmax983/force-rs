@@ -63,7 +63,9 @@ mod example {
 
         let create_value = serde_json::to_value(&create)?;
         let created = client.rest().create("Account", &create_value).await?;
-        let account_id = created.id.ok_or_else(|| anyhow::anyhow!("Created object has no ID"))?;
+        let account_id = created
+            .id
+            .ok_or_else(|| anyhow::anyhow!("Created object has no ID"))?;
         println!("✓ Created Account with ID: {account_id}");
 
         // 2. Read
@@ -79,7 +81,10 @@ mod example {
             ..fetched
         };
         let update_value = serde_json::to_value(&update)?;
-        client.rest().update("Account", &account_id, &update_value).await?;
+        client
+            .rest()
+            .update("Account", &account_id, &update_value)
+            .await?;
         println!("✓ Update successful");
 
         let refreshed_value = client.rest().get("Account", &account_id).await?;

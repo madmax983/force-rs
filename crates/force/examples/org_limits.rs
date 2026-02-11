@@ -124,10 +124,7 @@ mod example {
         // Check all other limits
         for (name, info) in &limits.additional_limits {
             if info.is_above_threshold(threshold) {
-                warnings.push(format!(
-                    "{name} high usage: {:.1}%",
-                    info.percentage_used()
-                ));
+                warnings.push(format!("{name} high usage: {:.1}%", info.percentage_used()));
             }
         }
 

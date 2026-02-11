@@ -45,16 +45,16 @@ mod example {
         // Global Describe (list all objects)
         println!("═══ Global Describe ═══");
         let global = client.rest().describe_global().await?;
-        println!(
-            "Found {} objects in the org.",
-            global.sobjects.len()
-        );
+        println!("Found {} objects in the org.", global.sobjects.len());
 
         // Find Account object metadata
         if let Some(account_meta) = global.sobjects.iter().find(|o| o.name == "Account") {
             println!("\nAccount Object Summary:");
             println!("  Label: {}", account_meta.label);
-            println!("  Key Prefix: {}", account_meta.key_prefix.as_deref().unwrap_or("None"));
+            println!(
+                "  Key Prefix: {}",
+                account_meta.key_prefix.as_deref().unwrap_or("None")
+            );
             println!("  Custom: {}", account_meta.custom);
         }
 

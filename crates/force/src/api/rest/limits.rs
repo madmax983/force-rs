@@ -197,8 +197,8 @@ impl LimitInfo {
 }
 #[cfg(test)]
 mod tests {
-    use crate::test_support::Must;
     use super::*;
+    use crate::test_support::Must;
 
     // RED PHASE - Write failing tests first
 
@@ -453,11 +453,11 @@ mod tests {
 // Integration tests with wiremock
 #[cfg(all(test, feature = "mock"))]
 mod integration_tests {
-    use crate::test_support::{Must, MustMsg};
     use crate::auth::{AccessToken, Authenticator, TokenResponse};
     use crate::client::builder;
     use crate::config::ClientConfigBuilder;
     use crate::error::Result;
+    use crate::test_support::{Must, MustMsg};
     use async_trait::async_trait;
     use wiremock::matchers::{bearer_token, header, method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -916,9 +916,3 @@ mod integration_tests {
         );
     }
 }
-
-
-
-
-
-

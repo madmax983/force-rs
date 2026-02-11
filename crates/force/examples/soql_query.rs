@@ -78,7 +78,11 @@ mod example {
             .await?;
 
         for acc in &accounts.records {
-            println!("- {} ({})", acc.name, acc.industry.as_deref().unwrap_or("None"));
+            println!(
+                "- {} ({})",
+                acc.name,
+                acc.industry.as_deref().unwrap_or("None")
+            );
         }
         println!("Total Size: {}", accounts.total_size);
 

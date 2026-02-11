@@ -1,4 +1,3 @@
-
 //! Bulk Insert Example
 //!
 //! This example demonstrates inserting records in bulk using the Bulk API 2.0.

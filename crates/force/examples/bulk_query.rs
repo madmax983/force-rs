@@ -1,4 +1,3 @@
-
 //! Bulk Query Example
 //!
 //! This example demonstrates querying records in bulk using the Bulk API 2.0.
