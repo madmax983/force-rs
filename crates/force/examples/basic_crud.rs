@@ -7,7 +7,7 @@ use anyhow::Context;
 #[cfg(feature = "rest")]
 use force::auth::ClientCredentials;
 #[cfg(feature = "rest")]
-use force::client::{builder, ForceClient};
+use force::client::{ForceClient, builder};
 #[cfg(feature = "rest")]
 use serde_json::json;
 
@@ -26,7 +26,11 @@ async fn build_client() -> anyhow::Result<ForceClient<ClientCredentials>> {
         client_secret,
         "https://login.salesforce.com/services/oauth2/token",
     );
-    builder().authenticate(auth).build().await.map_err(Into::into)
+    builder()
+        .authenticate(auth)
+        .build()
+        .await
+        .map_err(Into::into)
 }
 
 #[tokio::main]
@@ -59,7 +63,10 @@ async fn main() -> anyhow::Result<()> {
         let update = json!({
             "Industry": "Software"
         });
-        client.rest().update("Account", &account_id, &update).await?;
+        client
+            .rest()
+            .update("Account", &account_id, &update)
+            .await?;
 
         let updated = client.rest().get("Account", &account_id).await?;
         println!(

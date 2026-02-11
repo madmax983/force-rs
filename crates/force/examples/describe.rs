@@ -1,13 +1,13 @@
-//! Describe SObject Example
+//! Describe `SObject` Example
 //!
-//! Demonstrates retrieving metadata for SObjects.
+//! Demonstrates retrieving metadata for `SObjects`.
 
 #[cfg(feature = "rest")]
 use anyhow::Context;
 #[cfg(feature = "rest")]
 use force::auth::ClientCredentials;
 #[cfg(feature = "rest")]
-use force::client::{builder, ForceClient};
+use force::client::{ForceClient, builder};
 
 #[cfg(feature = "rest")]
 fn required_env(name: &str) -> anyhow::Result<String> {
@@ -24,7 +24,11 @@ async fn build_client() -> anyhow::Result<ForceClient<ClientCredentials>> {
         client_secret,
         "https://login.salesforce.com/services/oauth2/token",
     );
-    builder().authenticate(auth).build().await.map_err(Into::into)
+    builder()
+        .authenticate(auth)
+        .build()
+        .await
+        .map_err(Into::into)
 }
 
 #[tokio::main]

@@ -11,7 +11,7 @@ use force::api::bulk::types::JobOperation;
 #[cfg(feature = "bulk")]
 use force::auth::ClientCredentials;
 #[cfg(feature = "bulk")]
-use force::client::{builder, ForceClient};
+use force::client::{ForceClient, builder};
 #[cfg(feature = "bulk")]
 use serde::{Deserialize, Serialize};
 
@@ -58,7 +58,11 @@ async fn build_client() -> anyhow::Result<ForceClient<ClientCredentials>> {
         client_secret,
         "https://login.salesforce.com/services/oauth2/token",
     );
-    builder().authenticate(auth).build().await.map_err(Into::into)
+    builder()
+        .authenticate(auth)
+        .build()
+        .await
+        .map_err(Into::into)
 }
 
 #[tokio::main]
@@ -70,8 +74,14 @@ async fn main() -> anyhow::Result<()> {
         let client = build_client().await?;
 
         let accounts = vec![
-            Account { name: "Valid Corp".to_string(), industry: Some("Technology".to_string()) },
-            Account { name: String::new(), industry: Some("Finance".to_string()) },
+            Account {
+                name: "Valid Corp".to_string(),
+                industry: Some("Technology".to_string()),
+            },
+            Account {
+                name: String::new(),
+                industry: Some("Finance".to_string()),
+            },
         ];
 
         let mut csv = Vec::new();
@@ -95,7 +105,10 @@ async fn main() -> anyhow::Result<()> {
         let failed_csv = job.failed_results().await?;
         let failed: Vec<FailedRecord> = deserialize_from_csv(&failed_csv[..])?;
         for record in &failed {
-            println!("Failed: {} (id: {}, name: {})", record.error, record.id, record.name);
+            println!(
+                "Failed: {} (id: {}, name: {})",
+                record.error, record.id, record.name
+            );
         }
 
         let invalid_soql = "SELECT InvalidField__c FROM Account";

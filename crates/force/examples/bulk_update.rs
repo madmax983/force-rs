@@ -1,5 +1,3 @@
-
-
 //! Bulk Update Example
 //!
 //! This example demonstrates updating records in bulk using the Bulk API 2.0.
@@ -50,10 +48,8 @@ async fn main() -> anyhow::Result<()> {
     #[cfg(feature = "bulk")]
     {
         // Get credentials from environment
-        let client_id =
-            required_env("SF_CLIENT_ID")?;
-        let client_secret =
-            required_env("SF_CLIENT_SECRET")?;
+        let client_id = required_env("SF_CLIENT_ID")?;
+        let client_secret = required_env("SF_CLIENT_SECRET")?;
 
         println!("═══ Authenticating ═══");
         let auth = ClientCredentials::new(
@@ -68,7 +64,8 @@ async fn main() -> anyhow::Result<()> {
         println!("═══ Querying Accounts ═══");
         let soql = "SELECT Id, Name, Industry FROM Account WHERE Industry = 'Technology' LIMIT 10";
         // Explicit type annotation to fix E0282
-        let mut stream: force::api::bulk::query::BulkQueryStream<Account, ClientCredentials> = client.bulk().bulk_query::<Account>(soql).await?;
+        let mut stream: force::api::bulk::query::BulkQueryStream<Account, ClientCredentials> =
+            client.bulk().bulk_query::<Account>(soql).await?;
 
         let mut accounts = Vec::new();
         while let Some(mut account) = stream.next().await? {

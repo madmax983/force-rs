@@ -7,7 +7,7 @@ use anyhow::Context;
 #[cfg(feature = "rest")]
 use force::auth::ClientCredentials;
 #[cfg(feature = "rest")]
-use force::client::{builder, ForceClient};
+use force::client::{ForceClient, builder};
 #[cfg(feature = "rest")]
 use force::types::DynamicSObject;
 
@@ -26,7 +26,11 @@ async fn build_client() -> anyhow::Result<ForceClient<ClientCredentials>> {
         client_secret,
         "https://login.salesforce.com/services/oauth2/token",
     );
-    builder().authenticate(auth).build().await.map_err(Into::into)
+    builder()
+        .authenticate(auth)
+        .build()
+        .await
+        .map_err(Into::into)
 }
 
 #[tokio::main]
@@ -52,7 +56,9 @@ async fn main() -> anyhow::Result<()> {
         }
 
         let revenue_rows = client
-            .query::<DynamicSObject>("SELECT Name, AnnualRevenue FROM Account WHERE AnnualRevenue != null LIMIT 10")
+            .query::<DynamicSObject>(
+                "SELECT Name, AnnualRevenue FROM Account WHERE AnnualRevenue != null LIMIT 10",
+            )
             .await?;
 
         let revenues: Vec<f64> = revenue_rows
@@ -63,7 +69,8 @@ async fn main() -> anyhow::Result<()> {
 
         if !revenues.is_empty() {
             let total: f64 = revenues.iter().sum();
-            let count_u32 = u32::try_from(revenues.len()).context("too many revenues to aggregate")?;
+            let count_u32 =
+                u32::try_from(revenues.len()).context("too many revenues to aggregate")?;
             let average = total / f64::from(count_u32);
             println!("\nRevenue rows: {}", revenues.len());
             println!("Total revenue: ${total:.2}");

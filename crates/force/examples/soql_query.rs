@@ -5,7 +5,7 @@ use anyhow::Context;
 #[cfg(feature = "rest")]
 use force::auth::ClientCredentials;
 #[cfg(feature = "rest")]
-use force::client::{builder, ForceClient};
+use force::client::{ForceClient, builder};
 #[cfg(feature = "rest")]
 use serde::{Deserialize, Serialize};
 
@@ -55,7 +55,11 @@ async fn build_client() -> anyhow::Result<ForceClient<ClientCredentials>> {
         client_secret,
         "https://login.salesforce.com/services/oauth2/token",
     );
-    builder().authenticate(auth).build().await.map_err(Into::into)
+    builder()
+        .authenticate(auth)
+        .build()
+        .await
+        .map_err(Into::into)
 }
 
 #[tokio::main]
@@ -94,7 +98,11 @@ async fn main() -> anyhow::Result<()> {
             .await?;
         println!("\nIndustry stats:");
         for row in &stats.records {
-            println!("- {}: {}", row.industry.as_deref().unwrap_or("(none)"), row.total_accounts);
+            println!(
+                "- {}: {}",
+                row.industry.as_deref().unwrap_or("(none)"),
+                row.total_accounts
+            );
         }
     }
 
