@@ -1,6 +1,8 @@
 # cargo-deny configuration
 # https://embarkstudios.github.io/cargo-deny/
 
+version = 2
+
 [advisories]
 # Check for security vulnerabilities in dependencies
 db-path = "~/.cargo/advisory-db"
