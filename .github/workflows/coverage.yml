@@ -11,6 +11,11 @@ on:
 env:
   CARGO_TERM_COLOR: always
 
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
 jobs:
   coverage:
     name: Code Coverage
@@ -125,9 +130,13 @@ jobs:
 
             *Note: For v0.1, coverage is tracked but not enforced.*`;
 
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: comment
-            });
+            try {
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: comment
+              });
+            } catch (error) {
+              console.log('Error commenting on PR:', error);
+            }
