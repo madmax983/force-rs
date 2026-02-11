@@ -1,8 +1,6 @@
 # cargo-deny configuration
 # https://embarkstudios.github.io/cargo-deny/
 
-version = 2
-
 [advisories]
 # Check for security vulnerabilities in dependencies
 db-path = "~/.cargo/advisory-db"
@@ -29,18 +27,9 @@ allow = [
     "Unicode-3.0",
     "CDLA-Permissive-2.0",
 ]
-# Copyleft licenses we explicitly deny
-deny = [
-    "GPL-2.0",
-    "GPL-3.0",
-    "AGPL-3.0",
-    "LGPL-2.0",
-    "LGPL-2.1",
-    "LGPL-3.0",
-]
-# Warn on licenses not explicitly allowed or denied
-unlicensed = "deny"
-copyleft = "deny"
+# Warn on licenses not explicitly allowed
+# In version 2, 'unlicensed' is part of the allow/deny logic by default if not allowed.
+# 'copyleft' specific check is removed in favor of denying specific licenses or using 'exceptions'.
 
 # Allow specific crates with unusual license situations
 [[licenses.clarify]]
