@@ -9,7 +9,7 @@
 use async_trait::async_trait;
 use force::api::bulk::BulkPollPolicy;
 use force::auth::{AccessToken, Authenticator, TokenResponse};
-use force::client::{builder, ForceClient};
+use force::client::{ForceClient, builder};
 use force::config::ClientConfigBuilder;
 use force::error::HttpError;
 use force::error::Result;
@@ -152,7 +152,9 @@ struct LiveAccountRow {
 #[ignore = "requires a live Salesforce org and SF_ACCESS_TOKEN/SF_INSTANCE_URL env vars"]
 async fn live_bulk_query_stream_smoke() -> Result<()> {
     let Some(config) = load_live_config() else {
-        eprintln!("skipping live_bulk_query_stream_smoke: missing SF_ACCESS_TOKEN or SF_INSTANCE_URL");
+        eprintln!(
+            "skipping live_bulk_query_stream_smoke: missing SF_ACCESS_TOKEN or SF_INSTANCE_URL"
+        );
         return Ok(());
     };
 

@@ -79,7 +79,12 @@ impl SalesforceId {
         }
 
         let checksum = Self::compute_checksum(&self.0);
-        Self(format!("{}{}", self.0, checksum))
+        let mut s = String::with_capacity(18);
+        s.push_str(&self.0);
+        for &byte in &checksum {
+            s.push(byte as char);
+        }
+        Self(s)
     }
 
     /// Returns the 15-character base of the ID.
@@ -103,7 +108,8 @@ impl SalesforceId {
         let provided_checksum = &id[15..];
         let computed_checksum = Self::compute_checksum(base);
 
-        if provided_checksum == computed_checksum {
+        // Explicitly compare slices
+        if provided_checksum.as_bytes() == computed_checksum.as_slice() {
             Ok(())
         } else {
             Err(SalesforceIdError::InvalidChecksum)
@@ -116,19 +122,20 @@ impl SalesforceId {
     /// - Divide the 15 chars into 3 groups of 5
     /// - For each group, treat uppercase letters as 1, lowercase/digits as 0
     /// - Convert the 5-bit value to a base-32 character
-    fn compute_checksum(id: &str) -> String {
+    fn compute_checksum(id: &str) -> [u8; 3] {
         debug_assert_eq!(id.len(), 15);
 
-        let mut checksum = String::with_capacity(3);
+        let mut checksum = [0u8; 3];
 
-        for chunk in id.as_bytes().chunks(5) {
+        for (idx, chunk) in id.as_bytes().chunks(5).enumerate() {
             let mut value = 0u8;
             for (i, &byte) in chunk.iter().enumerate() {
                 if byte.is_ascii_uppercase() {
                     value |= 1 << i;
                 }
             }
-            checksum.push(Self::base32_char(value));
+            // Safe to cast as base32_char returns ASCII char
+            checksum[idx] = Self::base32_char(value) as u8;
         }
 
         checksum
@@ -184,8 +191,8 @@ pub enum SalesforceIdError {
 }
 #[cfg(test)]
 mod tests {
-use crate::test_support::Must;
     use super::*;
+    use crate::test_support::Must;
 
     // RED PHASE - Write failing tests first
 
@@ -456,7 +463,3 @@ use crate::test_support::Must;
         }
     }
 }
-
-
-
-
