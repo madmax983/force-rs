@@ -184,8 +184,8 @@ pub enum SalesforceIdError {
 }
 #[cfg(test)]
 mod tests {
-use crate::test_support::Must;
     use super::*;
+    use crate::test_support::Must;
 
     // RED PHASE - Write failing tests first
 
@@ -477,7 +477,3 @@ use crate::test_support::Must;
         }
     }
 }
-
-
-
-
