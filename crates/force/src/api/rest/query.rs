@@ -104,8 +104,12 @@ impl<A: crate::auth::Authenticator> ForceClient<A> {
     where
         T: DeserializeOwned,
     {
-        // Construct full URL (next_records_url is relative)
-        let url = format!("{}{}", self.token().await?.instance_url(), next_records_url);
+        // Construct full URL (next_records_url might be relative or absolute)
+        let url = if next_records_url.starts_with("http") {
+            next_records_url.to_string()
+        } else {
+            format!("{}{}", self.token().await?.instance_url(), next_records_url)
+        };
 
         // Execute query
         let request = self
@@ -600,6 +604,54 @@ use crate::test_support::Must;
         assert!(result.is_done());
         assert!(result.is_empty());
         assert_eq!(result.len(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_query_more_absolute_url() {
+        let mock_server = MockServer::start().await;
+        let auth = MockAuthenticator::new("test_token", &mock_server.uri());
+
+        let absolute_next_url = format!("{}/services/data/v60.0/query/absolute-next", mock_server.uri());
+
+        Mock::given(method("GET"))
+            .and(path("/services/data/v60.0/query/absolute-next"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "totalSize": 10,
+                "done": true,
+                "records": [
+                    {"Id": "001xx0000000005", "Name": "Abs Record1"}
+                ]
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = builder().authenticate(auth).build().await.must();
+
+        let result: QueryResult<TestAccount> = client
+            .query_more(&absolute_next_url)
+            .await
+            .must();
+
+        assert_eq!(result.len(), 1);
+        assert_eq!(result.records[0].name, "Abs Record1");
+    }
+
+    #[tokio::test]
+    async fn test_query_more_malformed_url() {
+        let mock_server = MockServer::start().await;
+        let auth = MockAuthenticator::new("test_token", &mock_server.uri());
+
+        let client = builder().authenticate(auth).build().await.must();
+
+        // This is not a valid URL path and definitely not absolute
+        let malformed_url = ":::invalid:::";
+
+        let result: Result<QueryResult<TestAccount>, _> = client
+            .query_more(malformed_url)
+            .await;
+
+        // It should fail either at URL construction (if strict) or request building
+        assert!(result.is_err());
     }
 }
 
