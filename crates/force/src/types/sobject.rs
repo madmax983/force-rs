@@ -307,6 +307,19 @@ use crate::test_support::Must;
     }
 
     #[test]
+    fn test_dynamic_sobject_get_field_as_type_mismatch() {
+        let id = SalesforceId::new("001000000000001AAA").must();
+        let attrs = Attributes::new("Account", &id, "v60.0");
+        let mut sobject = DynamicSObject::new(attrs);
+
+        sobject.set_field("Name", "Acme Corp");
+
+        // Try to get string field as integer
+        let result: Result<Option<i64>, _> = sobject.get_field_as("Name");
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn test_dynamic_sobject_has_field() {
         let id = SalesforceId::new("001000000000001AAA").must();
         let attrs = Attributes::new("Account", &id, "v60.0");
