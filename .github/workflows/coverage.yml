@@ -11,6 +11,11 @@ on:
 env:
   CARGO_TERM_COLOR: always
 
+permissions:
+  pull-requests: write
+  issues: write
+  contents: read
+
 jobs:
   coverage:
     name: Code Coverage
