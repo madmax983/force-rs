@@ -53,10 +53,15 @@ impl<A: crate::auth::Authenticator> Inner<A> {
         let token = self.token_manager.token().await?;
         let token_manager = Arc::clone(&self.token_manager);
         self.http_executor
-            .execute_response_with_retry_class(request, &token, move || {
-                let token_manager = Arc::clone(&token_manager);
-                async move { token_manager.force_refresh().await }
-            }, retry_class)
+            .execute_response_with_retry_class(
+                request,
+                &token,
+                move || {
+                    let token_manager = Arc::clone(&token_manager);
+                    async move { token_manager.force_refresh().await }
+                },
+                retry_class,
+            )
             .await
     }
 }

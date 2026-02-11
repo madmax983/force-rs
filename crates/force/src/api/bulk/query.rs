@@ -190,13 +190,11 @@ impl<T, A: crate::auth::Authenticator> BulkQueryStream<T, A> {
         let response = self.inner.execute_request(response).await?;
 
         if !response.status().is_success() {
-            return Err(
-                handle_error_response(
-                    response,
-                    &format!("Failed to fetch query results for job {}", self.job_id),
-                )
-                .await,
-            );
+            return Err(handle_error_response(
+                response,
+                &format!("Failed to fetch query results for job {}", self.job_id),
+            )
+            .await);
         }
 
         // Get CSV text
@@ -347,13 +345,11 @@ impl<A: crate::auth::Authenticator> super::BulkHandler<A> {
         let response = inner.execute_request(request).await?;
 
         if !response.status().is_success() {
-            return Err(
-                handle_error_response(
-                    response,
-                    &format!("Get query job request failed for job {}", job_id),
-                )
-                .await,
-            );
+            return Err(handle_error_response(
+                response,
+                &format!("Get query job request failed for job {}", job_id),
+            )
+            .await);
         }
 
         let job_info = response
@@ -402,13 +398,11 @@ impl<A: crate::auth::Authenticator> super::BulkHandler<A> {
         let response = inner.execute_request(request).await?;
 
         if !response.status().is_success() {
-            return Err(
-                handle_error_response(
-                    response,
-                    &format!("Abort query job request failed for job {}", job_id),
-                )
-                .await,
-            );
+            return Err(handle_error_response(
+                response,
+                &format!("Abort query job request failed for job {}", job_id),
+            )
+            .await);
         }
 
         let job_info = response
@@ -449,13 +443,11 @@ impl<A: crate::auth::Authenticator> super::BulkHandler<A> {
         let response = inner.execute_request(request).await?;
 
         if !response.status().is_success() {
-            return Err(
-                handle_error_response(
-                    response,
-                    &format!("Delete query job request failed for job {}", job_id),
-                )
-                .await,
-            );
+            return Err(handle_error_response(
+                response,
+                &format!("Delete query job request failed for job {}", job_id),
+            )
+            .await);
         }
 
         Ok(())
@@ -503,11 +495,11 @@ impl<A: crate::auth::Authenticator> super::BulkHandler<A> {
 }
 #[cfg(test)]
 mod tests {
-use crate::test_support::{Must, MustMsg};
     use super::*;
     use crate::api::bulk::types::JobState;
     use crate::auth::{AccessToken, Authenticator, TokenResponse};
     use crate::client::{ForceClient, builder};
+    use crate::test_support::{Must, MustMsg};
     use async_trait::async_trait;
     use wiremock::matchers::{
         bearer_token, body_string_contains, header, method, path, query_param,

@@ -1,5 +1,3 @@
-
-
 //! Bulk Delete Example
 //!
 //! This example demonstrates deleting records in bulk using the Bulk API 2.0.
@@ -39,10 +37,8 @@ async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
 
     // Get credentials from environment
-    let client_id =
-        required_env("SF_CLIENT_ID")?;
-    let client_secret =
-        required_env("SF_CLIENT_SECRET")?;
+    let client_id = required_env("SF_CLIENT_ID")?;
+    let client_secret = required_env("SF_CLIENT_SECRET")?;
 
     println!("═══ Authenticating ═══");
     let auth = ClientCredentials::new(
@@ -56,7 +52,8 @@ async fn main() -> anyhow::Result<()> {
     // Query for test accounts to delete
     println!("═══ Querying Accounts ═══");
     let soql = "SELECT Id, Name FROM Account WHERE Name LIKE 'Test%' LIMIT 10";
-    let mut stream: force::api::bulk::query::BulkQueryStream<Account, ClientCredentials> = client.bulk().bulk_query::<Account>(soql).await?;
+    let mut stream: force::api::bulk::query::BulkQueryStream<Account, ClientCredentials> =
+        client.bulk().bulk_query::<Account>(soql).await?;
 
     let mut account_ids = Vec::new();
     while let Some(account) = stream.next().await? {

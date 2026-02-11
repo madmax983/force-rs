@@ -180,8 +180,8 @@ where
 }
 #[cfg(test)]
 mod tests {
-use crate::test_support::Must;
     use super::*;
+    use crate::test_support::Must;
     use serde::{Deserialize, Serialize};
 
     #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -484,11 +484,7 @@ use crate::test_support::Must;
 
         // Strategy for generating arbitrary TestRecords
         fn arbitrary_test_record() -> impl Strategy<Value = TestRecord> {
-            (
-                "[a-zA-Z0-9]{1,18}",
-                "[a-zA-Z0-9 ]{1,80}",
-                any::<i32>(),
-            )
+            ("[a-zA-Z0-9]{1,18}", "[a-zA-Z0-9 ]{1,80}", any::<i32>())
                 .prop_map(|(id, name, value)| TestRecord { id, name, value })
         }
 

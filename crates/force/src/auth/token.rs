@@ -343,9 +343,9 @@ impl<A: crate::auth::Authenticator> TokenManager<A> {
 }
 #[cfg(test)]
 mod tests {
-use crate::test_support::Must;
     use super::*;
     use crate::auth::Authenticator;
+    use crate::test_support::Must;
     use async_trait::async_trait;
     use std::sync::Arc as StdArc;
     use std::sync::atomic::{AtomicUsize, Ordering};

@@ -1,5 +1,3 @@
-
-
 //! Bulk Query Example
 //!
 //! This example demonstrates querying large datasets using the Bulk API 2.0.
@@ -43,10 +41,8 @@ async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
 
     // Get credentials from environment
-    let client_id =
-        required_env("SF_CLIENT_ID")?;
-    let client_secret =
-        required_env("SF_CLIENT_SECRET")?;
+    let client_id = required_env("SF_CLIENT_ID")?;
+    let client_secret = required_env("SF_CLIENT_SECRET")?;
 
     println!("═══ Authenticating ═══");
     let auth = ClientCredentials::new(
@@ -63,7 +59,8 @@ async fn main() -> anyhow::Result<()> {
     println!("Query: {soql}");
 
     // Creates job, polls until complete, returns streaming results
-    let mut stream: force::api::bulk::query::BulkQueryStream<Account, ClientCredentials> = client.bulk().bulk_query::<Account>(soql).await?;
+    let mut stream: force::api::bulk::query::BulkQueryStream<Account, ClientCredentials> =
+        client.bulk().bulk_query::<Account>(soql).await?;
 
     println!("\n═══ Results ═══");
     let mut count = 0;

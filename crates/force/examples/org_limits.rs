@@ -76,7 +76,10 @@ fn print_email_limits(limits: &OrgLimits) {
     );
 
     let mass_email = &limits.mass_email;
-    println!("Mass Emails: {}/{} remaining", mass_email.remaining, mass_email.max);
+    println!(
+        "Mass Emails: {}/{} remaining",
+        mass_email.remaining, mass_email.max
+    );
 
     let single_email = &limits.single_email;
     println!(

@@ -2,13 +2,13 @@
 
 #[cfg(test)]
 mod integration_tests {
-    use crate::test_support::Must;
     use crate::auth::{AccessToken, TokenResponse};
     use crate::error::ForceError;
     use crate::http::{HttpExecutor, RequestCompletion, RetryEvent, RetryPolicy, TelemetryHooks};
+    use crate::test_support::Must;
     use std::sync::Arc;
-    use std::sync::atomic::{AtomicU32, Ordering};
     use std::sync::Mutex;
+    use std::sync::atomic::{AtomicU32, Ordering};
     use wiremock::matchers::{header, method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -221,11 +221,15 @@ mod integration_tests {
         let request = reqwest::Client::new().post(&url).build().must();
 
         let result = executor
-            .execute(request, &token, || async { panic!("Should not refresh on 503") })
+            .execute(request, &token, || async {
+                panic!("Should not refresh on 503")
+            })
             .await;
 
         assert!(result.is_err());
-        if let Err(ForceError::Http(crate::error::HttpError::StatusError { status_code, .. })) = result {
+        if let Err(ForceError::Http(crate::error::HttpError::StatusError { status_code, .. })) =
+            result
+        {
             assert_eq!(status_code, 503);
         } else {
             panic!("Expected 503 status error for non-retried mutation");
@@ -260,7 +264,9 @@ mod integration_tests {
         let request = reqwest::Client::new().post(&url).build().must();
 
         let result = executor
-            .execute(request, &token, || async { panic!("Should not refresh on 503") })
+            .execute(request, &token, || async {
+                panic!("Should not refresh on 503")
+            })
             .await;
 
         assert!(result.is_ok());
@@ -309,7 +315,9 @@ mod integration_tests {
         let request = reqwest::Client::new().get(&url).build().must();
 
         let result = executor
-            .execute(request, &token, || async { panic!("Should not refresh on 503") })
+            .execute(request, &token, || async {
+                panic!("Should not refresh on 503")
+            })
             .await;
 
         assert!(result.is_ok());
