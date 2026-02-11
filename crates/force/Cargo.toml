@@ -75,3 +75,6 @@ mock = ["dep:wiremock"]
 full = ["rest", "bulk", "composite", "tooling", "metadata",
         "graphql", "analytics", "connect", "apex_rest", "ui", "jwt"]
 all = ["full", "pub_sub", "streaming", "soap"]
+
+# Experimental features
+nova = []
