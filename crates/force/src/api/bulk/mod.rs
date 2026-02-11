@@ -11,8 +11,8 @@ pub mod types;
 pub mod csv;
 
 use crate::error::Result;
-use std::time::Duration;
 use std::sync::Arc;
+use std::time::Duration;
 use types::{CreateJobRequest, JobInfo, UpdateJobRequest};
 
 /// Polling behavior for asynchronous Bulk API jobs.
@@ -29,11 +29,7 @@ pub struct BulkPollPolicy {
 impl BulkPollPolicy {
     /// Creates a new polling policy.
     #[must_use]
-    pub const fn new(
-        max_attempts: u32,
-        initial_backoff: Duration,
-        max_backoff: Duration,
-    ) -> Self {
+    pub const fn new(max_attempts: u32, initial_backoff: Duration, max_backoff: Duration) -> Self {
         Self {
             max_attempts,
             initial_backoff,
@@ -185,9 +181,11 @@ impl<A: crate::auth::Authenticator> BulkHandler<A> {
         let response = self.inner.execute_request(request).await?;
 
         if !response.status().is_success() {
-            return Err(
-                crate::http::response_to_force_error(response, "Create job request failed").await,
-            );
+            return Err(crate::http::response_to_force_error(
+                response,
+                "Create job request failed",
+            )
+            .await);
         }
 
         let job_info = response
@@ -230,13 +228,11 @@ impl<A: crate::auth::Authenticator> BulkHandler<A> {
         let response = self.inner.execute_request(request).await?;
 
         if !response.status().is_success() {
-            return Err(
-                crate::http::response_to_force_error(
-                    response,
-                    &format!("Get job request failed for job {}", job_id),
-                )
-                .await,
-            );
+            return Err(crate::http::response_to_force_error(
+                response,
+                &format!("Get job request failed for job {}", job_id),
+            )
+            .await);
         }
 
         let job_info = response
@@ -288,13 +284,11 @@ impl<A: crate::auth::Authenticator> BulkHandler<A> {
         let response = self.inner.execute_request(request).await?;
 
         if !response.status().is_success() {
-            return Err(
-                crate::http::response_to_force_error(
-                    response,
-                    &format!("Update job request failed for job {}", job_id),
-                )
-                .await,
-            );
+            return Err(crate::http::response_to_force_error(
+                response,
+                &format!("Update job request failed for job {}", job_id),
+            )
+            .await);
         }
 
         let job_info = response
@@ -336,16 +330,54 @@ impl<A: crate::auth::Authenticator> BulkHandler<A> {
         let response = self.inner.execute_request(request).await?;
 
         if !response.status().is_success() {
-            return Err(
-                crate::http::response_to_force_error(
-                    response,
-                    &format!("Delete job request failed for job {}", job_id),
-                )
-                .await,
-            );
+            return Err(crate::http::response_to_force_error(
+                response,
+                &format!("Delete job request failed for job {}", job_id),
+            )
+            .await);
         }
 
         Ok(())
+    }
+
+    /// Creates a new ingest job in the Open state.
+    ///
+    /// This is a typed wrapper around `create_job` that returns an `IngestJob` handle.
+    pub async fn create_ingest_job(
+        &self,
+        object: impl Into<String>,
+        operation: types::JobOperation,
+    ) -> Result<ingest::IngestJob<ingest::Open, A>> {
+        let request = CreateJobRequest {
+            object: object.into(),
+            operation,
+            content_type: None,
+            external_id_field_name: None,
+            line_ending: None,
+            column_delimiter: None,
+        };
+        let job_info = self.create_job(request).await?;
+        Ok(ingest::IngestJob::new(job_info.id, Arc::clone(&self.inner)))
+    }
+
+    /// Creates a new upsert job in the Open state.
+    ///
+    /// This is a typed wrapper around `create_job` that returns an `IngestJob` handle.
+    pub async fn create_upsert_job(
+        &self,
+        object: impl Into<String>,
+        external_id_field_name: impl Into<String>,
+    ) -> Result<ingest::IngestJob<ingest::Open, A>> {
+        let request = CreateJobRequest {
+            object: object.into(),
+            operation: types::JobOperation::Upsert,
+            content_type: None,
+            external_id_field_name: Some(external_id_field_name.into()),
+            line_ending: None,
+            column_delimiter: None,
+        };
+        let job_info = self.create_job(request).await?;
+        Ok(ingest::IngestJob::new(job_info.id, Arc::clone(&self.inner)))
     }
 
     /// Convenience method to perform a bulk insert operation.
@@ -389,7 +421,6 @@ impl<A: crate::auth::Authenticator> BulkHandler<A> {
     where
         T: serde::Serialize + Sync,
     {
-        use ingest::IngestJobBuilder;
         use types::JobOperation;
 
         // Serialize records to CSV
@@ -397,9 +428,7 @@ impl<A: crate::auth::Authenticator> BulkHandler<A> {
         csv::serialize_to_csv(records, &mut csv_data)?;
 
         // Create job
-        let job = IngestJobBuilder::new(object, JobOperation::Insert)
-            .build_with_inner(Arc::clone(&self.inner))
-            .await?;
+        let job = self.create_ingest_job(object, JobOperation::Insert).await?;
 
         // Upload, close, and poll
         let job = job.upload(&csv_data).await?;
@@ -457,7 +486,6 @@ impl<A: crate::auth::Authenticator> BulkHandler<A> {
     where
         T: serde::Serialize + Sync,
     {
-        use ingest::IngestJobBuilder;
         use types::JobOperation;
 
         // Serialize records to CSV
@@ -465,9 +493,7 @@ impl<A: crate::auth::Authenticator> BulkHandler<A> {
         csv::serialize_to_csv(records, &mut csv_data)?;
 
         // Create job
-        let job = IngestJobBuilder::new(object, JobOperation::Update)
-            .build_with_inner(Arc::clone(&self.inner))
-            .await?;
+        let job = self.create_ingest_job(object, JobOperation::Update).await?;
 
         // Upload, close, and poll
         let job = job.upload(&csv_data).await?;
@@ -509,7 +535,6 @@ impl<A: crate::auth::Authenticator> BulkHandler<A> {
     /// ```
     #[cfg(feature = "bulk")]
     pub async fn bulk_delete(&self, object: &str, ids: &[String]) -> Result<types::JobInfo> {
-        use ingest::IngestJobBuilder;
         use types::JobOperation;
 
         // Create CSV with Id column
@@ -528,9 +553,7 @@ impl<A: crate::auth::Authenticator> BulkHandler<A> {
         csv::serialize_to_csv(&delete_records, &mut csv_data)?;
 
         // Create job
-        let job = IngestJobBuilder::new(object, JobOperation::Delete)
-            .build_with_inner(Arc::clone(&self.inner))
-            .await?;
+        let job = self.create_ingest_job(object, JobOperation::Delete).await?;
 
         // Upload, close, and poll
         let job = job.upload(&csv_data).await?;
@@ -603,7 +626,8 @@ impl<A: crate::auth::Authenticator> BulkHandler<A> {
         // Create query job
         let request = BulkQueryRequest::new(soql);
         let job = self.create_query_job(request).await?;
-        self.poll_query_job_until_complete(&job.id, poll_policy).await?;
+        self.poll_query_job_until_complete(&job.id, poll_policy)
+            .await?;
 
         // Return results stream
         self.query_results(&job.id).await
@@ -654,11 +678,11 @@ impl<A: crate::auth::Authenticator> BulkHandler<A> {
 }
 #[cfg(test)]
 mod tests {
-use crate::test_support::{Must, MustMsg};
     use super::*;
     use crate::auth::{AccessToken, Authenticator, TokenResponse};
     use crate::client::{ForceClient, builder};
     use crate::config::ClientConfigBuilder;
+    use crate::test_support::{Must, MustMsg};
     use async_trait::async_trait;
     use types::{ContentType, JobOperation, JobState};
     use wiremock::matchers::{bearer_token, header, method, path, path_regex};
@@ -1445,7 +1469,9 @@ use crate::test_support::{Must, MustMsg};
 
         // Mock: Download results
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/jobs/query/750xx0000000006AAA/results"))
+            .and(path(
+                "/services/data/v60.0/jobs/query/750xx0000000006AAA/results",
+            ))
             .respond_with(ResponseTemplate::new(200).set_body_string(
                 "Id,Name\n001xx0000000001AAA,Acme Corp\n001xx0000000002AAA,Global Industries\n",
             ))
@@ -1695,7 +1721,9 @@ use crate::test_support::{Must, MustMsg};
             .await;
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/jobs/query/750xx0000000010AAA/results"))
+            .and(path(
+                "/services/data/v60.0/jobs/query/750xx0000000010AAA/results",
+            ))
             .respond_with(ResponseTemplate::new(200).set_body_string("Id\n001xx0000000001AAA\n"))
             .mount(&mock_server)
             .await;
@@ -1761,7 +1789,3 @@ use crate::test_support::{Must, MustMsg};
         assert!(result.is_err());
     }
 }
-
-
-
-

@@ -171,55 +171,10 @@ impl DynamicSObject {
     }
 }
 
-/// Builder for constructing `DynamicSObject` instances.
-///
-/// # Examples
-///
-/// ```
-/// use force::types::{DynamicSObjectBuilder, SalesforceId};
-///
-/// let id = SalesforceId::new("001000000000001AAA").unwrap();
-/// let account = DynamicSObjectBuilder::new("Account", &id, "v60.0")
-///     .field("Name", "Acme Corp")
-///     .field("Industry", "Technology")
-///     .field("AnnualRevenue", 1000000)
-///     .build();
-///
-/// assert_eq!(account.object_type(), "Account");
-/// assert_eq!(account.get_field("Name").and_then(|v| v.as_str()), Some("Acme Corp"));
-/// ```
-#[derive(Debug)]
-pub struct DynamicSObjectBuilder {
-    sobject: DynamicSObject,
-}
-
-impl DynamicSObjectBuilder {
-    /// Creates a new builder for the given `SObject` type and ID.
-    #[must_use]
-    pub fn new(type_name: impl Into<String>, id: &SalesforceId, api_version: &str) -> Self {
-        let attributes = Attributes::new(type_name, id, api_version);
-        Self {
-            sobject: DynamicSObject::new(attributes),
-        }
-    }
-
-    /// Adds a field to the `SObject`.
-    #[must_use]
-    pub fn field(mut self, name: impl Into<String>, value: impl Serialize) -> Self {
-        self.sobject.set_field(name, value);
-        self
-    }
-
-    /// Builds the `DynamicSObject`.
-    #[must_use]
-    pub fn build(self) -> DynamicSObject {
-        self.sobject
-    }
-}
 #[cfg(test)]
 mod tests {
-use crate::test_support::Must;
     use super::*;
+    use crate::test_support::Must;
     use serde_json::json;
 
     // RED PHASE - Write failing tests first
@@ -423,11 +378,11 @@ use crate::test_support::Must;
     }
 
     #[test]
-    fn test_builder_basic() {
+    fn test_manual_construction_basic() {
         let id = SalesforceId::new("001000000000001AAA").must();
-        let account = DynamicSObjectBuilder::new("Account", &id, "v60.0")
-            .field("Name", "Acme Corp")
-            .build();
+        let attrs = Attributes::new("Account", &id, "v60.0");
+        let mut account = DynamicSObject::new(attrs);
+        account.set_field("Name", "Acme Corp");
 
         assert_eq!(account.object_type(), "Account");
         assert_eq!(
@@ -437,21 +392,22 @@ use crate::test_support::Must;
     }
 
     #[test]
-    fn test_builder_multiple_fields() {
+    fn test_manual_construction_multiple_fields() {
         let id = SalesforceId::new("001000000000001AAA").must();
-        let account = DynamicSObjectBuilder::new("Account", &id, "v60.0")
-            .field("Name", "Acme Corp")
-            .field("Industry", "Technology")
-            .field("AnnualRevenue", 1_000_000)
-            .build();
+        let attrs = Attributes::new("Account", &id, "v60.0");
+        let mut account = DynamicSObject::new(attrs);
+        account.set_field("Name", "Acme Corp");
+        account.set_field("Industry", "Technology");
+        account.set_field("AnnualRevenue", 1_000_000);
 
         assert_eq!(account.field_count(), 3);
     }
 
     #[test]
-    fn test_builder_empty() {
+    fn test_manual_construction_empty() {
         let id = SalesforceId::new("001000000000001AAA").must();
-        let account = DynamicSObjectBuilder::new("Account", &id, "v60.0").build();
+        let attrs = Attributes::new("Account", &id, "v60.0");
+        let account = DynamicSObject::new(attrs);
 
         assert_eq!(account.field_count(), 0);
         assert_eq!(account.object_type(), "Account");
@@ -460,10 +416,10 @@ use crate::test_support::Must;
     #[test]
     fn test_roundtrip_serialization() {
         let id = SalesforceId::new("001000000000001AAA").must();
-        let original = DynamicSObjectBuilder::new("Account", &id, "v60.0")
-            .field("Name", "Acme Corp")
-            .field("Industry", "Technology")
-            .build();
+        let attrs = Attributes::new("Account", &id, "v60.0");
+        let mut original = DynamicSObject::new(attrs);
+        original.set_field("Name", "Acme Corp");
+        original.set_field("Industry", "Technology");
 
         let json = serde_json::to_string(&original).must();
         let deserialized: DynamicSObject = serde_json::from_str(&json).must();
@@ -471,7 +427,3 @@ use crate::test_support::Must;
         assert_eq!(original, deserialized);
     }
 }
-
-
-
-
