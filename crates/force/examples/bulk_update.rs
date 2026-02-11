@@ -56,8 +56,7 @@ mod example {
 
         // Query for Technology accounts to update
         println!("═══ Querying Accounts ═══");
-        let soql =
-            "SELECT Id, Name, Industry FROM Account WHERE Industry = 'Technology' LIMIT 10";
+        let soql = "SELECT Id, Name, Industry FROM Account WHERE Industry = 'Technology' LIMIT 10";
         let mut stream = client.bulk().bulk_query::<Account>(soql).await?;
 
         let mut accounts = Vec::new();
