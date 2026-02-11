@@ -34,7 +34,7 @@ jobs:
           key: ${{ matrix.rust }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Run tests (no features)
-        run: cargo test --workspace --no-default-features
+        run: cargo test --workspace --no-default-features --lib
 
       - name: Run tests (default features)
         run: cargo test --workspace
