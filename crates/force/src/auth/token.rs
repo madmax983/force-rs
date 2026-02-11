@@ -81,9 +81,12 @@ impl AccessToken {
     #[must_use]
     pub fn from_response(response: TokenResponse) -> Self {
         let issued_at = parse_issued_at(&response.issued_at).unwrap_or_else(|_| Utc::now());
-        let expires_at = response
-            .expires_in
-            .map(|seconds| issued_at + Duration::seconds(i64::try_from(seconds).unwrap_or(3600)));
+        let expires_at = response.expires_in.and_then(|seconds| {
+            // If seconds exceeds i64::MAX, it's a very long time (billions of years).
+            // Treating it as "no expiration" (None) is safer than falling back to 3600.
+            let seconds = i64::try_from(seconds).ok()?;
+            issued_at.checked_add_signed(Duration::seconds(seconds))
+        });
 
         Self {
             token: SecretString::new(response.access_token.into()),
@@ -158,8 +161,11 @@ impl AccessToken {
     /// `true` if the token will expire within the buffer period.
     #[must_use]
     pub fn is_expired_with_buffer(&self, buffer: Duration) -> bool {
-        self.expires_at
-            .is_some_and(|expires_at| Utc::now() + buffer >= expires_at)
+        self.expires_at.is_some_and(|expires_at| {
+            Utc::now()
+                .checked_add_signed(buffer)
+                .is_none_or(|limit| limit >= expires_at) // If buffer overflows, assume expired to force refresh
+        })
     }
 
     /// Returns when the token was issued.
@@ -343,9 +349,9 @@ impl<A: crate::auth::Authenticator> TokenManager<A> {
 }
 #[cfg(test)]
 mod tests {
-use crate::test_support::Must;
     use super::*;
     use crate::auth::Authenticator;
+    use crate::test_support::Must;
     use async_trait::async_trait;
     use std::sync::Arc as StdArc;
     use std::sync::atomic::{AtomicUsize, Ordering};
@@ -709,8 +715,54 @@ use crate::test_support::Must;
             panic!("Expected TokenRefreshFailed error");
         }
     }
+
+    #[test]
+    fn test_access_token_overflow_expiration() {
+        let response = TokenResponse {
+            access_token: "test_token".to_string(),
+            instance_url: "https://example.salesforce.com".to_string(),
+            token_type: "Bearer".to_string(),
+            issued_at: "1704067200000".to_string(),
+            signature: String::new(),
+            // Provide a huge expires_in value that would overflow if added blindly
+            expires_in: Some(u64::MAX),
+            refresh_token: None,
+        };
+
+        let token = AccessToken::from_response(response);
+        // The overflow should be handled gracefully (e.g. by capping or setting to None)
+        // Since we used checked_add_signed which returns None on overflow, and we flatten,
+        // expires_at should be None.
+        assert!(token.expires_at().is_none());
+    }
+
+    #[test]
+    fn test_is_expired_overflow_buffer() {
+        let expires_at = Utc::now() + Duration::hours(1);
+        let token = AccessToken::new(
+            "token".to_string(),
+            "https://test.salesforce.com".to_string(),
+            Some(expires_at),
+        );
+
+        // Huge buffer that fits in Duration but would overflow DateTime when added to now()
+        // Duration::seconds(i64::MAX) panics because it overflows nanoseconds.
+        // We use a large safe value: 100,000 years is ~3e12 seconds.
+        // i64::MAX is ~9e18.
+        // Let's use max valid seconds for Duration which is i64::MAX / 1000 roughly (milliseconds) or / 1_000_000_000 (nanoseconds).
+        // TimeDelta stores nanos in i64. So max seconds is i64::MAX / 1_000_000_000 = 9e9 seconds.
+        // That's about 300 years.
+        // Wait, chrono Duration::seconds(seconds) takes i64.
+        // But internally it stores nanos?
+        // Let's just use a value we know will overflow DateTime but not Duration panic.
+        // DateTime range is +/- 262,000 years.
+        // So Duration::days(300_000 * 365) ~ 100 million days.
+        // i64::MAX seconds is way too big.
+
+        // Let's try Duration::MAX.
+        let huge_buffer = Duration::MAX;
+
+        // Should return true (expired) to force refresh, preventing panic
+        assert!(token.is_expired_with_buffer(huge_buffer));
+    }
 }
-
-
-
-

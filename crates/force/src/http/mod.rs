@@ -308,36 +308,37 @@ impl HttpExecutor {
                 HttpError::InvalidUrl("cannot clone request for retry".to_string())
             })?;
 
-            let response = match tokio::time::timeout(self.timeout, self.client.execute(req_clone)).await {
-                Err(_) => {
-                    self.record_completion(RequestCompletion {
-                        method: method.clone(),
-                        path: path.clone(),
-                        request_class: request_class_str,
-                        status_code: None,
-                        error_kind: Some(RequestErrorKind::Timeout),
-                        retries: retry_attempt,
-                        elapsed_ms: start.elapsed().as_millis(),
-                    });
-                    return Err(HttpError::Timeout {
-                        timeout_seconds: self.timeout.as_secs(),
+            let response =
+                match tokio::time::timeout(self.timeout, self.client.execute(req_clone)).await {
+                    Err(_) => {
+                        self.record_completion(RequestCompletion {
+                            method: method.clone(),
+                            path: path.clone(),
+                            request_class: request_class_str,
+                            status_code: None,
+                            error_kind: Some(RequestErrorKind::Timeout),
+                            retries: retry_attempt,
+                            elapsed_ms: start.elapsed().as_millis(),
+                        });
+                        return Err(HttpError::Timeout {
+                            timeout_seconds: self.timeout.as_secs(),
+                        }
+                        .into());
                     }
-                    .into());
-                }
-                Ok(Err(error)) => {
-                    self.record_completion(RequestCompletion {
-                        method: method.clone(),
-                        path: path.clone(),
-                        request_class: request_class_str,
-                        status_code: None,
-                        error_kind: Some(RequestErrorKind::Transport),
-                        retries: retry_attempt,
-                        elapsed_ms: start.elapsed().as_millis(),
-                    });
-                    return Err(HttpError::from(error).into());
-                }
-                Ok(Ok(response)) => response,
-            };
+                    Ok(Err(error)) => {
+                        self.record_completion(RequestCompletion {
+                            method: method.clone(),
+                            path: path.clone(),
+                            request_class: request_class_str,
+                            status_code: None,
+                            error_kind: Some(RequestErrorKind::Transport),
+                            retries: retry_attempt,
+                            elapsed_ms: start.elapsed().as_millis(),
+                        });
+                        return Err(HttpError::from(error).into());
+                    }
+                    Ok(Ok(response)) => response,
+                };
 
             match response.status() {
                 StatusCode::UNAUTHORIZED => {
@@ -544,7 +545,10 @@ fn parse_retry_after(response: &Response) -> Option<u64> {
 /// Uses formula: base_delay * 2^attempt, capped at 30 seconds.
 fn exponential_backoff(attempt: u32) -> Duration {
     let base = Duration::from_millis(500);
-    let backoff_ms = base.as_millis() * 2_u128.pow(attempt);
+    // Cap attempt to avoid u128 overflow (2^128).
+    // We cap the result at 30s anyway, so high attempts don't matter.
+    let attempt = attempt.min(64);
+    let backoff_ms = base.as_millis().saturating_mul(2_u128.pow(attempt));
     Duration::from_millis(backoff_ms.min(30_000) as u64)
 }
 
@@ -667,5 +671,11 @@ mod unit_tests {
             panic!("Expected StatusError");
         }
     }
-}
 
+    #[test]
+    fn test_exponential_backoff_overflow() {
+        // Should not panic even with u32::MAX
+        let backoff = exponential_backoff(u32::MAX);
+        assert_eq!(backoff.as_millis(), 30_000);
+    }
+}
