@@ -52,25 +52,10 @@ impl<A: crate::auth::Authenticator> ForceClient<A> {
             .query(&[("q", soql)])
             .build()
             .map_err(crate::error::HttpError::from)?;
-        let response = self.inner().execute_request(request).await?;
 
-        // Handle error responses
-        if !response.status().is_success() {
-            let status = response.status();
-            return Err(crate::http::response_to_force_error(
-                response,
-                &format!("SOQL query failed: {}", status),
-            )
-            .await);
-        }
-
-        // Deserialize response
-        let result = response
-            .json::<QueryResult<T>>()
+        self.inner()
+            .send_request_and_decode(request, "SOQL query failed")
             .await
-            .map_err(crate::error::HttpError::from)?;
-
-        Ok(result)
     }
 
     /// Fetches the next page of query results using a `nextRecordsUrl`.
@@ -112,25 +97,10 @@ impl<A: crate::auth::Authenticator> ForceClient<A> {
             .get(&url)
             .build()
             .map_err(crate::error::HttpError::from)?;
-        let response = self.inner().execute_request(request).await?;
 
-        // Handle error responses
-        if !response.status().is_success() {
-            let status = response.status();
-            return Err(crate::http::response_to_force_error(
-                response,
-                &format!("Query pagination failed: {}", status),
-            )
-            .await);
-        }
-
-        // Deserialize response
-        let result = response
-            .json::<QueryResult<T>>()
+        self.inner()
+            .send_request_and_decode(request, "Query pagination failed")
             .await
-            .map_err(crate::error::HttpError::from)?;
-
-        Ok(result)
     }
 }
 #[cfg(test)]

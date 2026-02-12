@@ -98,21 +98,9 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
             .get(&url)
             .build()
             .map_err(crate::error::HttpError::from)?;
-        let response = self.inner.execute_request(request).await?;
-
-        if !response.status().is_success() {
-            return Err(crate::http::response_to_force_error(
-                response,
-                "Limits API request failed",
-            )
-            .await);
-        }
-
-        let limits = response
-            .json::<limits::OrgLimits>()
+        self.inner
+            .send_request_and_decode(request, "Limits API request failed")
             .await
-            .map_err(crate::error::HttpError::from)?;
-        Ok(limits)
     }
 
     /// Executes a SOSL (Salesforce Object Search Language) search.
@@ -162,21 +150,9 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
             .query(&[("q", sosl)])
             .build()
             .map_err(crate::error::HttpError::from)?;
-        let response = self.inner.execute_request(request).await?;
-
-        if !response.status().is_success() {
-            return Err(crate::http::response_to_force_error(
-                response,
-                "SOSL search request failed",
-            )
-            .await);
-        }
-
-        let results = response
-            .json::<search::SearchResult>()
+        self.inner
+            .send_request_and_decode(request, "SOSL search request failed")
             .await
-            .map_err(crate::error::HttpError::from)?;
-        Ok(results)
     }
 
     /// Retrieves global describe information.
@@ -211,21 +187,9 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
             .get(&url)
             .build()
             .map_err(crate::error::HttpError::from)?;
-        let response = self.inner.execute_request(request).await?;
-
-        if !response.status().is_success() {
-            return Err(crate::http::response_to_force_error(
-                response,
-                "Global describe request failed",
-            )
-            .await);
-        }
-
-        let global = response
-            .json::<describe::GlobalDescribe>()
+        self.inner
+            .send_request_and_decode(request, "Global describe request failed")
             .await
-            .map_err(crate::error::HttpError::from)?;
-        Ok(global)
     }
 
     /// Retrieves detailed metadata for a specific SObject.
@@ -268,21 +232,12 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
             .get(&url)
             .build()
             .map_err(crate::error::HttpError::from)?;
-        let response = self.inner.execute_request(request).await?;
-
-        if !response.status().is_success() {
-            return Err(crate::http::response_to_force_error(
-                response,
+        self.inner
+            .send_request_and_decode(
+                request,
                 &format!("Describe request for {} failed", sobject_name),
             )
-            .await);
-        }
-
-        let describe = response
-            .json::<describe::SObjectDescribe>()
             .await
-            .map_err(crate::error::HttpError::from)?;
-        Ok(describe)
     }
 }
 #[cfg(test)]
