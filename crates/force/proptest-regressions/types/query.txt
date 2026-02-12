@@ -6,3 +6,4 @@
 # everyone who runs the test benefits from these saved cases.
 cc bb16594bcd00cac4d0d6100410699e8f886bcba7fa5265fb0f0b4cc7c0d1c407 # shrinks to result = QueryResult { total_size: 0, done: false, records: [1073741824], next_records_url: None }
 cc ae9d349ce36632c66fc89af290525b9c1c90957e88216047cb79f5b94d03fd5a # shrinks to result = QueryResult { total_size: 0, done: false, records: [1073741824], next_records_url: None }
+cc 4a0ff7d89c178b19f6e1c5d04d76dec26eac3cfeb17c2b21bd57c7c7b1c09a3e # shrinks to result = QueryResult { total_size: 0, done: true, records: [], next_records_url: Some("a") }

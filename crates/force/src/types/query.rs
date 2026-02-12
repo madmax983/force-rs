@@ -485,6 +485,40 @@ mod tests {
         assert_eq!(iter.total_count(), 0);
     }
 
+    #[test]
+    fn test_query_result_invalid_state_done_with_next_url() {
+        // Demonstrate that the type allows invalid state: done=true but next_records_url is Some
+        let result: QueryResult<i32> = QueryResult {
+            total_size: 10,
+            done: true,
+            records: vec![],
+            next_records_url: Some("/next".to_string()),
+        };
+
+        // API should prioritize 'done'
+        assert!(result.is_done());
+        assert!(!result.has_more());
+        // Even though we have a URL, we shouldn't use it
+        assert!(result.next_records_url.is_some());
+    }
+
+    #[test]
+    fn test_query_result_invalid_state_not_done_without_next_url() {
+        // Demonstrate dangerous state: done=false but next_records_url is None
+        let result: QueryResult<i32> = QueryResult {
+            total_size: 10,
+            done: false, // implies has_more
+            records: vec![],
+            next_records_url: None,
+        };
+
+        assert!(!result.is_done());
+        assert!(result.has_more()); // Returns true!
+        assert!(result.next_records_url.is_none()); // But no URL to fetch!
+
+        // This confirms the danger: a user checking has_more() might try to unwrap next_records_url
+    }
+
     // Property-based tests using proptest
     mod proptests {
         use super::*;
@@ -498,39 +532,32 @@ mod tests {
                 prop::collection::vec(any::<i32>(), 0..100),
                 prop::option::of("[a-z/]{1,50}"),
             )
-                .prop_map(|(total_size, done, records, next_url)| {
-                    let mut result = QueryResult {
+                .prop_map(|(total_size, done, records, next_records_url)| {
+                    QueryResult {
                         total_size,
                         done,
                         records,
-                        next_records_url: next_url,
-                    };
-
-                    // Fix inconsistencies: if done=true, no next_url
-                    if result.done {
-                        result.next_records_url = None;
+                        next_records_url,
                     }
-
-                    result
                 })
         }
 
         proptest! {
-            // Property 1: If has_more() is true, done is false
+            // Property 1: has_more() is strictly the inverse of done
             #[test]
-            fn prop_has_more_implies_not_done(result in arbitrary_query_result()) {
-                if result.has_more() {
-                    prop_assert!(!result.is_done());
-                    prop_assert!(!result.done);
-                }
+            fn prop_has_more_is_inverse_of_done(result in arbitrary_query_result()) {
+                prop_assert_eq!(result.has_more(), !result.is_done());
+                prop_assert_eq!(result.has_more(), !result.done);
             }
 
-            // Property 2: If done is true, has_more() is false
+            // Property 2: If done is true, has_more() is false (regardless of next_records_url)
             #[test]
             fn prop_done_implies_not_has_more(result in arbitrary_query_result()) {
                 if result.is_done() {
                     prop_assert!(!result.has_more());
-                    prop_assert_eq!(result.next_records_url, None);
+                    // Note: We deliberately do NOT assert result.next_records_url.is_none()
+                    // because the type system allows done=true with a next_url (invalid state),
+                    // and we want to ensure the API behaves safely (returning false) even then.
                 }
             }
 
