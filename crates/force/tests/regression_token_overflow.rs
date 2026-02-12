@@ -1,5 +1,6 @@
-use force::auth::{AccessToken, TokenResponse};
+#![allow(missing_docs)]
 use chrono::{DateTime, Utc};
+use force::auth::{AccessToken, TokenResponse};
 
 #[test]
 fn havoc_access_token_overflow() {
@@ -22,8 +23,14 @@ fn havoc_access_token_overflow() {
     let token = AccessToken::from_response(response);
 
     // Assert expiration is None (overflow handled)
-    assert!(token.expires_at().is_none(), "Expiration should be None on overflow");
+    assert!(
+        token.expires_at().is_none(),
+        "Expiration should be None on overflow"
+    );
 
     // Assert token is not expired (since no expiration means valid forever)
-    assert!(!token.is_expired(), "Token with None expiration should not be expired");
+    assert!(
+        !token.is_expired(),
+        "Token with None expiration should not be expired"
+    );
 }
