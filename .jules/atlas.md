@@ -1,0 +1,3 @@
+**[Refactor: Break Client-API Circular Dependency]**
+**Tangle:** The `client` module depended on `api` (to provide `.rest()` and `.bulk()` factory methods), while `api` handlers (`RestHandler`, `BulkHandler`) depended on `client` (to access the shared `Inner` state struct). This created a cycle: `client -> api -> client`.
+**Blueprint:** Extracted the `Inner` struct and its implementation into a new leaf module `client/inner.rs`. `ForceClient` (in `client.rs`) and API handlers now both depend on `client::inner`, breaking the cycle (`client -> inner`, `api -> inner`). Additionally, flattened nested `mod.rs` files to named files (e.g., `api/mod.rs` -> `api.rs`) to reduce bloat.
