@@ -225,7 +225,7 @@ use tokio::sync::RwLock;
 #[derive(Debug)]
 struct TokenState {
     /// The current access token (if any).
-    token: Option<AccessToken>,
+    token: Option<Arc<AccessToken>>,
 }
 
 /// Thread-safe token manager with automatic refresh.
@@ -258,24 +258,10 @@ impl<A: crate::auth::Authenticator> TokenManager<A> {
         }
     }
 
-    /// Returns the current access token, refreshing if necessary.
+    /// Returns the current access token as an Arc reference, refreshing if necessary.
     ///
-    /// This method:
-    /// 1. Checks if a token exists and is still valid
-    /// 2. Refreshes the token if expired
-    /// 3. Authenticates if no token exists
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if authentication or refresh fails.
-    ///
-    /// # Examples
-    ///
-    /// ```ignore
-    /// let token = manager.token().await?;
-    /// println!("Instance URL: {}", token.instance_url());
-    /// ```
-    pub async fn token(&self) -> Result<AccessToken> {
+    /// This is an internal method to avoid cloning the token for internal use.
+    pub(crate) async fn get_token_arc(&self) -> Result<Arc<AccessToken>> {
         // Fast path: check if current token is valid
         {
             let state = self.state.read().await;
@@ -303,8 +289,31 @@ impl<A: crate::auth::Authenticator> TokenManager<A> {
             self.authenticator.authenticate().await?
         };
 
-        state.token = Some(new_token.clone());
-        Ok(new_token)
+        let arc_token = Arc::new(new_token);
+        state.token = Some(arc_token.clone());
+        Ok(arc_token)
+    }
+
+    /// Returns the current access token, refreshing if necessary.
+    ///
+    /// This method:
+    /// 1. Checks if a token exists and is still valid
+    /// 2. Refreshes the token if expired
+    /// 3. Authenticates if no token exists
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if authentication or refresh fails.
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// let token = manager.token().await?;
+    /// println!("Instance URL: {}", token.instance_url());
+    /// ```
+    pub async fn token(&self) -> Result<AccessToken> {
+        let arc_token = self.get_token_arc().await?;
+        Ok((*arc_token).clone())
     }
 
     /// Forces a token refresh regardless of expiration status.
@@ -324,10 +333,11 @@ impl<A: crate::auth::Authenticator> TokenManager<A> {
     /// ```
     pub async fn force_refresh(&self) -> Result<AccessToken> {
         let new_token = self.authenticator.refresh().await?;
+        let arc_token = Arc::new(new_token.clone());
 
         {
             let mut state = self.state.write().await;
-            state.token = Some(new_token.clone());
+            state.token = Some(arc_token);
         } // Write lock dropped here
 
         Ok(new_token)
@@ -594,11 +604,11 @@ mod tests {
             let mut state = manager.state.write().await;
             if let Some(token) = &mut state.token {
                 // Create an expired token
-                *token = AccessToken::new(
+                *token = Arc::new(AccessToken::new(
                     "expired_token".to_string(),
                     "https://test.salesforce.com".to_string(),
                     Some(Utc::now() - Duration::hours(1)),
-                );
+                ));
             }
         }
 
@@ -690,11 +700,11 @@ mod tests {
         // Manually set an expired token
         {
             let mut state = manager.state.write().await;
-            state.token = Some(AccessToken::new(
+            state.token = Some(Arc::new(AccessToken::new(
                 "expired".to_string(),
                 "https://test.salesforce.com".to_string(),
                 Some(Utc::now() - Duration::hours(1)),
-            ));
+            )));
         }
 
         let result = manager.token().await;
