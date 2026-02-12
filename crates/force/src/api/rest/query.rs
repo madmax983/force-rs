@@ -387,10 +387,8 @@ mod tests {
 
         let client = builder().authenticate(auth).build().await.must();
 
-        let result: QueryResult<TestAccount> = client
-            .query("SELECT Id, Name FROM Account")
-            .await
-            .must();
+        let result: QueryResult<TestAccount> =
+            client.query("SELECT Id, Name FROM Account").await.must();
 
         // Verify that the client deserializes it as is
         assert!(!result.is_done());

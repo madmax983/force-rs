@@ -532,11 +532,13 @@ mod tests {
                 prop::collection::vec(any::<i32>(), 0..100),
                 prop::option::of("[a-z/]{1,50}"),
             )
-                .prop_map(|(total_size, done, records, next_records_url)| QueryResult {
-                    total_size,
-                    done,
-                    records,
-                    next_records_url,
+                .prop_map(|(total_size, done, records, next_records_url)| {
+                    QueryResult {
+                        total_size,
+                        done,
+                        records,
+                        next_records_url,
+                    }
                 })
         }
 
