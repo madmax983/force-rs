@@ -145,10 +145,10 @@ mod tests {
     #[test]
     fn test_basic_query() {
         let query = SoqlQuery::new()
-            .select(&["Id", "Name"])
+            .select(["Id", "Name"])
             .from("Account")
             .build()
-            .unwrap();
+            .expect("SOQL build failed");
 
         assert_eq!(query, "SELECT Id, Name FROM Account");
     }
@@ -156,11 +156,11 @@ mod tests {
     #[test]
     fn test_escaping_backslash() {
         let query = SoqlQuery::new()
-            .select(&["Id"])
+            .select(["Id"])
             .from("Document")
             .where_eq("Path", "C:\\Windows\\System32")
             .build()
-            .unwrap();
+            .expect("SOQL build failed");
 
         assert_eq!(
             query,
@@ -171,11 +171,11 @@ mod tests {
     #[test]
     fn test_where_clause() {
         let query = SoqlQuery::new()
-            .select(&["Id"])
+            .select(["Id"])
             .from("Contact")
             .where_eq("LastName", "Doe")
             .build()
-            .unwrap();
+            .expect("SOQL build failed");
 
         assert_eq!(query, "SELECT Id FROM Contact WHERE LastName = 'Doe'");
     }
@@ -183,14 +183,14 @@ mod tests {
     #[test]
     fn test_complex_query() {
         let query = SoqlQuery::new()
-            .select(&["Id", "Name"])
+            .select(["Id", "Name"])
             .from("Opportunity")
             .where_eq("StageName", "Closed Won")
             .where_condition("Amount > 10000")
             .order_by("Amount DESC")
             .limit(5)
             .build()
-            .unwrap();
+            .expect("SOQL build failed");
 
         assert_eq!(
             query,
@@ -201,18 +201,18 @@ mod tests {
     #[test]
     fn test_escaping() {
         let query = SoqlQuery::new()
-            .select(&["Id"])
+            .select(["Id"])
             .from("Account")
             .where_eq("Name", "O'Reilly")
             .build()
-            .unwrap();
+            .expect("SOQL build failed");
 
         assert_eq!(query, "SELECT Id FROM Account WHERE Name = 'O\\'Reilly'");
     }
 
     #[test]
     fn test_missing_from() {
-        let result = SoqlQuery::new().select(&["Id"]).build();
+        let result = SoqlQuery::new().select(["Id"]).build();
         assert!(result.is_err());
     }
 }
