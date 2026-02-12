@@ -4,27 +4,13 @@ use crate::auth::{Authenticator, TokenManager};
 use crate::client::ForceClient;
 use crate::config::ClientConfig;
 use crate::error::Result;
-use std::marker::PhantomData;
 
-/// Marker type indicating no authentication has been configured.
-#[derive(Debug, Clone)]
-pub struct NoAuth;
-
-/// Marker type indicating authentication has been configured.
-#[derive(Debug, Clone)]
-pub struct HasAuth;
-
-/// Builder for `ForceClient` with compile-time authentication safety.
+/// Builder for `ForceClient`.
 ///
-/// The builder uses phantom types to track authentication state at compile-time,
-/// ensuring that clients cannot be built without proper authentication.
-///
-/// In the `NoAuth` state, there is no authenticator. In the `HasAuth` state,
-/// the builder becomes generic over the authenticator type.
+/// This builder configures the client before authentication is applied.
 #[derive(Debug)]
-pub struct ForceClientBuilder<Auth = NoAuth> {
+pub struct ForceClientBuilder {
     config: Option<ClientConfig>,
-    _auth: PhantomData<Auth>,
 }
 
 /// Builder in the authenticated state, generic over the authenticator.
@@ -34,13 +20,12 @@ pub struct AuthenticatedBuilder<A: Authenticator> {
     authenticator: A,
 }
 
-impl ForceClientBuilder<NoAuth> {
-    /// Creates a new builder in the unauthenticated state.
+impl ForceClientBuilder {
+    /// Creates a new builder.
     #[must_use]
-    pub(crate) const fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             config: None,
-            _auth: PhantomData,
         }
     }
 
@@ -59,6 +44,12 @@ impl ForceClientBuilder<NoAuth> {
             config: self.config,
             authenticator,
         }
+    }
+}
+
+impl Default for ForceClientBuilder {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -141,16 +132,16 @@ mod tests {
     }
 
     #[test]
-    fn test_builder_new_creates_noauth() {
-        let _builder: ForceClientBuilder<NoAuth> = ForceClientBuilder::new();
+    fn test_builder_new() {
+        let _builder = ForceClientBuilder::new();
     }
 
     #[test]
     fn test_builder_config_chainable() {
         let config = ClientConfig::default();
         let builder = ForceClientBuilder::new().config(config);
-        // Verify it's still NoAuth after setting config
-        let _: ForceClientBuilder<NoAuth> = builder;
+        // Verify it's still ForceClientBuilder
+        let _: ForceClientBuilder = builder;
     }
 
     #[test]

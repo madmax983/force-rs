@@ -3,6 +3,8 @@
 //! This module provides types and methods for retrieving Salesforce org limits,
 //! including API usage, storage capacity, and other resource constraints.
 
+use crate::client::ForceClient;
+use crate::error::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -18,7 +20,7 @@ use std::collections::HashMap;
 /// # Examples
 ///
 /// ```ignore
-/// let limits = client.rest().limits().await?;
+/// let limits = client.limits().await?;
 /// let api_limit = &limits.daily_api_requests;
 /// println!("API calls used: {}/{}", api_limit.used, api_limit.max);
 /// ```
@@ -195,6 +197,59 @@ impl LimitInfo {
         self.percentage_used() > threshold
     }
 }
+
+#[cfg(feature = "rest")]
+impl<A: crate::auth::Authenticator> ForceClient<A> {
+    /// Retrieves organization limits.
+    ///
+    /// Returns information about the organization's usage and limits for various
+    /// resources including API requests, storage, workflow emails, and more.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Authentication fails
+    /// - The HTTP request fails
+    /// - The response cannot be deserialized
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// let limits = client.limits().await?;
+    /// let api_limit = &limits.daily_api_requests;
+    /// println!("API calls: {}/{}", api_limit.used.unwrap_or(0), api_limit.max);
+    /// ```
+    pub async fn limits(&self) -> Result<OrgLimits> {
+        let token = self.token().await?;
+        let url = format!(
+            "{}/services/data/{}/limits",
+            token.instance_url(),
+            self.config().api_version
+        );
+        let request = self
+            .inner()
+            .http_client
+            .get(&url)
+            .build()
+            .map_err(crate::error::HttpError::from)?;
+        let response = self.inner().execute_request(request).await?;
+
+        if !response.status().is_success() {
+            return Err(crate::http::response_to_force_error(
+                response,
+                "Limits API request failed",
+            )
+            .await);
+        }
+
+        let limits = response
+            .json::<OrgLimits>()
+            .await
+            .map_err(crate::error::HttpError::from)?;
+        Ok(limits)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -607,7 +662,6 @@ mod integration_tests {
             .must_msg("Failed to build client");
 
         let limits = client
-            .rest()
             .limits()
             .await
             .must_msg("Failed to get limits");
@@ -640,7 +694,6 @@ mod integration_tests {
             .must_msg("Failed to build client");
 
         let limits = client
-            .rest()
             .limits()
             .await
             .must_msg("Failed to get limits");
@@ -664,7 +717,7 @@ mod integration_tests {
             .await
             .must_msg("Failed to build client");
 
-        let result = client.rest().limits().await;
+        let result = client.limits().await;
         assert!(result.is_err());
     }
 
@@ -685,7 +738,7 @@ mod integration_tests {
             .await
             .must_msg("Failed to build client");
 
-        let result = client.rest().limits().await;
+        let result = client.limits().await;
         assert!(result.is_err());
     }
 
@@ -709,7 +762,6 @@ mod integration_tests {
             .must_msg("Failed to build client");
 
         client
-            .rest()
             .limits()
             .await
             .must_msg("Failed to get limits");
@@ -762,7 +814,6 @@ mod integration_tests {
             .must_msg("Failed to build client");
 
         let limits = client
-            .rest()
             .limits()
             .await
             .must_msg("Failed to get limits");
@@ -794,7 +845,6 @@ mod integration_tests {
             .must_msg("Failed to build client");
 
         let limits = client
-            .rest()
             .limits()
             .await
             .must_msg("Failed to get limits");
@@ -848,7 +898,6 @@ mod integration_tests {
             .must_msg("Failed to build client");
 
         let limits = client
-            .rest()
             .limits()
             .await
             .must_msg("Failed to get limits");
@@ -877,42 +926,10 @@ mod integration_tests {
         // Make multiple calls to verify endpoint can be called repeatedly
         for _ in 0..3 {
             let limits = client
-                .rest()
                 .limits()
                 .await
                 .must_msg("Failed to get limits");
             assert_eq!(limits.daily_api_requests.max, 15000);
         }
-    }
-
-    #[tokio::test]
-    async fn test_limits_cloned_handler() {
-        let mock_server = MockServer::start().await;
-        let auth = MockAuthenticator::new("test_token", &mock_server.uri());
-
-        Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/limits"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(sample_limits_response()))
-            .expect(2)
-            .mount(&mock_server)
-            .await;
-
-        let client = builder()
-            .authenticate(auth)
-            .build()
-            .await
-            .must_msg("Failed to build client");
-
-        let handler1 = client.rest();
-        let handler2 = handler1.clone();
-
-        // Both handlers should work
-        let limits1 = handler1.limits().await.must_msg("Failed with handler1");
-        let limits2 = handler2.limits().await.must_msg("Failed with handler2");
-
-        assert_eq!(
-            limits1.daily_api_requests.max,
-            limits2.daily_api_requests.max
-        );
     }
 }

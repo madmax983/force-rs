@@ -9,7 +9,7 @@ pub mod query;
 pub mod salesforce_id;
 pub mod sobject;
 
-pub use api_version::{ApiVersion, ApiVersionSupportTier};
+pub use api_version::ApiVersion;
 pub use common::{ApiError, CreateResponse, DeleteResponse, UpdateResponse, UpsertResponse};
 pub use query::{QueryIterator, QueryLocator, QueryResult};
 pub use salesforce_id::SalesforceId;

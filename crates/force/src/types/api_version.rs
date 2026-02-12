@@ -8,17 +8,6 @@
 use std::fmt;
 use std::str::FromStr;
 
-/// Compatibility tier for a Salesforce API version.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ApiVersionSupportTier {
-    /// Version is within the library's guaranteed tested window.
-    Tested,
-    /// Version is supported but outside the tested compatibility window.
-    SupportedUntested,
-    /// Version is below the minimum supported window.
-    Unsupported,
-}
-
 /// A validated Salesforce API version.
 ///
 /// API versions follow the format "vX.0" where X is a positive integer.
@@ -136,18 +125,6 @@ impl ApiVersion {
     #[must_use]
     pub const fn is_tested(self) -> bool {
         self.major >= Self::MIN_SUPPORTED.major && self.major <= Self::MAX_TESTED.major
-    }
-
-    /// Returns compatibility tier for this version.
-    #[must_use]
-    pub const fn support_tier(self) -> ApiVersionSupportTier {
-        if !self.is_supported() {
-            ApiVersionSupportTier::Unsupported
-        } else if self.is_tested() {
-            ApiVersionSupportTier::Tested
-        } else {
-            ApiVersionSupportTier::SupportedUntested
-        }
     }
 }
 
@@ -318,26 +295,6 @@ mod tests {
         assert!(ApiVersion::new(61).is_supported());
         assert!(!ApiVersion::new(61).is_tested());
         assert!(!ApiVersion::new(54).is_supported());
-    }
-
-    #[test]
-    fn test_support_tier_matrix() {
-        assert_eq!(
-            ApiVersion::new(54).support_tier(),
-            ApiVersionSupportTier::Unsupported
-        );
-        assert_eq!(
-            ApiVersion::V55.support_tier(),
-            ApiVersionSupportTier::Tested
-        );
-        assert_eq!(
-            ApiVersion::V60.support_tier(),
-            ApiVersionSupportTier::Tested
-        );
-        assert_eq!(
-            ApiVersion::new(61).support_tier(),
-            ApiVersionSupportTier::SupportedUntested
-        );
     }
 
     #[test]

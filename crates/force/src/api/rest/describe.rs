@@ -3,6 +3,8 @@
 //! This module provides types and methods for accessing Salesforce schema metadata,
 //! including object definitions, field metadata, picklist values, and relationships.
 
+use crate::client::ForceClient;
+use crate::error::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -14,7 +16,7 @@ use std::collections::HashMap;
 /// # Examples
 ///
 /// ```ignore
-/// let global = client.rest().describe_global().await?;
+/// let global = client.describe_global().await?;
 /// for sobject in &global.sobjects {
 ///     println!("{}: {}", sobject.name, sobject.label);
 /// }
@@ -90,7 +92,7 @@ pub struct GlobalSObjectDescribe {
 /// # Examples
 ///
 /// ```ignore
-/// let describe = client.rest().describe("Account").await?;
+/// let describe = client.describe("Account").await?;
 /// println!("Object: {} ({})", describe.name, describe.label);
 ///
 /// for field in &describe.fields {
@@ -521,6 +523,123 @@ pub struct FilteredLookupInfo {
     /// Whether the filter is optional.
     pub optional_filter: bool,
 }
+
+#[cfg(feature = "rest")]
+impl<A: crate::auth::Authenticator> ForceClient<A> {
+    /// Retrieves global describe information.
+    ///
+    /// Returns metadata for all available SObjects in the organization.
+    /// This is a lightweight operation that provides basic information
+    /// about each object without field-level details.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Authentication fails
+    /// - The HTTP request fails
+    /// - The response cannot be deserialized
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// let global = client.describe_global().await?;
+    ///
+    /// for sobject in &global.sobjects {
+    ///     if sobject.custom {
+    ///         println!("Custom object: {} ({})", sobject.name, sobject.label);
+    ///     }
+    /// }
+    /// ```
+    pub async fn describe_global(&self) -> Result<GlobalDescribe> {
+        let token = self.token().await?;
+        let url = format!(
+            "{}/services/data/{}/sobjects",
+            token.instance_url(),
+            self.config().api_version
+        );
+        let request = self
+            .inner()
+            .http_client
+            .get(&url)
+            .build()
+            .map_err(crate::error::HttpError::from)?;
+        let response = self.inner().execute_request(request).await?;
+
+        if !response.status().is_success() {
+            return Err(crate::http::response_to_force_error(
+                response,
+                "Global describe request failed",
+            )
+            .await);
+        }
+
+        let global = response
+            .json::<GlobalDescribe>()
+            .await
+            .map_err(crate::error::HttpError::from)?;
+        Ok(global)
+    }
+
+    /// Retrieves detailed metadata for a specific SObject.
+    ///
+    /// Returns comprehensive information including all fields, relationships,
+    /// record types, and other metadata for the specified object.
+    ///
+    /// # Arguments
+    ///
+    /// * `sobject_name` - The API name of the SObject (e.g., "Account", "Contact")
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Authentication fails
+    /// - The HTTP request fails
+    /// - The SObject does not exist
+    /// - The response cannot be deserialized
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// let describe = client.describe("Account").await?;
+    ///
+    /// println!("Object: {} ({})", describe.name, describe.label);
+    /// println!("Fields:");
+    /// for field in &describe.fields {
+    ///     println!("  {} - {:?} ({})", field.name, field.type_, field.label);
+    /// }
+    /// ```
+    pub async fn describe(&self, sobject_name: &str) -> Result<SObjectDescribe> {
+        let token = self.token().await?;
+        let url = format!(
+            "{}/services/data/{}/sobjects/{}/describe",
+            token.instance_url(),
+            self.config().api_version,
+            sobject_name
+        );
+        let request = self
+            .inner()
+            .http_client
+            .get(&url)
+            .build()
+            .map_err(crate::error::HttpError::from)?;
+        let response = self.inner().execute_request(request).await?;
+
+        if !response.status().is_success() {
+            return Err(crate::http::response_to_force_error(
+                response,
+                &format!("Describe request for {} failed", sobject_name),
+            )
+            .await);
+        }
+
+        let describe = response
+            .json::<SObjectDescribe>()
+            .await
+            .map_err(crate::error::HttpError::from)?;
+        Ok(describe)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

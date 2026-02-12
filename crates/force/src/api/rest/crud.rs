@@ -3,21 +3,31 @@
 //! This module provides Create, Read, Update, Delete, and Upsert operations
 //! for Salesforce objects.
 
+use crate::client::ForceClient;
 use crate::error::Result;
-use crate::types::SalesforceId;
 use crate::types::common::{CreateResponse, DeleteResponse, UpdateResponse, UpsertResponse};
+use crate::types::SalesforceId;
 
-use super::RestHandler;
+/// Helper method to handle error responses from Salesforce API.
+///
+/// Extracts the status code and response body to create a `HttpError`.
+async fn handle_error_response(
+    response: reqwest::Response,
+    fallback_message: &str,
+) -> crate::error::ForceError {
+    crate::http::response_to_force_error(response, fallback_message).await
+}
 
-impl<A: crate::auth::Authenticator> RestHandler<A> {
-    /// Helper method to handle error responses from Salesforce API.
-    ///
-    /// Extracts the status code and response body to create a `HttpError`.
-    async fn handle_error_response(
-        response: reqwest::Response,
-        fallback_message: &str,
-    ) -> crate::error::ForceError {
-        crate::http::response_to_force_error(response, fallback_message).await
+#[cfg(feature = "rest")]
+impl<A: crate::auth::Authenticator> ForceClient<A> {
+    /// Constructs the base URL for REST API operations.
+    async fn base_url(&self) -> Result<String> {
+        let token = self.token().await?;
+        Ok(format!(
+            "{}/services/data/{}",
+            token.instance_url(),
+            self.config().api_version
+        ))
     }
 
     /// Creates a new record in Salesforce.
@@ -45,19 +55,19 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
     ///     "Industry": "Technology"
     /// });
     ///
-    /// let response = client.rest().create("Account", &account_data).await?;
+    /// let response = client.create("Account", &account_data).await?;
     /// println!("Created account with ID: {}", response.id.must());
     /// ```
     pub async fn create(&self, sobject: &str, data: &serde_json::Value) -> Result<CreateResponse> {
         let url = format!("{}/sobjects/{}", self.base_url().await?, sobject);
         let request = self
-            .inner
+            .inner()
             .http_client
             .post(&url)
             .json(data)
             .build()
             .map_err(crate::error::HttpError::from)?;
-        let response = self.inner.execute_request(request).await?;
+        let response = self.inner().execute_request(request).await?;
 
         if response.status().is_success() {
             response
@@ -65,7 +75,7 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
                 .await
                 .map_err(|e| crate::error::HttpError::from(e).into())
         } else {
-            Err(Self::handle_error_response(response, "Create request failed").await)
+            Err(handle_error_response(response, "Create request failed").await)
         }
     }
 
@@ -87,7 +97,7 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
     ///
     /// ```ignore
     /// let account_id = SalesforceId::new("001xx000003DHP0AAO").must();
-    /// let account = client.rest().get("Account", &account_id).await?;
+    /// let account = client.get("Account", &account_id).await?;
     /// println!("Account name: {}", account["Name"]);
     /// ```
     pub async fn get(&self, sobject: &str, id: &SalesforceId) -> Result<serde_json::Value> {
@@ -98,12 +108,12 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
             id.as_str()
         );
         let request = self
-            .inner
+            .inner()
             .http_client
             .get(&url)
             .build()
             .map_err(crate::error::HttpError::from)?;
-        let response = self.inner.execute_request(request).await?;
+        let response = self.inner().execute_request(request).await?;
 
         if response.status().is_success() {
             response
@@ -111,7 +121,7 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
                 .await
                 .map_err(|e| crate::error::HttpError::from(e).into())
         } else {
-            Err(Self::handle_error_response(response, "Get request failed").await)
+            Err(handle_error_response(response, "Get request failed").await)
         }
     }
 
@@ -142,7 +152,7 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
     /// });
     ///
     /// let account_id = SalesforceId::new("001xx000003DHP0AAO").must();
-    /// client.rest().update("Account", &account_id, &updates).await?;
+    /// client.update("Account", &account_id, &updates).await?;
     /// ```
     pub async fn update(
         &self,
@@ -157,18 +167,18 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
             id.as_str()
         );
         let request = self
-            .inner
+            .inner()
             .http_client
             .patch(&url)
             .json(data)
             .build()
             .map_err(crate::error::HttpError::from)?;
-        let response = self.inner.execute_request(request).await?;
+        let response = self.inner().execute_request(request).await?;
 
         if response.status().is_success() {
             Ok(UpdateResponse::success())
         } else {
-            Err(Self::handle_error_response(response, "Update request failed").await)
+            Err(handle_error_response(response, "Update request failed").await)
         }
     }
 
@@ -190,7 +200,7 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
     ///
     /// ```ignore
     /// let account_id = SalesforceId::new("001xx000003DHP0AAO").must();
-    /// client.rest().delete("Account", &account_id).await?;
+    /// client.delete("Account", &account_id).await?;
     /// ```
     pub async fn delete(&self, sobject: &str, id: &SalesforceId) -> Result<DeleteResponse> {
         let url = format!(
@@ -200,17 +210,17 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
             id.as_str()
         );
         let request = self
-            .inner
+            .inner()
             .http_client
             .delete(&url)
             .build()
             .map_err(crate::error::HttpError::from)?;
-        let response = self.inner.execute_request(request).await?;
+        let response = self.inner().execute_request(request).await?;
 
         if response.status().is_success() {
             Ok(DeleteResponse::success())
         } else {
-            Err(Self::handle_error_response(response, "Delete request failed").await)
+            Err(handle_error_response(response, "Delete request failed").await)
         }
     }
 
@@ -244,7 +254,7 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
     ///     "Industry": "Technology"
     /// });
     ///
-    /// let response = client.rest()
+    /// let response = client
     ///     .upsert("Account", "ExternalId__c", "ACME-001", &account_data)
     ///     .await?;
     ///
@@ -309,14 +319,14 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
             external_id_value
         );
         let request = self
-            .inner
+            .inner()
             .http_client
             .patch(&url)
             .json(data)
             .build()
             .map_err(crate::error::HttpError::from)?;
         let response = self
-            .inner
+            .inner()
             .execute_request_with_retry_class(request, retry_class)
             .await?;
 
@@ -342,7 +352,7 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
                     .await
                     .map_err(|e| crate::error::HttpError::from(e).into())
             }
-            _ => Err(Self::handle_error_response(response, "Upsert request failed").await),
+            _ => Err(handle_error_response(response, "Upsert request failed").await),
         }
     }
 }
@@ -416,8 +426,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let rest = client.rest();
-        let response = rest
+        let response = client
             .create("Account", &json!({"Name": "Test Account"}))
             .await
             .must();
@@ -444,8 +453,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let rest = client.rest();
-        let result = rest.create("Account", &json!({})).await;
+        let result = client.create("Account", &json!({})).await;
 
         assert!(result.is_err());
     }
@@ -467,8 +475,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let rest = client.rest();
-        let result = rest
+        let result = client
             .create("Account", &json!({"InvalidField": "value"}))
             .await;
 
@@ -497,9 +504,8 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let rest = client.rest();
         let id = SalesforceId::new("003xx000004TmiQAAS").must();
-        let record = rest.get("Contact", &id).await.must();
+        let record = client.get("Contact", &id).await.must();
 
         assert_eq!(record["Id"], "003xx000004TmiQAAS");
         assert_eq!(record["FirstName"], "John");
@@ -524,9 +530,8 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let rest = client.rest();
         let id = SalesforceId::new("003000000000001").must();
-        let result = rest.get("Contact", &id).await;
+        let result = client.get("Contact", &id).await;
 
         assert!(result.is_err());
     }
@@ -550,9 +555,8 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let rest = client.rest();
         let id = SalesforceId::new("001xx000003DHP0AAO").must();
-        let response = rest
+        let response = client
             .update("Account", &id, &json!({"Phone": "555-0100"}))
             .await
             .must();
@@ -579,9 +583,8 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let rest = client.rest();
         let id = SalesforceId::new("001000000000002").must();
-        let result = rest
+        let result = client
             .update("Account", &id, &json!({"Phone": "555-0100"}))
             .await;
 
@@ -607,9 +610,8 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let rest = client.rest();
         let id = SalesforceId::new("001xx000003DHP0AAO").must();
-        let result = rest
+        let result = client
             .update("Account", &id, &json!({"BadField": "value"}))
             .await;
 
@@ -634,9 +636,8 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let rest = client.rest();
         let id = SalesforceId::new("001xx000003DHP0AAO").must();
-        let response = rest.delete("Account", &id).await.must();
+        let response = client.delete("Account", &id).await.must();
 
         assert!(response.is_success());
         assert!(response.errors.is_empty());
@@ -660,9 +661,8 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let rest = client.rest();
         let id = SalesforceId::new("001000000000003").must();
-        let result = rest.delete("Account", &id).await;
+        let result = client.delete("Account", &id).await;
 
         assert!(result.is_err());
     }
@@ -691,8 +691,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let rest = client.rest();
-        let response = rest
+        let response = client
             .upsert(
                 "Account",
                 "ExternalId__c",
@@ -722,8 +721,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let rest = client.rest();
-        let result = rest
+        let result = client
             .upsert(
                 "Account",
                 "ExternalId__c",
@@ -764,8 +762,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let rest = client.rest();
-        let response = rest
+        let response = client
             .upsert_idempotent(
                 "Account",
                 "ExternalId__c",
@@ -794,8 +791,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let rest = client.rest();
-        let result = rest
+        let result = client
             .upsert(
                 "Account",
                 "ExternalId__c",
@@ -827,8 +823,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let rest = client.rest();
-        let result = rest
+        let result = client
             .upsert("Account", "BadField__c", "VALUE", &json!({"Name": "Test"}))
             .await;
 

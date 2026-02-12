@@ -5,7 +5,7 @@
 
 mod builder;
 
-pub use builder::{AuthenticatedBuilder, ForceClientBuilder, HasAuth, NoAuth};
+pub use builder::{AuthenticatedBuilder, ForceClientBuilder};
 
 use crate::auth::TokenManager;
 use crate::config::ClientConfig;
@@ -87,7 +87,7 @@ impl<A: crate::auth::Authenticator> Clone for ForceClient<A> {
 
 /// Public builder constructor (not tied to a specific authenticator).
 #[must_use]
-pub fn builder() -> ForceClientBuilder<NoAuth> {
+pub fn builder() -> ForceClientBuilder {
     ForceClientBuilder::new()
 }
 
@@ -117,22 +117,6 @@ impl<A: crate::auth::Authenticator> ForceClient<A> {
         &self.inner
     }
 
-    /// Creates a REST API handler for this client.
-    ///
-    /// The REST handler provides access to CRUD operations, queries, and metadata.
-    ///
-    /// # Examples
-    ///
-    /// ```ignore
-    /// let client = builder().authenticate(auth).build().await?;
-    /// let rest = client.rest();
-    /// ```
-    #[cfg(feature = "rest")]
-    #[must_use]
-    pub fn rest(&self) -> crate::api::rest::RestHandler<A> {
-        crate::api::rest::RestHandler::new(Arc::clone(&self.inner))
-    }
-
     /// Creates a Bulk API 2.0 handler for this client.
     ///
     /// The Bulk handler provides access to high-volume data operations and bulk queries.
@@ -154,8 +138,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_builder_creates_noauth_state() {
+    fn test_builder_creates_correct_state() {
         let _builder = builder();
-        // Compile-time check: builder starts in NoAuth state
     }
 }

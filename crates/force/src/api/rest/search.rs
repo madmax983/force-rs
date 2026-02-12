@@ -3,6 +3,8 @@
 //! This module provides types and methods for executing SOSL searches across
 //! multiple objects and fields in Salesforce.
 
+use crate::client::ForceClient;
+use crate::error::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -14,8 +16,7 @@ use std::collections::HashMap;
 /// # Examples
 ///
 /// ```ignore
-/// let results = client.rest()
-///     .search("FIND {Acme} IN ALL FIELDS RETURNING Account(Name), Contact(Name)")
+/// let results = client.search("FIND {Acme} IN ALL FIELDS RETURNING Account(Name), Contact(Name)")
 ///     .await?;
 ///
 /// for record_set in &results.search_records {
@@ -235,6 +236,79 @@ impl Default for SearchQueryBuilder {
         Self::new()
     }
 }
+
+#[cfg(feature = "rest")]
+impl<A: crate::auth::Authenticator> ForceClient<A> {
+    /// Executes a SOSL (Salesforce Object Search Language) search.
+    ///
+    /// SOSL allows you to search across multiple objects and fields simultaneously.
+    ///
+    /// # Arguments
+    ///
+    /// * `sosl` - The SOSL search query (e.g., "FIND {Acme} IN ALL FIELDS RETURNING Account(Name)")
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Authentication fails
+    /// - The HTTP request fails
+    /// - The SOSL query is malformed
+    /// - The response cannot be deserialized
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// use force::api::rest::search::SearchQueryBuilder;
+    ///
+    /// // Using builder
+    /// let query = SearchQueryBuilder::new()
+    ///     .find("Acme")
+    ///     .in_all_fields()
+    ///     .returning("Account", &["Id", "Name"])
+    ///     .returning("Contact", &["Id", "Name"])
+    ///     .limit(10)
+    ///     .build();
+    ///
+    /// let results = client.search(&query).await?;
+    ///
+    /// for record_set in &results.search_records {
+    ///     println!("Found {} {} records",
+    ///         record_set.records.len(),
+    ///         record_set.attributes.type_);
+    /// }
+    /// ```
+    pub async fn search(&self, sosl: &str) -> Result<SearchResult> {
+        let token = self.token().await?;
+        let url = format!(
+            "{}/services/data/{}/search",
+            token.instance_url(),
+            self.config().api_version
+        );
+        let request = self
+            .inner()
+            .http_client
+            .get(&url)
+            .query(&[("q", sosl)])
+            .build()
+            .map_err(crate::error::HttpError::from)?;
+        let response = self.inner().execute_request(request).await?;
+
+        if !response.status().is_success() {
+            return Err(crate::http::response_to_force_error(
+                response,
+                "SOSL search request failed",
+            )
+            .await);
+        }
+
+        let results = response
+            .json::<SearchResult>()
+            .await
+            .map_err(crate::error::HttpError::from)?;
+        Ok(results)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -545,7 +619,7 @@ mod integration_tests {
             .await
             .must_msg("Failed to build client");
 
-        let results = client.rest().search(sosl).await.must_msg("Search failed");
+        let results = client.search(sosl).await.must_msg("Search failed");
 
         assert_eq!(results.search_records.len(), 2);
         assert_eq!(results.search_records[0].attributes.type_, "Account");
@@ -579,7 +653,7 @@ mod integration_tests {
             .await
             .must_msg("Failed to build client");
 
-        let results = client.rest().search(&query).await.must_msg("Search failed");
+        let results = client.search(&query).await.must_msg("Search failed");
         assert_eq!(results.search_records.len(), 2);
     }
 
@@ -605,7 +679,6 @@ mod integration_tests {
             .must_msg("Failed to build client");
 
         let results = client
-            .rest()
             .search("FIND {NonExistent} RETURNING Account(Id)")
             .await
             .must_msg("Search failed");
@@ -631,7 +704,6 @@ mod integration_tests {
             .must_msg("Failed to build client");
 
         let result = client
-            .rest()
             .search("FIND {Test} RETURNING Account(Id)")
             .await;
         assert!(result.is_err());
@@ -657,7 +729,7 @@ mod integration_tests {
             .await
             .must_msg("Failed to build client");
 
-        let result = client.rest().search("INVALID SOSL").await;
+        let result = client.search("INVALID SOSL").await;
         assert!(result.is_err());
     }
 
@@ -693,7 +765,6 @@ mod integration_tests {
             .must_msg("Failed to build client");
 
         let results = client
-            .rest()
             .search("FIND {Test} RETURNING Account(Id, Name)")
             .await
             .must_msg("Search failed");
@@ -722,7 +793,6 @@ mod integration_tests {
             .must_msg("Failed to build client");
 
         let results = client
-            .rest()
             .search("FIND {Acme} RETURNING Account(Id)")
             .await
             .must_msg("Search failed");
@@ -757,7 +827,7 @@ mod integration_tests {
             .await
             .must_msg("Failed to build client");
 
-        client.rest().search(&query).await.must_msg("Search failed");
+        client.search(&query).await.must_msg("Search failed");
     }
 
     #[tokio::test]
@@ -783,7 +853,7 @@ mod integration_tests {
             .await
             .must_msg("Failed to build client");
 
-        client.rest().search(&query).await.must_msg("Search failed");
+        client.search(&query).await.must_msg("Search failed");
     }
 
     #[tokio::test]
@@ -815,7 +885,7 @@ mod integration_tests {
             .await
             .must_msg("Failed to build client");
 
-        client.rest().search(&query).await.must_msg("Search failed");
+        client.search(&query).await.must_msg("Search failed");
     }
 
     #[tokio::test]
@@ -838,7 +908,6 @@ mod integration_tests {
 
         for _ in 0..3 {
             let results = client
-                .rest()
                 .search("FIND {Test} RETURNING Account(Id)")
                 .await
                 .must_msg("Search failed");
@@ -864,17 +933,16 @@ mod integration_tests {
             .await
             .must_msg("Failed to build client");
 
-        let handler1 = client.rest();
-        let handler2 = handler1.clone();
+        let client2 = client.clone();
 
-        let results1 = handler1
+        let results1 = client
             .search("FIND {Test} RETURNING Account(Id)")
             .await
-            .must_msg("Handler1 search failed");
-        let results2 = handler2
+            .must_msg("Client1 search failed");
+        let results2 = client2
             .search("FIND {Test} RETURNING Account(Id)")
             .await
-            .must_msg("Handler2 search failed");
+            .must_msg("Client2 search failed");
 
         assert_eq!(results1.search_records.len(), results2.search_records.len());
     }
