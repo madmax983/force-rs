@@ -34,7 +34,7 @@ impl<A: crate::auth::Authenticator> Inner<A> {
         &self,
         request: reqwest::Request,
     ) -> crate::error::Result<reqwest::Response> {
-        let token = self.token_manager.token().await?;
+        let token = self.token_manager.get_token_arc().await?;
         let token_manager = Arc::clone(&self.token_manager);
         self.http_executor
             .execute_response(request, &token, move || {
@@ -50,7 +50,7 @@ impl<A: crate::auth::Authenticator> Inner<A> {
         request: reqwest::Request,
         retry_class: RequestRetryClass,
     ) -> crate::error::Result<reqwest::Response> {
-        let token = self.token_manager.token().await?;
+        let token = self.token_manager.get_token_arc().await?;
         let token_manager = Arc::clone(&self.token_manager);
         self.http_executor
             .execute_response_with_retry_class(
