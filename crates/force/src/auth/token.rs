@@ -81,9 +81,16 @@ impl AccessToken {
     #[must_use]
     pub fn from_response(response: TokenResponse) -> Self {
         let issued_at = parse_issued_at(&response.issued_at).unwrap_or_else(|_| Utc::now());
-        let expires_at = response
-            .expires_in
-            .map(|seconds| issued_at + Duration::seconds(i64::try_from(seconds).unwrap_or(3600)));
+        let expires_at = response.expires_in.and_then(|seconds| {
+            let seconds = i64::try_from(seconds).unwrap_or(3600);
+            // Cap duration to ~100 years (3B seconds) to prevent overflow in Duration::seconds
+            // Duration::seconds panics if value > i64::MAX / 1_000_000_000 (~9B seconds)
+            if seconds > 3_000_000_000 {
+                return None;
+            }
+            let duration = Duration::seconds(seconds);
+            issued_at.checked_add_signed(duration)
+        });
 
         Self {
             token: SecretString::new(response.access_token.into()),
