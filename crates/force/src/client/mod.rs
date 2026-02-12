@@ -11,6 +11,7 @@ use crate::auth::TokenManager;
 use crate::config::ClientConfig;
 use crate::http::HttpExecutor;
 use crate::http::RequestRetryClass;
+use serde::de::DeserializeOwned;
 use std::sync::Arc;
 
 /// Inner state shared across cloned clients.
@@ -63,6 +64,33 @@ impl<A: crate::auth::Authenticator> Inner<A> {
                 retry_class,
             )
             .await
+    }
+
+    /// Executes a request, checks for success, and deserializes the JSON response.
+    ///
+    /// This helper standardizes the pattern of:
+    /// 1. Executing the request via `execute_request`
+    /// 2. Checking `response.status().is_success()`
+    /// 3. Converting non-success responses to `ForceError`
+    /// 4. Deserializing success responses to `T`
+    pub(crate) async fn send_request_and_decode<T: DeserializeOwned>(
+        &self,
+        request: reqwest::Request,
+        fallback_error_message: &str,
+    ) -> crate::error::Result<T> {
+        let response = self.execute_request(request).await?;
+
+        if !response.status().is_success() {
+            return Err(
+                crate::http::response_to_force_error(response, fallback_error_message).await,
+            );
+        }
+
+        response
+            .json::<T>()
+            .await
+            .map_err(crate::error::HttpError::from)
+            .map_err(Into::into)
     }
 }
 
