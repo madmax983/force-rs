@@ -544,6 +544,11 @@ fn parse_retry_after(response: &Response) -> Option<u64> {
 ///
 /// Uses formula: base_delay * 2^attempt, capped at 30 seconds.
 fn exponential_backoff(attempt: u32) -> Duration {
+    // Cap at 64 to prevent overflow in 2^attempt (u128)
+    // 2^64 is much larger than the 30s cap anyway.
+    if attempt >= 64 {
+        return Duration::from_millis(30_000);
+    }
     let base = Duration::from_millis(500);
     let backoff_ms = base.as_millis() * 2_u128.pow(attempt);
     Duration::from_millis(backoff_ms.min(30_000) as u64)
@@ -667,5 +672,12 @@ mod unit_tests {
         } else {
             panic!("Expected StatusError");
         }
+    }
+
+    #[test]
+    fn test_exponential_backoff_overflow() {
+        // This should not panic even with large inputs
+        let duration = exponential_backoff(200);
+        assert_eq!(duration.as_millis(), 30_000);
     }
 }
