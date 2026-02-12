@@ -118,7 +118,6 @@ mod tests {
     use crate::config::{ClientConfig, Environment};
     use crate::test_support::Must;
     use async_trait::async_trait;
-    use std::sync::Arc;
 
     // Mock authenticator for testing
     #[derive(Debug, Clone)]
@@ -169,8 +168,12 @@ mod tests {
             .await
             .must();
 
-        // Verify client was created
-        assert!(Arc::strong_count(&client.inner) == 1);
+        // Verify client is configured with defaults
+        let config = client.config();
+        assert_eq!(config.api_version, "v60.0");
+        assert_eq!(config.environment, Environment::Production);
+        assert_eq!(config.timeout, std::time::Duration::from_secs(30));
+        assert_eq!(config.max_retries, 3);
     }
 
     #[tokio::test]

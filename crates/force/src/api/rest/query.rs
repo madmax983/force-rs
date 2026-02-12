@@ -367,6 +367,41 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_query_pagination_missing_url() {
+        let mock_server = MockServer::start().await;
+        let auth = MockAuthenticator::new("test_token", &mock_server.uri());
+
+        // Mock response with done: false but no nextRecordsUrl
+        Mock::given(method("GET"))
+            .and(path("/services/data/v60.0/query"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "totalSize": 10,
+                "done": false,
+                // nextRecordsUrl is missing!
+                "records": [
+                    {"Id": "001", "Name": "Record1"}
+                ]
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = builder().authenticate(auth).build().await.must();
+
+        let result: QueryResult<TestAccount> = client
+            .query("SELECT Id, Name FROM Account")
+            .await
+            .must();
+
+        // Verify that the client deserializes it as is
+        assert!(!result.is_done());
+        assert!(result.has_more());
+        assert!(result.next_records_url.is_none());
+
+        // This confirms that the client passes the invalid state to the user,
+        // who will then likely panic if they try to unwrap next_records_url.
+    }
+
+    #[tokio::test]
     async fn test_query_with_pagination() {
         let mock_server = MockServer::start().await;
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
