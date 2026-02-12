@@ -703,9 +703,7 @@ mod integration_tests {
             .await
             .must_msg("Failed to build client");
 
-        let result = client
-            .search("FIND {Test} RETURNING Account(Id)")
-            .await;
+        let result = client.search("FIND {Test} RETURNING Account(Id)").await;
         assert!(result.is_err());
     }
 

@@ -24,9 +24,7 @@ impl ForceClientBuilder {
     /// Creates a new builder.
     #[must_use]
     pub const fn new() -> Self {
-        Self {
-            config: None,
-        }
+        Self { config: None }
     }
 
     /// Sets the client configuration.

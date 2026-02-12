@@ -9,6 +9,7 @@ use crate::error::ForceError;
 use crate::types::QueryResult;
 use serde::de::DeserializeOwned;
 
+#[cfg(feature = "rest")]
 impl<A: crate::auth::Authenticator> ForceClient<A> {
     /// Executes a SOQL query and returns the first page of results.
     ///
@@ -38,9 +39,10 @@ impl<A: crate::auth::Authenticator> ForceClient<A> {
         T: DeserializeOwned,
     {
         // Construct query URL
+        let token = self.token().await?;
         let url = format!(
             "{}/services/data/{}/query",
-            self.token().await?.instance_url(),
+            token.instance_url(),
             self.config().api_version
         );
 
@@ -103,7 +105,8 @@ impl<A: crate::auth::Authenticator> ForceClient<A> {
         T: DeserializeOwned,
     {
         // Construct full URL (next_records_url is relative)
-        let url = format!("{}{}", self.token().await?.instance_url(), next_records_url);
+        let token = self.token().await?;
+        let url = format!("{}{}", token.instance_url(), next_records_url);
 
         // Execute query
         let request = self

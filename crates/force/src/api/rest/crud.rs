@@ -5,8 +5,8 @@
 
 use crate::client::ForceClient;
 use crate::error::Result;
-use crate::types::common::{CreateResponse, DeleteResponse, UpdateResponse, UpsertResponse};
 use crate::types::SalesforceId;
+use crate::types::common::{CreateResponse, DeleteResponse, UpdateResponse, UpsertResponse};
 
 /// Helper method to handle error responses from Salesforce API.
 ///
