@@ -115,6 +115,8 @@ pub struct BulkQueryStream<T, A: crate::auth::Authenticator> {
     first_page_fetched: bool,
     /// Whether all records have been fetched.
     exhausted: bool,
+    /// CSV headers for the current stream, read lazily.
+    headers: Option<csv_async::ByteRecord>,
     /// Phantom data for T
     _phantom: std::marker::PhantomData<T>,
 }
@@ -130,6 +132,7 @@ impl<T, A: crate::auth::Authenticator> BulkQueryStream<T, A> {
             next_locator: None,
             first_page_fetched: false,
             exhausted: false,
+            headers: None,
             _phantom: std::marker::PhantomData,
         }
     }
@@ -169,21 +172,36 @@ impl<T, A: crate::auth::Authenticator> BulkQueryStream<T, A> {
 
             // If we have a reader, try to read the next record
             if let Some(reader) = &mut self.reader {
+                // Ensure we have read the headers if not already
+                if self.headers.is_none() {
+                    // csv_async::AsyncReader automatically reads headers on the first call
+                    // if has_headers is true (default). We just need to access them.
+                    // This call will read the first record as headers if they haven't been read yet.
+                    let headers = reader.headers().await.map_err(|e| {
+                        crate::error::HttpError::StatusError {
+                            status_code: 500,
+                            message: format!("Failed to read CSV headers: {}", e),
+                        }
+                    })?;
+                    self.headers = Some(headers.clone().into());
+                }
+
                 let mut byte_record = csv_async::ByteRecord::new();
                 match reader.read_byte_record(&mut byte_record).await {
                     Ok(true) => {
-                        let record: T = byte_record.deserialize(None).map_err(|e| {
-                            crate::error::HttpError::StatusError {
+                        let record: T = byte_record
+                            .deserialize(self.headers.as_ref())
+                            .map_err(|e| crate::error::HttpError::StatusError {
                                 status_code: 500,
                                 message: format!("CSV deserialization failed: {}", e),
-                            }
-                        })?;
+                            })?;
                         return Ok(Some(record));
                     }
                     Ok(false) => {
                         // End of current stream, drop reader and continue to fetch next page
                         self.reader = None;
-                        // Continue loop to fetch next page
+                        self.headers = None; // Reset headers for next stream (though they should be same)
+                                             // Continue loop to fetch next page
                     }
                     Err(e) => {
                         return Err(crate::error::HttpError::StatusError {
@@ -242,16 +260,19 @@ impl<T, A: crate::auth::Authenticator> BulkQueryStream<T, A> {
             // Stream CSV
             let stream = response
                 .bytes_stream()
-                .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e));
+                .map_err(std::io::Error::other);
 
             let stream_reader = StreamReader::new(stream);
             let async_read = stream_reader.compat();
 
             // Box it to erase types
-            let boxed_reader: Box<dyn futures::AsyncRead + Send + Unpin + Sync> = Box::new(async_read);
+            let boxed_reader: Box<dyn futures::AsyncRead + Send + Unpin + Sync> =
+                Box::new(async_read);
 
             let reader = csv_async::AsyncReader::from_reader(boxed_reader);
             self.reader = Some(reader);
+            // Reset headers so they are re-read for this new stream
+            self.headers = None;
 
             // Continue loop to read from the new reader
         }

@@ -1,5 +1,6 @@
 #![cfg(feature = "bulk")]
 #![allow(missing_docs)]
+#![allow(clippy::expect_used, clippy::unwrap_used)]
 
 use force::auth::{AccessToken, Authenticator, TokenResponse};
 use force::client::builder;
@@ -46,7 +47,9 @@ async fn test_bulk_query_streaming_behavior() {
     // verified: this test passes with the streaming implementation
 
     // 1. Start a TCP listener
-    let listener = TcpListener::bind("127.0.0.1:0").await.expect("Failed to bind");
+    let listener = TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("Failed to bind");
     let port = listener.local_addr().unwrap().port();
 
     // 2. Spawn the server task
@@ -62,14 +65,27 @@ async fn test_bulk_query_streaming_behavior() {
                                 Content-Type: text/csv\r\n\
                                 Transfer-Encoding: chunked\r\n\
                                 \r\n";
-        socket.write_all(response_headers.as_bytes()).await.expect("Failed to write headers");
+        socket
+            .write_all(response_headers.as_bytes())
+            .await
+            .expect("Failed to write headers");
 
         // Chunk 1: Header + First Record
-        let chunk1 = "Id,Name\n001xx0000000001AAA,FastRecord\n";
+        // Use lowercase fields to match struct fields directly
+        let chunk1 = "id,name\n001xx0000000001AAA,FastRecord\n";
         let chunk1_len = format!("{:x}\r\n", chunk1.len());
-        socket.write_all(chunk1_len.as_bytes()).await.expect("Failed to write chunk1 len");
-        socket.write_all(chunk1.as_bytes()).await.expect("Failed to write chunk1");
-        socket.write_all(b"\r\n").await.expect("Failed to write chunk1 end");
+        socket
+            .write_all(chunk1_len.as_bytes())
+            .await
+            .expect("Failed to write chunk1 len");
+        socket
+            .write_all(chunk1.as_bytes())
+            .await
+            .expect("Failed to write chunk1");
+        socket
+            .write_all(b"\r\n")
+            .await
+            .expect("Failed to write chunk1 end");
         socket.flush().await.expect("Failed to flush chunk1");
 
         // Delay to simulate slow stream
@@ -78,12 +94,24 @@ async fn test_bulk_query_streaming_behavior() {
         // Chunk 2: Second Record
         let chunk2 = "001xx0000000002AAA,SlowRecord\n";
         let chunk2_len = format!("{:x}\r\n", chunk2.len());
-        socket.write_all(chunk2_len.as_bytes()).await.expect("Failed to write chunk2 len");
-        socket.write_all(chunk2.as_bytes()).await.expect("Failed to write chunk2");
-        socket.write_all(b"\r\n").await.expect("Failed to write chunk2 end");
+        socket
+            .write_all(chunk2_len.as_bytes())
+            .await
+            .expect("Failed to write chunk2 len");
+        socket
+            .write_all(chunk2.as_bytes())
+            .await
+            .expect("Failed to write chunk2");
+        socket
+            .write_all(b"\r\n")
+            .await
+            .expect("Failed to write chunk2 end");
 
         // End of stream
-        socket.write_all(b"0\r\n\r\n").await.expect("Failed to write end of stream");
+        socket
+            .write_all(b"0\r\n\r\n")
+            .await
+            .expect("Failed to write end of stream");
     });
 
     // 3. Setup client
@@ -95,7 +123,8 @@ async fn test_bulk_query_streaming_behavior() {
         .expect("Failed to build client");
 
     // 4. Create stream
-    let mut stream = client.bulk()
+    let mut stream = client
+        .bulk()
         .query_results::<TestRecord>("test_job_id")
         .await
         .expect("Failed to create stream");
@@ -115,9 +144,9 @@ async fn test_bulk_query_streaming_behavior() {
             assert_eq!(record.id, "001xx0000000001AAA");
             assert_eq!(record.name, "FastRecord");
             println!("SUCCESS: Stream returned first record immediately.");
-        },
+        }
         Ok(Ok(None)) => panic!("Stream ended too early"),
-        Ok(Err(e)) => panic!("Stream error: {}", e),
-        Err(_) => panic!("FAILURE: Stream blocked waiting for full response (Buffering detected!)"),
+        Ok(Err(e)) => panic!("Stream error: {e}"),
+        Err(e) => panic!("FAILURE: Stream blocked waiting for full response (Buffering detected!): {e}"),
     }
 }
