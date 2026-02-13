@@ -87,12 +87,8 @@ impl<A: crate::auth::Authenticator> ForceClient<A> {
     where
         T: DeserializeOwned,
     {
-        // Construct full URL (next_records_url might be absolute or relative)
-        let url = if next_records_url.starts_with("http") {
-            next_records_url.to_string()
-        } else {
-            format!("{}{}", self.token().await?.instance_url(), next_records_url)
-        };
+        // Construct full URL (next_records_url is relative)
+        let url = format!("{}{}", self.token().await?.instance_url(), next_records_url);
 
         // Execute query
         let request = self

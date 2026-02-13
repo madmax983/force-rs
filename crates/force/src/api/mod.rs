@@ -8,6 +8,3 @@ pub mod rest;
 
 #[cfg(feature = "bulk")]
 pub mod bulk;
-
-#[cfg(feature = "pub_sub")]
-pub mod pub_sub;

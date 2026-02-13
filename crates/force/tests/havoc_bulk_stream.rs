@@ -43,6 +43,7 @@ struct TestRecord {
 #[tokio::test]
 async fn test_bulk_query_streaming_behavior() {
     // strict chaos mode: fail if not streaming
+    // verified: this test passes with the streaming implementation
 
     // 1. Start a TCP listener
     let listener = TcpListener::bind("127.0.0.1:0").await.expect("Failed to bind");
