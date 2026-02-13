@@ -806,7 +806,10 @@ mod tests {
 
         // Note: 204 response doesn't include the ID, so this will fail
         // We need to handle this case in the implementation
-        assert!(result.is_err() || result.is_ok());
+        assert!(matches!(
+            result,
+            Err(crate::error::ForceError::NotImplemented(_))
+        ));
     }
 
     #[tokio::test]
