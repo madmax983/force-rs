@@ -740,7 +740,8 @@ mod tests {
 
         // Note: 204 response doesn't include the ID, so this will fail
         // We need to handle this case in the implementation
-        assert!(result.is_err() || result.is_ok());
+        use crate::error::ForceError;
+        assert!(matches!(result, Err(ForceError::NotImplemented(_))));
     }
 
     #[tokio::test]
