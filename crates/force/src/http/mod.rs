@@ -247,7 +247,9 @@ impl HttpExecutor {
         Fut: std::future::Future<Output = Result<AccessToken>>,
     {
         let retryable = is_retryable(request.method());
-        let response = self.execute_response(request, token, refresh_token, retryable).await?;
+        let response = self
+            .execute_response(request, token, refresh_token, retryable)
+            .await?;
         let status = response.status();
 
         if status.is_success() {

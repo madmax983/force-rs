@@ -40,10 +40,15 @@ impl<A: crate::auth::Authenticator> Inner<A> {
         let retryable = crate::http::is_retryable(request.method());
 
         self.http_executor
-            .execute_response(request, &token, move || {
-                let token_manager = Arc::clone(&token_manager);
-                async move { token_manager.force_refresh().await }
-            }, retryable)
+            .execute_response(
+                request,
+                &token,
+                move || {
+                    let token_manager = Arc::clone(&token_manager);
+                    async move { token_manager.force_refresh().await }
+                },
+                retryable,
+            )
             .await
     }
 

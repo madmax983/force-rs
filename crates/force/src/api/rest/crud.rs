@@ -279,10 +279,7 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
             .map_err(crate::error::HttpError::from)?;
 
         // Upsert by external ID is idempotent, so we set retryable=true
-        let response = self
-            .inner
-            .execute_request_retryable(request, true)
-            .await?;
+        let response = self.inner.execute_request_retryable(request, true).await?;
 
         match response.status().as_u16() {
             201 => {
