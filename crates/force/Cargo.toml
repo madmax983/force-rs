@@ -18,7 +18,7 @@ workspace = true
 [dependencies]
 # Core dependencies (always compiled)
 tokio = { workspace = true }
-reqwest = { workspace = true }
+reqwest = { workspace = true, features = ["stream"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 chrono = { workspace = true }
@@ -34,6 +34,8 @@ bytes = { workspace = true }
 # Feature-gated dependencies
 jsonwebtoken = { workspace = true, optional = true }
 csv = { workspace = true, optional = true }
+csv-async = { workspace = true, optional = true }
+tokio-util = { workspace = true, optional = true }
 quick-xml = { workspace = true, optional = true }
 tonic = { workspace = true, optional = true }
 prost = { workspace = true, optional = true }
@@ -52,7 +54,7 @@ default = ["rest"]
 
 # Platform API surfaces
 rest = []
-bulk = ["dep:csv"]
+bulk = ["dep:csv", "dep:csv-async", "dep:tokio-util"]
 composite = ["rest"]
 tooling = ["rest"]
 metadata = []

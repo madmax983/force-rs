@@ -30,9 +30,11 @@
 //! ```
 
 use crate::error::Result;
+use futures::TryStreamExt;
 use serde::{Deserialize, Serialize};
-use std::collections::VecDeque;
 use std::sync::Arc;
+use tokio_util::compat::TokioAsyncReadCompatExt;
+use tokio_util::io::StreamReader;
 
 /// Request to create a bulk query job.
 #[derive(Debug, Clone, Serialize)]
@@ -105,14 +107,16 @@ pub struct BulkQueryStream<T, A: crate::auth::Authenticator> {
     inner: Arc<crate::client::Inner<A>>,
     /// Job ID for the query.
     job_id: String,
-    /// Current batch of records being iterated.
-    records: VecDeque<T>,
+    /// CSV Async Reader for the current stream
+    reader: Option<csv_async::AsyncReader<Box<dyn futures::AsyncRead + Send + Unpin + Sync>>>,
     /// Result locator for the next page (`None` means first page).
     next_locator: Option<String>,
     /// Whether the first page has been fetched.
     first_page_fetched: bool,
     /// Whether all records have been fetched.
     exhausted: bool,
+    /// Phantom data for T
+    _phantom: std::marker::PhantomData<T>,
 }
 
 impl<T, A: crate::auth::Authenticator> BulkQueryStream<T, A> {
@@ -122,10 +126,11 @@ impl<T, A: crate::auth::Authenticator> BulkQueryStream<T, A> {
         Self {
             inner,
             job_id,
-            records: VecDeque::new(),
+            reader: None,
             next_locator: None,
             first_page_fetched: false,
             exhausted: false,
+            _phantom: std::marker::PhantomData,
         }
     }
 
@@ -156,85 +161,100 @@ impl<T, A: crate::auth::Authenticator> BulkQueryStream<T, A> {
     where
         T: for<'de> Deserialize<'de>,
     {
-        // If we've already marked as exhausted, return None
-        if self.exhausted {
-            return Ok(None);
+        loop {
+            // If we've already marked as exhausted, return None
+            if self.exhausted {
+                return Ok(None);
+            }
+
+            // If we have a reader, try to read the next record
+            if let Some(reader) = &mut self.reader {
+                let mut byte_record = csv_async::ByteRecord::new();
+                match reader.read_byte_record(&mut byte_record).await {
+                    Ok(true) => {
+                        let record: T = byte_record.deserialize(None).map_err(|e| {
+                            crate::error::HttpError::StatusError {
+                                status_code: 500,
+                                message: format!("CSV deserialization failed: {}", e),
+                            }
+                        })?;
+                        return Ok(Some(record));
+                    }
+                    Ok(false) => {
+                        // End of current stream, drop reader and continue to fetch next page
+                        self.reader = None;
+                        // Continue loop to fetch next page
+                    }
+                    Err(e) => {
+                        return Err(crate::error::HttpError::StatusError {
+                            status_code: 500,
+                            message: format!("CSV reading failed: {}", e),
+                        }
+                        .into());
+                    }
+                }
+            }
+
+            // Check if we need to fetch more pages
+            if self.first_page_fetched && self.next_locator.is_none() {
+                self.exhausted = true;
+                return Ok(None);
+            }
+
+            // Fetch results from the API
+            let token = self.inner.token_manager.token().await?;
+            let base_url = format!(
+                "{}/services/data/{}/jobs/query/{}/results",
+                token.instance_url(),
+                self.inner.config.api_version,
+                self.job_id
+            );
+            let mut request_builder = self.inner.http_client.get(&base_url);
+            if let Some(locator) = &self.next_locator {
+                request_builder = request_builder.query(&[("locator", locator)]);
+            }
+
+            let response = request_builder
+                .build()
+                .map_err(crate::error::HttpError::from)?;
+            let response = self.inner.execute_request(response).await?;
+
+            if !response.status().is_success() {
+                return Err(handle_error_response(
+                    response,
+                    &format!("Failed to fetch query results for job {}", self.job_id),
+                )
+                .await);
+            }
+
+            // Get locator for next page
+            let locator_header = response
+                .headers()
+                .get("Sforce-Locator")
+                .and_then(|value| value.to_str().ok())
+                .map(std::string::ToString::to_string);
+            self.first_page_fetched = true;
+            self.next_locator = match locator_header.as_deref() {
+                Some("null") | None => None,
+                Some(value) => Some(value.to_string()),
+            };
+
+            // Stream CSV
+            let stream = response
+                .bytes_stream()
+                .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e));
+
+            let stream_reader = StreamReader::new(stream);
+            let async_read = stream_reader.compat();
+
+            // Box it to erase types
+            let boxed_reader: Box<dyn futures::AsyncRead + Send + Unpin + Sync> = Box::new(async_read);
+
+            let reader = csv_async::AsyncReader::from_reader(boxed_reader);
+            self.reader = Some(reader);
+
+            // Continue loop to read from the new reader
         }
-
-        // If we have records in the buffer, return the next one
-        if let Some(record) = self.records.pop_front() {
-            return Ok(Some(record));
-        }
-
-        if self.first_page_fetched && self.next_locator.is_none() {
-            self.exhausted = true;
-            return Ok(None);
-        }
-
-        // Fetch results from the API
-        let token = self.inner.token_manager.token().await?;
-        let base_url = format!(
-            "{}/services/data/{}/jobs/query/{}/results",
-            token.instance_url(),
-            self.inner.config.api_version,
-            self.job_id
-        );
-        let mut request_builder = self.inner.http_client.get(&base_url);
-        if let Some(locator) = &self.next_locator {
-            request_builder = request_builder.query(&[("locator", locator)]);
-        }
-
-        let response = request_builder
-            .build()
-            .map_err(crate::error::HttpError::from)?;
-        let response = self.inner.execute_request(response).await?;
-
-        if !response.status().is_success() {
-            return Err(handle_error_response(
-                response,
-                &format!("Failed to fetch query results for job {}", self.job_id),
-            )
-            .await);
-        }
-
-        // Get CSV text
-        let locator_header = response
-            .headers()
-            .get("Sforce-Locator")
-            .and_then(|value| value.to_str().ok())
-            .map(std::string::ToString::to_string);
-        self.first_page_fetched = true;
-        self.next_locator = match locator_header.as_deref() {
-            Some("null") | None => None,
-            Some(value) => Some(value.to_string()),
-        };
-
-        let csv_text = response
-            .text()
-            .await
-            .map_err(crate::error::HttpError::from)?;
-
-        // Parse CSV
-        let mut reader = csv::Reader::from_reader(csv_text.as_bytes());
-        let mut records = VecDeque::new();
-
-        for result in reader.deserialize() {
-            let record: T = result.map_err(|e| crate::error::HttpError::StatusError {
-                status_code: 500,
-                message: format!("CSV deserialization failed: {}", e),
-            })?;
-            records.push_back(record);
-        }
-
-        // If no records, we're done
-        if records.is_empty() {
-            self.exhausted = true;
-            return Ok(None);
-        }
-
-        // Store records and return the first one
-        self.records = records;
-        Ok(self.records.pop_front())
     }
 }
 
