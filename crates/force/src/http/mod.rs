@@ -12,158 +12,8 @@ use crate::auth::AccessToken;
 use crate::error::{HttpError, Result};
 use reqwest::{Method, Request, Response, StatusCode};
 use serde::de::DeserializeOwned;
-use std::sync::Arc;
 use std::time::Duration;
 use std::time::Instant;
-
-/// Retry behavior per request safety class.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct RetryPolicy {
-    /// Maximum retries for read-style operations (e.g. GET query calls).
-    pub read_max_retries: u32,
-    /// Maximum retries for explicitly idempotent mutation operations.
-    pub idempotent_mutation_max_retries: u32,
-    /// Maximum retries for mutation operations (e.g. POST/PATCH/DELETE).
-    pub mutation_max_retries: u32,
-}
-
-impl RetryPolicy {
-    /// Creates a retry policy with explicit read/mutation retry limits.
-    #[must_use]
-    pub const fn new(read_max_retries: u32, mutation_max_retries: u32) -> Self {
-        Self {
-            read_max_retries,
-            idempotent_mutation_max_retries: read_max_retries,
-            mutation_max_retries,
-        }
-    }
-
-    /// Overrides retries for explicitly idempotent mutations.
-    #[must_use]
-    pub const fn with_idempotent_mutation_retries(mut self, retries: u32) -> Self {
-        self.idempotent_mutation_max_retries = retries;
-        self
-    }
-}
-
-/// Retry safety class for request execution.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RequestRetryClass {
-    /// Read-only request.
-    Read,
-    /// Mutation explicitly treated as idempotent.
-    IdempotentMutation,
-    /// Potentially non-idempotent mutation.
-    Mutation,
-}
-
-impl RequestRetryClass {
-    const fn as_str(self) -> &'static str {
-        match self {
-            Self::Read => "read",
-            Self::IdempotentMutation => "idempotent_mutation",
-            Self::Mutation => "mutation",
-        }
-    }
-}
-
-/// Error kind recorded by request completion telemetry.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RequestErrorKind {
-    /// Request timed out.
-    Timeout,
-    /// Transport-level request error.
-    Transport,
-    /// Request was rate limited.
-    RateLimited,
-}
-
-/// Redaction-safe retry telemetry event.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RetryEvent {
-    /// HTTP method.
-    pub method: String,
-    /// URL path only (query excluded).
-    pub path: String,
-    /// Request safety class.
-    pub request_class: &'static str,
-    /// Retry attempt number (0-based).
-    pub attempt: u32,
-    /// Status code that triggered retry.
-    pub status_code: u16,
-    /// Backoff delay in milliseconds.
-    pub backoff_ms: u128,
-}
-
-/// Redaction-safe request completion telemetry event.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RequestCompletion {
-    /// HTTP method.
-    pub method: String,
-    /// URL path only (query excluded).
-    pub path: String,
-    /// Request safety class.
-    pub request_class: &'static str,
-    /// Final status code if response was received.
-    pub status_code: Option<u16>,
-    /// Error kind when response is unavailable or handled as error.
-    pub error_kind: Option<RequestErrorKind>,
-    /// Number of retry attempts performed.
-    pub retries: u32,
-    /// Total elapsed milliseconds.
-    pub elapsed_ms: u128,
-}
-
-/// Optional telemetry hooks for retry and completion events.
-type RetryHook = Arc<dyn Fn(&RetryEvent) + Send + Sync>;
-type CompletionHook = Arc<dyn Fn(&RequestCompletion) + Send + Sync>;
-
-/// Optional telemetry hooks for retry and completion events.
-#[derive(Clone, Default)]
-pub struct TelemetryHooks {
-    on_retry: Option<RetryHook>,
-    on_complete: Option<CompletionHook>,
-}
-
-impl std::fmt::Debug for TelemetryHooks {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("TelemetryHooks")
-            .field("has_on_retry", &self.on_retry.is_some())
-            .field("has_on_complete", &self.on_complete.is_some())
-            .finish()
-    }
-}
-
-impl TelemetryHooks {
-    /// Creates empty telemetry hooks.
-    #[must_use]
-    pub const fn new() -> Self {
-        Self {
-            on_retry: None,
-            on_complete: None,
-        }
-    }
-
-    /// Registers a retry callback.
-    #[must_use]
-    pub fn on_retry<F>(mut self, hook: F) -> Self
-    where
-        F: Fn(&RetryEvent) + Send + Sync + 'static,
-    {
-        self.on_retry = Some(Arc::new(hook));
-        self
-    }
-
-    /// Registers a completion callback.
-    #[must_use]
-    pub fn on_complete<F>(mut self, hook: F) -> Self
-    where
-        F: Fn(&RequestCompletion) + Send + Sync + 'static,
-    {
-        self.on_complete = Some(Arc::new(hook));
-        self
-    }
-}
 
 /// HTTP executor that handles middleware concerns.
 ///
@@ -173,12 +23,10 @@ impl TelemetryHooks {
 pub struct HttpExecutor {
     /// The underlying HTTP client.
     client: reqwest::Client,
-    /// Policy controlling retries based on request safety.
-    retry_policy: RetryPolicy,
+    /// Maximum retries for retryable operations.
+    max_retries: u32,
     /// Base timeout for requests.
     timeout: Duration,
-    /// Optional telemetry hooks.
-    telemetry_hooks: TelemetryHooks,
 }
 
 impl HttpExecutor {
@@ -187,9 +35,8 @@ impl HttpExecutor {
     pub fn new() -> Self {
         Self {
             client: reqwest::Client::new(),
-            retry_policy: RetryPolicy::new(3, 0),
+            max_retries: 3,
             timeout: Duration::from_secs(30),
-            telemetry_hooks: TelemetryHooks::new(),
         }
     }
 
@@ -198,9 +45,8 @@ impl HttpExecutor {
     pub fn with_config(max_retries: u32, timeout: Duration) -> Self {
         Self {
             client: reqwest::Client::new(),
-            retry_policy: RetryPolicy::new(max_retries, 0),
+            max_retries,
             timeout,
-            telemetry_hooks: TelemetryHooks::new(),
         }
     }
 
@@ -209,28 +55,9 @@ impl HttpExecutor {
     pub fn with_client(client: reqwest::Client, max_retries: u32, timeout: Duration) -> Self {
         Self {
             client,
-            retry_policy: RetryPolicy::new(max_retries, 0),
+            max_retries,
             timeout,
-            telemetry_hooks: TelemetryHooks::new(),
         }
-    }
-
-    /// Creates a new HTTP executor with an explicit retry policy.
-    #[must_use]
-    pub fn with_retry_policy(retry_policy: RetryPolicy, timeout: Duration) -> Self {
-        Self {
-            client: reqwest::Client::new(),
-            retry_policy,
-            timeout,
-            telemetry_hooks: TelemetryHooks::new(),
-        }
-    }
-
-    /// Attaches telemetry hooks to this executor.
-    #[must_use]
-    pub fn with_telemetry_hooks(mut self, telemetry_hooks: TelemetryHooks) -> Self {
-        self.telemetry_hooks = telemetry_hooks;
-        self
     }
 
     /// Executes a request with auth/retry behavior and returns the raw response.
@@ -242,39 +69,23 @@ impl HttpExecutor {
         request: Request,
         token: &AccessToken,
         refresh_token: F,
+        retryable: bool,
     ) -> Result<Response>
     where
         F: Fn() -> Fut,
         Fut: std::future::Future<Output = Result<AccessToken>>,
     {
-        let request_class = classify_request(request.method());
-        self.execute_response_with_retry_class(request, token, refresh_token, request_class)
-            .await
-    }
-
-    /// Executes a request with an explicit retry class override.
-    pub async fn execute_response_with_retry_class<F, Fut>(
-        &self,
-        request: Request,
-        token: &AccessToken,
-        refresh_token: F,
-        request_class: RequestRetryClass,
-    ) -> Result<Response>
-    where
-        F: Fn() -> Fut,
-        Fut: std::future::Future<Output = Result<AccessToken>>,
-    {
-        self.execute_response_with_class(request, token, refresh_token, request_class)
+        self.execute_response_internal(request, token, refresh_token, retryable)
             .await
     }
 
     #[allow(clippy::too_many_lines)]
-    async fn execute_response_with_class<F, Fut>(
+    async fn execute_response_internal<F, Fut>(
         &self,
         mut request: Request,
         token: &AccessToken,
         refresh_token: F,
-        request_class: RequestRetryClass,
+        retryable: bool,
     ) -> Result<Response>
     where
         F: Fn() -> Fut,
@@ -282,12 +93,12 @@ impl HttpExecutor {
     {
         let method = request.method().to_string();
         let path = request.url().path().to_string();
-        let request_class_str = request_class.as_str();
+
         let request_span = tracing::info_span!(
             "force_http_request",
             http.method = %method,
             http.path = %path,
-            request.class = request_class_str
+            retryable = retryable
         );
         let _request_span_guard = request_span.enter();
         let start = Instant::now();
@@ -302,7 +113,8 @@ impl HttpExecutor {
         // Execute with retry logic
         let mut retry_attempt = 0;
         let mut refreshed = false;
-        let max_retries = self.max_retries_for(request_class);
+        let max_retries = if retryable { self.max_retries } else { 0 };
+
         loop {
             let req_clone = request.try_clone().ok_or_else(|| {
                 HttpError::InvalidUrl("cannot clone request for retry".to_string())
@@ -311,30 +123,27 @@ impl HttpExecutor {
             let response =
                 match tokio::time::timeout(self.timeout, self.client.execute(req_clone)).await {
                     Err(_) => {
-                        self.record_completion(RequestCompletion {
-                            method: method.clone(),
-                            path: path.clone(),
-                            request_class: request_class_str,
-                            status_code: None,
-                            error_kind: Some(RequestErrorKind::Timeout),
-                            retries: retry_attempt,
-                            elapsed_ms: start.elapsed().as_millis(),
-                        });
+                        tracing::warn!(
+                            http.method = %method,
+                            http.path = %path,
+                            retry.attempt = retry_attempt,
+                            elapsed_ms = start.elapsed().as_millis(),
+                            "request timed out"
+                        );
                         return Err(HttpError::Timeout {
                             timeout_seconds: self.timeout.as_secs(),
                         }
                         .into());
                     }
                     Ok(Err(error)) => {
-                        self.record_completion(RequestCompletion {
-                            method: method.clone(),
-                            path: path.clone(),
-                            request_class: request_class_str,
-                            status_code: None,
-                            error_kind: Some(RequestErrorKind::Transport),
-                            retries: retry_attempt,
-                            elapsed_ms: start.elapsed().as_millis(),
-                        });
+                        tracing::warn!(
+                            http.method = %method,
+                            http.path = %path,
+                            retry.attempt = retry_attempt,
+                            elapsed_ms = start.elapsed().as_millis(),
+                            error = %error,
+                            "transport error"
+                        );
                         return Err(HttpError::from(error).into());
                     }
                     Ok(Ok(response)) => response,
@@ -358,29 +167,25 @@ impl HttpExecutor {
                         refreshed = true;
                         continue;
                     }
-                    self.record_completion(RequestCompletion {
-                        method: method.clone(),
-                        path: path.clone(),
-                        request_class: request_class_str,
-                        status_code: Some(StatusCode::UNAUTHORIZED.as_u16()),
-                        error_kind: None,
-                        retries: retry_attempt,
-                        elapsed_ms: start.elapsed().as_millis(),
-                    });
+                    tracing::warn!(
+                        http.method = %method,
+                        http.path = %path,
+                        retry.attempt = retry_attempt,
+                        http.status_code = 401,
+                        "unauthorized after refresh"
+                    );
                     return Ok(response);
                 }
                 StatusCode::TOO_MANY_REQUESTS => {
                     // 429: Rate limit - respect Retry-After header
                     let retry_after = parse_retry_after(&response).unwrap_or(60);
-                    self.record_completion(RequestCompletion {
-                        method: method.clone(),
-                        path: path.clone(),
-                        request_class: request_class_str,
-                        status_code: Some(StatusCode::TOO_MANY_REQUESTS.as_u16()),
-                        error_kind: Some(RequestErrorKind::RateLimited),
-                        retries: retry_attempt,
-                        elapsed_ms: start.elapsed().as_millis(),
-                    });
+                    tracing::warn!(
+                        http.method = %method,
+                        http.path = %path,
+                        retry.attempt = retry_attempt,
+                        retry_after = retry_after,
+                        "rate limited"
+                    );
                     return Err(HttpError::RateLimitExceeded {
                         retry_after_seconds: retry_after,
                     }
@@ -395,62 +200,20 @@ impl HttpExecutor {
                         retry.backoff_ms = backoff.as_millis(),
                         "retrying request after transient failure"
                     );
-                    self.record_retry(RetryEvent {
-                        method: method.clone(),
-                        path: path.clone(),
-                        request_class: request_class_str,
-                        attempt: retry_attempt,
-                        status_code: StatusCode::SERVICE_UNAVAILABLE.as_u16(),
-                        backoff_ms: backoff.as_millis(),
-                    });
                     tokio::time::sleep(backoff).await;
                     retry_attempt += 1;
                     continue;
                 }
                 _ => {
-                    self.record_completion(RequestCompletion {
-                        method: method.clone(),
-                        path: path.clone(),
-                        request_class: request_class_str,
-                        status_code: Some(response.status().as_u16()),
-                        error_kind: None,
-                        retries: retry_attempt,
-                        elapsed_ms: start.elapsed().as_millis(),
-                    });
+                    tracing::info!(
+                        http.status_code = response.status().as_u16(),
+                        retries = retry_attempt,
+                        elapsed_ms = start.elapsed().as_millis(),
+                        "request completed"
+                    );
                     return Ok(response);
                 }
             }
-        }
-    }
-
-    fn max_retries_for(&self, request_class: RequestRetryClass) -> u32 {
-        match request_class {
-            RequestRetryClass::Read => self.retry_policy.read_max_retries,
-            RequestRetryClass::IdempotentMutation => {
-                self.retry_policy.idempotent_mutation_max_retries
-            }
-            RequestRetryClass::Mutation => self.retry_policy.mutation_max_retries,
-        }
-    }
-
-    #[allow(clippy::needless_pass_by_value)]
-    fn record_retry(&self, retry_event: RetryEvent) {
-        if let Some(on_retry) = &self.telemetry_hooks.on_retry {
-            on_retry(&retry_event);
-        }
-    }
-
-    #[allow(clippy::needless_pass_by_value)]
-    fn record_completion(&self, completion: RequestCompletion) {
-        tracing::info!(
-            http.status_code = completion.status_code.unwrap_or_default(),
-            retries = completion.retries,
-            elapsed_ms = completion.elapsed_ms,
-            error.kind = ?completion.error_kind,
-            "request completed"
-        );
-        if let Some(on_complete) = &self.telemetry_hooks.on_complete {
-            on_complete(&completion);
         }
     }
 
@@ -483,7 +246,8 @@ impl HttpExecutor {
         F: Fn() -> Fut,
         Fut: std::future::Future<Output = Result<AccessToken>>,
     {
-        let response = self.execute_response(request, token, refresh_token).await?;
+        let retryable = is_retryable(request.method());
+        let response = self.execute_response(request, token, refresh_token, retryable).await?;
         let status = response.status();
 
         if status.is_success() {
@@ -529,6 +293,14 @@ impl Default for HttpExecutor {
     }
 }
 
+/// Determines if a request method is safe to retry automatically.
+///
+/// Returns true for GET, HEAD, and OPTIONS.
+#[must_use]
+pub fn is_retryable(method: &Method) -> bool {
+    matches!(*method, Method::GET | Method::HEAD | Method::OPTIONS)
+}
+
 /// Parses the Retry-After header from a 429 response.
 ///
 /// Returns the number of seconds to wait, or None if header is missing/invalid.
@@ -554,26 +326,7 @@ fn exponential_backoff(attempt: u32) -> Duration {
     Duration::from_millis(backoff_ms.min(30_000) as u64)
 }
 
-fn classify_request(method: &Method) -> RequestRetryClass {
-    if *method == Method::GET || *method == Method::HEAD || *method == Method::OPTIONS {
-        RequestRetryClass::Read
-    } else {
-        RequestRetryClass::Mutation
-    }
-}
-
 /// Parses Salesforce API error from response body.
-///
-/// Salesforce error responses typically have this format:
-/// ```json
-/// [
-///   {
-///     "errorCode": "INVALID_FIELD",
-///     "message": "Field does not exist",
-///     "fields": ["InvalidField"]
-///   }
-/// ]
-/// ```
 fn parse_api_error(status_code: u16, body: &str) -> HttpError {
     #[derive(serde::Deserialize)]
     struct SalesforceError {
@@ -679,5 +432,16 @@ mod unit_tests {
         // This should not panic even with large inputs
         let duration = exponential_backoff(200);
         assert_eq!(duration.as_millis(), 30_000);
+    }
+
+    #[test]
+    fn test_is_retryable() {
+        assert!(is_retryable(&Method::GET));
+        assert!(is_retryable(&Method::HEAD));
+        assert!(is_retryable(&Method::OPTIONS));
+        assert!(!is_retryable(&Method::POST));
+        assert!(!is_retryable(&Method::PUT));
+        assert!(!is_retryable(&Method::DELETE));
+        assert!(!is_retryable(&Method::PATCH));
     }
 }

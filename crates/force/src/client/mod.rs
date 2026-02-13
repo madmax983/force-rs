@@ -10,7 +10,6 @@ pub use builder::{AuthenticatedBuilder, ForceClientBuilder, HasAuth, NoAuth};
 use crate::auth::TokenManager;
 use crate::config::ClientConfig;
 use crate::http::HttpExecutor;
-use crate::http::RequestRetryClass;
 use serde::de::DeserializeOwned;
 use std::sync::Arc;
 
@@ -37,31 +36,34 @@ impl<A: crate::auth::Authenticator> Inner<A> {
     ) -> crate::error::Result<reqwest::Response> {
         let token = self.token_manager.get_token_arc().await?;
         let token_manager = Arc::clone(&self.token_manager);
+
+        let retryable = crate::http::is_retryable(request.method());
+
         self.http_executor
             .execute_response(request, &token, move || {
                 let token_manager = Arc::clone(&token_manager);
                 async move { token_manager.force_refresh().await }
-            })
+            }, retryable)
             .await
     }
 
-    /// Executes a request with an explicit retry class override.
-    pub(crate) async fn execute_request_with_retry_class(
+    /// Executes a request with an explicit retryable flag.
+    pub(crate) async fn execute_request_retryable(
         &self,
         request: reqwest::Request,
-        retry_class: RequestRetryClass,
+        retryable: bool,
     ) -> crate::error::Result<reqwest::Response> {
         let token = self.token_manager.get_token_arc().await?;
         let token_manager = Arc::clone(&self.token_manager);
         self.http_executor
-            .execute_response_with_retry_class(
+            .execute_response(
                 request,
                 &token,
                 move || {
                     let token_manager = Arc::clone(&token_manager);
                     async move { token_manager.force_refresh().await }
                 },
-                retry_class,
+                retryable,
             )
             .await
     }
