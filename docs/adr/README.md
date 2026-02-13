@@ -41,13 +41,12 @@ ADRs follow this structure:
 | [005](005-compile-time-auth-safety.md) | Compile-Time Auth Safety with Phantom Types | Accepted | 2026-02-07 |
 | [006](006-handler-pattern.md) | Handler Pattern for API Operations | Accepted | 2026-02-07 |
 | [007](007-rest-api-design.md) | REST API Design Decisions | Accepted | 2026-02-07 |
+| [008](008-bulk-api-design.md) | Bulk API 2.0 Design Decisions | Accepted | 2026-02-08 |
+| [009](009-decouple-storage-from-core.md) | Decouple Storage from Core | Proposed | 2026-02-17 |
 
 ### Future ADRs
 
 Planned ADRs for upcoming decisions:
-- **ADR-008**: HTTP Client and Middleware Architecture
-- **ADR-008**: Rate Limiting and Retry Strategy
-- **ADR-009**: Token Storage and Caching
 - **ADR-010**: SOQL Query Builder Design
 - **ADR-011**: Bulk API Job Management
 - **ADR-012**: Pub/Sub gRPC Integration
@@ -85,14 +84,10 @@ graph TD
     ADR004 --> ADR006
     ADR006 --> ADR002
     ADR006 --> ADR007[ADR-007: REST API Design]
+    ADR006 --> ADR008[ADR-008: Bulk API Design]
     ADR003 --> ADR007
 
-    ADR002 -.-> ADR008[ADR-008: HTTP Middleware]
-    ADR003 -.-> ADR008
-    ADR004 -.-> ADR008
-
-    ADR002 -.-> ADR010[ADR-010: Token Storage]
-    ADR008 -.-> ADR009[ADR-009: Retry Strategy]
+    ADR002 --> ADR009[ADR-009: Decouple Storage]
 
     style ADR001 fill:#4a9eff
     style ADR002 fill:#ffd43b
@@ -101,9 +96,8 @@ graph TD
     style ADR005 fill:#a78bfa
     style ADR006 fill:#f472b6
     style ADR007 fill:#fb923c
-    style ADR008 fill:#ddd
-    style ADR009 fill:#ddd
-    style ADR010 fill:#ddd
+    style ADR008 fill:#fb923c
+    style ADR009 fill:#a78bfa
 ```
 
 ## Key Decisions Summary
@@ -142,6 +136,16 @@ graph TD
 - **Decision**: Hybrid approach with both dynamic (`query()`) and typed (`query_typed<T>()`) methods
 - **Rationale**: Flexibility for dynamic queries, type safety when needed, zero-cost abstraction
 - **Impact**: Two query patterns to learn, but clear upgrade path from dynamic to typed
+
+### ADR-008: Bulk API Design
+- **Decision**: Use typestate pattern for job lifecycle and feature gates
+- **Rationale**: Compile-time safety for complex job states, optional bloat
+- **Impact**: Safe but verbose API, smaller binaries for non-bulk users
+
+### ADR-009: Decouple Storage from Core
+- **Decision**: Move persistence logic to a dedicated crate/boundary
+- **Rationale**: Resolve circular dependencies and improve build times
+- **Impact**: Modular architecture but increased complexity
 
 ## Contributing ADRs
 
