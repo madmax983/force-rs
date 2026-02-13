@@ -243,8 +243,8 @@ fn escape_sosl(text: &str) -> String {
     let mut escaped = String::with_capacity(text.len());
     for c in text.chars() {
         match c {
-            '?' | '&' | '|' | '!' | '{' | '}' | '[' | ']' | '(' | ')' | '^' | '~' | '*'
-            | ':' | '\\' | '"' | '\'' | '+' | '-' => {
+            '?' | '&' | '|' | '!' | '{' | '}' | '[' | ']' | '(' | ')' | '^' | '~' | '*' | ':'
+            | '\\' | '"' | '\'' | '+' | '-' => {
                 escaped.push('\\');
                 escaped.push(c);
             }
