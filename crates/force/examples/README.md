@@ -205,7 +205,7 @@ In production, use `force::error::Error` for structured error handling:
 ```rust
 use force::error::{Error, Result};
 
-match client.rest().get("Account", &id).await {
+match client.get("Account", &id).await {
     Ok(record) => { /* process record */ }
     Err(Error::HttpError(e)) => { /* handle HTTP error */ }
     Err(e) => { /* handle other errors */ }
@@ -216,7 +216,7 @@ match client.rest().get("Account", &id).await {
 
 **Dynamic approach:**
 ```rust
-let result = client.rest().query(soql).await?;
+let result = client.query(soql).await?;
 for record in result.records {
     let name: String = record.get_field("Name")?;
     let industry = record.get_field_opt::<String>("Industry")?;
@@ -233,7 +233,7 @@ struct Account {
     industry: Option<String>,
 }
 
-let result = client.rest().query_typed::<Account>(soql).await?;
+let result = client.query::<Account>(soql).await?;
 for account in result.records {
     println!("{}: {:?}", account.name, account.industry);
 }
@@ -242,7 +242,7 @@ for account in result.records {
 ### Pagination
 
 ```rust
-let mut current_result = client.rest().query(soql).await?;
+let mut current_result = client.query(soql).await?;
 
 loop {
     // Process current page
@@ -256,9 +256,7 @@ loop {
     }
 
     // Fetch next page
-    current_result = client.rest()
-        .query_more(&current_result)
-        .await?;
+    current_result = client.query_more(&current_result.next_records_url.unwrap()).await?;
 }
 ```
 

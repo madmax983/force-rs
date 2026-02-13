@@ -40,13 +40,13 @@ mod example {
             "Website": "https://acme.example.com"
         });
 
-        let created = client.rest().create("Account", &create).await?;
+        let created = client.create("Account", &create).await?;
         let account_id = created
             .id
             .ok_or_else(|| anyhow::anyhow!("Account ID should be present"))?;
         println!("Created account: {account_id}");
 
-        let fetched = client.rest().get("Account", &account_id).await?;
+        let fetched = client.get("Account", &account_id).await?;
         println!(
             "Fetched account: {} ({})",
             fetched["Name"].as_str().unwrap_or("N/A"),
@@ -56,18 +56,15 @@ mod example {
         let update = json!({
             "Industry": "Software"
         });
-        client
-            .rest()
-            .update("Account", &account_id, &update)
-            .await?;
+        client.update("Account", &account_id, &update).await?;
 
-        let updated = client.rest().get("Account", &account_id).await?;
+        let updated = client.get("Account", &account_id).await?;
         println!(
             "Updated industry: {}",
             updated["Industry"].as_str().unwrap_or("N/A")
         );
 
-        client.rest().delete("Account", &account_id).await?;
+        client.delete("Account", &account_id).await?;
         println!("Deleted account: {account_id}");
 
         Ok(())
