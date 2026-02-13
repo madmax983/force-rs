@@ -158,7 +158,10 @@ mod tests {
             .where_cond("Age > 25")
             .build()
             .expect("Failed to build query");
-        assert_eq!(query, "SELECT Id FROM Contact WHERE Name = 'John' AND Age > 25");
+        assert_eq!(
+            query,
+            "SELECT Id FROM Contact WHERE Name = 'John' AND Age > 25"
+        );
     }
 
     #[test]
