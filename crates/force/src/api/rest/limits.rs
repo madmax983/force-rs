@@ -3,8 +3,19 @@
 //! This module provides types and methods for retrieving Salesforce org limits,
 //! including API usage, storage capacity, and other resource constraints.
 
+use crate::client::ForceClient;
+use crate::error::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+
+impl<A: crate::auth::Authenticator> ForceClient<A> {
+    /// Retrieves organization limits.
+    ///
+    /// Delegates to `RestHandler::limits`.
+    pub async fn limits(&self) -> Result<OrgLimits> {
+        self.rest().limits().await
+    }
+}
 
 /// Response from the Organization Limits API endpoint.
 ///

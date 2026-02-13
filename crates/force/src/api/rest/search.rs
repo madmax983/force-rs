@@ -3,8 +3,19 @@
 //! This module provides types and methods for executing SOSL searches across
 //! multiple objects and fields in Salesforce.
 
+use crate::client::ForceClient;
+use crate::error::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+
+impl<A: crate::auth::Authenticator> ForceClient<A> {
+    /// Executes a SOSL (Salesforce Object Search Language) search.
+    ///
+    /// Delegates to `RestHandler::search`.
+    pub async fn search(&self, sosl: &str) -> Result<SearchResult> {
+        self.rest().search(sosl).await
+    }
+}
 
 /// Result from a SOSL search query.
 ///

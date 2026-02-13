@@ -101,6 +101,7 @@ async fn main() -> anyhow::Result<()> {
 The Bulk API uses typestate patterns to enforce correct job lifecycle at compile time:
 
 ```rust
+// Requires the "bulk" feature: force = { version = "0.1", features = ["bulk"] }
 use force::client::builder;
 use force::auth::ClientCredentials;
 use serde::Serialize;
@@ -144,6 +145,7 @@ async fn main() -> anyhow::Result<()> {
 Stream millions of records without loading the entire dataset into memory:
 
 ```rust
+// Requires the "bulk" feature: force = { version = "0.1", features = ["bulk"] }
 use force::client::builder;
 use force::auth::ClientCredentials;
 use serde::Deserialize;
