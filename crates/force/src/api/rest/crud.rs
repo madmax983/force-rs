@@ -49,24 +49,9 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
     /// println!("Created account with ID: {}", response.id.must());
     /// ```
     pub async fn create(&self, sobject: &str, data: &serde_json::Value) -> Result<CreateResponse> {
-        let url = format!("{}/sobjects/{}", self.base_url().await?, sobject);
-        let request = self
-            .inner
-            .http_client
-            .post(&url)
-            .json(data)
-            .build()
-            .map_err(crate::error::HttpError::from)?;
-        let response = self.inner.execute_request(request).await?;
-
-        if response.status().is_success() {
-            response
-                .json::<CreateResponse>()
-                .await
-                .map_err(|e| crate::error::HttpError::from(e).into())
-        } else {
-            Err(Self::handle_error_response(response, "Create request failed").await)
-        }
+        let path = format!("/sobjects/{}", sobject);
+        self.execute_post(&path, data, "Create request failed")
+            .await
     }
 
     /// Retrieves a record by its ID.
@@ -91,28 +76,8 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
     /// println!("Account name: {}", account["Name"]);
     /// ```
     pub async fn get(&self, sobject: &str, id: &SalesforceId) -> Result<serde_json::Value> {
-        let url = format!(
-            "{}/sobjects/{}/{}",
-            self.base_url().await?,
-            sobject,
-            id.as_str()
-        );
-        let request = self
-            .inner
-            .http_client
-            .get(&url)
-            .build()
-            .map_err(crate::error::HttpError::from)?;
-        let response = self.inner.execute_request(request).await?;
-
-        if response.status().is_success() {
-            response
-                .json::<serde_json::Value>()
-                .await
-                .map_err(|e| crate::error::HttpError::from(e).into())
-        } else {
-            Err(Self::handle_error_response(response, "Get request failed").await)
-        }
+        let path = format!("/sobjects/{}/{}", sobject, id.as_str());
+        self.execute_get(&path, None, "Get request failed").await
     }
 
     /// Updates an existing record.
@@ -150,26 +115,10 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
         id: &SalesforceId,
         data: &serde_json::Value,
     ) -> Result<UpdateResponse> {
-        let url = format!(
-            "{}/sobjects/{}/{}",
-            self.base_url().await?,
-            sobject,
-            id.as_str()
-        );
-        let request = self
-            .inner
-            .http_client
-            .patch(&url)
-            .json(data)
-            .build()
-            .map_err(crate::error::HttpError::from)?;
-        let response = self.inner.execute_request(request).await?;
-
-        if response.status().is_success() {
-            Ok(UpdateResponse::success())
-        } else {
-            Err(Self::handle_error_response(response, "Update request failed").await)
-        }
+        let path = format!("/sobjects/{}/{}", sobject, id.as_str());
+        self.execute_patch_empty(&path, data, "Update request failed")
+            .await?;
+        Ok(UpdateResponse::success())
     }
 
     /// Deletes a record.
@@ -193,25 +142,10 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
     /// client.rest().delete("Account", &account_id).await?;
     /// ```
     pub async fn delete(&self, sobject: &str, id: &SalesforceId) -> Result<DeleteResponse> {
-        let url = format!(
-            "{}/sobjects/{}/{}",
-            self.base_url().await?,
-            sobject,
-            id.as_str()
-        );
-        let request = self
-            .inner
-            .http_client
-            .delete(&url)
-            .build()
-            .map_err(crate::error::HttpError::from)?;
-        let response = self.inner.execute_request(request).await?;
-
-        if response.status().is_success() {
-            Ok(DeleteResponse::success())
-        } else {
-            Err(Self::handle_error_response(response, "Delete request failed").await)
-        }
+        let path = format!("/sobjects/{}/{}", sobject, id.as_str());
+        self.execute_delete_empty(&path, "Delete request failed")
+            .await?;
+        Ok(DeleteResponse::success())
     }
 
     /// Upserts a record using an external ID field.
