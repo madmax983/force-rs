@@ -3,8 +3,8 @@
 //! This module provides the core `ForceClient` and builder types with phantom type
 //! markers to ensure authentication is handled at compile-time.
 
-pub(crate) mod inner;
 mod builder;
+pub(crate) mod inner;
 
 pub use builder::{AuthenticatedBuilder, ForceClientBuilder, HasAuth, NoAuth};
 pub(crate) use inner::Inner;
