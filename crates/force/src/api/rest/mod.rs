@@ -133,11 +133,7 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
     }
 
     /// Helper method to execute a DELETE request and expect an empty success response.
-    pub(crate) async fn execute_delete_empty(
-        &self,
-        path: &str,
-        error_msg: &str,
-    ) -> Result<()> {
+    pub(crate) async fn execute_delete_empty(&self, path: &str, error_msg: &str) -> Result<()> {
         let url = format!("{}{}", self.base_url().await?, path);
         let request = self
             .inner
