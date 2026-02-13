@@ -82,7 +82,7 @@ impl Default for BulkPollPolicy {
 #[derive(Debug, Clone)]
 pub struct BulkHandler<A: crate::auth::Authenticator> {
     /// Reference to the client's inner state.
-    pub(crate) inner: Arc<crate::client::Inner<A>>,
+    pub(crate) inner: Arc<crate::client::inner::Inner<A>>,
 }
 
 impl<A: crate::auth::Authenticator> BulkHandler<A> {
@@ -98,7 +98,7 @@ impl<A: crate::auth::Authenticator> BulkHandler<A> {
     /// let handler = BulkHandler::new(inner);
     /// ```
     #[must_use]
-    pub(crate) fn new(inner: Arc<crate::client::Inner<A>>) -> Self {
+    pub(crate) fn new(inner: Arc<crate::client::inner::Inner<A>>) -> Self {
         Self { inner }
     }
 
@@ -107,7 +107,7 @@ impl<A: crate::auth::Authenticator> BulkHandler<A> {
     /// This is used internally by bulk API modules to access the HTTP client
     /// and token manager.
     #[must_use]
-    pub(crate) fn inner(&self) -> &Arc<crate::client::Inner<A>> {
+    pub(crate) fn inner(&self) -> &Arc<crate::client::inner::Inner<A>> {
         &self.inner
     }
 

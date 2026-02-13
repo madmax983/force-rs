@@ -118,7 +118,7 @@ impl SearchQueryBuilder {
     /// * `text` - The search text
     #[must_use]
     pub fn find(mut self, text: impl Into<String>) -> Self {
-        self.search_text = text.into();
+        self.search_text = escape_sosl(&text.into());
         self
     }
 
@@ -235,6 +235,25 @@ impl Default for SearchQueryBuilder {
         Self::new()
     }
 }
+
+/// Escapes special characters for SOSL search queries.
+///
+/// Reserved characters: ? & | ! { } [ ] ( ) ^ ~ * : \ " ' + -
+fn escape_sosl(text: &str) -> String {
+    let mut escaped = String::with_capacity(text.len());
+    for c in text.chars() {
+        match c {
+            '?' | '&' | '|' | '!' | '{' | '}' | '[' | ']' | '(' | ')' | '^' | '~' | '*' | ':'
+            | '\\' | '"' | '\'' | '+' | '-' => {
+                escaped.push('\\');
+                escaped.push(c);
+            }
+            _ => escaped.push(c),
+        }
+    }
+    escaped
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -407,7 +426,7 @@ mod tests {
 
         assert_eq!(
             query,
-            "FIND {415-555-0100} IN PHONE FIELDS RETURNING Contact(Id, Phone)"
+            r"FIND {415\-555\-0100} IN PHONE FIELDS RETURNING Contact(Id, Phone)"
         );
     }
 
@@ -435,6 +454,18 @@ mod tests {
     #[should_panic(expected = "at least one object must be specified")]
     fn test_search_query_builder_no_returning() {
         let _ = SearchQueryBuilder::new().find("Test").build();
+    }
+
+    #[test]
+    fn test_search_query_builder_escaping() {
+        let query = SearchQueryBuilder::new()
+            .find(r#"? & | ! { } [ ] ( ) ^ ~ * : \ " ' + -"#)
+            .returning("Account", &["Id"])
+            .build();
+
+        // All special characters should be escaped with backslash
+        let expected = r#"FIND {\? \& \| \! \{ \} \[ \] \( \) \^ \~ \* \: \\ \" \' \+ \-} RETURNING Account(Id)"#;
+        assert_eq!(query, expected);
     }
 }
 

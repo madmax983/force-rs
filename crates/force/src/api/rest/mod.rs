@@ -10,6 +10,7 @@ pub mod query;
 pub mod search;
 
 use crate::error::Result;
+use serde::de::DeserializeOwned;
 use std::sync::Arc;
 
 /// REST API handler for performing Salesforce REST operations.
@@ -26,7 +27,7 @@ use std::sync::Arc;
 #[derive(Debug, Clone)]
 pub struct RestHandler<A: crate::auth::Authenticator> {
     /// Reference to the client's inner state.
-    inner: Arc<crate::client::Inner<A>>,
+    inner: Arc<crate::client::inner::Inner<A>>,
 }
 
 impl<A: crate::auth::Authenticator> RestHandler<A> {
@@ -42,7 +43,7 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
     /// let handler = RestHandler::new(inner);
     /// ```
     #[must_use]
-    pub(crate) fn new(inner: Arc<crate::client::Inner<A>>) -> Self {
+    pub(crate) fn new(inner: Arc<crate::client::inner::Inner<A>>) -> Self {
         Self { inner }
     }
 
@@ -71,6 +72,84 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
         ))
     }
 
+    /// Helper method to execute a GET request and deserialize the response.
+    pub(crate) async fn execute_get<T: DeserializeOwned>(
+        &self,
+        path: &str,
+        query: Option<&[(&str, &str)]>,
+        error_msg: &str,
+    ) -> Result<T> {
+        let url = format!("{}{}", self.base_url().await?, path);
+        let mut request = self.inner.http_client.get(&url);
+
+        if let Some(params) = query {
+            request = request.query(params);
+        }
+
+        let request = request.build().map_err(crate::error::HttpError::from)?;
+        self.inner.send_request_and_decode(request, error_msg).await
+    }
+
+    /// Helper method to execute a POST request and deserialize the response.
+    pub(crate) async fn execute_post<T: DeserializeOwned>(
+        &self,
+        path: &str,
+        body: &serde_json::Value,
+        error_msg: &str,
+    ) -> Result<T> {
+        let url = format!("{}{}", self.base_url().await?, path);
+        let request = self
+            .inner
+            .http_client
+            .post(&url)
+            .json(body)
+            .build()
+            .map_err(crate::error::HttpError::from)?;
+        self.inner.send_request_and_decode(request, error_msg).await
+    }
+
+    /// Helper method to execute a PATCH request and expect an empty success response.
+    pub(crate) async fn execute_patch_empty(
+        &self,
+        path: &str,
+        body: &serde_json::Value,
+        error_msg: &str,
+    ) -> Result<()> {
+        let url = format!("{}{}", self.base_url().await?, path);
+        let request = self
+            .inner
+            .http_client
+            .patch(&url)
+            .json(body)
+            .build()
+            .map_err(crate::error::HttpError::from)?;
+        let response = self.inner.execute_request(request).await?;
+
+        if response.status().is_success() {
+            Ok(())
+        } else {
+            Err(crate::http::response_to_force_error(response, error_msg).await)
+        }
+    }
+
+    /// Helper method to execute a DELETE request and expect an empty success response.
+    pub(crate) async fn execute_delete_empty(&self, path: &str, error_msg: &str) -> Result<()> {
+        let url = format!("{}{}", self.base_url().await?, path);
+        let request = self
+            .inner
+            .http_client
+            .delete(&url)
+            .build()
+            .map_err(crate::error::HttpError::from)?;
+        let response = self.inner.execute_request(request).await?;
+
+        if response.status().is_success() {
+            Ok(())
+        } else {
+            Err(crate::http::response_to_force_error(response, error_msg).await)
+        }
+    }
+
     /// Retrieves organization limits.
     ///
     /// Returns information about the organization's usage and limits for various
@@ -91,15 +170,7 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
     /// println!("API calls: {}/{}", api_limit.used.unwrap_or(0), api_limit.max);
     /// ```
     pub async fn limits(&self) -> Result<limits::OrgLimits> {
-        let url = format!("{}/limits", self.base_url().await?);
-        let request = self
-            .inner
-            .http_client
-            .get(&url)
-            .build()
-            .map_err(crate::error::HttpError::from)?;
-        self.inner
-            .send_request_and_decode(request, "Limits API request failed")
+        self.execute_get("/limits", None, "Limits API request failed")
             .await
     }
 
@@ -142,17 +213,12 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
     /// }
     /// ```
     pub async fn search(&self, sosl: &str) -> Result<search::SearchResult> {
-        let url = format!("{}/search", self.base_url().await?);
-        let request = self
-            .inner
-            .http_client
-            .get(&url)
-            .query(&[("q", sosl)])
-            .build()
-            .map_err(crate::error::HttpError::from)?;
-        self.inner
-            .send_request_and_decode(request, "SOSL search request failed")
-            .await
+        self.execute_get(
+            "/search",
+            Some(&[("q", sosl)]),
+            "SOSL search request failed",
+        )
+        .await
     }
 
     /// Retrieves global describe information.
@@ -180,15 +246,7 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
     /// }
     /// ```
     pub async fn describe_global(&self) -> Result<describe::GlobalDescribe> {
-        let url = format!("{}/sobjects", self.base_url().await?);
-        let request = self
-            .inner
-            .http_client
-            .get(&url)
-            .build()
-            .map_err(crate::error::HttpError::from)?;
-        self.inner
-            .send_request_and_decode(request, "Global describe request failed")
+        self.execute_get("/sobjects", None, "Global describe request failed")
             .await
     }
 
@@ -221,23 +279,13 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
     /// }
     /// ```
     pub async fn describe(&self, sobject_name: &str) -> Result<describe::SObjectDescribe> {
-        let url = format!(
-            "{}/sobjects/{}/describe",
-            self.base_url().await?,
-            sobject_name
-        );
-        let request = self
-            .inner
-            .http_client
-            .get(&url)
-            .build()
-            .map_err(crate::error::HttpError::from)?;
-        self.inner
-            .send_request_and_decode(
-                request,
-                &format!("Describe request for {} failed", sobject_name),
-            )
-            .await
+        let path = format!("/sobjects/{}/describe", sobject_name);
+        self.execute_get(
+            &path,
+            None,
+            &format!("Describe request for {} failed", sobject_name),
+        )
+        .await
     }
 }
 #[cfg(test)]

@@ -293,11 +293,10 @@ impl HttpExecutor {
         let start = Instant::now();
 
         // Inject Bearer token
-        let auth_header = format!("Bearer {}", token.as_str());
-        let header_value = auth_header.parse().map_err(|_| {
-            HttpError::InvalidUrl(format!("invalid authorization header: {}", auth_header))
-        })?;
-        request.headers_mut().insert("Authorization", header_value);
+        let header_value = token.auth_header()?;
+        request
+            .headers_mut()
+            .insert(reqwest::header::AUTHORIZATION, header_value.clone());
 
         // Execute with retry logic
         let mut retry_attempt = 0;
@@ -345,16 +344,10 @@ impl HttpExecutor {
                     // 401: Refresh token and retry once
                     if !refreshed {
                         let new_token = refresh_token().await?;
-                        let new_auth_header = format!("Bearer {}", new_token.as_str());
-                        let new_header_value = new_auth_header.parse().map_err(|_| {
-                            HttpError::InvalidUrl(format!(
-                                "invalid authorization header: {}",
-                                new_auth_header
-                            ))
-                        })?;
+                        let new_header_value = new_token.auth_header()?;
                         request
                             .headers_mut()
-                            .insert("Authorization", new_header_value);
+                            .insert(reqwest::header::AUTHORIZATION, new_header_value.clone());
                         refreshed = true;
                         continue;
                     }

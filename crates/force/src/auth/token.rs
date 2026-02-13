@@ -6,8 +6,9 @@
 //! - Thread-safe concurrent access
 //! - Force refresh on 401 responses
 
-use crate::error::Result;
+use crate::error::{HttpError, Result};
 use chrono::{DateTime, Duration, Utc};
+use reqwest::header::HeaderValue;
 use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
 
@@ -66,6 +67,12 @@ pub struct AccessToken {
 
     /// Token type (e.g., "Bearer").
     token_type: String,
+
+    /// Pre-computed Authorization header value.
+    ///
+    /// This avoids formatting and parsing the header on every request,
+    /// significantly improving performance on hot paths.
+    auth_header: Option<HeaderValue>,
 }
 
 impl AccessToken {
@@ -92,12 +99,22 @@ impl AccessToken {
             issued_at.checked_add_signed(duration)
         });
 
+        let mut auth_header = HeaderValue::from_str(&format!(
+            "{} {}",
+            response.token_type, response.access_token
+        ))
+        .ok();
+        if let Some(header) = &mut auth_header {
+            header.set_sensitive(true);
+        }
+
         Self {
             token: SecretString::new(response.access_token.into()),
             issued_at,
             expires_at,
             instance_url: response.instance_url,
             token_type: response.token_type,
+            auth_header,
         }
     }
 
@@ -110,12 +127,18 @@ impl AccessToken {
     /// * `expires_at` - Optional expiration time
     #[cfg(test)]
     pub fn new(token: String, instance_url: String, expires_at: Option<DateTime<Utc>>) -> Self {
+        let mut auth_header = HeaderValue::from_str(&format!("Bearer {}", token)).ok();
+        if let Some(header) = &mut auth_header {
+            header.set_sensitive(true);
+        }
+
         Self {
             token: SecretString::new(token.into()),
             issued_at: Utc::now(),
             expires_at,
             instance_url,
             token_type: "Bearer".to_string(),
+            auth_header,
         }
     }
 
@@ -179,6 +202,20 @@ impl AccessToken {
     #[must_use]
     pub const fn expires_at(&self) -> Option<DateTime<Utc>> {
         self.expires_at
+    }
+
+    /// Returns the pre-computed Authorization header value.
+    ///
+    /// This method returns a reference to the cached header value, which
+    /// avoids allocation and parsing on every call.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the header could not be constructed (e.g. invalid characters).
+    pub fn auth_header(&self) -> std::result::Result<&HeaderValue, HttpError> {
+        self.auth_header
+            .as_ref()
+            .ok_or_else(|| HttpError::InvalidUrl("invalid authorization header".to_string()))
     }
 }
 
