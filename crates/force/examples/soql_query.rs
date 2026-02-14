@@ -60,6 +60,7 @@ mod example {
         let client = build_client().await?;
 
         let accounts = client
+            .rest()
             .query::<Account>("SELECT Id, Name, Industry FROM Account ORDER BY Name LIMIT 10")
             .await?;
         println!("Accounts fetched: {}", accounts.records.len());
@@ -69,18 +70,20 @@ mod example {
         }
 
         let mut contacts = client
+            .rest()
             .query::<Contact>("SELECT Id, LastName, Email FROM Contact ORDER BY LastName LIMIT 5")
             .await?;
         let mut pages = 1;
         let mut count = contacts.records.len();
         while let Some(next) = contacts.next_records_url.clone() {
-            contacts = client.query_more::<Contact>(&next).await?;
+            contacts = client.rest().query_more::<Contact>(&next).await?;
             pages += 1;
             count += contacts.records.len();
         }
         println!("\nContacts fetched across {pages} page(s): {count}");
 
         let stats = client
+            .rest()
             .query::<IndustryStats>(
                 "SELECT Industry, COUNT(Id) TotalAccounts FROM Account WHERE Industry != null GROUP BY Industry LIMIT 5",
             )

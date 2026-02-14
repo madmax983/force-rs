@@ -79,7 +79,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Execute typed SOQL query
     let soql = "SELECT Id, Name, Industry FROM Account WHERE Industry = 'Technology' LIMIT 10";
-    let result = client.query::<Account>(soql).await?;
+    let result = client.rest().query::<Account>(soql).await?;
 
     // Process results
     for account in result.records {

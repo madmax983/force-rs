@@ -3,77 +3,11 @@
 //! This module provides Create, Read, Update, Delete, and Upsert operations
 //! for Salesforce objects.
 
-use crate::client::ForceClient;
 use crate::error::Result;
 use crate::types::SalesforceId;
 use crate::types::common::{CreateResponse, DeleteResponse, UpdateResponse, UpsertResponse};
 
 use super::RestHandler;
-
-impl<A: crate::auth::Authenticator> ForceClient<A> {
-    /// Creates a new record in Salesforce.
-    ///
-    /// Delegates to `RestHandler::create`.
-    pub async fn create(&self, sobject: &str, data: &serde_json::Value) -> Result<CreateResponse> {
-        self.rest().create(sobject, data).await
-    }
-
-    /// Retrieves a record by its ID.
-    ///
-    /// Delegates to `RestHandler::get`.
-    pub async fn get(&self, sobject: &str, id: &SalesforceId) -> Result<serde_json::Value> {
-        self.rest().get(sobject, id).await
-    }
-
-    /// Updates an existing record.
-    ///
-    /// Delegates to `RestHandler::update`.
-    pub async fn update(
-        &self,
-        sobject: &str,
-        id: &SalesforceId,
-        data: &serde_json::Value,
-    ) -> Result<UpdateResponse> {
-        self.rest().update(sobject, id, data).await
-    }
-
-    /// Deletes a record.
-    ///
-    /// Delegates to `RestHandler::delete`.
-    pub async fn delete(&self, sobject: &str, id: &SalesforceId) -> Result<DeleteResponse> {
-        self.rest().delete(sobject, id).await
-    }
-
-    /// Upserts a record using an external ID field.
-    ///
-    /// Delegates to `RestHandler::upsert`.
-    pub async fn upsert(
-        &self,
-        sobject: &str,
-        external_id_field: &str,
-        external_id_value: &str,
-        data: &serde_json::Value,
-    ) -> Result<UpsertResponse> {
-        self.rest()
-            .upsert(sobject, external_id_field, external_id_value, data)
-            .await
-    }
-
-    /// Upserts an SObject by external ID with idempotent retry semantics.
-    ///
-    /// Delegates to `RestHandler::upsert_idempotent`.
-    pub async fn upsert_idempotent(
-        &self,
-        sobject: &str,
-        external_id_field: &str,
-        external_id_value: &str,
-        data: &serde_json::Value,
-    ) -> Result<UpsertResponse> {
-        self.rest()
-            .upsert_idempotent(sobject, external_id_field, external_id_value, data)
-            .await
-    }
-}
 
 impl<A: crate::auth::Authenticator> RestHandler<A> {
     /// Helper method to handle error responses from Salesforce API.
