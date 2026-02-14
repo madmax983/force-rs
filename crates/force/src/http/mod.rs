@@ -682,13 +682,22 @@ mod unit_tests {
 
         assert_eq!(classify_request(&Method::POST), RequestRetryClass::Mutation);
         assert_eq!(classify_request(&Method::PUT), RequestRetryClass::Mutation);
-        assert_eq!(classify_request(&Method::DELETE), RequestRetryClass::Mutation);
-        assert_eq!(classify_request(&Method::PATCH), RequestRetryClass::Mutation);
+        assert_eq!(
+            classify_request(&Method::DELETE),
+            RequestRetryClass::Mutation
+        );
+        assert_eq!(
+            classify_request(&Method::PATCH),
+            RequestRetryClass::Mutation
+        );
         assert_eq!(
             classify_request(&Method::CONNECT),
             RequestRetryClass::Mutation
         );
-        assert_eq!(classify_request(&Method::TRACE), RequestRetryClass::Mutation);
+        assert_eq!(
+            classify_request(&Method::TRACE),
+            RequestRetryClass::Mutation
+        );
     }
 
     #[test]
