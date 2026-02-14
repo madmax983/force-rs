@@ -673,4 +673,110 @@ mod unit_tests {
         let duration = exponential_backoff(200);
         assert_eq!(duration.as_millis(), 30_000);
     }
+
+    #[test]
+    fn test_classify_request() {
+        assert_eq!(classify_request(&Method::GET), RequestRetryClass::Read);
+        assert_eq!(classify_request(&Method::HEAD), RequestRetryClass::Read);
+        assert_eq!(classify_request(&Method::OPTIONS), RequestRetryClass::Read);
+
+        assert_eq!(classify_request(&Method::POST), RequestRetryClass::Mutation);
+        assert_eq!(classify_request(&Method::PUT), RequestRetryClass::Mutation);
+        assert_eq!(
+            classify_request(&Method::DELETE),
+            RequestRetryClass::Mutation
+        );
+        assert_eq!(
+            classify_request(&Method::PATCH),
+            RequestRetryClass::Mutation
+        );
+        assert_eq!(
+            classify_request(&Method::CONNECT),
+            RequestRetryClass::Mutation
+        );
+        assert_eq!(
+            classify_request(&Method::TRACE),
+            RequestRetryClass::Mutation
+        );
+    }
+
+    #[test]
+    fn test_parse_api_error_object() {
+        // Sometimes Salesforce returns a single object instead of an array
+        // Though not standard, we should verify it gracefully falls back
+        let body = r#"{"errorCode":"INVALID_FIELD","message":"Field does not exist"}"#;
+        let error = parse_api_error(400, body);
+
+        if let HttpError::StatusError {
+            status_code,
+            message,
+        } = error
+        {
+            assert_eq!(status_code, 400);
+            // It should fall back to the raw JSON string
+            assert_eq!(message, body);
+        } else {
+            panic!("Expected StatusError");
+        }
+    }
+
+    #[test]
+    fn test_parse_api_error_malformed() {
+        let body = "{malformed_json}";
+        let error = parse_api_error(500, body);
+
+        if let HttpError::StatusError {
+            status_code,
+            message,
+        } = error
+        {
+            assert_eq!(status_code, 500);
+            assert_eq!(message, body);
+        } else {
+            panic!("Expected StatusError");
+        }
+    }
+
+    #[test]
+    fn test_parse_api_error_empty() {
+        let body = "";
+        let error = parse_api_error(500, body);
+
+        if let HttpError::StatusError {
+            status_code,
+            message,
+        } = error
+        {
+            assert_eq!(status_code, 500);
+            assert_eq!(message, "");
+        } else {
+            panic!("Expected StatusError");
+        }
+    }
+
+    #[test]
+    fn test_exponential_backoff_values() {
+        // Verify exact sequence for first few attempts
+        // Base 500ms, Multiplier 2^attempt
+        // 0: 500 * 1 = 500
+        // 1: 500 * 2 = 1000
+        // 2: 500 * 4 = 2000
+        // 3: 500 * 8 = 4000
+        // 4: 500 * 16 = 8000
+        // 5: 500 * 32 = 16000
+        // 6: 500 * 64 = 32000 -> capped at 30000
+
+        let expected = [500, 1000, 2000, 4000, 8000, 16000, 30000];
+
+        for (attempt, &ms) in expected.iter().enumerate() {
+            #[allow(clippy::cast_possible_truncation)]
+            let attempt_u32 = attempt as u32;
+            assert_eq!(
+                exponential_backoff(attempt_u32).as_millis(),
+                ms,
+                "Attempt {}",
+                attempt
+            );
+        }
+    }
 }

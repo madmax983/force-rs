@@ -763,4 +763,69 @@ mod tests {
             panic!("Expected TokenRefreshFailed error");
         }
     }
+
+    #[test]
+    fn test_parse_issued_at_negative() {
+        // Test pre-1970 timestamp
+        let timestamp = "-1000"; // 1969-12-31 23:59:59 UTC
+        let result = parse_issued_at(timestamp);
+        assert!(result.is_ok());
+        let dt = result.must();
+        // Since parse_issued_at discards milliseconds and uses 0 for nanos,
+        // -1000ms / 1000 = -1s.
+        // DateTime::from_timestamp(-1, 0) is 1969-12-31 23:59:59.
+        assert_eq!(dt.timestamp(), -1);
+    }
+
+    #[test]
+    fn test_parse_issued_at_empty() {
+        let timestamp = "";
+        let result = parse_issued_at(timestamp);
+        assert!(matches!(
+            result,
+            Err(crate::error::ForceError::Serialization(_))
+        ));
+    }
+
+    #[test]
+    fn test_access_token_expires_in_overflow() {
+        let response = TokenResponse {
+            access_token: "test_token".to_string(),
+            instance_url: "https://example.salesforce.com".to_string(),
+            token_type: "Bearer".to_string(),
+            issued_at: "1704067200000".to_string(),
+            signature: String::new(),
+            expires_in: Some(u64::MAX), // Should be capped
+            refresh_token: None,
+        };
+
+        let token = AccessToken::from_response(response);
+        // Should default to 1 hour (3600s) because u64::MAX conversion to i64 fails
+        // Wait, i64::try_from(u64::MAX) fails, unwrap_or(3600) makes it 3600.
+        // Let's verify that.
+        assert!(token.expires_at.is_some());
+        let expires_at = token.expires_at.must();
+        let issued_at = token.issued_at;
+        let duration = expires_at - issued_at;
+        assert_eq!(duration.num_seconds(), 3600);
+    }
+
+    #[test]
+    fn test_access_token_expires_in_cap() {
+        // Test value that fits in i64 but exceeds cap
+        let large_seconds = 4_000_000_000_u64; // 4 billion > 3 billion
+        let response = TokenResponse {
+            access_token: "test_token".to_string(),
+            instance_url: "https://example.salesforce.com".to_string(),
+            token_type: "Bearer".to_string(),
+            issued_at: "1704067200000".to_string(),
+            signature: String::new(),
+            expires_in: Some(large_seconds),
+            refresh_token: None,
+        };
+
+        let token = AccessToken::from_response(response);
+        // Should be None due to cap
+        assert!(token.expires_at.is_none());
+    }
 }
