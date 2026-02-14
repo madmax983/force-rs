@@ -64,11 +64,20 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
     /// // Returns: "https://na1.salesforce.com/services/data/v60.0"
     /// ```
     pub async fn base_url(&self) -> Result<String> {
-        let token = self.inner.token_manager.token().await?;
+        self.resolve_url("").await
+    }
+
+    /// Helper method to efficiently construct full URLs without intermediate allocations.
+    async fn resolve_url(&self, path: &str) -> Result<String> {
+        // Optimization: Use get_token_arc() to avoid cloning AccessToken.
+        // Also constructs the full URL in one go, avoiding intermediate String allocation
+        // from base_url() + concatenation.
+        let token = self.inner.token_manager.get_token_arc().await?;
         Ok(format!(
-            "{}/services/data/{}",
+            "{}/services/data/{}{}",
             token.instance_url(),
-            self.inner.config.api_version
+            self.inner.config.api_version,
+            path
         ))
     }
 
@@ -79,7 +88,8 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
         query: Option<&[(&str, &str)]>,
         error_msg: &str,
     ) -> Result<T> {
-        let url = format!("{}{}", self.base_url().await?, path);
+        // Optimization: Use resolve_url instead of base_url + format!
+        let url = self.resolve_url(path).await?;
         let mut request = self.inner.http_client.get(&url);
 
         if let Some(params) = query {
@@ -97,7 +107,7 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
         body: &serde_json::Value,
         error_msg: &str,
     ) -> Result<T> {
-        let url = format!("{}{}", self.base_url().await?, path);
+        let url = self.resolve_url(path).await?;
         let request = self
             .inner
             .http_client
@@ -115,7 +125,7 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
         body: &serde_json::Value,
         error_msg: &str,
     ) -> Result<()> {
-        let url = format!("{}{}", self.base_url().await?, path);
+        let url = self.resolve_url(path).await?;
         let request = self
             .inner
             .http_client
@@ -134,7 +144,7 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
 
     /// Helper method to execute a DELETE request and expect an empty success response.
     pub(crate) async fn execute_delete_empty(&self, path: &str, error_msg: &str) -> Result<()> {
-        let url = format!("{}{}", self.base_url().await?, path);
+        let url = self.resolve_url(path).await?;
         let request = self
             .inner
             .http_client
