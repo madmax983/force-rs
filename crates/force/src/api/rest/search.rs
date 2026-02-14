@@ -582,8 +582,7 @@ mod integration_tests {
             .await;
 
         let client = builder()
-            .authenticate(auth)
-            .build()
+            .build(auth)
             .await
             .must_msg("Failed to build client");
 
@@ -616,8 +615,7 @@ mod integration_tests {
             .await;
 
         let client = builder()
-            .authenticate(auth)
-            .build()
+            .build(auth)
             .await
             .must_msg("Failed to build client");
 
@@ -641,8 +639,7 @@ mod integration_tests {
             .await;
 
         let client = builder()
-            .authenticate(auth)
-            .build()
+            .build(auth)
             .await
             .must_msg("Failed to build client");
 
@@ -667,8 +664,7 @@ mod integration_tests {
             .await;
 
         let client = builder()
-            .authenticate(auth)
-            .build()
+            .build(auth)
             .await
             .must_msg("Failed to build client");
 
@@ -694,8 +690,7 @@ mod integration_tests {
             .await;
 
         let client = builder()
-            .authenticate(auth)
-            .build()
+            .build(auth)
             .await
             .must_msg("Failed to build client");
 
@@ -729,8 +724,7 @@ mod integration_tests {
             .await;
 
         let client = builder()
-            .authenticate(auth)
-            .build()
+            .build(auth)
             .await
             .must_msg("Failed to build client");
 
@@ -757,9 +751,8 @@ mod integration_tests {
 
         let config = ClientConfigBuilder::new().api_version("v59.0").build();
         let client = builder()
-            .authenticate(auth)
             .config(config)
-            .build()
+            .build(auth)
             .await
             .must_msg("Failed to build client");
 
@@ -794,8 +787,7 @@ mod integration_tests {
             .await;
 
         let client = builder()
-            .authenticate(auth)
-            .build()
+            .build(auth)
             .await
             .must_msg("Failed to build client");
 
@@ -820,8 +812,7 @@ mod integration_tests {
             .await;
 
         let client = builder()
-            .authenticate(auth)
-            .build()
+            .build(auth)
             .await
             .must_msg("Failed to build client");
 
@@ -852,8 +843,7 @@ mod integration_tests {
             .await;
 
         let client = builder()
-            .authenticate(auth)
-            .build()
+            .build(auth)
             .await
             .must_msg("Failed to build client");
 
@@ -873,8 +863,7 @@ mod integration_tests {
             .await;
 
         let client = builder()
-            .authenticate(auth)
-            .build()
+            .build(auth)
             .await
             .must_msg("Failed to build client");
 
@@ -901,8 +890,7 @@ mod integration_tests {
             .await;
 
         let client = builder()
-            .authenticate(auth)
-            .build()
+            .build(auth)
             .await
             .must_msg("Failed to build client");
 

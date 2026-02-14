@@ -44,7 +44,6 @@ use crate::api::bulk::types::{
 use crate::auth::Authenticator;
 use crate::error::Result;
 use std::marker::PhantomData;
-use std::sync::Arc;
 
 async fn handle_error_response(
     response: reqwest::Response,
@@ -76,24 +75,24 @@ pub struct JobComplete;
 #[derive(Debug)]
 pub struct IngestJob<S, A: Authenticator> {
     job_id: String,
-    inner: Arc<crate::client::Inner<A>>,
+    client: crate::client::ForceClient<A>,
     _state: PhantomData<S>,
 }
 
 impl<A: Authenticator> IngestJob<Open, A> {
     /// Creates a new ingest job in Open state.
     #[must_use]
-    pub(crate) fn new(job_id: String, inner: Arc<crate::client::Inner<A>>) -> Self {
+    pub(crate) fn new(job_id: String, client: crate::client::ForceClient<A>) -> Self {
         Self {
             job_id,
-            inner,
+            client,
             _state: PhantomData,
         }
     }
 
     #[cfg(test)]
-    pub(crate) fn new_for_test(job_id: String, inner: Arc<crate::client::Inner<A>>) -> Self {
-        Self::new(job_id, inner)
+    pub(crate) fn new_for_test(job_id: String, client: crate::client::ForceClient<A>) -> Self {
+        Self::new(job_id, client)
     }
 
     /// Uploads CSV data to the job.
@@ -106,23 +105,23 @@ impl<A: Authenticator> IngestJob<Open, A> {
     ///
     /// Returns an error if the upload fails.
     pub async fn upload(self, data: &[u8]) -> Result<IngestJob<UploadComplete, A>> {
-        let token = self.inner.token_manager.token().await?;
+        let token = self.client.token_manager.token().await?;
         let url = format!(
             "{}/services/data/{}/jobs/ingest/{}/batches",
             token.instance_url(),
-            self.inner.config.api_version,
+            self.client.config.api_version,
             self.job_id
         );
 
         let response = self
-            .inner
+            .client
             .http_client
             .put(&url)
             .header("Content-Type", "text/csv")
             .body(data.to_vec())
             .build()
             .map_err(crate::error::HttpError::from)?;
-        let response = self.inner.execute_request(response).await?;
+        let response = self.client.execute_request(response).await?;
 
         if !response.status().is_success() {
             return Err(handle_error_response(response, "CSV upload failed").await);
@@ -130,7 +129,7 @@ impl<A: Authenticator> IngestJob<Open, A> {
 
         Ok(IngestJob {
             job_id: self.job_id,
-            inner: self.inner,
+            client: self.client,
             _state: PhantomData,
         })
     }
@@ -141,11 +140,11 @@ impl<A: Authenticator> IngestJob<Open, A> {
     ///
     /// Returns an error if aborting fails.
     pub async fn abort(self) -> Result<()> {
-        let token = self.inner.token_manager.token().await?;
+        let token = self.client.token_manager.token().await?;
         let url = format!(
             "{}/services/data/{}/jobs/ingest/{}",
             token.instance_url(),
-            self.inner.config.api_version,
+            self.client.config.api_version,
             self.job_id
         );
 
@@ -154,13 +153,13 @@ impl<A: Authenticator> IngestJob<Open, A> {
         };
 
         let response = self
-            .inner
+            .client
             .http_client
             .patch(&url)
             .json(&request)
             .build()
             .map_err(crate::error::HttpError::from)?;
-        let response = self.inner.execute_request(response).await?;
+        let response = self.client.execute_request(response).await?;
 
         if !response.status().is_success() {
             return Err(handle_error_response(response, "Abort job failed").await);
@@ -177,11 +176,11 @@ impl<A: Authenticator> IngestJob<UploadComplete, A> {
     ///
     /// Returns an error if closing the job fails.
     pub async fn close(self) -> Result<IngestJob<InProgress, A>> {
-        let token = self.inner.token_manager.token().await?;
+        let token = self.client.token_manager.token().await?;
         let url = format!(
             "{}/services/data/{}/jobs/ingest/{}",
             token.instance_url(),
-            self.inner.config.api_version,
+            self.client.config.api_version,
             self.job_id
         );
 
@@ -190,13 +189,13 @@ impl<A: Authenticator> IngestJob<UploadComplete, A> {
         };
 
         let response = self
-            .inner
+            .client
             .http_client
             .patch(&url)
             .json(&request)
             .build()
             .map_err(crate::error::HttpError::from)?;
-        let response = self.inner.execute_request(response).await?;
+        let response = self.client.execute_request(response).await?;
 
         if !response.status().is_success() {
             return Err(handle_error_response(response, "Close job failed").await);
@@ -204,7 +203,7 @@ impl<A: Authenticator> IngestJob<UploadComplete, A> {
 
         Ok(IngestJob {
             job_id: self.job_id,
-            inner: self.inner,
+            client: self.client,
             _state: PhantomData,
         })
     }
@@ -212,10 +211,10 @@ impl<A: Authenticator> IngestJob<UploadComplete, A> {
 
 impl<A: Authenticator> IngestJob<InProgress, A> {
     #[cfg(test)]
-    pub(crate) fn new_for_test(job_id: String, inner: Arc<crate::client::Inner<A>>) -> Self {
+    pub(crate) fn new_for_test(job_id: String, client: crate::client::ForceClient<A>) -> Self {
         Self {
             job_id,
-            inner,
+            client,
             _state: PhantomData,
         }
     }
@@ -274,7 +273,7 @@ impl<A: Authenticator> IngestJob<InProgress, A> {
                 JobState::JobComplete => {
                     return Ok(IngestJob {
                         job_id: self.job_id,
-                        inner: self.inner,
+                        client: self.client,
                         _state: PhantomData,
                     });
                 }
@@ -310,21 +309,21 @@ impl<A: Authenticator> IngestJob<InProgress, A> {
 
     /// Helper to get job info.
     async fn get_job_info(&self) -> Result<JobInfo> {
-        let token = self.inner.token_manager.token().await?;
+        let token = self.client.token_manager.token().await?;
         let url = format!(
             "{}/services/data/{}/jobs/ingest/{}",
             token.instance_url(),
-            self.inner.config.api_version,
+            self.client.config.api_version,
             self.job_id
         );
 
         let response = self
-            .inner
+            .client
             .http_client
             .get(&url)
             .build()
             .map_err(crate::error::HttpError::from)?;
-        let response = self.inner.execute_request(response).await?;
+        let response = self.client.execute_request(response).await?;
 
         if !response.status().is_success() {
             return Err(handle_error_response(response, "Get job status failed").await);
@@ -340,10 +339,10 @@ impl<A: Authenticator> IngestJob<InProgress, A> {
 
 impl<A: Authenticator> IngestJob<JobComplete, A> {
     #[cfg(test)]
-    pub(crate) fn new_for_test(job_id: String, inner: Arc<crate::client::Inner<A>>) -> Self {
+    pub(crate) fn new_for_test(job_id: String, client: crate::client::ForceClient<A>) -> Self {
         Self {
             job_id,
-            inner,
+            client,
             _state: PhantomData,
         }
     }
@@ -383,22 +382,22 @@ impl<A: Authenticator> IngestJob<JobComplete, A> {
 
     /// Helper to get results.
     async fn get_results(&self, result_type: &str) -> Result<Vec<u8>> {
-        let token = self.inner.token_manager.token().await?;
+        let token = self.client.token_manager.token().await?;
         let url = format!(
             "{}/services/data/{}/jobs/ingest/{}/{}",
             token.instance_url(),
-            self.inner.config.api_version,
+            self.client.config.api_version,
             self.job_id,
             result_type
         );
 
         let response = self
-            .inner
+            .client
             .http_client
             .get(&url)
             .build()
             .map_err(crate::error::HttpError::from)?;
-        let response = self.inner.execute_request(response).await?;
+        let response = self.client.execute_request(response).await?;
 
         if !response.status().is_success() {
             return Err(
@@ -463,19 +462,19 @@ impl IngestJobBuilder {
         };
 
         let job_info = handler.create_job(request).await?;
-        Ok(IngestJob::new(job_info.id, Arc::clone(&handler.inner)))
+        Ok(IngestJob::new(job_info.id, handler.client.clone()))
     }
 
-    /// Builds and creates the job using a raw Inner reference.
+    /// Builds and creates the job using a raw client reference.
     ///
-    /// This is used internally by convenience methods that already have an Inner reference.
+    /// This is used internally by convenience methods.
     ///
     /// # Errors
     ///
     /// Returns an error if job creation fails.
-    pub(crate) async fn build_with_inner<A: Authenticator>(
+    pub(crate) async fn build_with_client<A: Authenticator>(
         self,
-        inner: Arc<crate::client::Inner<A>>,
+        client: crate::client::ForceClient<A>,
     ) -> Result<IngestJob<Open, A>> {
         let request = CreateJobRequest {
             object: self.object,
@@ -486,21 +485,21 @@ impl IngestJobBuilder {
             column_delimiter: None,
         };
 
-        // Call create_job directly
-        let token = inner.token_manager.token().await?;
+        // Call create_job logic directly
+        let token = client.token_manager.token().await?;
         let url = format!(
             "{}/services/data/{}/jobs/ingest",
             token.instance_url(),
-            inner.config.api_version
+            client.config.api_version
         );
 
-        let response = inner
+        let response = client
             .http_client
             .post(&url)
             .json(&request)
             .build()
             .map_err(crate::error::HttpError::from)?;
-        let response = inner.execute_request(response).await?;
+        let response = client.execute_request(response).await?;
 
         if !response.status().is_success() {
             return Err(handle_error_response(response, "Create job request failed").await);
@@ -511,7 +510,7 @@ impl IngestJobBuilder {
             .await
             .map_err(crate::error::HttpError::from)?;
 
-        Ok(IngestJob::new(job_info.id, inner))
+        Ok(IngestJob::new(job_info.id, client))
     }
 }
 #[cfg(test)]
@@ -563,8 +562,7 @@ mod tests {
     async fn create_test_client(mock_server_url: String) -> ForceClient<MockAuthenticator> {
         let auth = MockAuthenticator::new("test_token", &mock_server_url);
         builder()
-            .authenticate(auth)
-            .build()
+            .build(auth)
             .await
             .must_msg("failed to create test client")
     }
@@ -763,7 +761,7 @@ mod tests {
         let handler = client.bulk();
         let job = IngestJob::<InProgress, _>::new_for_test(
             "750xx0000000001AAA".to_string(),
-            Arc::clone(&handler.inner),
+            handler.client.clone(),
         );
 
         let _job = job.poll().await.must();
@@ -808,7 +806,7 @@ mod tests {
         let handler = client.bulk();
         let job = IngestJob::<InProgress, _>::new_for_test(
             "750xx0000000001AAA".to_string(),
-            Arc::clone(&handler.inner),
+            handler.client.clone(),
         );
 
         let _job = job.poll_until_complete().await.must();
@@ -833,7 +831,7 @@ mod tests {
         let handler = client.bulk();
         let job = IngestJob::<InProgress, _>::new_for_test(
             "750xx0000000001AAA".to_string(),
-            Arc::clone(&handler.inner),
+            handler.client.clone(),
         );
 
         // Test that backoff increases: 1s, 2s, 4s, 8s, 16s (capped at 30s)
@@ -865,7 +863,7 @@ mod tests {
         let handler = client.bulk();
         let job = IngestJob::<JobComplete, _>::new_for_test(
             "750xx0000000001AAA".to_string(),
-            Arc::clone(&handler.inner),
+            handler.client.clone(),
         );
 
         let results = job.successful_results().await.must();
@@ -894,7 +892,7 @@ mod tests {
         let handler = client.bulk();
         let job = IngestJob::<JobComplete, _>::new_for_test(
             "750xx0000000001AAA".to_string(),
-            Arc::clone(&handler.inner),
+            handler.client.clone(),
         );
 
         let results = job.failed_results().await.must();
@@ -923,7 +921,7 @@ mod tests {
         let handler = client.bulk();
         let job = IngestJob::<JobComplete, _>::new_for_test(
             "750xx0000000001AAA".to_string(),
-            Arc::clone(&handler.inner),
+            handler.client.clone(),
         );
 
         let results = job.unprocessed_results().await.must();
@@ -986,7 +984,7 @@ mod tests {
         let handler = client.bulk();
         let job = IngestJob::<UploadComplete, _> {
             job_id: "750xx0000000001AAA".to_string(),
-            inner: Arc::clone(&handler.inner),
+            client: handler.client.clone(),
             _state: PhantomData,
         };
 
@@ -1010,7 +1008,7 @@ mod tests {
         let handler = client.bulk();
         let job = IngestJob::<InProgress, _>::new_for_test(
             "750xx0000000001AAA".to_string(),
-            Arc::clone(&handler.inner),
+            handler.client.clone(),
         );
 
         let result = job.poll().await;
@@ -1035,7 +1033,7 @@ mod tests {
         let handler = client.bulk();
         let job = IngestJob::<InProgress, _>::new_for_test(
             "750xx0000000001AAA".to_string(),
-            Arc::clone(&handler.inner),
+            handler.client.clone(),
         );
 
         let result = job.poll().await;
@@ -1060,7 +1058,7 @@ mod tests {
         let handler = client.bulk();
         let job = IngestJob::<InProgress, _>::new_for_test(
             "750xx0000000001AAA".to_string(),
-            Arc::clone(&handler.inner),
+            handler.client.clone(),
         );
 
         let result = job.poll().await;
@@ -1084,7 +1082,7 @@ mod tests {
         let handler = client.bulk();
         let job = IngestJob::<Open, _>::new_for_test(
             "750xx0000000001AAA".to_string(),
-            Arc::clone(&handler.inner),
+            handler.client.clone(),
         );
 
         job.abort().await.must();
@@ -1108,7 +1106,7 @@ mod tests {
         let handler = client.bulk();
         let job = IngestJob::<InProgress, _>::new_for_test(
             "750xx0000000001AAA".to_string(),
-            Arc::clone(&handler.inner),
+            handler.client.clone(),
         );
 
         let result = job.poll_until_complete().await;
@@ -1154,7 +1152,7 @@ mod tests {
         let handler = client.bulk();
         let job = IngestJob::<InProgress, _>::new_for_test(
             "750xx0000000002AAA".to_string(),
-            Arc::clone(&handler.inner),
+            handler.client.clone(),
         );
 
         let policy = BulkPollPolicy::new(2, Duration::from_millis(1), Duration::from_millis(1));
@@ -1187,7 +1185,7 @@ mod tests {
         let handler = client.bulk();
         let job = IngestJob::<InProgress, _>::new_for_test(
             "750xx0000000003AAA".to_string(),
-            Arc::clone(&handler.inner),
+            handler.client.clone(),
         );
 
         let policy = BulkPollPolicy::new(0, Duration::from_millis(1), Duration::from_millis(1));

@@ -309,14 +309,14 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
             external_id_value
         );
         let request = self
-            .inner
+            .client
             .http_client
             .patch(&url)
             .json(data)
             .build()
             .map_err(crate::error::HttpError::from)?;
         let response = self
-            .inner
+            .client
             .execute_request_with_retry_class(request, retry_class)
             .await?;
 
@@ -401,7 +401,7 @@ mod tests {
     async fn test_create_success() {
         let mock_server = MockServer::start().await;
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
-        let client = builder().authenticate(auth).build().await.must();
+        let client = builder().build(auth).await.must();
 
         Mock::given(method("POST"))
             .and(path("/services/data/v60.0/sobjects/Account"))
@@ -431,7 +431,7 @@ mod tests {
     async fn test_create_missing_required_field() {
         let mock_server = MockServer::start().await;
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
-        let client = builder().authenticate(auth).build().await.must();
+        let client = builder().build(auth).await.must();
 
         Mock::given(method("POST"))
             .and(path("/services/data/v60.0/sobjects/Account"))
@@ -454,7 +454,7 @@ mod tests {
     async fn test_create_invalid_field() {
         let mock_server = MockServer::start().await;
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
-        let client = builder().authenticate(auth).build().await.must();
+        let client = builder().build(auth).await.must();
 
         Mock::given(method("POST"))
             .and(path("/services/data/v60.0/sobjects/Account"))
@@ -481,7 +481,7 @@ mod tests {
     async fn test_get_success() {
         let mock_server = MockServer::start().await;
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
-        let client = builder().authenticate(auth).build().await.must();
+        let client = builder().build(auth).await.must();
 
         Mock::given(method("GET"))
             .and(path("/services/data/v60.0/sobjects/Contact/003xx000004TmiQAAS"))
@@ -510,7 +510,7 @@ mod tests {
     async fn test_get_not_found() {
         let mock_server = MockServer::start().await;
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
-        let client = builder().authenticate(auth).build().await.must();
+        let client = builder().build(auth).await.must();
 
         Mock::given(method("GET"))
             .and(path(
@@ -537,7 +537,7 @@ mod tests {
     async fn test_update_success() {
         let mock_server = MockServer::start().await;
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
-        let client = builder().authenticate(auth).build().await.must();
+        let client = builder().build(auth).await.must();
 
         Mock::given(method("PATCH"))
             .and(path(
@@ -565,7 +565,7 @@ mod tests {
     async fn test_update_not_found() {
         let mock_server = MockServer::start().await;
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
-        let client = builder().authenticate(auth).build().await.must();
+        let client = builder().build(auth).await.must();
 
         Mock::given(method("PATCH"))
             .and(path(
@@ -592,7 +592,7 @@ mod tests {
     async fn test_update_invalid_field() {
         let mock_server = MockServer::start().await;
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
-        let client = builder().authenticate(auth).build().await.must();
+        let client = builder().build(auth).await.must();
 
         Mock::given(method("PATCH"))
             .and(path(
@@ -622,7 +622,7 @@ mod tests {
     async fn test_delete_success() {
         let mock_server = MockServer::start().await;
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
-        let client = builder().authenticate(auth).build().await.must();
+        let client = builder().build(auth).await.must();
 
         Mock::given(method("DELETE"))
             .and(path(
@@ -646,7 +646,7 @@ mod tests {
     async fn test_delete_not_found() {
         let mock_server = MockServer::start().await;
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
-        let client = builder().authenticate(auth).build().await.must();
+        let client = builder().build(auth).await.must();
 
         Mock::given(method("DELETE"))
             .and(path(
@@ -673,7 +673,7 @@ mod tests {
     async fn test_upsert_create() {
         let mock_server = MockServer::start().await;
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
-        let client = builder().authenticate(auth).build().await.must();
+        let client = builder().build(auth).await.must();
 
         Mock::given(method("PATCH"))
             .and(path(
@@ -711,7 +711,7 @@ mod tests {
     async fn test_upsert_does_not_retry_on_503_by_default() {
         let mock_server = MockServer::start().await;
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
-        let client = builder().authenticate(auth).build().await.must();
+        let client = builder().build(auth).await.must();
 
         Mock::given(method("PATCH"))
             .and(path(
@@ -739,7 +739,7 @@ mod tests {
     async fn test_upsert_idempotent_retries_on_503() {
         let mock_server = MockServer::start().await;
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
-        let client = builder().authenticate(auth).build().await.must();
+        let client = builder().build(auth).await.must();
 
         Mock::given(method("PATCH"))
             .and(path(
@@ -783,7 +783,7 @@ mod tests {
     async fn test_upsert_update() {
         let mock_server = MockServer::start().await;
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
-        let client = builder().authenticate(auth).build().await.must();
+        let client = builder().build(auth).await.must();
 
         Mock::given(method("PATCH"))
             .and(path(
@@ -816,7 +816,7 @@ mod tests {
     async fn test_upsert_invalid_external_id_field() {
         let mock_server = MockServer::start().await;
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
-        let client = builder().authenticate(auth).build().await.must();
+        let client = builder().build(auth).await.must();
 
         Mock::given(method("PATCH"))
             .and(path(

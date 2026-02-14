@@ -22,9 +22,7 @@ mod example {
             client_secret,
             "https://login.salesforce.com/services/oauth2/token",
         );
-        builder()
-            .authenticate(auth)
-            .build()
+        builder().build(auth)
             .await
             .map_err(Into::into)
     }

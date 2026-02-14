@@ -51,7 +51,7 @@ mod example {
             client_secret,
             "https://login.salesforce.com/services/oauth2/token",
         );
-        let client = builder().authenticate(auth).build().await?;
+        let client = builder().build(auth).await?;
         println!("✓ Authentication successful\n");
 
         // Execute bulk query

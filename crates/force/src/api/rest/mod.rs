@@ -11,7 +11,6 @@ pub mod search;
 
 use crate::error::Result;
 use serde::de::DeserializeOwned;
-use std::sync::Arc;
 
 /// REST API handler for performing Salesforce REST operations.
 ///
@@ -26,25 +25,25 @@ use std::sync::Arc;
 /// and configuration.
 #[derive(Debug, Clone)]
 pub struct RestHandler<A: crate::auth::Authenticator> {
-    /// Reference to the client's inner state.
-    inner: Arc<crate::client::inner::Inner<A>>,
+    /// Reference to the client.
+    client: crate::client::ForceClient<A>,
 }
 
 impl<A: crate::auth::Authenticator> RestHandler<A> {
-    /// Creates a new REST handler for the given client inner state.
+    /// Creates a new REST handler for the given client.
     ///
     /// # Arguments
     ///
-    /// * `inner` - The client's inner state
+    /// * `client` - The client instance
     ///
     /// # Examples
     ///
     /// ```ignore
-    /// let handler = RestHandler::new(inner);
+    /// let handler = RestHandler::new(client);
     /// ```
     #[must_use]
-    pub(crate) fn new(inner: Arc<crate::client::inner::Inner<A>>) -> Self {
-        Self { inner }
+    pub(crate) fn new(client: crate::client::ForceClient<A>) -> Self {
+        Self { client }
     }
 
     /// Constructs the base URL for REST API operations.
@@ -64,11 +63,11 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
     /// // Returns: "https://na1.salesforce.com/services/data/v60.0"
     /// ```
     pub async fn base_url(&self) -> Result<String> {
-        let token = self.inner.token_manager.token().await?;
+        let token = self.client.token_manager.token().await?;
         Ok(format!(
             "{}/services/data/{}",
             token.instance_url(),
-            self.inner.config.api_version
+            self.client.config.api_version
         ))
     }
 
@@ -80,14 +79,14 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
         error_msg: &str,
     ) -> Result<T> {
         let url = format!("{}{}", self.base_url().await?, path);
-        let mut request = self.inner.http_client.get(&url);
+        let mut request = self.client.http_client.get(&url);
 
         if let Some(params) = query {
             request = request.query(params);
         }
 
         let request = request.build().map_err(crate::error::HttpError::from)?;
-        self.inner.send_request_and_decode(request, error_msg).await
+        self.client.send_request_and_decode(request, error_msg).await
     }
 
     /// Helper method to execute a POST request and deserialize the response.
@@ -99,13 +98,13 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
     ) -> Result<T> {
         let url = format!("{}{}", self.base_url().await?, path);
         let request = self
-            .inner
+            .client
             .http_client
             .post(&url)
             .json(body)
             .build()
             .map_err(crate::error::HttpError::from)?;
-        self.inner.send_request_and_decode(request, error_msg).await
+        self.client.send_request_and_decode(request, error_msg).await
     }
 
     /// Helper method to execute a PATCH request and expect an empty success response.
@@ -117,13 +116,13 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
     ) -> Result<()> {
         let url = format!("{}{}", self.base_url().await?, path);
         let request = self
-            .inner
+            .client
             .http_client
             .patch(&url)
             .json(body)
             .build()
             .map_err(crate::error::HttpError::from)?;
-        let response = self.inner.execute_request(request).await?;
+        let response = self.client.execute_request(request).await?;
 
         if response.status().is_success() {
             Ok(())
@@ -136,12 +135,12 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
     pub(crate) async fn execute_delete_empty(&self, path: &str, error_msg: &str) -> Result<()> {
         let url = format!("{}{}", self.base_url().await?, path);
         let request = self
-            .inner
+            .client
             .http_client
             .delete(&url)
             .build()
             .map_err(crate::error::HttpError::from)?;
-        let response = self.inner.execute_request(request).await?;
+        let response = self.client.execute_request(request).await?;
 
         if response.status().is_success() {
             Ok(())
@@ -335,8 +334,7 @@ mod tests {
     async fn create_test_client() -> ForceClient<MockAuthenticator> {
         let auth = MockAuthenticator::new("test_token", "https://test.salesforce.com");
         builder()
-            .authenticate(auth)
-            .build()
+            .build(auth)
             .await
             .must_msg("failed to create test client")
     }
@@ -376,9 +374,8 @@ mod tests {
         let auth = MockAuthenticator::new("test_token", "https://custom.salesforce.com");
         let config = ClientConfigBuilder::new().api_version("v59.0").build();
         let client = builder()
-            .authenticate(auth)
             .config(config)
-            .build()
+            .build(auth)
             .await
             .must();
 
@@ -394,7 +391,7 @@ mod tests {
     #[tokio::test]
     async fn test_base_url_with_different_instance() {
         let auth = MockAuthenticator::new("token", "https://na139.salesforce.com");
-        let client = builder().authenticate(auth).build().await.must();
+        let client = builder().build(auth).await.must();
 
         let handler = client.rest();
         let base_url = handler.base_url().await.must();
@@ -407,9 +404,8 @@ mod tests {
         let auth = MockAuthenticator::new("token", "https://shared.salesforce.com");
         let config = ClientConfigBuilder::new().api_version("v58.0").build();
         let client = builder()
-            .authenticate(auth)
             .config(config)
-            .build()
+            .build(auth)
             .await
             .must();
 

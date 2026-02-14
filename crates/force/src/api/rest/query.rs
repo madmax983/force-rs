@@ -46,15 +46,13 @@ impl<A: crate::auth::Authenticator> ForceClient<A> {
 
         // Execute query
         let request = self
-            .inner()
             .http_client
             .get(&url)
             .query(&[("q", soql)])
             .build()
             .map_err(crate::error::HttpError::from)?;
 
-        self.inner()
-            .send_request_and_decode(request, "SOQL query failed")
+        self.send_request_and_decode(request, "SOQL query failed")
             .await
     }
 
@@ -96,14 +94,12 @@ impl<A: crate::auth::Authenticator> ForceClient<A> {
 
         // Execute query
         let request = self
-            .inner()
             .http_client
             .get(&url)
             .build()
             .map_err(crate::error::HttpError::from)?;
 
-        self.inner()
-            .send_request_and_decode(request, "Query pagination failed")
+        self.send_request_and_decode(request, "Query pagination failed")
             .await
     }
 }
@@ -326,7 +322,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = builder().authenticate(auth).build().await.must();
+        let client = builder().build(auth).await.must();
 
         let result: QueryResult<TestAccount> = client
             .query("SELECT Id, Name FROM Account LIMIT 2")
@@ -359,7 +355,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = builder().authenticate(auth).build().await.must();
+        let client = builder().build(auth).await.must();
 
         let result: QueryResult<TestAccount> =
             client.query("SELECT Id, Name FROM Account").await.must();
@@ -395,7 +391,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = builder().authenticate(auth).build().await.must();
+        let client = builder().build(auth).await.must();
 
         let result: QueryResult<TestAccount> =
             client.query("SELECT Id, Name FROM Account").await.must();
@@ -447,7 +443,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = builder().authenticate(auth).build().await.must();
+        let client = builder().build(auth).await.must();
 
         // First page
         let page1: QueryResult<TestAccount> =
@@ -518,7 +514,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = builder().authenticate(auth).build().await.must();
+        let client = builder().build(auth).await.must();
 
         // Collect all records by manually paginating
         let mut all_records = Vec::new();
@@ -557,7 +553,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = builder().authenticate(auth).build().await.must();
+        let client = builder().build(auth).await.must();
 
         let result: Result<QueryResult<TestAccount>, _> = client
             .query_more("/services/data/v60.0/query/invalid-locator")
@@ -586,7 +582,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = builder().authenticate(auth).build().await.must();
+        let client = builder().build(auth).await.must();
 
         let result: QueryResult<TestAccount> = client
             .query("SELECT Id, Name FROM Account WHERE Name = 'NonExistent'")

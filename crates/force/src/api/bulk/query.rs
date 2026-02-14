@@ -32,7 +32,6 @@
 use crate::error::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
-use std::sync::Arc;
 
 /// Request to create a bulk query job.
 #[derive(Debug, Clone, Serialize)]
@@ -101,8 +100,8 @@ pub struct BulkQueryJobInfo {
 /// bulk query job. It's memory-efficient and suitable for processing large
 /// result sets (100MB+).
 pub struct BulkQueryStream<T, A: crate::auth::Authenticator> {
-    /// Reference to the client's inner state.
-    inner: Arc<crate::client::Inner<A>>,
+    /// Reference to the client.
+    client: crate::client::ForceClient<A>,
     /// Job ID for the query.
     job_id: String,
     /// Current batch of records being iterated.
@@ -118,9 +117,9 @@ pub struct BulkQueryStream<T, A: crate::auth::Authenticator> {
 impl<T, A: crate::auth::Authenticator> BulkQueryStream<T, A> {
     /// Creates a new bulk query stream.
     #[must_use]
-    pub(crate) fn new(inner: Arc<crate::client::Inner<A>>, job_id: String) -> Self {
+    pub(crate) fn new(client: crate::client::ForceClient<A>, job_id: String) -> Self {
         Self {
-            inner,
+            client,
             job_id,
             records: VecDeque::new(),
             next_locator: None,
@@ -136,10 +135,10 @@ impl<T, A: crate::auth::Authenticator> BulkQueryStream<T, A> {
     /// This version always succeeds; errors occur during streaming.
     #[allow(clippy::unused_async)]
     pub(crate) async fn new_async(
-        inner: Arc<crate::client::Inner<A>>,
+        client: crate::client::ForceClient<A>,
         job_id: &str,
     ) -> Result<Self> {
-        Ok(Self::new(inner, job_id.to_string()))
+        Ok(Self::new(client, job_id.to_string()))
     }
 
     /// Fetches the next record from the stream.
@@ -172,14 +171,14 @@ impl<T, A: crate::auth::Authenticator> BulkQueryStream<T, A> {
         }
 
         // Fetch results from the API
-        let token = self.inner.token_manager.token().await?;
+        let token = self.client.token_manager.token().await?;
         let base_url = format!(
             "{}/services/data/{}/jobs/query/{}/results",
             token.instance_url(),
-            self.inner.config.api_version,
+            self.client.config.api_version,
             self.job_id
         );
-        let mut request_builder = self.inner.http_client.get(&base_url);
+        let mut request_builder = self.client.http_client.get(&base_url);
         if let Some(locator) = &self.next_locator {
             request_builder = request_builder.query(&[("locator", locator)]);
         }
@@ -187,7 +186,7 @@ impl<T, A: crate::auth::Authenticator> BulkQueryStream<T, A> {
         let response = request_builder
             .build()
             .map_err(crate::error::HttpError::from)?;
-        let response = self.inner.execute_request(response).await?;
+        let response = self.client.execute_request(response).await?;
 
         if !response.status().is_success() {
             return Err(handle_error_response(
@@ -256,12 +255,12 @@ impl<A: crate::auth::Authenticator> super::BulkHandler<A> {
     ///
     /// Returns an error if token retrieval fails.
     pub async fn query_base_url(&self) -> Result<String> {
-        let inner = self.inner();
-        let token = inner.token_manager.token().await?;
+        let client = self.client();
+        let token = client.token_manager.token().await?;
         Ok(format!(
             "{}/services/data/{}/jobs/query",
             token.instance_url(),
-            inner.config.api_version
+            client.config.api_version
         ))
     }
 
@@ -292,14 +291,14 @@ impl<A: crate::auth::Authenticator> super::BulkHandler<A> {
     /// ```
     pub async fn create_query_job(&self, request: BulkQueryRequest) -> Result<BulkQueryJobInfo> {
         let url = self.query_base_url().await?;
-        let inner = self.inner();
-        let request = inner
+        let client = self.client();
+        let request = client
             .http_client
             .post(&url)
             .json(&request)
             .build()
             .map_err(crate::error::HttpError::from)?;
-        let response = inner.execute_request(request).await?;
+        let response = client.execute_request(request).await?;
 
         if !response.status().is_success() {
             return Err(handle_error_response(response, "Create query job request failed").await);
@@ -336,13 +335,13 @@ impl<A: crate::auth::Authenticator> super::BulkHandler<A> {
     /// ```
     pub async fn get_query_job(&self, job_id: &str) -> Result<BulkQueryJobInfo> {
         let url = format!("{}/{}", self.query_base_url().await?, job_id);
-        let inner = self.inner();
-        let request = inner
+        let client = self.client();
+        let request = client
             .http_client
             .get(&url)
             .build()
             .map_err(crate::error::HttpError::from)?;
-        let response = inner.execute_request(request).await?;
+        let response = client.execute_request(request).await?;
 
         if !response.status().is_success() {
             return Err(handle_error_response(
@@ -383,19 +382,19 @@ impl<A: crate::auth::Authenticator> super::BulkHandler<A> {
     /// ```
     pub async fn abort_query_job(&self, job_id: &str) -> Result<BulkQueryJobInfo> {
         let url = format!("{}/{}", self.query_base_url().await?, job_id);
-        let inner = self.inner();
+        let client = self.client();
 
         let update_request = super::types::UpdateJobRequest {
             state: super::types::JobState::Aborted,
         };
 
-        let request = inner
+        let request = client
             .http_client
             .patch(&url)
             .json(&update_request)
             .build()
             .map_err(crate::error::HttpError::from)?;
-        let response = inner.execute_request(request).await?;
+        let response = client.execute_request(request).await?;
 
         if !response.status().is_success() {
             return Err(handle_error_response(
@@ -434,13 +433,13 @@ impl<A: crate::auth::Authenticator> super::BulkHandler<A> {
     /// ```
     pub async fn delete_query_job(&self, job_id: &str) -> Result<()> {
         let url = format!("{}/{}", self.query_base_url().await?, job_id);
-        let inner = self.inner();
-        let request = inner
+        let client = self.client();
+        let request = client
             .http_client
             .delete(&url)
             .build()
             .map_err(crate::error::HttpError::from)?;
-        let response = inner.execute_request(request).await?;
+        let response = client.execute_request(request).await?;
 
         if !response.status().is_success() {
             return Err(handle_error_response(
@@ -488,7 +487,7 @@ impl<A: crate::auth::Authenticator> super::BulkHandler<A> {
     {
         // Placeholder for GREEN phase
         Ok(BulkQueryStream::new(
-            Arc::clone(self.inner()),
+            self.client().clone(),
             job_id.to_string(),
         ))
     }
@@ -545,8 +544,7 @@ mod tests {
     async fn create_test_client(mock_server_url: String) -> ForceClient<MockAuthenticator> {
         let auth = MockAuthenticator::new("test_token", &mock_server_url);
         builder()
-            .authenticate(auth)
-            .build()
+            .build(auth)
             .await
             .must_msg("failed to create test client")
     }

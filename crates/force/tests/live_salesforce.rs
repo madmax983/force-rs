@@ -113,8 +113,7 @@ async fn create_live_client(config: &LiveConfig) -> Result<ForceClient<EnvAuthen
 
     builder()
         .config(client_config)
-        .authenticate(auth)
-        .build()
+        .build(auth)
         .await
 }
 

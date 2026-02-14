@@ -74,7 +74,7 @@ async fn test_query_more_with_absolute_url() -> Result<()> {
         .mount(&mock_server)
         .await;
 
-    let client = builder().authenticate(auth).build().await?;
+    let client = builder().build(auth).await?;
 
     // Call query_more with the absolute URL
     let result: QueryResult<Record> = client.query_more(&absolute_next_url).await?;

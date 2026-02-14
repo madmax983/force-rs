@@ -81,34 +81,34 @@ impl Default for BulkPollPolicy {
 /// and configuration.
 #[derive(Debug, Clone)]
 pub struct BulkHandler<A: crate::auth::Authenticator> {
-    /// Reference to the client's inner state.
-    pub(crate) inner: Arc<crate::client::inner::Inner<A>>,
+    /// Reference to the client.
+    pub(crate) client: crate::client::ForceClient<A>,
 }
 
 impl<A: crate::auth::Authenticator> BulkHandler<A> {
-    /// Creates a new Bulk handler for the given client inner state.
+    /// Creates a new Bulk handler for the given client.
     ///
     /// # Arguments
     ///
-    /// * `inner` - The client's inner state
+    /// * `client` - The client instance
     ///
     /// # Examples
     ///
     /// ```ignore
-    /// let handler = BulkHandler::new(inner);
+    /// let handler = BulkHandler::new(client);
     /// ```
     #[must_use]
-    pub(crate) fn new(inner: Arc<crate::client::inner::Inner<A>>) -> Self {
-        Self { inner }
+    pub(crate) fn new(client: crate::client::ForceClient<A>) -> Self {
+        Self { client }
     }
 
-    /// Returns a reference to the client's inner state.
+    /// Returns a reference to the client.
     ///
     /// This is used internally by bulk API modules to access the HTTP client
     /// and token manager.
     #[must_use]
-    pub(crate) fn inner(&self) -> &Arc<crate::client::inner::Inner<A>> {
-        &self.inner
+    pub(crate) fn client(&self) -> &crate::client::ForceClient<A> {
+        &self.client
     }
 
     /// Constructs the base URL for Bulk API 2.0 operations.
@@ -128,11 +128,11 @@ impl<A: crate::auth::Authenticator> BulkHandler<A> {
     /// // Returns: "https://na1.salesforce.com/services/data/v60.0/jobs/ingest"
     /// ```
     pub async fn base_url(&self) -> Result<String> {
-        let token = self.inner.token_manager.token().await?;
+        let token = self.client.token_manager.token().await?;
         Ok(format!(
             "{}/services/data/{}/jobs/ingest",
             token.instance_url(),
-            self.inner.config.api_version
+            self.client.config.api_version
         ))
     }
 
@@ -172,13 +172,13 @@ impl<A: crate::auth::Authenticator> BulkHandler<A> {
     pub async fn create_job(&self, request: CreateJobRequest) -> Result<JobInfo> {
         let url = self.base_url().await?;
         let request = self
-            .inner
+            .client
             .http_client
             .post(&url)
             .json(&request)
             .build()
             .map_err(crate::error::HttpError::from)?;
-        let response = self.inner.execute_request(request).await?;
+        let response = self.client.execute_request(request).await?;
 
         if !response.status().is_success() {
             return Err(crate::http::response_to_force_error(
@@ -220,12 +220,12 @@ impl<A: crate::auth::Authenticator> BulkHandler<A> {
     pub async fn get_job(&self, job_id: &str) -> Result<JobInfo> {
         let url = format!("{}/{}", self.base_url().await?, job_id);
         let request = self
-            .inner
+            .client
             .http_client
             .get(&url)
             .build()
             .map_err(crate::error::HttpError::from)?;
-        let response = self.inner.execute_request(request).await?;
+        let response = self.client.execute_request(request).await?;
 
         if !response.status().is_success() {
             return Err(crate::http::response_to_force_error(
@@ -275,13 +275,13 @@ impl<A: crate::auth::Authenticator> BulkHandler<A> {
     pub async fn update_job(&self, job_id: &str, request: UpdateJobRequest) -> Result<JobInfo> {
         let url = format!("{}/{}", self.base_url().await?, job_id);
         let request = self
-            .inner
+            .client
             .http_client
             .patch(&url)
             .json(&request)
             .build()
             .map_err(crate::error::HttpError::from)?;
-        let response = self.inner.execute_request(request).await?;
+        let response = self.client.execute_request(request).await?;
 
         if !response.status().is_success() {
             return Err(crate::http::response_to_force_error(
@@ -322,12 +322,12 @@ impl<A: crate::auth::Authenticator> BulkHandler<A> {
     pub async fn delete_job(&self, job_id: &str) -> Result<()> {
         let url = format!("{}/{}", self.base_url().await?, job_id);
         let request = self
-            .inner
+            .client
             .http_client
             .delete(&url)
             .build()
             .map_err(crate::error::HttpError::from)?;
-        let response = self.inner.execute_request(request).await?;
+        let response = self.client.execute_request(request).await?;
 
         if !response.status().is_success() {
             return Err(crate::http::response_to_force_error(
@@ -390,7 +390,7 @@ impl<A: crate::auth::Authenticator> BulkHandler<A> {
 
         // Create job
         let job = IngestJobBuilder::new(object, JobOperation::Insert)
-            .build_with_inner(Arc::clone(&self.inner))
+            .build_with_client(self.client.clone())
             .await?;
 
         // Upload, close, and poll
@@ -458,7 +458,7 @@ impl<A: crate::auth::Authenticator> BulkHandler<A> {
 
         // Create job
         let job = IngestJobBuilder::new(object, JobOperation::Update)
-            .build_with_inner(Arc::clone(&self.inner))
+            .build_with_client(self.client.clone())
             .await?;
 
         // Upload, close, and poll
@@ -521,7 +521,7 @@ impl<A: crate::auth::Authenticator> BulkHandler<A> {
 
         // Create job
         let job = IngestJobBuilder::new(object, JobOperation::Delete)
-            .build_with_inner(Arc::clone(&self.inner))
+            .build_with_client(self.client.clone())
             .await?;
 
         // Upload, close, and poll
@@ -695,8 +695,7 @@ mod tests {
     async fn create_test_client(mock_server_url: String) -> ForceClient<MockAuthenticator> {
         let auth = MockAuthenticator::new("test_token", &mock_server_url);
         builder()
-            .authenticate(auth)
-            .build()
+            .build(auth)
             .await
             .must_msg("failed to create test client")
     }
@@ -744,9 +743,8 @@ mod tests {
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
         let config = ClientConfigBuilder::new().api_version("v59.0").build();
         let client = builder()
-            .authenticate(auth)
             .config(config)
-            .build()
+            .build(auth)
             .await
             .must();
 
