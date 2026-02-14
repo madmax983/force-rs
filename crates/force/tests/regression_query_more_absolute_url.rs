@@ -1,5 +1,5 @@
-#![cfg(feature = "mock")]
 #![allow(missing_docs)]
+#![cfg(feature = "mock")]
 
 use anyhow::Result;
 use async_trait::async_trait;
