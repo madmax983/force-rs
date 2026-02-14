@@ -268,7 +268,97 @@ impl HttpExecutor {
             .await
     }
 
-    #[allow(clippy::too_many_lines)]
+    async fn execute_attempt(
+        &self,
+        request: Request,
+        retry_attempt: u32,
+        start: Instant,
+        method: &str,
+        path: &str,
+        request_class_str: &'static str,
+    ) -> Result<Response> {
+        match tokio::time::timeout(self.timeout, self.client.execute(request)).await {
+            Err(_) => {
+                self.record_completion(RequestCompletion {
+                    method: method.to_string(),
+                    path: path.to_string(),
+                    request_class: request_class_str,
+                    status_code: None,
+                    error_kind: Some(RequestErrorKind::Timeout),
+                    retries: retry_attempt,
+                    elapsed_ms: start.elapsed().as_millis(),
+                });
+                Err(HttpError::Timeout {
+                    timeout_seconds: self.timeout.as_secs(),
+                }
+                .into())
+            }
+            Ok(Err(error)) => {
+                self.record_completion(RequestCompletion {
+                    method: method.to_string(),
+                    path: path.to_string(),
+                    request_class: request_class_str,
+                    status_code: None,
+                    error_kind: Some(RequestErrorKind::Transport),
+                    retries: retry_attempt,
+                    elapsed_ms: start.elapsed().as_millis(),
+                });
+                Err(HttpError::from(error).into())
+            }
+            Ok(Ok(response)) => Ok(response),
+        }
+    }
+
+    fn handle_rate_limit(
+        &self,
+        response: &Response,
+        method: &str,
+        path: &str,
+        request_class_str: &'static str,
+        start: Instant,
+        retry_attempt: u32,
+    ) -> crate::error::ForceError {
+        let retry_after = parse_retry_after(response).unwrap_or(60);
+        self.record_completion(RequestCompletion {
+            method: method.to_string(),
+            path: path.to_string(),
+            request_class: request_class_str,
+            status_code: Some(StatusCode::TOO_MANY_REQUESTS.as_u16()),
+            error_kind: Some(RequestErrorKind::RateLimited),
+            retries: retry_attempt,
+            elapsed_ms: start.elapsed().as_millis(),
+        });
+        HttpError::RateLimitExceeded {
+            retry_after_seconds: retry_after,
+        }
+        .into()
+    }
+
+    async fn handle_service_unavailable(
+        &self,
+        method: &str,
+        path: &str,
+        request_class_str: &'static str,
+        retry_attempt: u32,
+    ) {
+        let backoff = exponential_backoff(retry_attempt);
+        tracing::warn!(
+            retry.attempt = retry_attempt,
+            http.status_code = 503_u16,
+            retry.backoff_ms = backoff.as_millis(),
+            "retrying request after transient failure"
+        );
+        self.record_retry(RetryEvent {
+            method: method.to_string(),
+            path: path.to_string(),
+            request_class: request_class_str,
+            attempt: retry_attempt,
+            status_code: StatusCode::SERVICE_UNAVAILABLE.as_u16(),
+            backoff_ms: backoff.as_millis(),
+        });
+        tokio::time::sleep(backoff).await;
+    }
+
     async fn execute_response_with_class<F, Fut>(
         &self,
         mut request: Request,
@@ -307,37 +397,16 @@ impl HttpExecutor {
                 HttpError::InvalidUrl("cannot clone request for retry".to_string())
             })?;
 
-            let response =
-                match tokio::time::timeout(self.timeout, self.client.execute(req_clone)).await {
-                    Err(_) => {
-                        self.record_completion(RequestCompletion {
-                            method: method.clone(),
-                            path: path.clone(),
-                            request_class: request_class_str,
-                            status_code: None,
-                            error_kind: Some(RequestErrorKind::Timeout),
-                            retries: retry_attempt,
-                            elapsed_ms: start.elapsed().as_millis(),
-                        });
-                        return Err(HttpError::Timeout {
-                            timeout_seconds: self.timeout.as_secs(),
-                        }
-                        .into());
-                    }
-                    Ok(Err(error)) => {
-                        self.record_completion(RequestCompletion {
-                            method: method.clone(),
-                            path: path.clone(),
-                            request_class: request_class_str,
-                            status_code: None,
-                            error_kind: Some(RequestErrorKind::Transport),
-                            retries: retry_attempt,
-                            elapsed_ms: start.elapsed().as_millis(),
-                        });
-                        return Err(HttpError::from(error).into());
-                    }
-                    Ok(Ok(response)) => response,
-                };
+            let response = self
+                .execute_attempt(
+                    req_clone,
+                    retry_attempt,
+                    start,
+                    &method,
+                    &path,
+                    request_class_str,
+                )
+                .await?;
 
             match response.status() {
                 StatusCode::UNAUTHORIZED => {
@@ -364,39 +433,24 @@ impl HttpExecutor {
                 }
                 StatusCode::TOO_MANY_REQUESTS => {
                     // 429: Rate limit - respect Retry-After header
-                    let retry_after = parse_retry_after(&response).unwrap_or(60);
-                    self.record_completion(RequestCompletion {
-                        method: method.clone(),
-                        path: path.clone(),
-                        request_class: request_class_str,
-                        status_code: Some(StatusCode::TOO_MANY_REQUESTS.as_u16()),
-                        error_kind: Some(RequestErrorKind::RateLimited),
-                        retries: retry_attempt,
-                        elapsed_ms: start.elapsed().as_millis(),
-                    });
-                    return Err(HttpError::RateLimitExceeded {
-                        retry_after_seconds: retry_after,
-                    }
-                    .into());
+                    return Err(self.handle_rate_limit(
+                        &response,
+                        &method,
+                        &path,
+                        request_class_str,
+                        start,
+                        retry_attempt,
+                    ));
                 }
                 StatusCode::SERVICE_UNAVAILABLE if retry_attempt < max_retries => {
                     // 503: Retry with exponential backoff
-                    let backoff = exponential_backoff(retry_attempt);
-                    tracing::warn!(
-                        retry.attempt = retry_attempt,
-                        http.status_code = 503_u16,
-                        retry.backoff_ms = backoff.as_millis(),
-                        "retrying request after transient failure"
-                    );
-                    self.record_retry(RetryEvent {
-                        method: method.clone(),
-                        path: path.clone(),
-                        request_class: request_class_str,
-                        attempt: retry_attempt,
-                        status_code: StatusCode::SERVICE_UNAVAILABLE.as_u16(),
-                        backoff_ms: backoff.as_millis(),
-                    });
-                    tokio::time::sleep(backoff).await;
+                    self.handle_service_unavailable(
+                        &method,
+                        &path,
+                        request_class_str,
+                        retry_attempt,
+                    )
+                    .await;
                     retry_attempt += 1;
                     continue;
                 }
@@ -533,6 +587,9 @@ fn parse_retry_after(response: &Response) -> Option<u64> {
         .and_then(|s| s.parse::<u64>().ok())
 }
 
+const MAX_BACKOFF_MS: u64 = 30_000;
+const BASE_BACKOFF_MS: u64 = 500;
+
 /// Calculates exponential backoff duration for retry attempt.
 ///
 /// Uses formula: base_delay * 2^attempt, capped at 30 seconds.
@@ -540,11 +597,12 @@ fn exponential_backoff(attempt: u32) -> Duration {
     // Cap at 64 to prevent overflow in 2^attempt (u128)
     // 2^64 is much larger than the 30s cap anyway.
     if attempt >= 64 {
-        return Duration::from_millis(30_000);
+        return Duration::from_millis(MAX_BACKOFF_MS);
     }
-    let base = Duration::from_millis(500);
+    let base = Duration::from_millis(BASE_BACKOFF_MS);
     let backoff_ms = base.as_millis() * 2_u128.pow(attempt);
-    Duration::from_millis(backoff_ms.min(30_000) as u64)
+    #[allow(clippy::cast_possible_truncation)]
+    Duration::from_millis(backoff_ms.min(u128::from(MAX_BACKOFF_MS)) as u64)
 }
 
 fn classify_request(method: &Method) -> RequestRetryClass {
@@ -567,16 +625,16 @@ fn classify_request(method: &Method) -> RequestRetryClass {
 ///   }
 /// ]
 /// ```
-fn parse_api_error(status_code: u16, body: &str) -> HttpError {
-    #[derive(serde::Deserialize)]
-    struct SalesforceError {
-        #[serde(rename = "errorCode")]
-        error_code: Option<String>,
-        message: String,
-        #[serde(default)]
-        fields: Vec<String>,
-    }
+#[derive(serde::Deserialize)]
+struct SalesforceError {
+    #[serde(rename = "errorCode")]
+    error_code: Option<String>,
+    message: String,
+    #[serde(default)]
+    fields: Vec<String>,
+}
 
+fn parse_api_error(status_code: u16, body: &str) -> HttpError {
     // Try to parse as Salesforce error array
     if let Ok(errors) = serde_json::from_str::<Vec<SalesforceError>>(body) {
         if let Some(first_error) = errors.first() {
