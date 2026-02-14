@@ -1,8 +1,11 @@
+#![allow(missing_docs)]
 #![cfg(feature = "bulk")]
+
 use force::api::bulk::csv::process_csv_batches;
 use serde::Deserialize;
 
 #[derive(Deserialize, Debug)]
+#[allow(dead_code)]
 struct Record {
     id: String,
 }
@@ -16,6 +19,6 @@ fn test_process_csv_batches_panic() {
     let _ = process_csv_batches(
         csv_data.as_bytes(),
         usize::MAX,
-        |_batch: Vec<Record>| Ok(())
+        |_batch: Vec<Record>| Ok(()),
     );
 }
