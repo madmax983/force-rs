@@ -1,6 +1,6 @@
 # ADR-009: Decouple Storage from Core
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-02-17
 **Deciders:** Atlas, Codex
 **Context:** Circular dependencies were causing build failures. The `force` crate (Core) depended on the `storage` module for token caching, while the `storage` module depended on `force` for type definitions (e.g., `AccessToken`). This created a circular dependency cycle that made compilation fragile and prevented clean separation of concerns.
@@ -22,9 +22,9 @@ The `force` crate is designed to be the core library for interacting with Salesf
 
 ## Decision
 
-**Decision:** Move persistence logic to a dedicated crate (e.g., `force-storage`) or a completely decoupled module structure where `Core` defines the interface (Trait) and `Storage` implements it, without `Core` depending on the concrete `Storage` implementation.
+**Decision:** Move persistence logic to a dedicated module structure (`crates/force/src/storage/`) where `Core` defines the interface (Trait) and `Storage` implements it.
 
-In this specific architectural change, we are extracting the `storage` module to a separate boundary, ensuring `Core` only depends on a `Storage` trait, and the concrete implementation is injected or provided by a separate layer.
+In this specific architectural change, we are extracting the `storage` logic from `auth` to a separate module, paving the way for future extraction to a crate if needed, while solving immediate organization issues.
 
 ## Consequences
 

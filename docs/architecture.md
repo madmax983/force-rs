@@ -16,34 +16,41 @@ C4Context
   Rel(force_sdk, salesforce, "Make API calls")
 ```
 
-## Class Diagram
+## Internal Architecture
 
-The core library is decoupled from concrete storage implementations via traits.
+The `force` crate is organized into modular components.
 
 ```mermaid
-classDiagram
-  class Core
-  class Storage
-  Core --> Storage : Uses (Trait Bound)
-  %% Removed the circular dependency arrow
+graph TB
+    subgraph "force crate"
+        Client[Client Layer]
+        Auth[Auth Layer]
+        Storage[Storage Layer]
+        HTTP[HTTP Layer]
+    end
+
+    Client --> Storage
+    Storage --> Auth
+    Storage --> HTTP
 ```
 
 ## Sequence Diagram: Token Storage
 
-The following sequence diagram illustrates how the Core interacts with the Storage layer to persist authentication tokens.
+The following sequence diagram illustrates how the Client interacts with the Storage layer (TokenManager) to persist authentication tokens.
 
 ```mermaid
 sequenceDiagram
-    participant C as Core (force)
-    participant S as Storage (force-storage)
+    participant C as Client (force::client)
+    participant S as Storage (force::storage)
+    participant A as Auth (force::auth)
 
-    Note over C, S: Authentication Flow
-    C->>C: Authenticate with Salesforce
-    C->>S: save_token(access_token)
-    alt Success
-        S-->>C: Ok(())
-    else Failure
-        S-->>C: Err(StorageError)
-        C->>C: Log error (graceful degradation)
+    C->>S: token()
+    alt Token Cached
+        S-->>C: AccessToken
+    else Token Expired/Missing
+        S->>A: authenticate()
+        A-->>S: AccessToken
+        S->>S: update_cache()
+        S-->>C: AccessToken
     end
 ```
