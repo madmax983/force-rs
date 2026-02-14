@@ -32,3 +32,21 @@
 **Severity:** 🟢 Acquitted (Fixed)
 **Finding:** `test_upsert_update` asserted `result.is_err() || result.is_ok()`, which is always true.
 **Resolution:** Updated test to assert `matches!(result, Err(ForceError::NotImplemented(_)))`.
+
+**[Untested Default Behavior]**
+**Module:** `crates/force/src/http/mod.rs`
+**Severity:** 🟡 Suspect (Fixed)
+**Finding:** `parse_retry_after` relied on untested default (60s) for missing/invalid headers.
+**Resolution:** Refactored to accept `&HeaderMap`, added 4 unit tests covering edge cases, and 2 integration tests verifying 429 defaults.
+
+**[Time-Dependent Flakiness]**
+**Module:** `crates/force/src/http/tests.rs`
+**Severity:** 🟡 Suspect (Fixed)
+**Finding:** `test_503_retries_with_exponential_backoff` relied on 1.5s real-time sleep, making it slow and potentially flaky.
+**Resolution:** Refactored `HttpExecutor` to support configurable `base_backoff`, reducing test duration to 0.04s and ensuring determinism.
+
+**[Missing Safe Method Classification]**
+**Module:** `crates/force/src/http/mod.rs`
+**Severity:** 🟢 Acquitted (Fixed)
+**Finding:** `classify_request` excluded `TRACE` from retryable read operations.
+**Resolution:** Added `TRACE` to `RequestRetryClass::Read`.
