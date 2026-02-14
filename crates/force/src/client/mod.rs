@@ -94,6 +94,19 @@ impl<A: crate::auth::Authenticator> ForceClient<A> {
     pub fn bulk(&self) -> crate::api::bulk::BulkHandler<A> {
         crate::api::bulk::BulkHandler::new(Arc::clone(&self.inner))
     }
+
+    /// Creates a Composite API handler for this client (Experimental).
+    ///
+    /// The Composite handler provides access to batch operations.
+    ///
+    /// # Experimental
+    ///
+    /// This feature is gated by the `nova` feature flag and is subject to change.
+    #[cfg(feature = "nova")]
+    #[must_use]
+    pub fn composite(&self) -> crate::experimental::composite::CompositeHandler<A> {
+        crate::experimental::composite::CompositeHandler::new(Arc::clone(&self.inner))
+    }
 }
 
 #[cfg(test)]
