@@ -3,26 +3,8 @@
 //! This module provides types and methods for accessing Salesforce schema metadata,
 //! including object definitions, field metadata, picklist values, and relationships.
 
-use crate::client::ForceClient;
-use crate::error::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-
-impl<A: crate::auth::Authenticator> ForceClient<A> {
-    /// Retrieves global describe information.
-    ///
-    /// Delegates to `RestHandler::describe_global`.
-    pub async fn describe_global(&self) -> Result<GlobalDescribe> {
-        self.rest().describe_global().await
-    }
-
-    /// Retrieves detailed metadata for a specific SObject.
-    ///
-    /// Delegates to `RestHandler::describe`.
-    pub async fn describe(&self, sobject_name: &str) -> Result<SObjectDescribe> {
-        self.rest().describe(sobject_name).await
-    }
-}
 
 /// Global describe result containing all available objects in the organization.
 ///

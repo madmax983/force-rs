@@ -32,14 +32,14 @@ mod example {
         tracing_subscriber::fmt::init();
         let client = build_client().await?;
 
-        let global = client.describe_global().await?;
+        let global = client.rest().describe_global().await?;
         println!("Total sObjects: {}", global.sobjects.len());
 
         for sobject in global.sobjects.iter().take(10) {
             println!("- {} ({})", sobject.label, sobject.name);
         }
 
-        let account = client.describe("Account").await?;
+        let account = client.rest().describe("Account").await?;
         println!("\nAccount fields: {}", account.fields.len());
 
         for field in account.fields.iter().take(15) {

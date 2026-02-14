@@ -34,7 +34,7 @@ mod example {
         label: &str,
     ) -> anyhow::Result<()> {
         println!("\n=== {label} ===");
-        let result = client.search(sosl).await?;
+        let result = client.rest().search(sosl).await?;
 
         for bucket in &result.search_records {
             println!(

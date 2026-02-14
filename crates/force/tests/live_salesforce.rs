@@ -129,6 +129,7 @@ async fn live_rest_query_smoke() -> Result<()> {
     let result = tokio::time::timeout(config.runtime.test_timeout, async {
         let client = create_live_client(&config).await?;
         client
+            .rest()
             .query::<force::types::DynamicSObject>("SELECT Id FROM Account LIMIT 1")
             .await
     })

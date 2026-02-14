@@ -183,7 +183,7 @@ mod example {
         println!("Authentication successful\n");
 
         println!("Fetching organization limits...");
-        let limits = client.limits().await?;
+        let limits = client.rest().limits().await?;
         println!("Retrieved limits\n");
 
         print_api_usage(&limits);

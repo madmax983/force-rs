@@ -77,7 +77,7 @@ async fn test_query_more_with_absolute_url() -> Result<()> {
     let client = builder().authenticate(auth).build().await?;
 
     // Call query_more with the absolute URL
-    let result: QueryResult<Record> = client.query_more(&absolute_next_url).await?;
+    let result: QueryResult<Record> = client.rest().query_more(&absolute_next_url).await?;
 
     assert_eq!(result.total_size, 2);
     assert!(result.is_done());

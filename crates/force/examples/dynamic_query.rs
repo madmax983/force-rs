@@ -34,6 +34,7 @@ mod example {
         let client = build_client().await?;
 
         let accounts = client
+            .rest()
             .query::<DynamicSObject>("SELECT Id, Name, Industry FROM Account LIMIT 5")
             .await?;
 
@@ -48,6 +49,7 @@ mod example {
         }
 
         let revenue_rows = client
+            .rest()
             .query::<DynamicSObject>(
                 "SELECT Name, AnnualRevenue FROM Account WHERE AnnualRevenue != null LIMIT 10",
             )

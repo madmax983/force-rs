@@ -4,12 +4,11 @@
 //! For large result sets, use the `nextRecordsUrl` field from `QueryResult`
 //! to manually fetch additional pages.
 
-use crate::client::ForceClient;
 use crate::error::ForceError;
 use crate::types::QueryResult;
 use serde::de::DeserializeOwned;
 
-impl<A: crate::auth::Authenticator> ForceClient<A> {
+impl<A: crate::auth::Authenticator> super::RestHandler<A> {
     /// Executes a SOQL query and returns the first page of results.
     ///
     /// This method performs a single query and returns only the first page.
@@ -27,7 +26,7 @@ impl<A: crate::auth::Authenticator> ForceClient<A> {
     /// ```ignore
     /// use force::types::DynamicSObject;
     ///
-    /// let result = client.query::<DynamicSObject>("SELECT Id, Name FROM Account LIMIT 10").await?;
+    /// let result = client.rest().query::<DynamicSObject>("SELECT Id, Name FROM Account LIMIT 10").await?;
     /// println!("Total: {}", result.total_size);
     /// for record in result.records {
     ///     println!("{:?}", record);
@@ -38,22 +37,18 @@ impl<A: crate::auth::Authenticator> ForceClient<A> {
         T: DeserializeOwned,
     {
         // Construct query URL
-        let url = format!(
-            "{}/services/data/{}/query",
-            self.token().await?.instance_url(),
-            self.config().api_version
-        );
+        let url = format!("{}/query", self.base_url().await?);
 
         // Execute query
         let request = self
-            .inner()
+            .inner
             .http_client
             .get(&url)
             .query(&[("q", soql)])
             .build()
             .map_err(crate::error::HttpError::from)?;
 
-        self.inner()
+        self.inner
             .send_request_and_decode(request, "SOQL query failed")
             .await
     }
@@ -75,10 +70,10 @@ impl<A: crate::auth::Authenticator> ForceClient<A> {
     /// ```ignore
     /// use force::types::DynamicSObject;
     ///
-    /// let mut result = client.query::<DynamicSObject>("SELECT Id, Name FROM Account").await?;
+    /// let mut result = client.rest().query::<DynamicSObject>("SELECT Id, Name FROM Account").await?;
     /// while !result.is_done() {
     ///     if let Some(next_url) = result.next_records_url.as_ref() {
-    ///         result = client.query_more(next_url).await?;
+    ///         result = client.rest().query_more(next_url).await?;
     ///         // Process result.records...
     ///     }
     /// }
@@ -91,18 +86,19 @@ impl<A: crate::auth::Authenticator> ForceClient<A> {
         let url = if next_records_url.starts_with("http") {
             next_records_url.to_string()
         } else {
-            format!("{}{}", self.token().await?.instance_url(), next_records_url)
+            let token = self.inner.token_manager.token().await?;
+            format!("{}{}", token.instance_url(), next_records_url)
         };
 
         // Execute query
         let request = self
-            .inner()
+            .inner
             .http_client
             .get(&url)
             .build()
             .map_err(crate::error::HttpError::from)?;
 
-        self.inner()
+        self.inner
             .send_request_and_decode(request, "Query pagination failed")
             .await
     }
@@ -329,6 +325,7 @@ mod tests {
         let client = builder().authenticate(auth).build().await.must();
 
         let result: QueryResult<TestAccount> = client
+            .rest()
             .query("SELECT Id, Name FROM Account LIMIT 2")
             .await
             .must();
@@ -361,8 +358,11 @@ mod tests {
 
         let client = builder().authenticate(auth).build().await.must();
 
-        let result: QueryResult<TestAccount> =
-            client.query("SELECT Id, Name FROM Account").await.must();
+        let result: QueryResult<TestAccount> = client
+            .rest()
+            .query("SELECT Id, Name FROM Account")
+            .await
+            .must();
 
         // Verify that the client deserializes it as is
         assert!(!result.is_done());
@@ -397,8 +397,11 @@ mod tests {
 
         let client = builder().authenticate(auth).build().await.must();
 
-        let result: QueryResult<TestAccount> =
-            client.query("SELECT Id, Name FROM Account").await.must();
+        let result: QueryResult<TestAccount> = client
+            .rest()
+            .query("SELECT Id, Name FROM Account")
+            .await
+            .must();
 
         assert_eq!(result.total_size, 4);
         assert!(!result.is_done());
@@ -450,8 +453,11 @@ mod tests {
         let client = builder().authenticate(auth).build().await.must();
 
         // First page
-        let page1: QueryResult<TestAccount> =
-            client.query("SELECT Id, Name FROM Account").await.must();
+        let page1: QueryResult<TestAccount> = client
+            .rest()
+            .query("SELECT Id, Name FROM Account")
+            .await
+            .must();
 
         assert!(!page1.is_done());
         assert_eq!(page1.len(), 2);
@@ -459,6 +465,7 @@ mod tests {
 
         // Second page using query_more
         let page2: QueryResult<TestAccount> = client
+            .rest()
             .query_more(page1.next_records_url.as_ref().must())
             .await
             .must();
@@ -522,14 +529,17 @@ mod tests {
 
         // Collect all records by manually paginating
         let mut all_records = Vec::new();
-        let mut result: QueryResult<TestAccount> =
-            client.query("SELECT Id, Name FROM Account").await.must();
+        let mut result: QueryResult<TestAccount> = client
+            .rest()
+            .query("SELECT Id, Name FROM Account")
+            .await
+            .must();
 
         all_records.extend(result.records.clone());
 
         while !result.is_done() {
             if let Some(next_url) = result.next_records_url.as_ref() {
-                result = client.query_more(next_url).await.must();
+                result = client.rest().query_more(next_url).await.must();
                 all_records.extend(result.records.clone());
             } else {
                 break;
@@ -560,6 +570,7 @@ mod tests {
         let client = builder().authenticate(auth).build().await.must();
 
         let result: Result<QueryResult<TestAccount>, _> = client
+            .rest()
             .query_more("/services/data/v60.0/query/invalid-locator")
             .await;
 
@@ -589,6 +600,7 @@ mod tests {
         let client = builder().authenticate(auth).build().await.must();
 
         let result: QueryResult<TestAccount> = client
+            .rest()
             .query("SELECT Id, Name FROM Account WHERE Name = 'NonExistent'")
             .await
             .must();
