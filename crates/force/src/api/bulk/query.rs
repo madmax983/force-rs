@@ -1040,10 +1040,7 @@ mod tests {
             .await
             .must();
 
-        let results: Vec<_> = stream
-            .into_stream()
-            .collect::<Vec<_>>()
-            .await;
+        let results: Vec<_> = stream.into_stream().collect::<Vec<_>>().await;
 
         assert_eq!(results.len(), 2);
         assert!(results[0].is_ok());
