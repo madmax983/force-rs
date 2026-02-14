@@ -162,7 +162,9 @@ where
     F: FnMut(Vec<T>) -> Result<()>,
 {
     let mut csv_reader = csv::Reader::from_reader(reader);
-    let mut batch = Vec::with_capacity(batch_size);
+    // Cap initial allocation to prevent DoS from large batch_size
+    let initial_capacity = std::cmp::min(batch_size, 1024);
+    let mut batch = Vec::with_capacity(initial_capacity);
 
     for result in csv_reader.deserialize() {
         let record: T = result.map_err(crate::error::SerializationError::from)?;
@@ -170,7 +172,7 @@ where
 
         if batch.len() >= batch_size {
             callback(batch)?;
-            batch = Vec::with_capacity(batch_size);
+            batch = Vec::with_capacity(initial_capacity);
         }
     }
 
