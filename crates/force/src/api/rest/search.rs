@@ -163,10 +163,34 @@ impl SearchQueryBuilder {
     ///
     /// * `sobject` - The object type (e.g., "Account", "Contact")
     /// * `fields` - The fields to return (e.g., `&["Id", "Name"]`)
+    ///
+    /// # Panics
+    ///
+    /// Panics if the object name or field names contain invalid characters to prevent SOSL injection.
+    /// - Object names must be alphanumeric or underscores.
+    /// - Field names must be alphanumeric, underscores, or dots.
     #[must_use]
     pub fn returning(mut self, sobject: impl Into<String>, fields: &[impl AsRef<str>]) -> Self {
         let sobject = sobject.into();
-        let fields = fields.iter().map(|f| f.as_ref().to_string()).collect();
+        assert!(
+            validate_object_name(&sobject),
+            "Object name contains invalid characters: {}",
+            sobject
+        );
+
+        let fields = fields
+            .iter()
+            .map(|f| {
+                let f = f.as_ref().to_string();
+                assert!(
+                    validate_field_name(&f),
+                    "Field name contains invalid characters: {}",
+                    f
+                );
+                f
+            })
+            .collect();
+
         self.returning.push((sobject, fields));
         self
     }
@@ -252,6 +276,17 @@ fn escape_sosl(text: &str) -> String {
         }
     }
     escaped
+}
+
+fn validate_object_name(name: &str) -> bool {
+    !name.is_empty() && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+}
+
+fn validate_field_name(name: &str) -> bool {
+    !name.is_empty()
+        && name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '.')
 }
 
 #[cfg(test)]
@@ -466,6 +501,53 @@ mod tests {
         // All special characters should be escaped with backslash
         let expected = r#"FIND {\? \& \| \! \{ \} \[ \] \( \) \^ \~ \* \: \\ \" \' \+ \-} RETURNING Account(Id)"#;
         assert_eq!(query, expected);
+    }
+
+    #[test]
+    fn test_validate_object_name_valid() {
+        assert!(validate_object_name("Account"));
+        assert!(validate_object_name("Custom_Object__c"));
+        assert!(validate_object_name("MyNamespace__Custom_Object__c"));
+    }
+
+    #[test]
+    fn test_validate_object_name_invalid() {
+        assert!(!validate_object_name("Account; DROP TABLE"));
+        assert!(!validate_object_name("Account "));
+        assert!(!validate_object_name("Account-1"));
+        assert!(!validate_object_name(""));
+    }
+
+    #[test]
+    fn test_validate_field_name_valid() {
+        assert!(validate_field_name("Id"));
+        assert!(validate_field_name("Custom_Field__c"));
+        assert!(validate_field_name("Account.Name"));
+        assert!(validate_field_name("MyNamespace__Account__r.Name"));
+    }
+
+    #[test]
+    fn test_validate_field_name_invalid() {
+        assert!(!validate_field_name("count()"));
+        assert!(!validate_field_name("toLabel(Name)"));
+        assert!(!validate_field_name("Name; DROP TABLE"));
+        assert!(!validate_field_name(""));
+    }
+
+    #[test]
+    #[should_panic(expected = "Object name contains invalid characters")]
+    fn test_returning_panic_invalid_object() {
+        let _ = SearchQueryBuilder::new()
+            .find("test")
+            .returning("Account; DROP", &["Id"]);
+    }
+
+    #[test]
+    #[should_panic(expected = "Field name contains invalid characters")]
+    fn test_returning_panic_invalid_field() {
+        let _ = SearchQueryBuilder::new()
+            .find("test")
+            .returning("Account", &["toLabel(Name)"]);
     }
 }
 
