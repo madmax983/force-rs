@@ -37,6 +37,9 @@ pub mod http;
 pub(crate) mod test_support;
 pub mod types;
 
+#[cfg(all(any(feature = "nova", test), feature = "rest"))]
+pub mod experimental;
+
 /// Force crate placeholder - foundation being built
 #[must_use]
 pub const fn version() -> &'static str {

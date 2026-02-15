@@ -209,6 +209,25 @@ cargo run --example soql_query
 cargo run --example bulk_insert --features bulk
 ```
 
+## Experimental Features
+
+> ⚠️ **REQUIRES FEATURE NOVA**
+>
+> The features in this section are experimental and require the `nova` feature flag to be enabled.
+
+### Nova Story Generation
+
+Generate narratives using the Nova engine:
+
+```rust
+// Requires: force = { version = "0.1", features = ["nova"] }
+use force::experimental::story::NarrativeGenerator;
+
+let generator = NarrativeGenerator::new();
+let story = generator.generate();
+println!("{}", story);
+```
+
 ## Features Reference
 
 force-rs uses feature flags to minimize dependencies and binary size:
