@@ -3,10 +3,10 @@
 //! This module provides the `RestHandler` which serves as the foundation for all
 //! REST API operations including CRUD, queries, and metadata operations.
 
-pub mod crud;
+mod crud;
 pub mod describe;
 pub mod limits;
-pub mod query;
+mod query;
 pub mod search;
 
 use crate::error::Result;

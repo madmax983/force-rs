@@ -163,10 +163,38 @@ impl SearchQueryBuilder {
     ///
     /// * `sobject` - The object type (e.g., "Account", "Contact")
     /// * `fields` - The fields to return (e.g., `&["Id", "Name"]`)
+    ///
+    /// # Panics
+    ///
+    /// Panics if:
+    /// - `sobject` contains invalid characters (must be alphanumeric or underscore)
+    /// - `fields` contain invalid characters (must be alphanumeric, underscore, or dot)
     #[must_use]
     pub fn returning(mut self, sobject: impl Into<String>, fields: &[impl AsRef<str>]) -> Self {
         let sobject = sobject.into();
-        let fields = fields.iter().map(|f| f.as_ref().to_string()).collect();
+
+        assert!(
+            sobject
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '_'),
+            "invalid characters in object name: {}",
+            sobject
+        );
+
+        let fields: Vec<String> = fields
+            .iter()
+            .map(|f| {
+                let s = f.as_ref().to_string();
+                assert!(
+                    s.chars()
+                        .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '.'),
+                    "invalid characters in field name: {}",
+                    s
+                );
+                s
+            })
+            .collect();
+
         self.returning.push((sobject, fields));
         self
     }
