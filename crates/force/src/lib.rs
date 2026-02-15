@@ -32,7 +32,7 @@ pub mod auth;
 pub mod client;
 pub mod config;
 pub mod error;
-#[cfg(any(feature = "nova", test))]
+#[cfg(all(any(feature = "nova", test), feature = "rest"))]
 pub mod experimental;
 pub mod http;
 #[cfg(test)]
