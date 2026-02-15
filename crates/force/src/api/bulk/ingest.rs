@@ -80,6 +80,49 @@ pub struct IngestJob<S, A: Authenticator> {
     _state: PhantomData<S>,
 }
 
+impl<S: Send + Sync, A: Authenticator> IngestJob<S, A> {
+    async fn execute_job_request(
+        &self,
+        method: reqwest::Method,
+        path_suffix: Option<&str>,
+        body: Option<Vec<u8>>,
+        headers: Option<reqwest::header::HeaderMap>,
+        error_context: &str,
+    ) -> Result<reqwest::Response> {
+        let token = self.inner.token_manager.token().await?;
+        let mut url = format!(
+            "{}/services/data/{}/jobs/ingest/{}",
+            token.instance_url(),
+            self.inner.config.api_version,
+            self.job_id
+        );
+
+        if let Some(suffix) = path_suffix {
+            url.push('/');
+            url.push_str(suffix);
+        }
+
+        let mut builder = self.inner.http_client.request(method, &url);
+
+        if let Some(b) = body {
+            builder = builder.body(b);
+        }
+
+        if let Some(h) = headers {
+            builder = builder.headers(h);
+        }
+
+        let request = builder.build().map_err(crate::error::HttpError::from)?;
+        let response = self.inner.execute_request(request).await?;
+
+        if !response.status().is_success() {
+            return Err(handle_error_response(response, error_context).await);
+        }
+
+        Ok(response)
+    }
+}
+
 impl<A: Authenticator> IngestJob<Open, A> {
     /// Creates a new ingest job in Open state.
     #[must_use]
@@ -106,27 +149,20 @@ impl<A: Authenticator> IngestJob<Open, A> {
     ///
     /// Returns an error if the upload fails.
     pub async fn upload(self, data: &[u8]) -> Result<IngestJob<UploadComplete, A>> {
-        let token = self.inner.token_manager.token().await?;
-        let url = format!(
-            "{}/services/data/{}/jobs/ingest/{}/batches",
-            token.instance_url(),
-            self.inner.config.api_version,
-            self.job_id
+        let mut headers = reqwest::header::HeaderMap::new();
+        headers.insert(
+            "Content-Type",
+            reqwest::header::HeaderValue::from_static("text/csv"),
         );
 
-        let response = self
-            .inner
-            .http_client
-            .put(&url)
-            .header("Content-Type", "text/csv")
-            .body(data.to_vec())
-            .build()
-            .map_err(crate::error::HttpError::from)?;
-        let response = self.inner.execute_request(response).await?;
-
-        if !response.status().is_success() {
-            return Err(handle_error_response(response, "CSV upload failed").await);
-        }
+        self.execute_job_request(
+            reqwest::Method::PUT,
+            Some("batches"),
+            Some(data.to_vec()),
+            Some(headers),
+            "CSV upload failed",
+        )
+        .await?;
 
         Ok(IngestJob {
             job_id: self.job_id,
@@ -141,30 +177,25 @@ impl<A: Authenticator> IngestJob<Open, A> {
     ///
     /// Returns an error if aborting fails.
     pub async fn abort(self) -> Result<()> {
-        let token = self.inner.token_manager.token().await?;
-        let url = format!(
-            "{}/services/data/{}/jobs/ingest/{}",
-            token.instance_url(),
-            self.inner.config.api_version,
-            self.job_id
-        );
-
         let request = UpdateJobRequest {
             state: JobState::Aborted,
         };
+        let body = serde_json::to_vec(&request).map_err(crate::error::SerializationError::from)?;
 
-        let response = self
-            .inner
-            .http_client
-            .patch(&url)
-            .json(&request)
-            .build()
-            .map_err(crate::error::HttpError::from)?;
-        let response = self.inner.execute_request(response).await?;
+        let mut headers = reqwest::header::HeaderMap::new();
+        headers.insert(
+            "Content-Type",
+            reqwest::header::HeaderValue::from_static("application/json"),
+        );
 
-        if !response.status().is_success() {
-            return Err(handle_error_response(response, "Abort job failed").await);
-        }
+        self.execute_job_request(
+            reqwest::Method::PATCH,
+            None,
+            Some(body),
+            Some(headers),
+            "Abort job failed",
+        )
+        .await?;
 
         Ok(())
     }
@@ -177,30 +208,25 @@ impl<A: Authenticator> IngestJob<UploadComplete, A> {
     ///
     /// Returns an error if closing the job fails.
     pub async fn close(self) -> Result<IngestJob<InProgress, A>> {
-        let token = self.inner.token_manager.token().await?;
-        let url = format!(
-            "{}/services/data/{}/jobs/ingest/{}",
-            token.instance_url(),
-            self.inner.config.api_version,
-            self.job_id
-        );
-
         let request = UpdateJobRequest {
             state: JobState::UploadComplete,
         };
+        let body = serde_json::to_vec(&request).map_err(crate::error::SerializationError::from)?;
 
-        let response = self
-            .inner
-            .http_client
-            .patch(&url)
-            .json(&request)
-            .build()
-            .map_err(crate::error::HttpError::from)?;
-        let response = self.inner.execute_request(response).await?;
+        let mut headers = reqwest::header::HeaderMap::new();
+        headers.insert(
+            "Content-Type",
+            reqwest::header::HeaderValue::from_static("application/json"),
+        );
 
-        if !response.status().is_success() {
-            return Err(handle_error_response(response, "Close job failed").await);
-        }
+        self.execute_job_request(
+            reqwest::Method::PATCH,
+            None,
+            Some(body),
+            Some(headers),
+            "Close job failed",
+        )
+        .await?;
 
         Ok(IngestJob {
             job_id: self.job_id,
@@ -310,25 +336,15 @@ impl<A: Authenticator> IngestJob<InProgress, A> {
 
     /// Helper to get job info.
     async fn get_job_info(&self) -> Result<JobInfo> {
-        let token = self.inner.token_manager.token().await?;
-        let url = format!(
-            "{}/services/data/{}/jobs/ingest/{}",
-            token.instance_url(),
-            self.inner.config.api_version,
-            self.job_id
-        );
-
         let response = self
-            .inner
-            .http_client
-            .get(&url)
-            .build()
-            .map_err(crate::error::HttpError::from)?;
-        let response = self.inner.execute_request(response).await?;
-
-        if !response.status().is_success() {
-            return Err(handle_error_response(response, "Get job status failed").await);
-        }
+            .execute_job_request(
+                reqwest::Method::GET,
+                None,
+                None,
+                None,
+                "Get job status failed",
+            )
+            .await?;
 
         let job_info = response
             .json::<JobInfo>()
@@ -383,28 +399,15 @@ impl<A: Authenticator> IngestJob<JobComplete, A> {
 
     /// Helper to get results.
     async fn get_results(&self, result_type: &str) -> Result<Vec<u8>> {
-        let token = self.inner.token_manager.token().await?;
-        let url = format!(
-            "{}/services/data/{}/jobs/ingest/{}/{}",
-            token.instance_url(),
-            self.inner.config.api_version,
-            self.job_id,
-            result_type
-        );
-
         let response = self
-            .inner
-            .http_client
-            .get(&url)
-            .build()
-            .map_err(crate::error::HttpError::from)?;
-        let response = self.inner.execute_request(response).await?;
-
-        if !response.status().is_success() {
-            return Err(
-                handle_error_response(response, &format!("Get {} failed", result_type)).await,
-            );
-        }
+            .execute_job_request(
+                reqwest::Method::GET,
+                Some(result_type),
+                None,
+                None,
+                &format!("Get {} failed", result_type),
+            )
+            .await?;
 
         let bytes = response
             .bytes()
