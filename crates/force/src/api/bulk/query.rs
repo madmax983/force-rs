@@ -30,6 +30,7 @@
 //! ```
 
 use crate::error::Result;
+use futures::Stream;
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use std::sync::Arc;
@@ -100,6 +101,9 @@ pub struct BulkQueryJobInfo {
 /// This stream lazily fetches and deserializes CSV results from a completed
 /// bulk query job. It's memory-efficient and suitable for processing large
 /// result sets (100MB+).
+///
+/// Use `next().await` for simple iteration, or `into_stream()` to convert
+/// to a standard `futures::Stream` for use with combinators.
 pub struct BulkQueryStream<T, A: crate::auth::Authenticator> {
     /// Reference to the client's inner state.
     inner: Arc<crate::client::Inner<A>>,
@@ -235,6 +239,35 @@ impl<T, A: crate::auth::Authenticator> BulkQueryStream<T, A> {
         // Store records and return the first one
         self.records = records;
         Ok(self.records.pop_front())
+    }
+
+    /// Converts this query stream into a `futures::Stream`.
+    ///
+    /// This allows using `StreamExt` combinators like `map`, `filter`, `collect`, etc.
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// use futures::StreamExt;
+    ///
+    /// let results: Vec<_> = client.bulk().query_results::<Account>(&job_id)
+    ///     .await?
+    ///     .into_stream()
+    ///     .map(|r| r.map(|a| a.name))
+    ///     .collect()
+    ///     .await;
+    /// ```
+    pub fn into_stream(self) -> impl Stream<Item = Result<T>>
+    where
+        T: for<'de> Deserialize<'de> + Unpin,
+    {
+        futures::stream::unfold(self, |mut stream| async move {
+            match stream.next().await {
+                Ok(Some(item)) => Some((Ok(item), stream)),
+                Ok(None) => None,
+                Err(e) => Some((Err(e), stream)),
+            }
+        })
     }
 }
 
@@ -979,5 +1012,38 @@ mod tests {
         assert_eq!(info.number_records_processed, Some(2500));
         assert_eq!(info.total_processing_time, Some(12000));
         assert_eq!(info.api_version, Some("60.0".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_query_results_into_stream() {
+        use futures::StreamExt;
+
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path(
+                "/services/data/v60.0/jobs/query/750xx0000000001AAA/results",
+            ))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .insert_header("Sforce-Locator", "null")
+                    .set_body_string("Id,Name\n001xx000000001AAA,Acme\n001xx000000002AAA,Globex"),
+            )
+            .mount(&mock_server)
+            .await;
+
+        let client = create_test_client(mock_server.uri()).await;
+        let handler = client.bulk();
+
+        let stream = handler
+            .query_results::<serde_json::Value>("750xx0000000001AAA")
+            .await
+            .must();
+
+        let results: Vec<_> = stream.into_stream().collect::<Vec<_>>().await;
+
+        assert_eq!(results.len(), 2);
+        assert!(results[0].is_ok());
+        assert!(results[1].is_ok());
     }
 }
