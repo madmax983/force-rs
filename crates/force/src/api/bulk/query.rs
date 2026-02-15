@@ -232,18 +232,21 @@ impl<T, A: crate::auth::Authenticator> BulkQueryStream<T, A> {
         // Convert reqwest byte stream to AsyncRead
         let byte_stream = response
             .bytes_stream()
-            .map(|result| result.map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e)));
+            .map(|result| result.map_err(std::io::Error::other));
 
         let reader = tokio_util::io::StreamReader::new(byte_stream).compat();
-        let csv_reader = csv_async::AsyncReaderBuilder::new()
-            .create_deserializer(reader);
+        let csv_reader = csv_async::AsyncReaderBuilder::new().create_deserializer(reader);
 
         // Convert CSV stream to record stream with mapped errors
-        let records_stream = csv_reader.into_deserialize::<T>()
-            .map(|res| res.map_err(|e| crate::error::HttpError::StatusError {
-                status_code: 500,
-                message: format!("CSV deserialization failed: {}", e),
-            }.into()));
+        let records_stream = csv_reader.into_deserialize::<T>().map(|res| {
+            res.map_err(|e| {
+                crate::error::HttpError::StatusError {
+                    status_code: 500,
+                    message: format!("CSV deserialization failed: {}", e),
+                }
+                .into()
+            })
+        });
 
         self.current_stream = Some(Box::pin(records_stream));
         Ok(())
