@@ -20,6 +20,8 @@ allow = [
     "Apache-2.0 WITH LLVM-exception",
     "BSD-3-Clause",
     "ISC",
+    "Unicode-3.0",
+    "CDLA-Permissive-2.0",
 ]
 
 # Allow specific crates with unusual license situations
