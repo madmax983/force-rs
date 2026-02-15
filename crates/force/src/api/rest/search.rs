@@ -163,10 +163,33 @@ impl SearchQueryBuilder {
     ///
     /// * `sobject` - The object type (e.g., "Account", "Contact")
     /// * `fields` - The fields to return (e.g., `&["Id", "Name"]`)
+    ///
+    /// # Panics
+    ///
+    /// Panics if `sobject` contains invalid characters (must be alphanumeric or underscore).
+    /// Panics if any field name contains invalid characters (must be alphanumeric, underscore, or dot).
     #[must_use]
     pub fn returning(mut self, sobject: impl Into<String>, fields: &[impl AsRef<str>]) -> Self {
         let sobject = sobject.into();
-        let fields = fields.iter().map(|f| f.as_ref().to_string()).collect();
+        assert!(
+            is_valid_identifier(&sobject),
+            "Invalid object name: '{}'. Object names must only contain alphanumeric characters and underscores.",
+            sobject
+        );
+
+        let fields: Vec<String> = fields
+            .iter()
+            .map(|f| {
+                let f = f.as_ref();
+                assert!(
+                    is_valid_field(f),
+                    "Invalid field name: '{}'. Field names must only contain alphanumeric characters, underscores, and dots.",
+                    f
+                );
+                f.to_string()
+            })
+            .collect();
+
         self.returning.push((sobject, fields));
         self
     }
@@ -234,6 +257,22 @@ impl Default for SearchQueryBuilder {
     fn default() -> Self {
         Self::new()
     }
+}
+
+/// Validates if a string is a safe Salesforce object name.
+///
+/// Allows alphanumeric characters and underscores.
+fn is_valid_identifier(s: &str) -> bool {
+    !s.is_empty() && s.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+}
+
+/// Validates if a string is a safe Salesforce field name.
+///
+/// Allows alphanumeric characters, underscores, and dots (for relationship fields).
+fn is_valid_field(s: &str) -> bool {
+    !s.is_empty()
+        && s.chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '.')
 }
 
 /// Escapes special characters for SOSL search queries.
