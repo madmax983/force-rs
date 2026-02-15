@@ -24,10 +24,18 @@ use std::sync::Arc;
 ///
 /// The handler is obtained from a `ForceClient` and shares its authentication
 /// and configuration.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct RestHandler<A: crate::auth::Authenticator> {
     /// Reference to the client's inner state.
     inner: Arc<crate::client::inner::Inner<A>>,
+}
+
+impl<A: crate::auth::Authenticator> Clone for RestHandler<A> {
+    fn clone(&self) -> Self {
+        Self {
+            inner: Arc::clone(&self.inner),
+        }
+    }
 }
 
 impl<A: crate::auth::Authenticator> RestHandler<A> {
