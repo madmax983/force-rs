@@ -30,11 +30,10 @@
 //! ```
 
 use crate::error::Result;
-use futures::{Stream, StreamExt};
+use futures::Stream;
 use serde::{Deserialize, Serialize};
-use std::pin::Pin;
+use std::collections::VecDeque;
 use std::sync::Arc;
-use tokio_util::compat::TokioAsyncReadCompatExt;
 
 /// Request to create a bulk query job.
 #[derive(Debug, Clone, Serialize)]
@@ -110,8 +109,8 @@ pub struct BulkQueryStream<T, A: crate::auth::Authenticator> {
     inner: Arc<crate::client::Inner<A>>,
     /// Job ID for the query.
     job_id: String,
-    /// Current stream of records being iterated.
-    current_stream: Option<Pin<Box<dyn Stream<Item = Result<T>> + Send>>>,
+    /// Current batch of records being iterated.
+    records: VecDeque<T>,
     /// Result locator for the next page (`None` means first page).
     next_locator: Option<String>,
     /// Whether the first page has been fetched.
@@ -127,7 +126,7 @@ impl<T, A: crate::auth::Authenticator> BulkQueryStream<T, A> {
         Self {
             inner,
             job_id,
-            current_stream: None,
+            records: VecDeque::new(),
             next_locator: None,
             first_page_fetched: false,
             exhausted: false,
@@ -159,37 +158,23 @@ impl<T, A: crate::auth::Authenticator> BulkQueryStream<T, A> {
     /// - CSV deserialization fails
     pub async fn next(&mut self) -> Result<Option<T>>
     where
-        T: for<'de> Deserialize<'de> + Send + 'static,
+        T: for<'de> Deserialize<'de>,
     {
-        loop {
-            // If we have an active stream, pull from it
-            if let Some(stream) = &mut self.current_stream {
-                match stream.next().await {
-                    Some(Ok(record)) => return Ok(Some(record)),
-                    Some(Err(e)) => return Err(e),
-                    None => {
-                        // Stream exhausted for this page
-                        self.current_stream = None;
-                        // Continue loop to check if we have more pages (next_locator)
-                    }
-                }
-            }
-
-            // If we are exhausted (no stream, no locator), return None
-            if self.exhausted || (self.first_page_fetched && self.next_locator.is_none()) {
-                self.exhausted = true;
-                return Ok(None);
-            }
-
-            // Fetch next page
-            self.fetch_next_page().await?;
+        // If we've already marked as exhausted, return None
+        if self.exhausted {
+            return Ok(None);
         }
-    }
 
-    async fn fetch_next_page(&mut self) -> Result<()>
-    where
-        T: for<'de> Deserialize<'de> + Send + 'static,
-    {
+        // If we have records in the buffer, return the next one
+        if let Some(record) = self.records.pop_front() {
+            return Ok(Some(record));
+        }
+
+        if self.first_page_fetched && self.next_locator.is_none() {
+            self.exhausted = true;
+            return Ok(None);
+        }
+
         // Fetch results from the API
         let token = self.inner.token_manager.token().await?;
         let base_url = format!(
@@ -216,7 +201,7 @@ impl<T, A: crate::auth::Authenticator> BulkQueryStream<T, A> {
             .await);
         }
 
-        // Parse Locator header
+        // Get CSV text
         let locator_header = response
             .headers()
             .get("Sforce-Locator")
@@ -228,28 +213,33 @@ impl<T, A: crate::auth::Authenticator> BulkQueryStream<T, A> {
             Some(value) => Some(value.to_string()),
         };
 
-        // Stream results
-        // Convert reqwest byte stream to AsyncRead
-        let byte_stream = response
-            .bytes_stream()
-            .map(|result| result.map_err(std::io::Error::other));
+        let csv_bytes = response
+            .bytes()
+            .await
+            .map_err(crate::error::HttpError::from)?;
 
-        let reader = tokio_util::io::StreamReader::new(byte_stream).compat();
-        let csv_reader = csv_async::AsyncReaderBuilder::new().create_deserializer(reader);
+        // Parse CSV
+        // Zero-cost abstraction: Use bytes directly to avoid String allocation and UTF-8 validation
+        let mut reader = csv::Reader::from_reader(csv_bytes.as_ref());
+        let mut records = VecDeque::new();
 
-        // Convert CSV stream to record stream with mapped errors
-        let records_stream = csv_reader.into_deserialize::<T>().map(|res| {
-            res.map_err(|e| {
-                crate::error::HttpError::StatusError {
-                    status_code: 500,
-                    message: format!("CSV deserialization failed: {}", e),
-                }
-                .into()
-            })
-        });
+        for result in reader.deserialize() {
+            let record: T = result.map_err(|e| crate::error::HttpError::StatusError {
+                status_code: 500,
+                message: format!("CSV deserialization failed: {}", e),
+            })?;
+            records.push_back(record);
+        }
 
-        self.current_stream = Some(Box::pin(records_stream));
-        Ok(())
+        // If no records, we're done
+        if records.is_empty() {
+            self.exhausted = true;
+            return Ok(None);
+        }
+
+        // Store records and return the first one
+        self.records = records;
+        Ok(self.records.pop_front())
     }
 
     /// Converts this query stream into a `futures::Stream`.
@@ -270,7 +260,7 @@ impl<T, A: crate::auth::Authenticator> BulkQueryStream<T, A> {
     /// ```
     pub fn into_stream(self) -> impl Stream<Item = Result<T>>
     where
-        T: for<'de> Deserialize<'de> + Unpin + Send + 'static,
+        T: for<'de> Deserialize<'de> + Unpin,
     {
         futures::stream::unfold(self, |mut stream| async move {
             match stream.next().await {

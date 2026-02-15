@@ -11,6 +11,7 @@ struct Record {
 }
 
 #[tokio::test]
+#[allow(clippy::expect_used)]
 async fn test_streaming_csv_pipeline() {
     // Simulate a CSV stream with two records
     let data = "Id,Name\n001,Acme\n002,Globex\n";
