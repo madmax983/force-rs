@@ -177,6 +177,8 @@ pub struct HttpExecutor {
     retry_policy: RetryPolicy,
     /// Base timeout for requests.
     timeout: Duration,
+    /// Base backoff duration (default 500ms).
+    base_backoff: Duration,
     /// Optional telemetry hooks.
     telemetry_hooks: TelemetryHooks,
 }
@@ -189,6 +191,7 @@ impl HttpExecutor {
             client: reqwest::Client::new(),
             retry_policy: RetryPolicy::new(3, 0),
             timeout: Duration::from_secs(30),
+            base_backoff: Duration::from_millis(BASE_BACKOFF_MS),
             telemetry_hooks: TelemetryHooks::new(),
         }
     }
@@ -200,6 +203,7 @@ impl HttpExecutor {
             client: reqwest::Client::new(),
             retry_policy: RetryPolicy::new(max_retries, 0),
             timeout,
+            base_backoff: Duration::from_millis(BASE_BACKOFF_MS),
             telemetry_hooks: TelemetryHooks::new(),
         }
     }
@@ -211,6 +215,7 @@ impl HttpExecutor {
             client,
             retry_policy: RetryPolicy::new(max_retries, 0),
             timeout,
+            base_backoff: Duration::from_millis(BASE_BACKOFF_MS),
             telemetry_hooks: TelemetryHooks::new(),
         }
     }
@@ -222,8 +227,16 @@ impl HttpExecutor {
             client: reqwest::Client::new(),
             retry_policy,
             timeout,
+            base_backoff: Duration::from_millis(BASE_BACKOFF_MS),
             telemetry_hooks: TelemetryHooks::new(),
         }
+    }
+
+    /// Configures the base backoff duration for retries.
+    #[must_use]
+    pub fn with_base_backoff(mut self, base_backoff: Duration) -> Self {
+        self.base_backoff = base_backoff;
+        self
     }
 
     /// Attaches telemetry hooks to this executor.
@@ -318,7 +331,7 @@ impl HttpExecutor {
         start: Instant,
         retry_attempt: u32,
     ) -> crate::error::ForceError {
-        let retry_after = parse_retry_after(response).unwrap_or(60);
+        let retry_after = parse_retry_after(response.headers()).unwrap_or(60);
         self.record_completion(RequestCompletion {
             method: method.to_string(),
             path: path.to_string(),
@@ -341,7 +354,7 @@ impl HttpExecutor {
         request_class_str: &'static str,
         retry_attempt: u32,
     ) {
-        let backoff = exponential_backoff(retry_attempt);
+        let backoff = exponential_backoff(retry_attempt, self.base_backoff);
         tracing::warn!(
             retry.attempt = retry_attempt,
             http.status_code = 503_u16,
@@ -579,9 +592,8 @@ impl Default for HttpExecutor {
 /// Parses the Retry-After header from a 429 response.
 ///
 /// Returns the number of seconds to wait, or None if header is missing/invalid.
-fn parse_retry_after(response: &Response) -> Option<u64> {
-    response
-        .headers()
+fn parse_retry_after(headers: &reqwest::header::HeaderMap) -> Option<u64> {
+    headers
         .get("Retry-After")
         .and_then(|h| h.to_str().ok())
         .and_then(|s| s.parse::<u64>().ok())
@@ -593,20 +605,23 @@ const BASE_BACKOFF_MS: u64 = 500;
 /// Calculates exponential backoff duration for retry attempt.
 ///
 /// Uses formula: base_delay * 2^attempt, capped at 30 seconds.
-fn exponential_backoff(attempt: u32) -> Duration {
+fn exponential_backoff(attempt: u32, base: Duration) -> Duration {
     // Cap at 64 to prevent overflow in 2^attempt (u128)
     // 2^64 is much larger than the 30s cap anyway.
     if attempt >= 64 {
         return Duration::from_millis(MAX_BACKOFF_MS);
     }
-    let base = Duration::from_millis(BASE_BACKOFF_MS);
     let backoff_ms = base.as_millis() * 2_u128.pow(attempt);
     #[allow(clippy::cast_possible_truncation)]
     Duration::from_millis(backoff_ms.min(u128::from(MAX_BACKOFF_MS)) as u64)
 }
 
 fn classify_request(method: &Method) -> RequestRetryClass {
-    if *method == Method::GET || *method == Method::HEAD || *method == Method::OPTIONS {
+    if *method == Method::GET
+        || *method == Method::HEAD
+        || *method == Method::OPTIONS
+        || *method == Method::TRACE
+    {
         RequestRetryClass::Read
     } else {
         RequestRetryClass::Mutation
@@ -682,12 +697,13 @@ mod unit_tests {
 
     #[test]
     fn test_exponential_backoff() {
-        assert_eq!(exponential_backoff(0).as_millis(), 500);
-        assert_eq!(exponential_backoff(1).as_millis(), 1000);
-        assert_eq!(exponential_backoff(2).as_millis(), 2000);
-        assert_eq!(exponential_backoff(3).as_millis(), 4000);
+        let base = Duration::from_millis(500);
+        assert_eq!(exponential_backoff(0, base).as_millis(), 500);
+        assert_eq!(exponential_backoff(1, base).as_millis(), 1000);
+        assert_eq!(exponential_backoff(2, base).as_millis(), 2000);
+        assert_eq!(exponential_backoff(3, base).as_millis(), 4000);
         // Cap at 30 seconds
-        assert_eq!(exponential_backoff(10).as_millis(), 30_000);
+        assert_eq!(exponential_backoff(10, base).as_millis(), 30_000);
     }
 
     #[test]
@@ -728,7 +744,8 @@ mod unit_tests {
     #[test]
     fn test_exponential_backoff_overflow() {
         // This should not panic even with large inputs
-        let duration = exponential_backoff(200);
+        let base = Duration::from_millis(500);
+        let duration = exponential_backoff(200, base);
         assert_eq!(duration.as_millis(), 30_000);
     }
 
@@ -752,10 +769,7 @@ mod unit_tests {
             classify_request(&Method::CONNECT),
             RequestRetryClass::Mutation
         );
-        assert_eq!(
-            classify_request(&Method::TRACE),
-            RequestRetryClass::Mutation
-        );
+        assert_eq!(classify_request(&Method::TRACE), RequestRetryClass::Read);
     }
 
     #[test]
@@ -825,16 +839,49 @@ mod unit_tests {
         // 6: 500 * 64 = 32000 -> capped at 30000
 
         let expected = [500, 1000, 2000, 4000, 8000, 16000, 30000];
+        let base = Duration::from_millis(500);
 
         for (attempt, &ms) in expected.iter().enumerate() {
             #[allow(clippy::cast_possible_truncation)]
             let attempt_u32 = attempt as u32;
             assert_eq!(
-                exponential_backoff(attempt_u32).as_millis(),
+                exponential_backoff(attempt_u32, base).as_millis(),
                 ms,
                 "Attempt {}",
                 attempt
             );
         }
+    }
+
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn test_parse_retry_after_valid() {
+        let mut headers = reqwest::header::HeaderMap::new();
+        headers.insert("Retry-After", "120".parse().unwrap());
+        assert_eq!(parse_retry_after(&headers), Some(120));
+    }
+
+    #[test]
+    fn test_parse_retry_after_missing() {
+        let headers = reqwest::header::HeaderMap::new();
+        assert_eq!(parse_retry_after(&headers), None);
+    }
+
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn test_parse_retry_after_invalid() {
+        let mut headers = reqwest::header::HeaderMap::new();
+        headers.insert("Retry-After", "soon".parse().unwrap());
+        assert_eq!(parse_retry_after(&headers), None);
+    }
+
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn test_parse_retry_after_negative() {
+        let mut headers = reqwest::header::HeaderMap::new();
+        // Header value parsing itself doesn't validate numeric, so "-1" is a valid header value string
+        headers.insert("Retry-After", "-1".parse().unwrap());
+        // But u64 parsing should fail
+        assert_eq!(parse_retry_after(&headers), None);
     }
 }

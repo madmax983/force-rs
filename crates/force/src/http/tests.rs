@@ -163,10 +163,92 @@ mod integration_tests {
     }
 
     #[tokio::test]
+    async fn test_429_defaults_to_60s_when_header_missing() {
+        // Arrange
+        let mock_server = MockServer::start().await;
+        let executor = HttpExecutor::new();
+        let token = create_test_token();
+
+        Mock::given(method("GET"))
+            .and(path("/test"))
+            .respond_with(ResponseTemplate::new(429).set_body_string("Rate limit exceeded"))
+            .mount(&mock_server)
+            .await;
+
+        // Act
+        let url = format!("{}/test", mock_server.uri());
+        let request = reqwest::Client::new().get(&url).build().must();
+
+        let result = executor
+            .execute(request, &token, || async {
+                panic!("Should not refresh on 429")
+            })
+            .await;
+
+        // Assert
+        assert!(result.is_err());
+        if let Err(ForceError::Http(crate::error::HttpError::RateLimitExceeded {
+            retry_after_seconds,
+        })) = result
+        {
+            assert_eq!(retry_after_seconds, 60);
+        } else {
+            panic!(
+                "Expected RateLimitExceeded error with default 60s, got: {:?}",
+                result
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn test_429_defaults_to_60s_when_header_invalid() {
+        // Arrange
+        let mock_server = MockServer::start().await;
+        let executor = HttpExecutor::new();
+        let token = create_test_token();
+
+        Mock::given(method("GET"))
+            .and(path("/test"))
+            .respond_with(
+                ResponseTemplate::new(429)
+                    .append_header("Retry-After", "soon")
+                    .set_body_string("Rate limit exceeded"),
+            )
+            .mount(&mock_server)
+            .await;
+
+        // Act
+        let url = format!("{}/test", mock_server.uri());
+        let request = reqwest::Client::new().get(&url).build().must();
+
+        let result = executor
+            .execute(request, &token, || async {
+                panic!("Should not refresh on 429")
+            })
+            .await;
+
+        // Assert
+        assert!(result.is_err());
+        if let Err(ForceError::Http(crate::error::HttpError::RateLimitExceeded {
+            retry_after_seconds,
+        })) = result
+        {
+            assert_eq!(retry_after_seconds, 60);
+        } else {
+            panic!(
+                "Expected RateLimitExceeded error with default 60s, got: {:?}",
+                result
+            );
+        }
+    }
+
+    #[tokio::test]
     async fn test_503_retries_with_exponential_backoff() {
         // Arrange
         let mock_server = MockServer::start().await;
-        let executor = HttpExecutor::with_config(2, std::time::Duration::from_secs(30));
+        // Use shorter backoff for testing to speed up execution
+        let executor = HttpExecutor::with_config(2, std::time::Duration::from_secs(30))
+            .with_base_backoff(std::time::Duration::from_millis(10));
         let token = create_test_token();
 
         // First two requests return 503
@@ -200,8 +282,8 @@ mod integration_tests {
 
         // Assert
         assert!(result.is_ok());
-        // Should have waited ~500ms + ~1000ms = ~1500ms for backoff
-        assert!(elapsed.as_millis() >= 1400);
+        // Should have waited ~10ms + ~20ms = ~30ms for backoff
+        assert!(elapsed.as_millis() >= 25);
     }
 
     #[tokio::test]
