@@ -15,11 +15,10 @@
 pub mod client_credentials;
 #[cfg(feature = "jwt")]
 pub mod jwt_bearer;
-pub mod token;
 pub mod traits;
 
 pub use client_credentials::ClientCredentials;
 #[cfg(feature = "jwt")]
 pub use jwt_bearer::JwtBearerFlow;
-pub use token::{AccessToken, TokenManager, TokenResponse};
+pub use crate::storage::token::{AccessToken, TokenManager, TokenResponse};
 pub use traits::Authenticator;

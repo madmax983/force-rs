@@ -33,6 +33,7 @@ pub mod client;
 pub mod config;
 pub mod error;
 pub mod http;
+pub mod storage;
 #[cfg(test)]
 pub(crate) mod test_support;
 pub mod types;

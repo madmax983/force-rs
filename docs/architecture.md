@@ -34,8 +34,8 @@ The following sequence diagram illustrates how the Core interacts with the Stora
 
 ```mermaid
 sequenceDiagram
-    participant C as Core (force)
-    participant S as Storage (force-storage)
+    participant C as Core (force::auth)
+    participant S as Storage (force::storage)
 
     Note over C, S: Authentication Flow
     C->>C: Authenticate with Salesforce
