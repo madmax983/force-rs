@@ -1,4 +1,6 @@
 #![cfg(feature = "bulk")]
+#![allow(missing_docs)]
+
 use futures::StreamExt;
 use tokio_util::compat::TokioAsyncReadCompatExt;
 
@@ -11,7 +13,7 @@ struct Record {
 }
 
 #[tokio::test]
-#[allow(clippy::expect_used)]
+#[allow(clippy::expect_used, clippy::similar_names)]
 async fn test_streaming_csv_pipeline() {
     // Simulate a CSV stream with two records
     let data = "Id,Name\n001,Acme\n002,Globex\n";
