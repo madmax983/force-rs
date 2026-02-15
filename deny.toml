@@ -50,7 +50,6 @@ license-files = [
 ]
 
 [bans]
-version = 2
 # Deny specific crates or crate versions
 multiple-versions = "warn"
 wildcards = "allow"
@@ -64,7 +63,6 @@ skip = []
 skip-tree = []
 
 [sources]
-version = 2
 # Only allow dependencies from crates.io
 unknown-registry = "deny"
 unknown-git = "deny"
