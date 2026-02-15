@@ -213,13 +213,14 @@ impl<T, A: crate::auth::Authenticator> BulkQueryStream<T, A> {
             Some(value) => Some(value.to_string()),
         };
 
-        let csv_text = response
-            .text()
+        let csv_bytes = response
+            .bytes()
             .await
             .map_err(crate::error::HttpError::from)?;
 
         // Parse CSV
-        let mut reader = csv::Reader::from_reader(csv_text.as_bytes());
+        // Zero-cost abstraction: Use bytes directly to avoid String allocation and UTF-8 validation
+        let mut reader = csv::Reader::from_reader(csv_bytes.as_ref());
         let mut records = VecDeque::new();
 
         for result in reader.deserialize() {
