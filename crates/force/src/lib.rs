@@ -32,6 +32,8 @@ pub mod auth;
 pub mod client;
 pub mod config;
 pub mod error;
+#[cfg(any(feature = "nova", test))]
+pub mod experimental;
 pub mod http;
 #[cfg(test)]
 pub(crate) mod test_support;
