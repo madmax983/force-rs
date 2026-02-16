@@ -163,10 +163,36 @@ impl SearchQueryBuilder {
     ///
     /// * `sobject` - The object type (e.g., "Account", "Contact")
     /// * `fields` - The fields to return (e.g., `&["Id", "Name"]`)
+    ///
+    /// # Panics
+    ///
+    /// Panics if `sobject` or any of `fields` contain invalid characters or structure
+    /// that could lead to SOSL injection.
+    ///
+    /// - `sobject` must only contain alphanumeric characters and underscores.
+    /// - `fields` must have balanced parentheses, no unclosed quotes, and no trailing backslashes.
     #[must_use]
     pub fn returning(mut self, sobject: impl Into<String>, fields: &[impl AsRef<str>]) -> Self {
         let sobject = sobject.into();
-        let fields = fields.iter().map(|f| f.as_ref().to_string()).collect();
+        assert!(
+            is_valid_sobject(&sobject),
+            "Invalid sobject name: '{}'. SObjects must match ^[a-zA-Z0-9_]+$",
+            sobject
+        );
+
+        let fields: Vec<String> = fields
+            .iter()
+            .map(|f| {
+                let f_str = f.as_ref();
+                assert!(
+                    is_valid_field(f_str),
+                    "Invalid field expression: '{}'. Fields must have balanced parentheses and safe characters.",
+                    f_str
+                );
+                f_str.to_string()
+            })
+            .collect();
+
         self.returning.push((sobject, fields));
         self
     }
@@ -252,6 +278,67 @@ fn escape_sosl(text: &str) -> String {
         }
     }
     escaped
+}
+
+/// Validates SObject names to prevent SOSL injection.
+fn is_valid_sobject(s: &str) -> bool {
+    !s.is_empty() && s.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+}
+
+/// Validates field expressions to prevent SOSL injection.
+///
+/// Checks for balanced parentheses, correct quoting, and absence of trailing backslashes.
+fn is_valid_field(s: &str) -> bool {
+    #[derive(PartialEq)]
+    enum State {
+        Normal,
+        SingleQuote,
+        DoubleQuote,
+    }
+
+    if s.is_empty() {
+        // Empty fields usually handled by builder but we check just in case
+        return false;
+    }
+
+    let mut state = State::Normal;
+    let mut depth = 0;
+    let mut escaped = false;
+
+    for c in s.chars() {
+        if escaped {
+            escaped = false;
+            continue;
+        }
+
+        match state {
+            State::Normal => match c {
+                '(' => depth += 1,
+                ')' => {
+                    depth -= 1;
+                    if depth < 0 {
+                        return false;
+                    }
+                }
+                '\'' => state = State::SingleQuote,
+                '"' => state = State::DoubleQuote,
+                '\\' => escaped = true,
+                _ => {}
+            },
+            State::SingleQuote => match c {
+                '\'' => state = State::Normal,
+                '\\' => escaped = true,
+                _ => {}
+            },
+            State::DoubleQuote => match c {
+                '"' => state = State::Normal,
+                '\\' => escaped = true,
+                _ => {}
+            },
+        }
+    }
+
+    !escaped && state == State::Normal && depth == 0
 }
 
 #[cfg(test)]
