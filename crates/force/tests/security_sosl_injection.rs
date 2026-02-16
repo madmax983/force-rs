@@ -1,4 +1,6 @@
 #![allow(missing_docs)]
+#![cfg(feature = "rest")]
+
 use force::api::rest::search::SearchQueryBuilder;
 
 #[test]
