@@ -19,11 +19,11 @@ use std::sync::Arc;
 ///
 /// The client is generic over the authenticator type for zero-cost abstraction.
 #[derive(Debug)]
-pub struct ForceClient<A: crate::auth::Authenticator> {
+pub struct ForceClient<A: crate::types::authenticator::Authenticator> {
     inner: Arc<Inner<A>>,
 }
 
-impl<A: crate::auth::Authenticator> Clone for ForceClient<A> {
+impl<A: crate::types::authenticator::Authenticator> Clone for ForceClient<A> {
     fn clone(&self) -> Self {
         Self {
             inner: Arc::clone(&self.inner),
@@ -37,7 +37,7 @@ pub fn builder() -> ForceClientBuilder<NoAuth> {
     ForceClientBuilder::new()
 }
 
-impl<A: crate::auth::Authenticator> ForceClient<A> {
+impl<A: crate::types::authenticator::Authenticator> ForceClient<A> {
     /// Returns the client configuration.
     #[must_use]
     pub fn config(&self) -> &ClientConfig {
@@ -49,7 +49,7 @@ impl<A: crate::auth::Authenticator> ForceClient<A> {
     /// # Errors
     ///
     /// Returns an error if authentication or token refresh fails.
-    pub async fn token(&self) -> crate::error::Result<crate::auth::AccessToken> {
+    pub async fn token(&self) -> crate::error::Result<crate::types::token::AccessToken> {
         self.inner.token_manager.token().await
     }
 

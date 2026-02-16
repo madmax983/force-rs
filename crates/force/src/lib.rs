@@ -35,6 +35,7 @@ pub mod error;
 #[cfg(all(any(feature = "nova", test), feature = "rest"))]
 pub mod experimental;
 pub mod http;
+pub mod storage;
 #[cfg(test)]
 pub(crate) mod test_support;
 pub mod types;
