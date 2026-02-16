@@ -547,7 +547,10 @@ mod tests {
     fn test_returning_valid_function_calls() {
         let query = SearchQueryBuilder::new()
             .find("test")
-            .returning("Account", &["toLabel(Industry)", "convertCurrency(AnnualRevenue)"])
+            .returning(
+                "Account",
+                &["toLabel(Industry)", "convertCurrency(AnnualRevenue)"],
+            )
             .build();
 
         assert_eq!(
@@ -582,7 +585,10 @@ mod tests {
     fn test_returning_valid_complex_clauses() {
         let query = SearchQueryBuilder::new()
             .find("test")
-            .returning("Account", &["Name WHERE Name = 'Smith & Wesson' AND Industry = 'Tech'"])
+            .returning(
+                "Account",
+                &["Name WHERE Name = 'Smith & Wesson' AND Industry = 'Tech'"],
+            )
             .build();
 
         assert_eq!(
@@ -1111,12 +1117,12 @@ mod integration_tests {
 /// - Outside quotes: Only alphanumeric and safe symbols allowed.
 /// - Parentheses must be balanced.
 fn validate_field_syntax(field: &str) {
-    let mut chars = field.chars();
+    let chars = field.chars();
     let mut balance = 0;
     let mut in_quote = None; // None, Some('\''), Some('"')
     let mut escaped = false;
 
-    while let Some(c) = chars.next() {
+    for c in chars {
         if escaped {
             escaped = false;
             continue;
@@ -1162,19 +1168,11 @@ fn validate_field_syntax(field: &str) {
         }
     }
 
-    assert!(
-        in_quote.is_none(),
-        "unclosed quote in field: {}",
-        field
-    );
+    assert!(in_quote.is_none(), "unclosed quote in field: {}", field);
     assert!(
         balance == 0,
         "unbalanced parentheses (unclosed opening) in field: {}",
         field
     );
-    assert!(
-        !escaped,
-        "field cannot end with a backslash: {}",
-        field
-    );
+    assert!(!escaped, "field cannot end with a backslash: {}", field);
 }
