@@ -383,13 +383,11 @@ impl HttpExecutor {
         F: Fn() -> Fut,
         Fut: std::future::Future<Output = Result<AccessToken>>,
     {
-        let method = request.method().to_string();
-        let path = request.url().path().to_string();
         let request_class_str = request_class.as_str();
         let request_span = tracing::info_span!(
             "force_http_request",
-            http.method = %method,
-            http.path = %path,
+            http.method = %request.method(),
+            http.path = %request.url().path(),
             request.class = request_class_str
         );
         let _request_span_guard = request_span.enter();
@@ -415,8 +413,8 @@ impl HttpExecutor {
                     req_clone,
                     retry_attempt,
                     start,
-                    &method,
-                    &path,
+                    request.method().as_str(),
+                    request.url().path(),
                     request_class_str,
                 )
                 .await?;
@@ -434,8 +432,8 @@ impl HttpExecutor {
                         continue;
                     }
                     self.record_completion(RequestCompletion {
-                        method: method.clone(),
-                        path: path.clone(),
+                        method: request.method().to_string(),
+                        path: request.url().path().to_string(),
                         request_class: request_class_str,
                         status_code: Some(StatusCode::UNAUTHORIZED.as_u16()),
                         error_kind: None,
@@ -448,8 +446,8 @@ impl HttpExecutor {
                     // 429: Rate limit - respect Retry-After header
                     return Err(self.handle_rate_limit(
                         &response,
-                        &method,
-                        &path,
+                        request.method().as_str(),
+                        request.url().path(),
                         request_class_str,
                         start,
                         retry_attempt,
@@ -458,8 +456,8 @@ impl HttpExecutor {
                 StatusCode::SERVICE_UNAVAILABLE if retry_attempt < max_retries => {
                     // 503: Retry with exponential backoff
                     self.handle_service_unavailable(
-                        &method,
-                        &path,
+                        request.method().as_str(),
+                        request.url().path(),
                         request_class_str,
                         retry_attempt,
                     )
@@ -469,8 +467,8 @@ impl HttpExecutor {
                 }
                 _ => {
                     self.record_completion(RequestCompletion {
-                        method: method.clone(),
-                        path: path.clone(),
+                        method: request.method().to_string(),
+                        path: request.url().path().to_string(),
                         request_class: request_class_str,
                         status_code: Some(response.status().as_u16()),
                         error_kind: None,
