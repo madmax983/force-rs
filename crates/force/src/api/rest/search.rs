@@ -252,21 +252,17 @@ impl Default for SearchQueryBuilder {
 }
 
 fn validate_identifier(name: &str, context: &str) {
-    if name.is_empty() {
-        panic!("{} name cannot be empty", context);
-    }
-    if !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
-        panic!(
-            "Invalid {} name: '{}'. Must only contain alphanumeric characters and underscores.",
-            context, name
-        );
-    }
+    assert!(!name.is_empty(), "{} name cannot be empty", context);
+    assert!(
+        name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_'),
+        "Invalid {} name: '{}'. Must only contain alphanumeric characters and underscores.",
+        context,
+        name
+    );
 }
 
 fn validate_field_syntax(field: &str) {
-    if field.trim().is_empty() {
-        panic!("Field name cannot be empty");
-    }
+    assert!(!field.trim().is_empty(), "Field name cannot be empty");
 
     let mut balance = 0;
     for c in field.chars() {
@@ -274,23 +270,21 @@ fn validate_field_syntax(field: &str) {
             '(' => balance += 1,
             ')' => {
                 balance -= 1;
-                if balance < 0 {
-                    panic!(
-                        "Invalid field syntax: '{}'. Unbalanced parentheses - closing parenthesis without matching opening one.",
-                        field
-                    );
-                }
+                assert!(
+                    balance >= 0,
+                    "Invalid field syntax: '{}'. Unbalanced parentheses - closing parenthesis without matching opening one.",
+                    field
+                );
             }
             _ => {}
         }
     }
 
-    if balance != 0 {
-        panic!(
-            "Invalid field syntax: '{}'. Unbalanced parentheses - missing closing parenthesis.",
-            field
-        );
-    }
+    assert!(
+        balance == 0,
+        "Invalid field syntax: '{}'. Unbalanced parentheses - missing closing parenthesis.",
+        field
+    );
 }
 
 /// Escapes special characters for SOSL search queries.

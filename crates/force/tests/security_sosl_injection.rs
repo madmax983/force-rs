@@ -1,4 +1,5 @@
 #![allow(missing_docs)]
+#![cfg(feature = "rest")]
 
 use force::api::rest::search::SearchQueryBuilder;
 
@@ -6,7 +7,7 @@ use force::api::rest::search::SearchQueryBuilder;
 #[should_panic(expected = "Invalid object name")]
 fn test_sosl_injection_object_name() {
     // This input attempts to close the object clause and start a new one
-    SearchQueryBuilder::new()
+    let _ = SearchQueryBuilder::new()
         .find("test")
         .returning("Account), Contact(Id", &["Name"])
         .build();
@@ -16,7 +17,7 @@ fn test_sosl_injection_object_name() {
 #[should_panic(expected = "Invalid field syntax")]
 fn test_sosl_injection_field_unbalanced() {
     // This input attempts to close the object clause via a field
-    SearchQueryBuilder::new()
+    let _ = SearchQueryBuilder::new()
         .find("test")
         .returning("Account", &["Id), Contact(Name"])
         .build();
@@ -26,7 +27,7 @@ fn test_sosl_injection_field_unbalanced() {
 #[should_panic(expected = "Invalid object name")]
 fn test_sosl_injection_object_weird_chars() {
     // Hyphens are not allowed in object names
-    SearchQueryBuilder::new()
+    let _ = SearchQueryBuilder::new()
         .find("test")
         .returning("Account-Bad", &["Name"])
         .build();
@@ -58,7 +59,10 @@ fn test_sosl_valid_complex_where() {
     // RETURNING Account(Name WHERE CreatedDate > TODAY ORDER BY Name DESC)
     let query = SearchQueryBuilder::new()
         .find("test")
-        .returning("Account", &["Name WHERE CreatedDate > TODAY ORDER BY Name DESC"])
+        .returning(
+            "Account",
+            &["Name WHERE CreatedDate > TODAY ORDER BY Name DESC"],
+        )
         .build();
     assert!(query.contains("Account(Name WHERE CreatedDate > TODAY ORDER BY Name DESC)"));
 }
