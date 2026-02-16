@@ -1,4 +1,6 @@
 #![allow(missing_docs)]
+#![cfg(feature = "rest")]
+
 use force::api::rest::search::SearchQueryBuilder;
 
 #[test]
@@ -13,7 +15,7 @@ fn test_sosl_injection_vulnerability_sobject() {
 }
 
 #[test]
-#[should_panic(expected = "field name contains invalid characters")]
+#[should_panic(expected = "unbalanced parentheses (unexpected closing) in field")]
 fn test_sosl_injection_vulnerability_field() {
     let malicious_field = "Id) LIMIT 1000 --";
 
