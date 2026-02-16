@@ -1,52 +1,39 @@
-# Elenchus Test Audit
+# Elenchus's Journal ⚔️
 
-## verdicts
+This file records the cross-examination of the test suite.
 
-**[Ceremonial Assertion]**
-**Module:** `crates/force/src/client/builder.rs`
+## Philosophy
+
+A test that cannot fail is not a test — it is a decoration.
+Coverage is a liar's metric. Mutation score is the polygraph.
+The most dangerous test is one that passes for the wrong reason.
+
+## Verdicts & Patterns
+
+### 🟢 Acquitted (Fixed): `crates/force/src/api/rest/query.rs`
+
+**Module:** `crates::force::api::rest::query`
 **Severity:** 🟢 Acquitted (Fixed)
-**Finding:** Previously asserted on `Arc::strong_count`.
-**Resolution:** Codebase has been updated; test now asserts on public configuration properties.
+**Finding:** Missing coverage for absolute `nextRecordsUrl`.
+**Evidence:** The implementation handles `next_records_url.starts_with("http")`, but no test exercises this branch. If Salesforce changes behavior or the logic regresses, pagination could fail silently or with confusing errors.
+**Resolution:** Added `test_query_more_absolute_url` integration test.
 
-**[Tautological Mirroring & False Confidence]**
-**Module:** `crates/force/src/types/query.rs`
+### 🟢 Acquitted (Fixed): `crates/force/src/api/rest/query_stream.rs`
+
+**Module:** `crates::force::api::rest::query_stream`
 **Severity:** 🟢 Acquitted (Fixed)
-**Finding:** Generator previously "fixed" invalid states.
-**Resolution:** Generator now produces raw random states, allowing tests to verify behavior under invalid conditions (e.g., `prop_done_implies_not_has_more` now correctly verifies safety despite invalid state).
+**Finding:** Missing coverage for pagination failures and empty middle pages.
+**Evidence:**
+1.  No test verifies that `stream.next()` returns the buffered records from the first page before failing on the second page fetch.
+2.  No test verifies that `stream.next()` correctly handles an empty page (0 records) when `done: false`, ensuring it automatically fetches the next page instead of yielding `None` prematurely.
+**Resolution:** Added `test_query_stream_pagination_error` and `test_query_stream_empty_middle_page`.
 
-**[Tautological Assertion]**
-**Module:** `crates/force/src/types/query.rs`
-**Severity:** 🟡 Suspect (Accepted)
-**Finding:** `prop_has_more_is_inverse_of_done` asserts `!result.done` when `result.has_more()` is true.
-**Evidence:** `prop_assert_eq!(result.has_more(), !result.is_done());`
-**Resolution:** Accepted as a necessary verification of the API contract: `has_more()` *must* be the inverse of `done`, regardless of other internal state (like `next_records_url`). It ensures the `done` flag remains the source of truth.
+### 🟢 Acquitted (Fixed): `crates/force/src/api/rest/search.rs`
 
-**[Missing Negative Test]**
-**Module:** `crates/force/src/api/rest/query.rs`
+**Module:** `crates::force::api::rest::search`
 **Severity:** 🟢 Acquitted (Fixed)
-**Finding:** No test for `done: false` but missing `nextRecordsUrl`.
-**Resolution:** `test_query_pagination_missing_url` has been added to verify this scenario.
-
-**[Ceremonial Assertion]**
-**Module:** `crates/force/src/api/rest/crud.rs`
-**Severity:** 🟢 Acquitted (Fixed)
-**Finding:** `test_upsert_update` asserted `result.is_err() || result.is_ok()`, which is always true.
-**Resolution:** Updated test to assert `matches!(result, Err(ForceError::NotImplemented(_)))`.
-
-**[Untested Default Behavior]**
-**Module:** `crates/force/src/http/mod.rs`
-**Severity:** 🟡 Suspect (Fixed)
-**Finding:** `parse_retry_after` relied on untested default (60s) for missing/invalid headers.
-**Resolution:** Refactored to accept `&HeaderMap`, added 4 unit tests covering edge cases, and 2 integration tests verifying 429 defaults.
-
-**[Time-Dependent Flakiness]**
-**Module:** `crates/force/src/http/tests.rs`
-**Severity:** 🟡 Suspect (Fixed)
-**Finding:** `test_503_retries_with_exponential_backoff` relied on 1.5s real-time sleep, making it slow and potentially flaky.
-**Resolution:** Refactored `HttpExecutor` to support configurable `base_backoff`, reducing test duration to 0.04s and ensuring determinism.
-
-**[Missing Safe Method Classification]**
-**Module:** `crates/force/src/http/mod.rs`
-**Severity:** 🟢 Acquitted (Fixed)
-**Finding:** `classify_request` excluded `TRACE` from retryable read operations.
-**Resolution:** Added `TRACE` to `RequestRetryClass::Read`.
+**Finding:** Strong tests for builder logic and SOSL injection prevention.
+**Evidence:**
+1.  `test_search_query_builder_escaping` explicitly tests special character escaping.
+2.  `validate_field_syntax` is well-tested for balanced parentheses and quotes.
+**Resolution:** Added one edge case for escaped quotes within string literals (`'O\'Reilly'`).
