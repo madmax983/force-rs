@@ -1,12 +1,10 @@
 //! Asynchronous stream for iterating over SOQL query results.
 //!
-//! This module provides the `QueryStream` struct and the `RestQueryStreamExt` trait
-//! to simplify paginated SOQL queries.
+//! This module provides the `QueryStream` struct to simplify paginated SOQL queries.
 //!
 //! # Examples
 //!
 //! ```ignore
-//! use force::experimental::query_stream::RestQueryStreamExt;
 //! use futures::StreamExt;
 //!
 //! let mut stream = client.rest().query_stream::<Account>("SELECT Id, Name FROM Account");
@@ -19,7 +17,7 @@
 //! }
 //! ```
 
-use crate::api::rest::RestHandler;
+use super::RestHandler;
 use crate::auth::Authenticator;
 use crate::error::Result;
 use futures::Stream;
@@ -117,29 +115,6 @@ where
     }
 }
 
-/// Extension trait for `RestHandler` to support streaming queries.
-pub trait RestQueryStreamExt<A: Authenticator> {
-    /// Creates a stream of query results for the given SOQL.
-    ///
-    /// # Examples
-    ///
-    /// ```ignore
-    /// let stream = client.rest().query_stream::<Account>("SELECT Id FROM Account");
-    /// ```
-    fn query_stream<T>(&self, soql: impl Into<String>) -> QueryStream<T, A>
-    where
-        T: DeserializeOwned + Unpin;
-}
-
-impl<A: Authenticator> RestQueryStreamExt<A> for RestHandler<A> {
-    fn query_stream<T>(&self, soql: impl Into<String>) -> QueryStream<T, A>
-    where
-        T: DeserializeOwned + Unpin,
-    {
-        QueryStream::new(self.clone(), soql)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -216,6 +191,7 @@ mod tests {
             .await;
 
         let client = builder().authenticate(auth).build().await.must();
+        // NOTE: This relies on RestHandler having query_stream method, which will be added in mod.rs
         let mut stream = client
             .rest()
             .query_stream::<TestAccount>("SELECT Id, Name FROM Account");
