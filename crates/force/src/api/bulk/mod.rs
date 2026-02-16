@@ -7,6 +7,8 @@ pub mod ingest;
 pub mod query;
 pub mod types;
 
+pub use query::BulkQueryStream;
+
 #[cfg(feature = "bulk")]
 pub mod csv;
 

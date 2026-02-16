@@ -10,6 +10,8 @@ pub mod query;
 pub mod query_stream;
 pub mod search;
 
+pub use query_stream::QueryStream;
+
 use crate::error::Result;
 use serde::de::DeserializeOwned;
 use std::sync::Arc;
