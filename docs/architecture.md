@@ -18,32 +18,44 @@ C4Context
 
 ## Class Diagram
 
-The core library is decoupled from concrete storage implementations via traits.
+The core library is decoupled from concrete storage implementations via module boundaries and strategy patterns.
 
 ```mermaid
 classDiagram
-  class Core
-  class Storage
-  Core --> Storage : Uses (Trait Bound)
-  %% Removed the circular dependency arrow
+  class ForceClient
+  class TokenManager
+  class Authenticator
+  <<interface>> Authenticator
+  ForceClient --> TokenManager : Uses (Module Import)
+  TokenManager --> Authenticator : Uses (Strategy Pattern)
+  %% Circular dependency between Core and Storage is resolved
 ```
 
 ## Sequence Diagram: Token Storage
 
-The following sequence diagram illustrates how the Core interacts with the Storage layer to persist authentication tokens.
+The following sequence diagram illustrates how the Client interacts with the TokenManager to retrieve and persist authentication tokens.
 
 ```mermaid
 sequenceDiagram
-    participant C as Core (force)
-    participant S as Storage (force-storage)
+    participant C as Client (ForceClient)
+    participant TM as TokenManager
+    participant A as Authenticator
 
-    Note over C, S: Authentication Flow
-    C->>C: Authenticate with Salesforce
-    C->>S: save_token(access_token)
-    alt Success
-        S-->>C: Ok(())
-    else Failure
-        S-->>C: Err(StorageError)
-        C->>C: Log error (graceful degradation)
+    Note over C, TM: Token Retrieval Flow
+    C->>TM: token()
+    TM->>TM: Check Internal Cache (Read Lock)
+    alt Valid Token Exists
+        TM-->>C: AccessToken
+    else Expired / None
+        TM->>TM: Acquire Write Lock
+        TM->>A: refresh() or authenticate()
+        alt Success
+            A-->>TM: New AccessToken
+            TM->>TM: Update Cache
+            TM-->>C: New AccessToken
+        else Failure
+            A-->>TM: Error
+            TM-->>C: Error
+        end
     end
 ```
