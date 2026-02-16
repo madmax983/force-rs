@@ -6,8 +6,8 @@
 
 use crate::config::ClientConfig;
 use crate::http::HttpExecutor;
-use crate::storage::token::TokenManager;
 use crate::http::RequestRetryClass;
+use crate::storage::token::TokenManager;
 use serde::de::DeserializeOwned;
 use std::sync::Arc;
 

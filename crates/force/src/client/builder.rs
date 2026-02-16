@@ -2,9 +2,9 @@
 
 use crate::client::ForceClient;
 use crate::config::ClientConfig;
+use crate::error::Result;
 use crate::storage::token::TokenManager;
 use crate::types::authenticator::Authenticator;
-use crate::error::Result;
 use std::marker::PhantomData;
 
 /// Marker type indicating no authentication has been configured.

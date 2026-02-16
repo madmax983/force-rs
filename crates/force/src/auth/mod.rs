@@ -16,9 +16,9 @@ pub mod client_credentials;
 #[cfg(feature = "jwt")]
 pub mod jwt_bearer;
 
+pub use crate::storage::token::TokenManager;
+pub use crate::types::authenticator::Authenticator;
+pub use crate::types::token::{AccessToken, TokenResponse};
 pub use client_credentials::ClientCredentials;
 #[cfg(feature = "jwt")]
 pub use jwt_bearer::JwtBearerFlow;
-pub use crate::types::token::{AccessToken, TokenResponse};
-pub use crate::storage::token::TokenManager;
-pub use crate::types::authenticator::Authenticator;
