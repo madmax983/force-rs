@@ -4,3 +4,7 @@
 //! Use with caution.
 
 pub mod query_stream;
+
+#[cfg(feature = "bulk")]
+/// Smart bulk ingestion module.
+pub mod smart_ingest;
