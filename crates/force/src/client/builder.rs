@@ -1,8 +1,9 @@
 //! Builder for `ForceClient` with type-state pattern for authentication safety.
 
-use crate::auth::{Authenticator, TokenManager};
 use crate::client::ForceClient;
 use crate::config::ClientConfig;
+use crate::storage::token::TokenManager;
+use crate::types::authenticator::Authenticator;
 use crate::error::Result;
 use std::marker::PhantomData;
 
@@ -114,9 +115,9 @@ impl<A: Authenticator> AuthenticatedBuilder<A> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::auth::AccessToken;
     use crate::config::{ClientConfig, Environment};
     use crate::test_support::Must;
+    use crate::types::token::AccessToken;
     use async_trait::async_trait;
 
     // Mock authenticator for testing
