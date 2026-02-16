@@ -281,6 +281,14 @@ impl HttpExecutor {
             .await
     }
 
+    fn inject_auth_header(request: &mut Request, token: &AccessToken) -> Result<()> {
+        let header_value = token.auth_header()?;
+        request
+            .headers_mut()
+            .insert(reqwest::header::AUTHORIZATION, header_value.clone());
+        Ok(())
+    }
+
     async fn execute_attempt(
         &self,
         request: Request,
@@ -394,10 +402,7 @@ impl HttpExecutor {
         let start = Instant::now();
 
         // Inject Bearer token
-        let header_value = token.auth_header()?;
-        request
-            .headers_mut()
-            .insert(reqwest::header::AUTHORIZATION, header_value.clone());
+        Self::inject_auth_header(&mut request, token)?;
 
         // Execute with retry logic
         let mut retry_attempt = 0;
@@ -424,13 +429,11 @@ impl HttpExecutor {
                     // 401: Refresh token and retry once
                     if !refreshed {
                         let new_token = refresh_token().await?;
-                        let new_header_value = new_token.auth_header()?;
-                        request
-                            .headers_mut()
-                            .insert(reqwest::header::AUTHORIZATION, new_header_value.clone());
+                        Self::inject_auth_header(&mut request, &new_token)?;
                         refreshed = true;
                         continue;
                     }
+
                     self.record_completion(RequestCompletion {
                         method: request.method().to_string(),
                         path: request.url().path().to_string(),
@@ -615,11 +618,10 @@ fn exponential_backoff(attempt: u32, base: Duration) -> Duration {
 }
 
 fn classify_request(method: &Method) -> RequestRetryClass {
-    if *method == Method::GET
-        || *method == Method::HEAD
-        || *method == Method::OPTIONS
-        || *method == Method::TRACE
-    {
+    if matches!(
+        *method,
+        Method::GET | Method::HEAD | Method::OPTIONS | Method::TRACE
+    ) {
         RequestRetryClass::Read
     } else {
         RequestRetryClass::Mutation
