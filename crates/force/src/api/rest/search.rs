@@ -163,10 +163,25 @@ impl SearchQueryBuilder {
     ///
     /// * `sobject` - The object type (e.g., "Account", "Contact")
     /// * `fields` - The fields to return (e.g., `&["Id", "Name"]`)
+    ///
+    /// # Panics
+    ///
+    /// Panics if `sobject` is invalid or any `field` contains unbalanced parentheses,
+    /// to prevent SOSL injection.
     #[must_use]
     pub fn returning(mut self, sobject: impl Into<String>, fields: &[impl AsRef<str>]) -> Self {
         let sobject = sobject.into();
-        let fields = fields.iter().map(|f| f.as_ref().to_string()).collect();
+        validate_identifier(&sobject, "object");
+
+        let fields: Vec<String> = fields
+            .iter()
+            .map(|f| {
+                let s = f.as_ref().to_string();
+                validate_field_syntax(&s);
+                s
+            })
+            .collect();
+
         self.returning.push((sobject, fields));
         self
     }
@@ -233,6 +248,48 @@ impl SearchQueryBuilder {
 impl Default for SearchQueryBuilder {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+fn validate_identifier(name: &str, context: &str) {
+    if name.is_empty() {
+        panic!("{} name cannot be empty", context);
+    }
+    if !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+        panic!(
+            "Invalid {} name: '{}'. Must only contain alphanumeric characters and underscores.",
+            context, name
+        );
+    }
+}
+
+fn validate_field_syntax(field: &str) {
+    if field.trim().is_empty() {
+        panic!("Field name cannot be empty");
+    }
+
+    let mut balance = 0;
+    for c in field.chars() {
+        match c {
+            '(' => balance += 1,
+            ')' => {
+                balance -= 1;
+                if balance < 0 {
+                    panic!(
+                        "Invalid field syntax: '{}'. Unbalanced parentheses - closing parenthesis without matching opening one.",
+                        field
+                    );
+                }
+            }
+            _ => {}
+        }
+    }
+
+    if balance != 0 {
+        panic!(
+            "Invalid field syntax: '{}'. Unbalanced parentheses - missing closing parenthesis.",
+            field
+        );
     }
 }
 
