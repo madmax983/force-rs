@@ -52,7 +52,6 @@ default = ["rest"]
 
 # Platform API surfaces
 rest = []
-nova = ["rest"]
 bulk = ["dep:csv"]
 composite = ["rest"]
 tooling = ["rest"]

@@ -7,6 +7,7 @@ pub mod crud;
 pub mod describe;
 pub mod limits;
 pub mod query;
+pub mod query_stream;
 pub mod search;
 
 use crate::error::Result;
@@ -53,6 +54,23 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
     #[must_use]
     pub(crate) fn new(inner: Arc<crate::client::inner::Inner<A>>) -> Self {
         Self { inner }
+    }
+
+    /// Creates a stream of query results for the given SOQL.
+    ///
+    /// This method simplifies paginated queries by returning a stream that automatically
+    /// fetches subsequent pages of results as needed.
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// let stream = client.rest().query_stream::<Account>("SELECT Id FROM Account");
+    /// ```
+    pub fn query_stream<T>(&self, soql: impl Into<String>) -> query_stream::QueryStream<T, A>
+    where
+        T: DeserializeOwned + Unpin,
+    {
+        query_stream::QueryStream::new(self.clone(), soql)
     }
 
     /// Constructs the base URL for REST API operations.
