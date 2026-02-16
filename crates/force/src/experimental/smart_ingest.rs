@@ -1,11 +1,9 @@
-#![cfg(feature = "bulk")]
-
+use crate::api::bulk::csv;
 use crate::api::bulk::ingest::IngestJobBuilder;
 use crate::api::bulk::types::{JobInfo, JobOperation};
-use crate::api::bulk::csv;
-use crate::error::Result;
 use crate::auth::Authenticator;
 use crate::client::ForceClient;
+use crate::error::Result;
 use serde::{Deserialize, Serialize};
 
 /// Result of a bulk ingest operation.
@@ -77,7 +75,11 @@ impl<'a, A: Authenticator> SmartIngester<'a, A> {
     /// * `client` - The ForceClient instance.
     /// * `object` - The Salesforce object type (e.g., "Account").
     /// * `operation` - The operation to perform (Insert, Update, Upsert, Delete).
-    pub fn new(client: &'a ForceClient<A>, object: impl Into<String>, operation: JobOperation) -> Self {
+    pub fn new(
+        client: &'a ForceClient<A>,
+        object: impl Into<String>,
+        operation: JobOperation,
+    ) -> Self {
         Self {
             client,
             object: object.into(),
@@ -87,6 +89,7 @@ impl<'a, A: Authenticator> SmartIngester<'a, A> {
     }
 
     /// Sets the external ID field for upsert operations.
+    #[must_use]
     pub fn external_id_field(mut self, field: impl Into<String>) -> Self {
         self.external_id_field = Some(field.into());
         self
@@ -164,9 +167,9 @@ impl<'a, A: Authenticator> SmartIngester<'a, A> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_support::{Must, MustMsg};
-    use crate::client::builder;
     use crate::auth::{AccessToken, Authenticator, TokenResponse};
+    use crate::client::builder;
+    use crate::test_support::{Must, MustMsg};
     use async_trait::async_trait;
     use wiremock::matchers::{method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -243,7 +246,9 @@ mod tests {
 
         // Mock: Upload CSV
         Mock::given(method("PUT"))
-            .and(path("/services/data/v60.0/jobs/ingest/750xx0000000001AAA/batches"))
+            .and(path(
+                "/services/data/v60.0/jobs/ingest/750xx0000000001AAA/batches",
+            ))
             .respond_with(ResponseTemplate::new(201))
             .mount(&mock_server)
             .await;
@@ -280,16 +285,20 @@ mod tests {
 
         // Mock: Successful results
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/jobs/ingest/750xx0000000001AAA/successfulResults"))
+            .and(path(
+                "/services/data/v60.0/jobs/ingest/750xx0000000001AAA/successfulResults",
+            ))
             .respond_with(ResponseTemplate::new(200).set_body_string(
-                "Name,Industry,sf__Id,sf__Created\nAcme,Tech,001xx0000000001AAA,true\n"
+                "Name,Industry,sf__Id,sf__Created\nAcme,Tech,001xx0000000001AAA,true\n",
             ))
             .mount(&mock_server)
             .await;
 
         // Mock: Failed results (empty)
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/jobs/ingest/750xx0000000001AAA/failedResults"))
+            .and(path(
+                "/services/data/v60.0/jobs/ingest/750xx0000000001AAA/failedResults",
+            ))
             .respond_with(ResponseTemplate::new(200).set_body_string(""))
             .mount(&mock_server)
             .await;
@@ -330,7 +339,9 @@ mod tests {
             .await;
 
         Mock::given(method("PUT"))
-            .and(path("/services/data/v60.0/jobs/ingest/750xx0000000002AAA/batches"))
+            .and(path(
+                "/services/data/v60.0/jobs/ingest/750xx0000000002AAA/batches",
+            ))
             .respond_with(ResponseTemplate::new(201))
             .mount(&mock_server)
             .await;
@@ -365,19 +376,24 @@ mod tests {
 
         // Mock: Successful results
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/jobs/ingest/750xx0000000002AAA/successfulResults"))
+            .and(path(
+                "/services/data/v60.0/jobs/ingest/750xx0000000002AAA/successfulResults",
+            ))
             .respond_with(ResponseTemplate::new(200).set_body_string(
-                "Name,Industry,sf__Id,sf__Created\nAcme,Tech,001xx0000000001AAA,true\n"
+                "Name,Industry,sf__Id,sf__Created\nAcme,Tech,001xx0000000001AAA,true\n",
             ))
             .mount(&mock_server)
             .await;
 
         // Mock: Failed results
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/jobs/ingest/750xx0000000002AAA/failedResults"))
-            .respond_with(ResponseTemplate::new(200).set_body_string(
-                "Name,Industry,sf__Error\nBad,,Required field missing\n"
+            .and(path(
+                "/services/data/v60.0/jobs/ingest/750xx0000000002AAA/failedResults",
             ))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_string("Name,Industry,sf__Error\nBad,,Required field missing\n"),
+            )
             .mount(&mock_server)
             .await;
 
@@ -385,8 +401,14 @@ mod tests {
         let ingester = SmartIngester::new(&client, "Account", JobOperation::Insert);
 
         let records = vec![
-            TestAccount { name: "Acme".to_string(), industry: "Tech".to_string() },
-            TestAccount { name: "Bad".to_string(), industry: "".to_string() },
+            TestAccount {
+                name: "Acme".to_string(),
+                industry: "Tech".to_string(),
+            },
+            TestAccount {
+                name: "Bad".to_string(),
+                industry: String::new(),
+            },
         ];
 
         let result = ingester.ingest(&records).await.must();
