@@ -655,11 +655,7 @@ mod tests {
         let next_url = page1.next_records_url.as_ref().must();
         assert!(next_url.starts_with("http")); // Verify it is absolute
 
-        let page2: QueryResult<TestAccount> = client
-            .rest()
-            .query_more(next_url)
-            .await
-            .must();
+        let page2: QueryResult<TestAccount> = client.rest().query_more(next_url).await.must();
 
         assert_eq!(page2.len(), 1);
         assert_eq!(page2.records[0].name, "Record2");
