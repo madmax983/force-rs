@@ -163,10 +163,31 @@ impl SearchQueryBuilder {
     ///
     /// * `sobject` - The object type (e.g., "Account", "Contact")
     /// * `fields` - The fields to return (e.g., `&["Id", "Name"]`)
+    ///
+    /// # Panics
+    ///
+    /// Panics if object names contain non-alphanumeric/underscore characters or
+    /// if field names contain characters other than alphanumeric, underscores, or dots.
     #[must_use]
     pub fn returning(mut self, sobject: impl Into<String>, fields: &[impl AsRef<str>]) -> Self {
         let sobject = sobject.into();
-        let fields = fields.iter().map(|f| f.as_ref().to_string()).collect();
+        assert!(
+            sobject
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '_'),
+            "sobject name contains invalid characters: {}",
+            sobject
+        );
+
+        let fields: Vec<String> = fields
+            .iter()
+            .map(|f| {
+                let f_str = f.as_ref();
+                validate_field_syntax(f_str);
+                f_str.to_string()
+            })
+            .collect();
+
         self.returning.push((sobject, fields));
         self
     }
@@ -466,6 +487,184 @@ mod tests {
         // All special characters should be escaped with backslash
         let expected = r#"FIND {\? \& \| \! \{ \} \[ \] \( \) \^ \~ \* \: \\ \" \' \+ \-} RETURNING Account(Id)"#;
         assert_eq!(query, expected);
+    }
+
+    #[test]
+    fn test_returning_valid_inputs() {
+        let query = SearchQueryBuilder::new()
+            .find("test")
+            .returning("Account", &["Name", "Id"])
+            .returning("Custom__c", &["Field__c", "Parent__r.Name"])
+            .build();
+
+        assert_eq!(
+            query,
+            "FIND {test} RETURNING Account(Name, Id), Custom__c(Field__c, Parent__r.Name)"
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "sobject name contains invalid characters")]
+    fn test_returning_invalid_sobject_space() {
+        let _ = SearchQueryBuilder::new()
+            .find("test")
+            .returning("Account Name", &["Id"])
+            .build();
+    }
+
+    #[test]
+    #[should_panic(expected = "sobject name contains invalid characters")]
+    fn test_returning_invalid_sobject_injection() {
+        let _ = SearchQueryBuilder::new()
+            .find("test")
+            .returning("Account; DROP TABLE", &["Id"])
+            .build();
+    }
+
+    #[test]
+    fn test_returning_valid_field_clauses() {
+        let query = SearchQueryBuilder::new()
+            .find("test")
+            .returning("Account", &["Name ORDER BY CreatedDate DESC", "Industry"])
+            .build();
+
+        assert_eq!(
+            query,
+            "FIND {test} RETURNING Account(Name ORDER BY CreatedDate DESC, Industry)"
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "unbalanced parentheses (unexpected closing) in field")]
+    fn test_returning_invalid_field_injection() {
+        let _ = SearchQueryBuilder::new()
+            .find("test")
+            .returning("Account", &["Id) LIMIT 1"])
+            .build();
+    }
+
+    #[test]
+    fn test_returning_valid_function_calls() {
+        let query = SearchQueryBuilder::new()
+            .find("test")
+            .returning(
+                "Account",
+                &["toLabel(Industry)", "convertCurrency(AnnualRevenue)"],
+            )
+            .build();
+
+        assert_eq!(
+            query,
+            "FIND {test} RETURNING Account(toLabel(Industry), convertCurrency(AnnualRevenue))"
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "unbalanced parentheses (unclosed opening) in field")]
+    fn test_returning_invalid_unclosed_parenthesis() {
+        let _ = SearchQueryBuilder::new()
+            .find("test")
+            .returning("Account", &["toLabel(Industry"])
+            .build();
+    }
+
+    #[test]
+    fn test_returning_valid_wildcard_clause() {
+        let query = SearchQueryBuilder::new()
+            .find("test")
+            .returning("Account", &["Name WHERE Name LIKE 'Acme%'"])
+            .build();
+
+        assert_eq!(
+            query,
+            "FIND {test} RETURNING Account(Name WHERE Name LIKE 'Acme%')"
+        );
+    }
+
+    #[test]
+    fn test_returning_valid_complex_clauses() {
+        let query = SearchQueryBuilder::new()
+            .find("test")
+            .returning(
+                "Account",
+                &["Name WHERE Name = 'Smith & Wesson' AND Industry = 'Tech'"],
+            )
+            .build();
+
+        assert_eq!(
+            query,
+            "FIND {test} RETURNING Account(Name WHERE Name = 'Smith & Wesson' AND Industry = 'Tech')"
+        );
+    }
+
+    #[test]
+    fn test_returning_valid_escaped_wildcard() {
+        let query = SearchQueryBuilder::new()
+            .find("test")
+            .returning("Account", &["Name WHERE Name LIKE '100\\%'"])
+            .build();
+
+        assert_eq!(
+            query,
+            "FIND {test} RETURNING Account(Name WHERE Name LIKE '100\\%')"
+        );
+    }
+
+    #[test]
+    fn test_returning_valid_semicolon_inside_quotes() {
+        let query = SearchQueryBuilder::new()
+            .find("test")
+            .returning("Account", &["Name WHERE Name = 'Semi;Colon'"])
+            .build();
+
+        assert_eq!(
+            query,
+            "FIND {test} RETURNING Account(Name WHERE Name = 'Semi;Colon')"
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "field name contains invalid character outside quotes: ';'")]
+    fn test_returning_invalid_semicolon_outside_quotes() {
+        let _ = SearchQueryBuilder::new()
+            .find("test")
+            .returning("Account", &["Name; DROP TABLE"])
+            .build();
+    }
+
+    #[test]
+    fn test_returning_valid_system_variable() {
+        let query = SearchQueryBuilder::new()
+            .find("test")
+            .returning("Account", &["Name WHERE OwnerId = $User.Id"])
+            .build();
+
+        assert_eq!(
+            query,
+            "FIND {test} RETURNING Account(Name WHERE OwnerId = $User.Id)"
+        );
+    }
+
+    #[test]
+    fn test_returning_valid_multiline_query() {
+        let query = SearchQueryBuilder::new()
+            .find("test")
+            .returning("Account", &["Name\nWHERE\tName = 'Acme'"])
+            .build();
+
+        assert_eq!(
+            query,
+            "FIND {test} RETURNING Account(Name\nWHERE\tName = 'Acme')"
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "field cannot end with a backslash")]
+    fn test_returning_invalid_trailing_backslash() {
+        let _ = SearchQueryBuilder::new()
+            .find("test")
+            .returning("Account", &["Name\\"])
+            .build();
     }
 }
 
@@ -909,4 +1108,71 @@ mod integration_tests {
 
         assert_eq!(results1.search_records.len(), results2.search_records.len());
     }
+}
+
+/// Validates field syntax to prevent SOSL injection while allowing complex clauses.
+///
+/// Implements a state machine to track quoting and parenthesis balance.
+/// - Inside quotes (`'` or `"`): All characters are allowed (except unescaped quote).
+/// - Outside quotes: Only alphanumeric and safe symbols allowed.
+/// - Parentheses must be balanced.
+fn validate_field_syntax(field: &str) {
+    let chars = field.chars();
+    let mut balance = 0;
+    let mut in_quote = None; // None, Some('\''), Some('"')
+    let mut escaped = false;
+
+    for c in chars {
+        if escaped {
+            escaped = false;
+            continue;
+        }
+
+        if c == '\\' {
+            escaped = true;
+            continue;
+        }
+
+        if let Some(quote_char) = in_quote {
+            if c == quote_char {
+                in_quote = None;
+            }
+            // Inside quotes, any character is allowed (besides the closing quote)
+        } else {
+            // Outside quotes
+            match c {
+                '\'' | '"' => in_quote = Some(c),
+                '(' => balance += 1,
+                ')' => {
+                    balance -= 1;
+                    assert!(
+                        balance >= 0,
+                        "unbalanced parentheses (unexpected closing) in field: {}",
+                        field
+                    );
+                }
+                // Allowed structure characters
+                _ if c.is_ascii_alphanumeric() => {}
+                '_' | '.' | ' ' | '\t' | '\n' | '\r' | ',' | '=' | '!' | '<' | '>' | '-' | '+'
+                | ':' | '%' | '&' | '|' | '^' | '*' | '$' => {}
+                // Disallowed injection characters outside quotes
+                ';' | '{' | '}' | '[' | ']' => panic!(
+                    "field name contains invalid character outside quotes: '{}' in \"{}\"",
+                    c, field
+                ),
+                _ => panic!(
+                    "field name contains invalid character: '{}' in \"{}\"",
+                    c, field
+                ),
+            }
+        }
+    }
+
+    assert!(in_quote.is_none(), "unclosed quote in field: {}", field);
+    assert!(
+        balance == 0,
+        "unbalanced parentheses (unclosed opening) in field: {}",
+        field
+    );
+    assert!(!escaped, "field cannot end with a backslash: {}", field);
 }
