@@ -163,10 +163,40 @@ impl SearchQueryBuilder {
     ///
     /// * `sobject` - The object type (e.g., "Account", "Contact")
     /// * `fields` - The fields to return (e.g., `&["Id", "Name"]`)
+    ///
+    /// # Panics
+    ///
+    /// Panics if object names contain non-alphanumeric/underscore characters or
+    /// if field names contain characters other than alphanumeric, underscores, or dots.
     #[must_use]
     pub fn returning(mut self, sobject: impl Into<String>, fields: &[impl AsRef<str>]) -> Self {
         let sobject = sobject.into();
-        let fields = fields.iter().map(|f| f.as_ref().to_string()).collect();
+        assert!(
+            sobject.chars().all(|c| c.is_ascii_alphanumeric() || c == '_'),
+            "sobject name contains invalid characters: {}",
+            sobject
+        );
+
+        let fields: Vec<String> = fields
+            .iter()
+            .map(|f| {
+                let f_str = f.as_ref();
+                // Allow alphanumeric, underscores, dots, spaces, and common operators.
+                // Disallow parentheses, braces, brackets, and semicolons to prevent injection.
+                assert!(
+                    f_str.chars().all(|c| c.is_ascii_alphanumeric()
+                        || matches!(
+                            c,
+                            '_' | '.' | ' ' | ',' | '=' | '!' | '<' | '>' | '-' | '+' | '\'' | '"'
+                                | ':'
+                        )),
+                    "field name contains invalid characters: {}",
+                    f_str
+                );
+                f_str.to_string()
+            })
+            .collect();
+
         self.returning.push((sobject, fields));
         self
     }
@@ -466,6 +496,60 @@ mod tests {
         // All special characters should be escaped with backslash
         let expected = r#"FIND {\? \& \| \! \{ \} \[ \] \( \) \^ \~ \* \: \\ \" \' \+ \-} RETURNING Account(Id)"#;
         assert_eq!(query, expected);
+    }
+
+    #[test]
+    fn test_returning_valid_inputs() {
+        let query = SearchQueryBuilder::new()
+            .find("test")
+            .returning("Account", &["Name", "Id"])
+            .returning("Custom__c", &["Field__c", "Parent__r.Name"])
+            .build();
+
+        assert_eq!(
+            query,
+            "FIND {test} RETURNING Account(Name, Id), Custom__c(Field__c, Parent__r.Name)"
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "sobject name contains invalid characters")]
+    fn test_returning_invalid_sobject_space() {
+        let _ = SearchQueryBuilder::new()
+            .find("test")
+            .returning("Account Name", &["Id"])
+            .build();
+    }
+
+    #[test]
+    #[should_panic(expected = "sobject name contains invalid characters")]
+    fn test_returning_invalid_sobject_injection() {
+        let _ = SearchQueryBuilder::new()
+            .find("test")
+            .returning("Account; DROP TABLE", &["Id"])
+            .build();
+    }
+
+    #[test]
+    fn test_returning_valid_field_clauses() {
+        let query = SearchQueryBuilder::new()
+            .find("test")
+            .returning("Account", &["Name ORDER BY CreatedDate DESC", "Industry"])
+            .build();
+
+        assert_eq!(
+            query,
+            "FIND {test} RETURNING Account(Name ORDER BY CreatedDate DESC, Industry)"
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "field name contains invalid characters")]
+    fn test_returning_invalid_field_injection() {
+        let _ = SearchQueryBuilder::new()
+            .find("test")
+            .returning("Account", &["Id) LIMIT 1"])
+            .build();
     }
 }
 
