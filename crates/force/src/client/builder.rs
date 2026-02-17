@@ -63,6 +63,12 @@ impl ForceClientBuilder<NoAuth> {
     }
 }
 
+impl Default for ForceClientBuilder<NoAuth> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<A: Authenticator> AuthenticatedBuilder<A> {
     /// Sets the client configuration.
     #[must_use]

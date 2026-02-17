@@ -103,10 +103,7 @@ impl ClientCredentials {
     ///
     /// * `client_id` - OAuth client ID from Connected App
     /// * `client_secret` - OAuth client secret from Connected App
-    pub fn new_production(
-        client_id: impl Into<String>,
-        client_secret: impl Into<String>,
-    ) -> Self {
+    pub fn new_production(client_id: impl Into<String>, client_secret: impl Into<String>) -> Self {
         Self::new(
             client_id,
             client_secret,
