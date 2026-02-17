@@ -18,7 +18,7 @@
 mod example {
     use anyhow::Context;
     use force::auth::ClientCredentials;
-    use force::client::builder;
+    use force::client::ForceClientBuilder;
     use serde::Serialize;
 
     #[derive(Serialize)]
@@ -44,12 +44,9 @@ mod example {
         let client_secret = required_env("SF_CLIENT_SECRET")?;
 
         println!("═══ Authenticating ═══");
-        let auth = ClientCredentials::new(
-            client_id,
-            client_secret,
-            "https://login.salesforce.com/services/oauth2/token",
-        );
-        let client = builder().authenticate(auth).build().await?;
+        // Use new_production() for standard login URL
+        let auth = ClientCredentials::new_production(client_id, client_secret);
+        let client = ForceClientBuilder::new().authenticate(auth).build().await?;
         println!("✓ Authentication successful\n");
 
         // Prepare bulk data
@@ -75,7 +72,7 @@ mod example {
         println!("Inserting {} accounts...", accounts.len());
 
         // Perform bulk insert (creates job, uploads CSV, closes, and polls)
-        let job_info = client.bulk().bulk_insert("Account", &accounts).await?;
+        let job_info = client.bulk().insert("Account", &accounts).await?;
 
         println!("\n═══ Results ═══");
         println!("Job ID: {}", job_info.id);

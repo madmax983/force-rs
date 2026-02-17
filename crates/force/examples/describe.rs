@@ -6,7 +6,7 @@
 mod example {
     use anyhow::Context;
     use force::auth::ClientCredentials;
-    use force::client::{ForceClient, builder};
+    use force::client::{ForceClient, ForceClientBuilder};
 
     fn required_env(name: &str) -> anyhow::Result<String> {
         std::env::var(name).with_context(|| format!("{name} environment variable not set"))
@@ -16,12 +16,8 @@ mod example {
         let client_id = required_env("SF_CLIENT_ID")?;
         let client_secret = required_env("SF_CLIENT_SECRET")?;
 
-        let auth = ClientCredentials::new(
-            client_id,
-            client_secret,
-            "https://login.salesforce.com/services/oauth2/token",
-        );
-        builder()
+        let auth = ClientCredentials::new_production(client_id, client_secret);
+        ForceClientBuilder::new()
             .authenticate(auth)
             .build()
             .await

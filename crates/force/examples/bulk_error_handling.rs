@@ -7,7 +7,7 @@ mod example {
     use force::api::bulk::ingest::IngestJobBuilder;
     use force::api::bulk::types::JobOperation;
     use force::auth::ClientCredentials;
-    use force::client::{ForceClient, builder};
+    use force::client::{ForceClient, ForceClientBuilder};
     use serde::{Deserialize, Serialize};
 
     #[derive(Serialize, Deserialize, Debug)]
@@ -43,12 +43,8 @@ mod example {
     async fn build_client() -> anyhow::Result<ForceClient<ClientCredentials>> {
         let client_id = required_env("SF_CLIENT_ID")?;
         let client_secret = required_env("SF_CLIENT_SECRET")?;
-        let auth = ClientCredentials::new(
-            client_id,
-            client_secret,
-            "https://login.salesforce.com/services/oauth2/token",
-        );
-        builder()
+        let auth = ClientCredentials::new_production(client_id, client_secret);
+        ForceClientBuilder::new()
             .authenticate(auth)
             .build()
             .await
@@ -99,7 +95,7 @@ mod example {
         }
 
         let invalid_soql = "SELECT InvalidField__c FROM Account";
-        match client.bulk().bulk_query::<Account>(invalid_soql).await {
+        match client.bulk().query::<Account>(invalid_soql).await {
             Ok(_) => println!("Unexpectedly created query job"),
             Err(err) => println!("Expected query error: {err}"),
         }

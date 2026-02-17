@@ -375,11 +375,11 @@ impl<A: crate::auth::Authenticator> BulkHandler<A> {
     ///     Account { name: "Acme Corp".to_string() },
     /// ];
     ///
-    /// let job = client.bulk().bulk_insert("Account", &accounts).await?;
+    /// let job = client.bulk().insert("Account", &accounts).await?;
     /// println!("Processed: {}", job.number_records_processed.unwrap_or(0));
     /// ```
     #[cfg(feature = "bulk")]
-    pub async fn bulk_insert<T>(&self, object: &str, records: &[T]) -> Result<types::JobInfo>
+    pub async fn insert<T>(&self, object: &str, records: &[T]) -> Result<types::JobInfo>
     where
         T: serde::Serialize + Sync,
     {
@@ -403,6 +403,15 @@ impl<A: crate::auth::Authenticator> BulkHandler<A> {
         // Get final job info
         let job_info = self.get_job(job.job_id()).await?;
         Ok(job_info)
+    }
+
+    /// Convenience method to perform a bulk insert operation (legacy name).
+    #[cfg(feature = "bulk")]
+    pub async fn bulk_insert<T>(&self, object: &str, records: &[T]) -> Result<types::JobInfo>
+    where
+        T: serde::Serialize + Sync,
+    {
+        self.insert(object, records).await
     }
 
     /// Convenience method to perform a bulk update operation.
@@ -443,11 +452,11 @@ impl<A: crate::auth::Authenticator> BulkHandler<A> {
     ///     },
     /// ];
     ///
-    /// let job = client.bulk().bulk_update("Account", &accounts).await?;
+    /// let job = client.bulk().update("Account", &accounts).await?;
     /// println!("Processed: {}", job.number_records_processed.unwrap_or(0));
     /// ```
     #[cfg(feature = "bulk")]
-    pub async fn bulk_update<T>(&self, object: &str, records: &[T]) -> Result<types::JobInfo>
+    pub async fn update<T>(&self, object: &str, records: &[T]) -> Result<types::JobInfo>
     where
         T: serde::Serialize + Sync,
     {
@@ -471,6 +480,15 @@ impl<A: crate::auth::Authenticator> BulkHandler<A> {
         // Get final job info
         let job_info = self.get_job(job.job_id()).await?;
         Ok(job_info)
+    }
+
+    /// Convenience method to perform a bulk update operation (legacy name).
+    #[cfg(feature = "bulk")]
+    pub async fn bulk_update<T>(&self, object: &str, records: &[T]) -> Result<types::JobInfo>
+    where
+        T: serde::Serialize + Sync,
+    {
+        self.update(object, records).await
     }
 
     /// Convenience method to perform a bulk delete operation.
@@ -498,11 +516,11 @@ impl<A: crate::auth::Authenticator> BulkHandler<A> {
     ///     "001xx0000000002AAA".to_string(),
     /// ];
     ///
-    /// let job = client.bulk().bulk_delete("Account", &ids).await?;
+    /// let job = client.bulk().delete("Account", &ids).await?;
     /// println!("Deleted: {}", job.number_records_processed.unwrap_or(0));
     /// ```
     #[cfg(feature = "bulk")]
-    pub async fn bulk_delete(&self, object: &str, ids: &[String]) -> Result<types::JobInfo> {
+    pub async fn delete(&self, object: &str, ids: &[String]) -> Result<types::JobInfo> {
         use ingest::IngestJobBuilder;
         use types::JobOperation;
 
@@ -536,6 +554,12 @@ impl<A: crate::auth::Authenticator> BulkHandler<A> {
         Ok(job_info)
     }
 
+    /// Convenience method to perform a bulk delete operation (legacy name).
+    #[cfg(feature = "bulk")]
+    pub async fn bulk_delete(&self, object: &str, ids: &[String]) -> Result<types::JobInfo> {
+        self.delete(object, ids).await
+    }
+
     /// Convenience method to perform a bulk query operation.
     ///
     /// Creates a bulk query job, polls until completion, and returns a stream of results.
@@ -565,19 +589,28 @@ impl<A: crate::auth::Authenticator> BulkHandler<A> {
     /// }
     ///
     /// let soql = "SELECT Id, Name FROM Account WHERE Industry = 'Technology'";
-    /// let mut stream = client.bulk().bulk_query::<Account>(soql).await?;
+    /// let mut stream = client.bulk().query::<Account>(soql).await?;
     ///
     /// while let Some(account) = stream.next().await? {
     ///     println!("{}: {}", account.id, account.name);
     /// }
     /// ```
     #[cfg(feature = "bulk")]
-    pub async fn bulk_query<T>(&self, soql: &str) -> Result<query::BulkQueryStream<T, A>>
+    pub async fn query<T>(&self, soql: &str) -> Result<query::BulkQueryStream<T, A>>
     where
         T: for<'de> serde::Deserialize<'de>,
     {
         self.bulk_query_with_policy(soql, BulkPollPolicy::default())
             .await
+    }
+
+    /// Convenience method to perform a bulk query operation (legacy name).
+    #[cfg(feature = "bulk")]
+    pub async fn bulk_query<T>(&self, soql: &str) -> Result<query::BulkQueryStream<T, A>>
+    where
+        T: for<'de> serde::Deserialize<'de>,
+    {
+        self.query(soql).await
     }
 
     /// Creates a bulk query job with a custom polling policy and returns a stream of results.

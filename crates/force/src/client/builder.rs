@@ -38,7 +38,7 @@ pub struct AuthenticatedBuilder<A: Authenticator> {
 impl ForceClientBuilder<NoAuth> {
     /// Creates a new builder in the unauthenticated state.
     #[must_use]
-    pub(crate) const fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             config: None,
             _auth: PhantomData,
