@@ -7,3 +7,11 @@
 ## [Double-Prefixing URLs]
 **Learning:** `query_more` assumed `nextRecordsUrl` was always relative, unconditionally prepending the instance URL. This failed when Salesforce (or a mock) returned an absolute URL, resulting in `https://instance...https://instance...`.
 **Action:** Always check if a URL is already absolute (e.g., `starts_with("http")`) before prepending a base URL. Use `reqwest::Url::parse` or manual checks to handle both cases gracefully.
+
+## [Backoff Cap Logic]
+**Learning:** `exponential_backoff` logic `min(calculated, MAX)` unconditionally capped the delay at 30s, ignoring the user-configured `base_backoff`. If a user set `base_backoff` to 60s, the client would still retry every 30s.
+**Action:** Ensure that capping logic respects the user's minimum configuration. `max(base, MAX)` ensures the delay is never shorter than the base backoff.
+
+## [Timestamp Precision Loss]
+**Learning:** `parse_issued_at` used integer division by 1000 to convert milliseconds to seconds, discarding sub-second precision. This could lead to incorrect token expiration calculations (off by up to 1 second).
+**Action:** Use `DateTime::from_timestamp_millis` or similar high-precision constructors when parsing timestamps to preserve fidelity.

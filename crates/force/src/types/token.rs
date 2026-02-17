@@ -227,8 +227,7 @@ fn parse_issued_at(issued_at: &str) -> Result<DateTime<Utc>> {
         ))
     })?;
 
-    let timestamp_secs = timestamp_ms / 1000;
-    DateTime::from_timestamp(timestamp_secs, 0).ok_or_else(|| {
+    DateTime::from_timestamp_millis(timestamp_ms).ok_or_else(|| {
         crate::error::ForceError::Serialization(crate::error::SerializationError::InvalidFormat(
             format!("timestamp out of range: {timestamp_ms}"),
         ))
@@ -434,5 +433,15 @@ mod tests {
         let token = AccessToken::from_response(response);
         // Should be None due to cap
         assert!(token.expires_at.is_none());
+    }
+
+    #[test]
+    fn test_parse_issued_at_milliseconds_precision() {
+        // Timestamp with 500ms: 1704067200500
+        let timestamp = "1704067200500";
+        let result = parse_issued_at(timestamp).must();
+
+        // This fails if precision is lost (it becomes 0)
+        assert_eq!(result.timestamp_subsec_millis(), 500);
     }
 }
