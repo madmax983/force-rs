@@ -61,10 +61,7 @@ impl Attributes {
         let type_ = type_name.into();
 
         // Validate type name (alphanumeric + underscore only)
-        if !type_
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '_')
-        {
+        if !type_.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
             return Err(crate::error::ForceError::Serialization(
                 crate::error::SerializationError::InvalidType(format!(
                     "invalid SObject type: {}",
