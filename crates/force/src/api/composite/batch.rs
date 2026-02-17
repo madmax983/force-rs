@@ -46,7 +46,12 @@ impl<A: Authenticator> BatchBuilder<A> {
     ///
     /// * `sobject` - The SObject type (e.g., "Account")
     /// * `id` - The record ID
+    ///
+    /// # Panics
+    ///
+    /// Panics if the `sobject` name or `id` is invalid.
     #[must_use]
+    #[allow(clippy::expect_used)]
     pub fn get(mut self, sobject: &str, id: &str) -> Self {
         validator::validate_sobject_name(sobject).expect("Invalid SObject name");
         validator::validate_id(id).expect("Invalid Salesforce ID");
@@ -64,7 +69,12 @@ impl<A: Authenticator> BatchBuilder<A> {
     ///
     /// * `sobject` - The SObject type (e.g., "Account")
     /// * `body` - The JSON body of the record
+    ///
+    /// # Panics
+    ///
+    /// Panics if the `sobject` name is invalid.
     #[must_use]
+    #[allow(clippy::expect_used)]
     pub fn post(mut self, sobject: &str, body: Value) -> Self {
         validator::validate_sobject_name(sobject).expect("Invalid SObject name");
         self.requests.push(BatchSubRequest {
@@ -82,7 +92,12 @@ impl<A: Authenticator> BatchBuilder<A> {
     /// * `sobject` - The SObject type (e.g., "Account")
     /// * `id` - The record ID
     /// * `body` - The JSON body with fields to update
+    ///
+    /// # Panics
+    ///
+    /// Panics if the `sobject` name or `id` is invalid.
     #[must_use]
+    #[allow(clippy::expect_used)]
     pub fn patch(mut self, sobject: &str, id: &str, body: Value) -> Self {
         validator::validate_sobject_name(sobject).expect("Invalid SObject name");
         validator::validate_id(id).expect("Invalid Salesforce ID");
@@ -100,7 +115,12 @@ impl<A: Authenticator> BatchBuilder<A> {
     ///
     /// * `sobject` - The SObject type (e.g., "Account")
     /// * `id` - The record ID
+    ///
+    /// # Panics
+    ///
+    /// Panics if the `sobject` name or `id` is invalid.
     #[must_use]
+    #[allow(clippy::expect_used)]
     pub fn delete(mut self, sobject: &str, id: &str) -> Self {
         validator::validate_sobject_name(sobject).expect("Invalid SObject name");
         validator::validate_id(id).expect("Invalid Salesforce ID");

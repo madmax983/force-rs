@@ -40,7 +40,6 @@ prost = { workspace = true, optional = true }
 apache-avro = { workspace = true, optional = true }
 wiremock = { workspace = true, optional = true }
 regex = "1.12.3"
-once_cell = "1.21.3"
 percent-encoding = "2.3.2"
 
 [dev-dependencies]

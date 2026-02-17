@@ -5,7 +5,8 @@
 
 use crate::error::Result;
 use crate::types::common::{CreateResponse, DeleteResponse, UpdateResponse, UpsertResponse};
-use crate::types::{validator, SalesforceId};
+use crate::types::{SalesforceId, validator};
+use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
 
 use super::RestHandler;
 
@@ -243,7 +244,6 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
         validator::validate_field_name(external_id_field)?;
 
         // URL encode the external ID value to prevent injection and handle special characters
-        use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
         // Don't encode standard URL characters that are safe in path segments
         const ENCODE_SET: percent_encoding::AsciiSet = NON_ALPHANUMERIC
             .remove(b'-')

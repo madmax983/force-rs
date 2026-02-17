@@ -4,7 +4,7 @@
 //! including dynamic field access and typed SObject representations.
 
 use crate::error::Result as ForceResult;
-use crate::types::{validator, SalesforceId};
+use crate::types::{SalesforceId, validator};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 

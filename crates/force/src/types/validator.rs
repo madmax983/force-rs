@@ -5,22 +5,21 @@
 
 use crate::error::{ForceError, Result};
 use crate::types::SalesforceId;
-use once_cell::sync::Lazy;
 use regex::Regex;
+use std::sync::LazyLock;
 
 /// Regex for validating SObject and field names.
 /// Allows alphanumeric characters and underscores.
 /// Must start with a letter.
 /// Cannot contain consecutive underscores (this is standard Salesforce validation).
 /// Cannot end with an underscore.
-static SOBJECT_PATTERN: Lazy<Regex> = Lazy::new(|| {
+static SOBJECT_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"^[a-zA-Z](?:[a-zA-Z0-9_]*[a-zA-Z0-9])?$").expect("Invalid regex")
 });
 
 /// Regex for validating API versions (e.g., "v60.0").
-static API_VERSION_PATTERN: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"^v\d+\.\d+$").expect("Invalid regex")
-});
+static API_VERSION_PATTERN: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^v\d+\.\d+$").expect("Invalid regex"));
 
 /// Validates an SObject type name.
 ///
@@ -45,7 +44,7 @@ pub fn validate_sobject_name(name: &str) -> Result<()> {
     // But for injection prevention, checking against the regex is enough to ensure no dangerous chars.
 
     if !SOBJECT_PATTERN.is_match(name) {
-         return Err(ForceError::InvalidInput(format!(
+        return Err(ForceError::InvalidInput(format!(
             "Invalid SObject name: '{}'. Must start with a letter, contain only alphanumeric characters and underscores, and cannot end with an underscore.",
             name
         )));
@@ -118,9 +117,9 @@ pub fn validate_api_version(version: &str) -> Result<()> {
 ///
 /// Returns `ForceError::InvalidInput` if the ID is invalid.
 pub fn validate_id(id: &str) -> Result<()> {
-    SalesforceId::new(id).map(|_| ()).map_err(|e| {
-        ForceError::InvalidInput(format!("Invalid Salesforce ID: {}", e))
-    })
+    SalesforceId::new(id)
+        .map(|_| ())
+        .map_err(|e| ForceError::InvalidInput(format!("Invalid Salesforce ID: {}", e)))
 }
 
 #[cfg(test)]

@@ -149,7 +149,7 @@ async fn test_composite_batch_failure_handling() {
     let batch_response = client
         .composite()
         .batch()
-        .get("Account", "invalid_id")
+        .get("Account", "001000000000001AAA")
         .execute()
         .await
         .expect("batch execution failed");
