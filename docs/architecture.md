@@ -16,19 +16,58 @@ C4Context
   Rel(force_sdk, salesforce, "Make API calls")
 ```
 
+## C4 Component Diagram
+
+The following diagram illustrates the internal module structure and dependencies. Note that the `Storage` module is decoupled from the core `Client` logic.
+
+```mermaid
+C4Component
+  title Component Diagram for Force SDK
+
+  Container_Boundary(sdk, "Force SDK") {
+    Component(client, "Client Core", "crates/force/client", "Facade & Configuration")
+    Component(api, "API Handlers", "crates/force/api", "REST, Bulk, Composite logic")
+    Component(storage, "Storage", "crates/force/storage", "Token persistence & state")
+    Component(auth, "Auth", "crates/force/auth", "Authentication strategies")
+    Component(http, "HTTP", "crates/force/http", "Resilience & Middleware")
+
+    Rel(client, api, "Exposes")
+    Rel(api, client, "Uses (Inner State)")
+    Rel(client, storage, "Uses (TokenManager)")
+    Rel(client, http, "Uses (HttpExecutor)")
+    Rel(storage, auth, "Uses (Authenticator)")
+    Rel(api, http, "Uses (HttpExecutor)")
+  }
+```
+
 ## Class Diagram
 
-The core library is decoupled from concrete storage implementations via module boundaries and strategy patterns.
+The core library uses an `Inner` struct pattern for shared state and thread safety, decoupled from storage via the `TokenManager`.
 
 ```mermaid
 classDiagram
-  class ForceClient
-  class TokenManager
-  class Authenticator
-  <<interface>> Authenticator
-  ForceClient --> TokenManager : Uses (Module Import)
-  TokenManager --> Authenticator : Uses (Strategy Pattern)
-  %% Circular dependency between Core and Storage is resolved
+  class ForceClient {
+    +rest() RestHandler
+    +bulk() BulkHandler
+  }
+  class Inner {
+    +execute_request()
+  }
+  class TokenManager {
+    +token() AccessToken
+  }
+  class Authenticator {
+    <<interface>>
+    +authenticate()
+    +refresh()
+  }
+  class RestHandler
+
+  ForceClient *-- Inner : Shared State (Arc)
+  RestHandler *-- Inner : Shared State (Arc)
+  Inner --> TokenManager : Owns
+  Inner --> HttpExecutor : Owns
+  TokenManager --> Authenticator : Uses (Strategy)
 ```
 
 ## Sequence Diagram: Token Storage
@@ -38,24 +77,29 @@ The following sequence diagram illustrates how the Client interacts with the Tok
 ```mermaid
 sequenceDiagram
     participant C as Client (ForceClient)
+    participant I as Inner
     participant TM as TokenManager
     participant A as Authenticator
 
     Note over C, TM: Token Retrieval Flow
-    C->>TM: token()
+    C->>I: token()
+    I->>TM: token()
     TM->>TM: Check Internal Cache (Read Lock)
     alt Valid Token Exists
-        TM-->>C: AccessToken
+        TM-->>I: AccessToken
+        I-->>C: AccessToken
     else Expired / None
         TM->>TM: Acquire Write Lock
         TM->>A: refresh() or authenticate()
         alt Success
             A-->>TM: New AccessToken
             TM->>TM: Update Cache
-            TM-->>C: New AccessToken
+            TM-->>I: New AccessToken
+            I-->>C: New AccessToken
         else Failure
             A-->>TM: Error
-            TM-->>C: Error
+            TM-->>I: Error
+            I-->>C: Error
         end
     end
 ```
