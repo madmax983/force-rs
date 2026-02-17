@@ -519,11 +519,12 @@ impl IngestJobBuilder {
 }
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::expect_used)]
     use super::*;
     use crate::api::bulk::types::JobOperation;
     use crate::auth::{AccessToken, Authenticator, TokenResponse};
     use crate::client::{ForceClient, builder};
-    use crate::test_support::{Must, MustMsg};
     use async_trait::async_trait;
     use wiremock::matchers::{bearer_token, body_bytes, header, method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -569,7 +570,7 @@ mod tests {
             .authenticate(auth)
             .build()
             .await
-            .must_msg("failed to create test client")
+            .expect("failed to create test client")
     }
 
     #[tokio::test]
@@ -598,7 +599,7 @@ mod tests {
         let job = IngestJobBuilder::new("Account", JobOperation::Insert)
             .build(&handler)
             .await
-            .must();
+            .unwrap();
 
         // Job should be in Open state (compile-time enforced via typestate)
         // This compiles, so the job is in Open state
@@ -644,10 +645,10 @@ mod tests {
         let job = IngestJobBuilder::new("Account", JobOperation::Insert)
             .build(&handler)
             .await
-            .must();
+            .unwrap();
 
         let csv_data = "Name,Industry\nAcme Corp,Technology\n";
-        let _job = job.upload(csv_data.as_bytes()).await.must();
+        let _job = job.upload(csv_data.as_bytes()).await.unwrap();
     }
 
     #[tokio::test]
@@ -681,11 +682,11 @@ mod tests {
         let job = IngestJobBuilder::new("Account", JobOperation::Insert)
             .build(&handler)
             .await
-            .must();
+            .unwrap();
 
         // Test streaming upload of large CSV (>10MB)
         let large_csv = "Name,Industry\n".to_string() + &"Row,Data\n".repeat(10000);
-        let _job = job.upload(large_csv.as_bytes()).await.must();
+        let _job = job.upload(large_csv.as_bytes()).await.unwrap();
     }
 
     #[tokio::test]
@@ -734,11 +735,11 @@ mod tests {
         let job = IngestJobBuilder::new("Account", JobOperation::Insert)
             .build(&handler)
             .await
-            .must();
+            .unwrap();
 
         let csv_data = "Name\nTest\n";
-        let job = job.upload(csv_data.as_bytes()).await.must();
-        let _job = job.close().await.must();
+        let job = job.upload(csv_data.as_bytes()).await.unwrap();
+        let _job = job.close().await.unwrap();
     }
 
     #[tokio::test]
@@ -769,7 +770,7 @@ mod tests {
             Arc::clone(&handler.inner),
         );
 
-        let _job = job.poll().await.must();
+        let _job = job.poll().await.unwrap();
     }
 
     #[tokio::test]
@@ -814,7 +815,7 @@ mod tests {
             Arc::clone(&handler.inner),
         );
 
-        let _job = job.poll_until_complete().await.must();
+        let _job = job.poll_until_complete().await.unwrap();
     }
 
     #[tokio::test]
@@ -871,8 +872,8 @@ mod tests {
             Arc::clone(&handler.inner),
         );
 
-        let results = job.successful_results().await.must();
-        let results_str = String::from_utf8(results).must();
+        let results = job.successful_results().await.unwrap();
+        let results_str = String::from_utf8(results).unwrap();
         assert!(results_str.contains("001xx0000000001AAA"));
     }
 
@@ -900,8 +901,8 @@ mod tests {
             Arc::clone(&handler.inner),
         );
 
-        let results = job.failed_results().await.must();
-        let results_str = String::from_utf8(results).must();
+        let results = job.failed_results().await.unwrap();
+        let results_str = String::from_utf8(results).unwrap();
         assert!(results_str.contains("DUPLICATE_VALUE"));
     }
 
@@ -929,8 +930,8 @@ mod tests {
             Arc::clone(&handler.inner),
         );
 
-        let results = job.unprocessed_results().await.must();
-        let results_str = String::from_utf8(results).must();
+        let results = job.unprocessed_results().await.unwrap();
+        let results_str = String::from_utf8(results).unwrap();
         assert!(results_str.contains("Pending Corp"));
     }
 
@@ -967,7 +968,7 @@ mod tests {
         let job = IngestJobBuilder::new("Account", JobOperation::Insert)
             .build(&handler)
             .await
-            .must();
+            .unwrap();
 
         let result = job.upload(b"bad csv").await;
         assert!(result.is_err());
@@ -1090,7 +1091,7 @@ mod tests {
             Arc::clone(&handler.inner),
         );
 
-        job.abort().await.must();
+        job.abort().await.unwrap();
     }
 
     #[tokio::test]

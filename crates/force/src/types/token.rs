@@ -237,8 +237,9 @@ fn parse_issued_at(issued_at: &str) -> Result<DateTime<Utc>> {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::expect_used)]
     use super::*;
-    use crate::test_support::Must;
 
     #[test]
     fn test_token_response_deserialization() {
@@ -250,7 +251,7 @@ mod tests {
             "signature": "signature_value"
         }"#;
 
-        let response: TokenResponse = serde_json::from_str(json).must();
+        let response: TokenResponse = serde_json::from_str(json).unwrap();
         assert_eq!(response.access_token, "00D123456789!token");
         assert_eq!(response.instance_url, "https://example.my.salesforce.com");
         assert_eq!(response.token_type, "Bearer");
@@ -265,7 +266,7 @@ mod tests {
             "expires_in": 7200
         }"#;
 
-        let response: TokenResponse = serde_json::from_str(json).must();
+        let response: TokenResponse = serde_json::from_str(json).unwrap();
         assert_eq!(response.expires_in, Some(7200));
         assert_eq!(response.token_type, "Bearer"); // default value
     }
@@ -377,7 +378,7 @@ mod tests {
         let timestamp = "-1000"; // 1969-12-31 23:59:59 UTC
         let result = parse_issued_at(timestamp);
         assert!(result.is_ok());
-        let dt = result.must();
+        let dt = result.unwrap();
         // Since parse_issued_at discards milliseconds and uses 0 for nanos,
         // -1000ms / 1000 = -1s.
         // DateTime::from_timestamp(-1, 0) is 1969-12-31 23:59:59.
@@ -411,7 +412,7 @@ mod tests {
         // Wait, i64::try_from(u64::MAX) fails, unwrap_or(3600) makes it 3600.
         // Let's verify that.
         assert!(token.expires_at.is_some());
-        let expires_at = token.expires_at.must();
+        let expires_at = token.expires_at.unwrap();
         let issued_at = token.issued_at;
         let duration = expires_at - issued_at;
         assert_eq!(duration.num_seconds(), 3600);

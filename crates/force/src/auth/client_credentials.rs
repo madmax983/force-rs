@@ -167,11 +167,12 @@ struct OAuthErrorResponse {
 }
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::expect_used)]
     use super::*;
     #[cfg(feature = "mock")]
     use crate::auth::Authenticator;
     #[cfg(feature = "mock")]
-    use crate::test_support::Must;
 
     // RED PHASE - Write failing tests first
 
@@ -248,7 +249,7 @@ mod tests {
             format!("{}/services/oauth2/token", mock_server.uri()),
         );
 
-        let token = auth.authenticate().await.must();
+        let token = auth.authenticate().await.unwrap();
         assert_eq!(token.as_str(), "00Dxx0000001gPL!test_token");
         assert_eq!(token.instance_url(), "https://test.my.salesforce.com");
         assert_eq!(token.token_type(), "Bearer");
@@ -322,10 +323,10 @@ mod tests {
         );
 
         // First authenticate
-        let _token1 = auth.authenticate().await.must();
+        let _token1 = auth.authenticate().await.unwrap();
 
         // Then refresh (should call authenticate again since client_credentials doesn't support refresh)
-        let token2 = auth.refresh().await.must();
+        let token2 = auth.refresh().await.unwrap();
         assert_eq!(token2.as_str(), "refreshed_token");
     }
 

@@ -142,8 +142,9 @@ impl<A: Authenticator> TokenManager<A> {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::expect_used)]
     use super::*;
-    use crate::test_support::Must;
     use crate::types::authenticator::Authenticator;
     use async_trait::async_trait;
     use chrono::{Duration, Utc};
@@ -228,7 +229,7 @@ mod tests {
         let auth = MockAuthenticator::new();
         let manager = TokenManager::new(auth);
 
-        let token = manager.token().await.must();
+        let token = manager.token().await.unwrap();
         assert_eq!(token.as_str(), "auth_token_1");
         assert_eq!(manager.authenticator.auth_count(), 1);
         assert_eq!(manager.authenticator.refresh_count(), 0);
@@ -240,11 +241,11 @@ mod tests {
         let manager = TokenManager::new(auth);
 
         // First call authenticates
-        let token1 = manager.token().await.must();
+        let token1 = manager.token().await.unwrap();
         assert_eq!(manager.authenticator.auth_count(), 1);
 
         // Second call reuses token
-        let token2 = manager.token().await.must();
+        let token2 = manager.token().await.unwrap();
         assert_eq!(manager.authenticator.auth_count(), 1); // No new auth
         assert_eq!(token1.as_str(), token2.as_str());
     }
@@ -255,7 +256,7 @@ mod tests {
         let manager = TokenManager::new(auth);
 
         // Get initial token
-        let _token1 = manager.token().await.must();
+        let _token1 = manager.token().await.unwrap();
         assert_eq!(manager.authenticator.auth_count(), 1);
 
         // Manually expire the token
@@ -272,7 +273,7 @@ mod tests {
         }
 
         // Next call should refresh
-        let token2 = manager.token().await.must();
+        let token2 = manager.token().await.unwrap();
         assert_eq!(manager.authenticator.auth_count(), 1); // No new auth
         assert_eq!(manager.authenticator.refresh_count(), 1); // Refreshed once
         assert_eq!(token2.as_str(), "refresh_token_1");
@@ -284,11 +285,11 @@ mod tests {
         let manager = TokenManager::new(auth);
 
         // Get initial token
-        let token1 = manager.token().await.must();
+        let token1 = manager.token().await.unwrap();
         assert_eq!(token1.as_str(), "auth_token_1");
 
         // Force refresh even though token is valid
-        let token2 = manager.force_refresh().await.must();
+        let token2 = manager.force_refresh().await.unwrap();
         assert_eq!(token2.as_str(), "refresh_token_1");
         assert_eq!(manager.authenticator.refresh_count(), 1);
     }
@@ -299,14 +300,14 @@ mod tests {
         let manager = TokenManager::new(auth);
 
         // Get initial token
-        let _token1 = manager.token().await.must();
+        let _token1 = manager.token().await.unwrap();
         assert_eq!(manager.authenticator.auth_count(), 1);
 
         // Clear the token
         manager.clear().await;
 
         // Next call should authenticate again
-        let _token2 = manager.token().await.must();
+        let _token2 = manager.token().await.unwrap();
         assert_eq!(manager.authenticator.auth_count(), 2); // Auth called again
     }
 
@@ -325,7 +326,7 @@ mod tests {
 
         // Wait for all tasks to complete
         for handle in handles {
-            let result = handle.await.must();
+            let result = handle.await.unwrap();
             assert!(result.is_ok());
         }
 

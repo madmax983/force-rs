@@ -2,10 +2,11 @@
 
 #[cfg(test)]
 mod integration_tests {
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::expect_used)]
     use crate::auth::{AccessToken, TokenResponse};
     use crate::error::ForceError;
     use crate::http::{HttpExecutor, RequestCompletion, RetryEvent, RetryPolicy, TelemetryHooks};
-    use crate::test_support::Must;
     use std::sync::Arc;
     use std::sync::Mutex;
     use std::sync::atomic::{AtomicU32, Ordering};
@@ -53,7 +54,7 @@ mod integration_tests {
 
         // Act
         let url = format!("{}/services/data/v60.0/sobjects", mock_server.uri());
-        let request = reqwest::Client::new().get(&url).build().must();
+        let request = reqwest::Client::new().get(&url).build().unwrap();
 
         let result = executor
             .execute(request, &token, || async {
@@ -63,7 +64,7 @@ mod integration_tests {
 
         // Assert
         assert!(result.is_ok());
-        let response = result.must();
+        let response = result.unwrap();
         assert_eq!(response.status(), 200);
     }
 
@@ -97,7 +98,7 @@ mod integration_tests {
 
         // Act
         let url = format!("{}/test", mock_server.uri());
-        let request = reqwest::Client::new().get(&url).build().must();
+        let request = reqwest::Client::new().get(&url).build().unwrap();
 
         let result = executor
             .execute(request, &token, || {
@@ -142,7 +143,7 @@ mod integration_tests {
 
         // Act
         let url = format!("{}/test", mock_server.uri());
-        let request = reqwest::Client::new().get(&url).build().must();
+        let request = reqwest::Client::new().get(&url).build().unwrap();
 
         let result = executor
             .execute(request, &token, || async {
@@ -177,7 +178,7 @@ mod integration_tests {
 
         // Act
         let url = format!("{}/test", mock_server.uri());
-        let request = reqwest::Client::new().get(&url).build().must();
+        let request = reqwest::Client::new().get(&url).build().unwrap();
 
         let result = executor
             .execute(request, &token, || async {
@@ -219,7 +220,7 @@ mod integration_tests {
 
         // Act
         let url = format!("{}/test", mock_server.uri());
-        let request = reqwest::Client::new().get(&url).build().must();
+        let request = reqwest::Client::new().get(&url).build().unwrap();
 
         let result = executor
             .execute(request, &token, || async {
@@ -270,7 +271,7 @@ mod integration_tests {
 
         // Act
         let url = format!("{}/test", mock_server.uri());
-        let request = reqwest::Client::new().get(&url).build().must();
+        let request = reqwest::Client::new().get(&url).build().unwrap();
 
         let start = std::time::Instant::now();
         let result = executor
@@ -300,7 +301,7 @@ mod integration_tests {
             .await;
 
         let url = format!("{}/test", mock_server.uri());
-        let request = reqwest::Client::new().post(&url).build().must();
+        let request = reqwest::Client::new().post(&url).build().unwrap();
 
         let result = executor
             .execute(request, &token, || async {
@@ -343,7 +344,7 @@ mod integration_tests {
             .await;
 
         let url = format!("{}/test", mock_server.uri());
-        let request = reqwest::Client::new().post(&url).build().must();
+        let request = reqwest::Client::new().post(&url).build().unwrap();
 
         let result = executor
             .execute(request, &token, || async {
@@ -394,7 +395,7 @@ mod integration_tests {
             .await;
 
         let url = format!("{}/test?secret=redacted", mock_server.uri());
-        let request = reqwest::Client::new().get(&url).build().must();
+        let request = reqwest::Client::new().get(&url).build().unwrap();
 
         let result = executor
             .execute(request, &token, || async {
@@ -436,7 +437,7 @@ mod integration_tests {
 
         // Act
         let url = format!("{}/test", mock_server.uri());
-        let request = reqwest::Client::new().post(&url).build().must();
+        let request = reqwest::Client::new().post(&url).build().unwrap();
 
         let result = executor
             .execute(request, &token, || async {
@@ -479,7 +480,7 @@ mod integration_tests {
 
         // Act
         let url = format!("{}/test", mock_server.uri());
-        let request = reqwest::Client::new().get(&url).build().must();
+        let request = reqwest::Client::new().get(&url).build().unwrap();
 
         let result: Result<TestResponse, ForceError> = executor
             .execute_json(request, &token, || async { panic!("Should not refresh") })
@@ -487,7 +488,7 @@ mod integration_tests {
 
         // Assert
         assert!(result.is_ok());
-        let response = result.must();
+        let response = result.unwrap();
         assert_eq!(response.id, "001xx000003DGbm");
         assert_eq!(response.name, "Test Account");
     }
@@ -507,7 +508,7 @@ mod integration_tests {
 
         // Act
         let url = format!("{}/test", mock_server.uri());
-        let request = reqwest::Client::new().get(&url).build().must();
+        let request = reqwest::Client::new().get(&url).build().unwrap();
 
         let result: Result<IdOnlyResponse, ForceError> = executor
             .execute_json(request, &token, || async { panic!("Should not refresh") })
@@ -535,7 +536,7 @@ mod integration_tests {
 
         // Act
         let url = format!("{}/test", mock_server.uri());
-        let request = reqwest::Client::new().get(&url).build().must();
+        let request = reqwest::Client::new().get(&url).build().unwrap();
 
         let result = executor
             .execute(request, &token, || async {

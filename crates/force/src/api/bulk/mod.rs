@@ -649,11 +649,12 @@ impl<A: crate::auth::Authenticator> BulkHandler<A> {
 }
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::expect_used)]
     use super::*;
     use crate::auth::{AccessToken, Authenticator, TokenResponse};
     use crate::client::{ForceClient, builder};
     use crate::config::ClientConfigBuilder;
-    use crate::test_support::{Must, MustMsg};
     use async_trait::async_trait;
     use types::{ContentType, JobOperation, JobState};
     use wiremock::matchers::{bearer_token, header, method, path, path_regex};
@@ -700,7 +701,7 @@ mod tests {
             .authenticate(auth)
             .build()
             .await
-            .must_msg("failed to create test client")
+            .expect("failed to create test client")
     }
 
     #[cfg(feature = "bulk")]
@@ -721,8 +722,8 @@ mod tests {
         let handler2 = handler1.clone();
 
         // Both should produce the same base URL
-        let url1 = handler1.base_url().await.must();
-        let url2 = handler2.base_url().await.must();
+        let url1 = handler1.base_url().await.unwrap();
+        let url2 = handler2.base_url().await.unwrap();
         assert_eq!(url1, url2);
     }
 
@@ -733,7 +734,7 @@ mod tests {
         let client = create_test_client(mock_server.uri()).await;
         let handler = client.bulk();
 
-        let base_url = handler.base_url().await.must();
+        let base_url = handler.base_url().await.unwrap();
         assert!(base_url.contains(&mock_server.uri()));
         assert!(base_url.contains("/services/data/"));
         assert!(base_url.ends_with("v60.0/jobs/ingest")); // Default API version
@@ -750,10 +751,10 @@ mod tests {
             .config(config)
             .build()
             .await
-            .must();
+            .unwrap();
 
         let handler = client.bulk();
-        let base_url = handler.base_url().await.must();
+        let base_url = handler.base_url().await.unwrap();
 
         assert!(base_url.ends_with("v59.0/jobs/ingest"));
     }
@@ -791,7 +792,7 @@ mod tests {
             column_delimiter: None,
         };
 
-        let job = handler.create_job(request).await.must();
+        let job = handler.create_job(request).await.unwrap();
         assert_eq!(job.id, "750xx0000000001AAA");
         assert_eq!(job.operation, JobOperation::Insert);
         assert_eq!(job.object, "Account");
@@ -830,7 +831,7 @@ mod tests {
             column_delimiter: None,
         };
 
-        let job = handler.create_job(request).await.must();
+        let job = handler.create_job(request).await.unwrap();
         assert_eq!(job.operation, JobOperation::Upsert);
         assert_eq!(
             job.external_id_field_name,
@@ -889,7 +890,7 @@ mod tests {
         let client = create_test_client(mock_server.uri()).await;
         let handler = client.bulk();
 
-        let job = handler.get_job("750xx0000000001AAA").await.must();
+        let job = handler.get_job("750xx0000000001AAA").await.unwrap();
         assert_eq!(job.id, "750xx0000000001AAA");
         assert_eq!(job.state, JobState::JobComplete);
         assert_eq!(job.number_records_processed, Some(100));
@@ -944,7 +945,7 @@ mod tests {
         let job = handler
             .update_job("750xx0000000001AAA", request)
             .await
-            .must();
+            .unwrap();
         assert_eq!(job.state, JobState::UploadComplete);
     }
 
@@ -1093,7 +1094,7 @@ mod tests {
             },
         ];
 
-        let job_info = handler.bulk_insert("Account", &records).await.must();
+        let job_info = handler.bulk_insert("Account", &records).await.unwrap();
         assert_eq!(job_info.state, JobState::JobComplete);
         assert_eq!(job_info.number_records_processed, Some(2));
         assert_eq!(job_info.number_records_failed, Some(0));
@@ -1174,7 +1175,7 @@ mod tests {
             },
         ];
 
-        let job_info = handler.bulk_insert("Account", &records).await.must();
+        let job_info = handler.bulk_insert("Account", &records).await.unwrap();
         assert_eq!(job_info.state, JobState::JobComplete);
         assert_eq!(job_info.number_records_failed, Some(2));
     }
@@ -1258,7 +1259,7 @@ mod tests {
             },
         ];
 
-        let job_info = handler.bulk_update("Account", &records).await.must();
+        let job_info = handler.bulk_update("Account", &records).await.unwrap();
         assert_eq!(job_info.operation, JobOperation::Update);
         assert_eq!(job_info.state, JobState::JobComplete);
     }
@@ -1327,7 +1328,7 @@ mod tests {
             "001xx0000000003AAA".to_string(),
         ];
 
-        let job_info = handler.bulk_delete("Account", &ids).await.must();
+        let job_info = handler.bulk_delete("Account", &ids).await.unwrap();
         assert_eq!(job_info.operation, JobOperation::Delete);
         assert_eq!(job_info.state, JobState::JobComplete);
         assert_eq!(job_info.number_records_processed, Some(5));
@@ -1392,7 +1393,7 @@ mod tests {
 
         let ids = vec!["001xx0000000001AAA".to_string(), "INVALID_ID".to_string()];
 
-        let job_info = handler.bulk_delete("Account", &ids).await.must();
+        let job_info = handler.bulk_delete("Account", &ids).await.unwrap();
         assert_eq!(job_info.number_records_failed, Some(1));
     }
 
@@ -1453,10 +1454,10 @@ mod tests {
         let handler = client.bulk();
 
         let soql = "SELECT Id, Name FROM Account WHERE Industry = 'Technology'";
-        let mut results = handler.bulk_query::<Account>(soql).await.must();
+        let mut results = handler.bulk_query::<Account>(soql).await.unwrap();
 
         let mut count = 0;
-        while let Some(record) = results.next().await.must() {
+        while let Some(record) = results.next().await.unwrap() {
             count += 1;
             assert!(!record.id.is_empty());
             assert!(!record.name.is_empty());
@@ -1514,9 +1515,9 @@ mod tests {
         let handler = client.bulk();
 
         let soql = "SELECT Id FROM Account WHERE Name = 'NonExistent'";
-        let mut results = handler.bulk_query::<Account>(soql).await.must();
+        let mut results = handler.bulk_query::<Account>(soql).await.unwrap();
 
-        let record = results.next().await.must();
+        let record = results.next().await.unwrap();
         assert!(record.is_none());
     }
 
@@ -1706,8 +1707,8 @@ mod tests {
         let mut results = handler
             .bulk_query_with_policy::<Account>("SELECT Id FROM Account LIMIT 1", policy)
             .await
-            .must();
-        let record = results.next().await.must().must();
+            .unwrap();
+        let record = results.next().await.unwrap().unwrap();
         assert_eq!(record.id, "001xx0000000001AAA");
     }
 

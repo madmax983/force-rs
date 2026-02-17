@@ -184,8 +184,9 @@ pub enum SalesforceIdError {
 }
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::expect_used)]
     use super::*;
-    use crate::test_support::Must;
 
     // RED PHASE - Write failing tests first
 
@@ -193,7 +194,7 @@ mod tests {
     fn test_new_15_char_valid() {
         let id = SalesforceId::new("001000000000001");
         assert!(id.is_ok());
-        assert_eq!(id.must().as_str(), "001000000000001");
+        assert_eq!(id.unwrap().as_str(), "001000000000001");
     }
 
     #[test]
@@ -201,7 +202,7 @@ mod tests {
         // Using a real Salesforce ID with valid checksum
         let id = SalesforceId::new("001000000000001AAA");
         assert!(id.is_ok());
-        assert_eq!(id.must().as_str(), "001000000000001AAA");
+        assert_eq!(id.unwrap().as_str(), "001000000000001AAA");
     }
 
     #[test]
@@ -231,7 +232,7 @@ mod tests {
 
     #[test]
     fn test_to_18_from_15() {
-        let id = SalesforceId::new("001000000000001").must();
+        let id = SalesforceId::new("001000000000001").unwrap();
         let id_18 = id.to_18();
         assert_eq!(id_18.as_str().len(), 18);
         assert!(id_18.as_str().starts_with("001000000000001"));
@@ -239,28 +240,28 @@ mod tests {
 
     #[test]
     fn test_to_18_from_18() {
-        let id = SalesforceId::new("001000000000001AAA").must();
+        let id = SalesforceId::new("001000000000001AAA").unwrap();
         let id_18 = id.to_18();
         assert_eq!(id_18.as_str(), "001000000000001AAA");
     }
 
     #[test]
     fn test_to_15_from_15() {
-        let id = SalesforceId::new("001000000000001").must();
+        let id = SalesforceId::new("001000000000001").unwrap();
         let id_15 = id.to_15();
         assert_eq!(id_15.as_str(), "001000000000001");
     }
 
     #[test]
     fn test_to_15_from_18() {
-        let id = SalesforceId::new("001000000000001AAA").must();
+        let id = SalesforceId::new("001000000000001AAA").unwrap();
         let id_15 = id.to_15();
         assert_eq!(id_15.as_str(), "001000000000001");
     }
 
     #[test]
     fn test_equality_15_and_18() {
-        let id_15 = SalesforceId::new("001000000000001").must();
+        let id_15 = SalesforceId::new("001000000000001").unwrap();
         let id_18 = id_15.to_18();
         // They should not be equal as they're different representations
         assert_ne!(id_15, id_18);
@@ -271,13 +272,13 @@ mod tests {
 
     #[test]
     fn test_display_trait() {
-        let id = SalesforceId::new("001000000000001").must();
+        let id = SalesforceId::new("001000000000001").unwrap();
         assert_eq!(format!("{}", id), "001000000000001");
     }
 
     #[test]
     fn test_as_ref_trait() {
-        let id = SalesforceId::new("001000000000001").must();
+        let id = SalesforceId::new("001000000000001").unwrap();
         let s: &str = id.as_ref();
         assert_eq!(s, "001000000000001");
     }
@@ -292,12 +293,12 @@ mod tests {
         ];
 
         for (base, expected_full) in test_cases {
-            let id = SalesforceId::new(base).must();
+            let id = SalesforceId::new(base).unwrap();
             let id_18 = id.to_18();
             assert_eq!(id_18.as_str(), expected_full);
 
             // Also verify we can parse the 18-char version
-            let parsed = SalesforceId::new(expected_full).must();
+            let parsed = SalesforceId::new(expected_full).unwrap();
             assert_eq!(parsed.as_str(), expected_full);
         }
     }
@@ -305,8 +306,8 @@ mod tests {
     #[test]
     fn test_case_sensitivity() {
         // 15-char IDs are case-sensitive
-        let id1 = SalesforceId::new("001D000000IRt53").must();
-        let id2 = SalesforceId::new("001d000000irt53").must();
+        let id1 = SalesforceId::new("001D000000IRt53").unwrap();
+        let id2 = SalesforceId::new("001d000000irt53").unwrap();
         assert_ne!(id1, id2);
 
         // Their checksums should differ
@@ -316,7 +317,7 @@ mod tests {
     #[test]
     fn test_try_from_string() {
         let id_str = "001000000000001".to_string();
-        let id = SalesforceId::try_from(id_str).must();
+        let id = SalesforceId::try_from(id_str).unwrap();
         assert_eq!(id.as_str(), "001000000000001");
     }
 
@@ -329,7 +330,7 @@ mod tests {
 
     #[test]
     fn test_into_string() {
-        let id = SalesforceId::new("001000000000001").must();
+        let id = SalesforceId::new("001000000000001").unwrap();
         let s: String = id.into();
         assert_eq!(s, "001000000000001");
     }
@@ -362,7 +363,7 @@ mod tests {
             // Property 1: 15-char -> to_18() -> to_15() roundtrip
             #[test]
             fn prop_roundtrip_15_to_18_to_15(id_str in valid_15_char_id()) {
-                let id_15 = SalesforceId::new(&id_str).must();
+                let id_15 = SalesforceId::new(&id_str).unwrap();
                 let id_18 = id_15.to_18();
                 let back_to_15 = id_18.to_15();
 
@@ -372,7 +373,7 @@ mod tests {
             // Property 2: 18-char -> to_15() -> to_18() roundtrip
             #[test]
             fn prop_roundtrip_18_to_15_to_18(id_str in valid_15_char_id()) {
-                let id_15 = SalesforceId::new(&id_str).must();
+                let id_15 = SalesforceId::new(&id_str).unwrap();
                 let id_18 = id_15.to_18();
                 let id_18_str = id_18.as_str().to_string();
 
@@ -386,7 +387,7 @@ mod tests {
             // Property 3: to_18() always produces valid 18-char ID
             #[test]
             fn prop_to_18_produces_valid_id(id_str in valid_15_char_id()) {
-                let id_15 = SalesforceId::new(&id_str).must();
+                let id_15 = SalesforceId::new(&id_str).unwrap();
                 let id_18 = id_15.to_18();
 
                 prop_assert_eq!(id_18.as_str().len(), 18);
@@ -423,7 +424,7 @@ mod tests {
             // Property 6: to_15() is idempotent for 15-char IDs
             #[test]
             fn prop_to_15_idempotent_on_15_char(id_str in valid_15_char_id()) {
-                let id = SalesforceId::new(&id_str).must();
+                let id = SalesforceId::new(&id_str).unwrap();
                 let once = id.to_15();
                 let twice = once.to_15();
 
@@ -434,7 +435,7 @@ mod tests {
             // Property 7: to_18() is idempotent for 18-char IDs
             #[test]
             fn prop_to_18_idempotent_on_18_char(id_str in valid_15_char_id()) {
-                let id_15 = SalesforceId::new(&id_str).must();
+                let id_15 = SalesforceId::new(&id_str).unwrap();
                 let id_18 = id_15.to_18();
                 let id_18_str = id_18.as_str().to_string();
 
@@ -449,7 +450,7 @@ mod tests {
             // Property 8: Display and as_str are consistent
             #[test]
             fn prop_display_consistent_with_as_str(id_str in valid_15_char_id()) {
-                let id = SalesforceId::new(&id_str).must();
+                let id = SalesforceId::new(&id_str).unwrap();
                 let displayed = format!("{}", id);
 
                 prop_assert_eq!(displayed, id.as_str());
@@ -461,7 +462,7 @@ mod tests {
                 id_str in valid_15_char_id(),
                 bad_checksum in "[A-Z0-5]{3}"
             ) {
-                let id_15 = SalesforceId::new(&id_str).must();
+                let id_15 = SalesforceId::new(&id_str).unwrap();
                 let id_18 = id_15.to_18();
                 let id_18_str = id_18.as_str().to_string();
                 let correct_checksum = &id_18_str[15..];

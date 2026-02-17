@@ -328,11 +328,12 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
 }
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::expect_used)]
     use crate::auth::{AccessToken, Authenticator, TokenResponse};
     use crate::client::{ForceClient, builder};
     use crate::config::ClientConfigBuilder;
     use crate::error::Result;
-    use crate::test_support::{Must, MustMsg};
     use async_trait::async_trait;
 
     // Mock authenticator for testing
@@ -376,7 +377,7 @@ mod tests {
             .authenticate(auth)
             .build()
             .await
-            .must_msg("failed to create test client")
+            .expect("failed to create test client")
     }
 
     #[tokio::test]
@@ -393,8 +394,8 @@ mod tests {
         let handler2 = handler1.clone();
 
         // Both should produce the same base URL
-        let url1: String = handler1.base_url().await.must();
-        let url2: String = handler2.base_url().await.must();
+        let url1: String = handler1.base_url().await.unwrap();
+        let url2: String = handler2.base_url().await.unwrap();
         assert_eq!(url1, url2);
     }
 
@@ -403,7 +404,7 @@ mod tests {
         let client: ForceClient<MockAuthenticator> = create_test_client().await;
         let handler = client.rest();
 
-        let base_url: String = handler.base_url().await.must();
+        let base_url: String = handler.base_url().await.unwrap();
         assert!(base_url.starts_with("https://test.salesforce.com"));
         assert!(base_url.contains("/services/data/"));
         assert!(base_url.ends_with("v60.0")); // Default API version
@@ -418,10 +419,10 @@ mod tests {
             .config(config)
             .build()
             .await
-            .must();
+            .unwrap();
 
         let handler = client.rest();
-        let base_url = handler.base_url().await.must();
+        let base_url = handler.base_url().await.unwrap();
 
         assert_eq!(
             base_url,
@@ -432,10 +433,10 @@ mod tests {
     #[tokio::test]
     async fn test_base_url_with_different_instance() {
         let auth = MockAuthenticator::new("token", "https://na139.salesforce.com");
-        let client = builder().authenticate(auth).build().await.must();
+        let client = builder().authenticate(auth).build().await.unwrap();
 
         let handler = client.rest();
-        let base_url = handler.base_url().await.must();
+        let base_url = handler.base_url().await.unwrap();
 
         assert!(base_url.starts_with("https://na139.salesforce.com"));
     }
@@ -449,10 +450,10 @@ mod tests {
             .config(config)
             .build()
             .await
-            .must();
+            .unwrap();
 
         let handler = client.rest();
-        let base_url = handler.base_url().await.must();
+        let base_url = handler.base_url().await.unwrap();
 
         // Verify the handler uses the same config as the client
         assert!(base_url.contains("shared.salesforce.com"));
@@ -467,8 +468,8 @@ mod tests {
         let handler2 = client.rest();
 
         // Both should have the same base URL
-        let url1: String = handler1.base_url().await.must();
-        let url2: String = handler2.base_url().await.must();
+        let url1: String = handler1.base_url().await.unwrap();
+        let url2: String = handler2.base_url().await.unwrap();
         assert_eq!(url1, url2);
     }
 

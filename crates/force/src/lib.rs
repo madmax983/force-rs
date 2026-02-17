@@ -34,8 +34,6 @@ pub mod config;
 pub mod error;
 pub mod http;
 pub mod storage;
-#[cfg(test)]
-pub(crate) mod test_support;
 pub mod types;
 
 /// Force crate placeholder - foundation being built
@@ -46,6 +44,8 @@ pub const fn version() -> &'static str {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::expect_used)]
     use super::*;
 
     #[test]

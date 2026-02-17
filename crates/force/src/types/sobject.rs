@@ -218,15 +218,16 @@ impl DynamicSObjectBuilder {
 }
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::expect_used)]
     use super::*;
-    use crate::test_support::Must;
     use serde_json::json;
 
     // RED PHASE - Write failing tests first
 
     #[test]
     fn test_attributes_new() {
-        let id = SalesforceId::new("001000000000001AAA").must();
+        let id = SalesforceId::new("001000000000001AAA").unwrap();
         let attrs = Attributes::new("Account", &id, "v60.0");
 
         assert_eq!(attrs.type_, "Account");
@@ -238,7 +239,7 @@ mod tests {
 
     #[test]
     fn test_attributes_object_type() {
-        let id = SalesforceId::new("001000000000001AAA").must();
+        let id = SalesforceId::new("001000000000001AAA").unwrap();
         let attrs = Attributes::new("Contact", &id, "v60.0");
 
         assert_eq!(attrs.object_type(), "Contact");
@@ -246,10 +247,10 @@ mod tests {
 
     #[test]
     fn test_attributes_serialize() {
-        let id = SalesforceId::new("001000000000001AAA").must();
+        let id = SalesforceId::new("001000000000001AAA").unwrap();
         let attrs = Attributes::new("Account", &id, "v60.0");
 
-        let json = serde_json::to_string(&attrs).must();
+        let json = serde_json::to_string(&attrs).unwrap();
         assert!(json.contains("\"type\":\"Account\""));
         assert!(json.contains("\"url\":"));
     }
@@ -261,13 +262,13 @@ mod tests {
             "url": "/services/data/v60.0/sobjects/Account/001000000000001AAA"
         }"#;
 
-        let attrs: Attributes = serde_json::from_str(json).must();
+        let attrs: Attributes = serde_json::from_str(json).unwrap();
         assert_eq!(attrs.type_, "Account");
     }
 
     #[test]
     fn test_dynamic_sobject_new() {
-        let id = SalesforceId::new("001000000000001AAA").must();
+        let id = SalesforceId::new("001000000000001AAA").unwrap();
         let attrs = Attributes::new("Account", &id, "v60.0");
         let sobject = DynamicSObject::new(attrs);
 
@@ -277,7 +278,7 @@ mod tests {
 
     #[test]
     fn test_dynamic_sobject_set_and_get_field() {
-        let id = SalesforceId::new("001000000000001AAA").must();
+        let id = SalesforceId::new("001000000000001AAA").unwrap();
         let attrs = Attributes::new("Account", &id, "v60.0");
         let mut sobject = DynamicSObject::new(attrs);
 
@@ -296,19 +297,19 @@ mod tests {
 
     #[test]
     fn test_dynamic_sobject_get_field_as() {
-        let id = SalesforceId::new("001000000000001AAA").must();
+        let id = SalesforceId::new("001000000000001AAA").unwrap();
         let attrs = Attributes::new("Account", &id, "v60.0");
         let mut sobject = DynamicSObject::new(attrs);
 
         sobject.set_field("AnnualRevenue", 1_000_000);
 
-        let revenue: Option<i64> = sobject.get_field_as("AnnualRevenue").must();
+        let revenue: Option<i64> = sobject.get_field_as("AnnualRevenue").unwrap();
         assert_eq!(revenue, Some(1_000_000));
     }
 
     #[test]
     fn test_dynamic_sobject_get_field_as_type_mismatch() {
-        let id = SalesforceId::new("001000000000001AAA").must();
+        let id = SalesforceId::new("001000000000001AAA").unwrap();
         let attrs = Attributes::new("Account", &id, "v60.0");
         let mut sobject = DynamicSObject::new(attrs);
 
@@ -321,7 +322,7 @@ mod tests {
 
     #[test]
     fn test_dynamic_sobject_has_field() {
-        let id = SalesforceId::new("001000000000001AAA").must();
+        let id = SalesforceId::new("001000000000001AAA").unwrap();
         let attrs = Attributes::new("Account", &id, "v60.0");
         let mut sobject = DynamicSObject::new(attrs);
 
@@ -333,7 +334,7 @@ mod tests {
 
     #[test]
     fn test_dynamic_sobject_remove_field() {
-        let id = SalesforceId::new("001000000000001AAA").must();
+        let id = SalesforceId::new("001000000000001AAA").unwrap();
         let attrs = Attributes::new("Account", &id, "v60.0");
         let mut sobject = DynamicSObject::new(attrs);
 
@@ -347,7 +348,7 @@ mod tests {
 
     #[test]
     fn test_dynamic_sobject_field_names() {
-        let id = SalesforceId::new("001000000000001AAA").must();
+        let id = SalesforceId::new("001000000000001AAA").unwrap();
         let attrs = Attributes::new("Account", &id, "v60.0");
         let mut sobject = DynamicSObject::new(attrs);
 
@@ -362,7 +363,7 @@ mod tests {
 
     #[test]
     fn test_dynamic_sobject_field_count() {
-        let id = SalesforceId::new("001000000000001AAA").must();
+        let id = SalesforceId::new("001000000000001AAA").unwrap();
         let attrs = Attributes::new("Account", &id, "v60.0");
         let mut sobject = DynamicSObject::new(attrs);
 
@@ -377,12 +378,12 @@ mod tests {
 
     #[test]
     fn test_dynamic_sobject_serialize() {
-        let id = SalesforceId::new("001000000000001AAA").must();
+        let id = SalesforceId::new("001000000000001AAA").unwrap();
         let attrs = Attributes::new("Account", &id, "v60.0");
         let mut sobject = DynamicSObject::new(attrs);
         sobject.set_field("Name", "Acme Corp");
 
-        let json = serde_json::to_string(&sobject).must();
+        let json = serde_json::to_string(&sobject).unwrap();
         assert!(json.contains("\"attributes\""));
         assert!(json.contains("\"Name\":\"Acme Corp\""));
     }
@@ -398,7 +399,7 @@ mod tests {
             "Industry": "Technology"
         });
 
-        let sobject: DynamicSObject = serde_json::from_value(json).must();
+        let sobject: DynamicSObject = serde_json::from_value(json).unwrap();
         assert_eq!(sobject.object_type(), "Account");
         assert_eq!(
             sobject.get_field("Name").and_then(|v| v.as_str()),
@@ -417,14 +418,14 @@ mod tests {
             "LastName": "Doe"
         });
 
-        let sobject = DynamicSObject::from_value(json).must();
+        let sobject = DynamicSObject::from_value(json).unwrap();
         assert_eq!(sobject.object_type(), "Contact");
         assert_eq!(sobject.field_count(), 2);
     }
 
     #[test]
     fn test_dynamic_sobject_to_value() {
-        let id = SalesforceId::new("001000000000001AAA").must();
+        let id = SalesforceId::new("001000000000001AAA").unwrap();
         let attrs = Attributes::new("Account", &id, "v60.0");
         let mut sobject = DynamicSObject::new(attrs);
         sobject.set_field("Name", "Acme Corp");
@@ -437,7 +438,7 @@ mod tests {
 
     #[test]
     fn test_builder_basic() {
-        let id = SalesforceId::new("001000000000001AAA").must();
+        let id = SalesforceId::new("001000000000001AAA").unwrap();
         let account = DynamicSObjectBuilder::new("Account", &id, "v60.0")
             .field("Name", "Acme Corp")
             .build();
@@ -451,7 +452,7 @@ mod tests {
 
     #[test]
     fn test_builder_multiple_fields() {
-        let id = SalesforceId::new("001000000000001AAA").must();
+        let id = SalesforceId::new("001000000000001AAA").unwrap();
         let account = DynamicSObjectBuilder::new("Account", &id, "v60.0")
             .field("Name", "Acme Corp")
             .field("Industry", "Technology")
@@ -463,7 +464,7 @@ mod tests {
 
     #[test]
     fn test_builder_empty() {
-        let id = SalesforceId::new("001000000000001AAA").must();
+        let id = SalesforceId::new("001000000000001AAA").unwrap();
         let account = DynamicSObjectBuilder::new("Account", &id, "v60.0").build();
 
         assert_eq!(account.field_count(), 0);
@@ -472,14 +473,14 @@ mod tests {
 
     #[test]
     fn test_roundtrip_serialization() {
-        let id = SalesforceId::new("001000000000001AAA").must();
+        let id = SalesforceId::new("001000000000001AAA").unwrap();
         let original = DynamicSObjectBuilder::new("Account", &id, "v60.0")
             .field("Name", "Acme Corp")
             .field("Industry", "Technology")
             .build();
 
-        let json = serde_json::to_string(&original).must();
-        let deserialized: DynamicSObject = serde_json::from_str(&json).must();
+        let json = serde_json::to_string(&original).unwrap();
+        let deserialized: DynamicSObject = serde_json::from_str(&json).unwrap();
 
         assert_eq!(original, deserialized);
     }

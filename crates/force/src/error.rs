@@ -172,8 +172,10 @@ pub enum SerializationError {
 pub type Result<T> = std::result::Result<T, ForceError>;
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::expect_used)]
+    #![allow(clippy::unnecessary_literal_unwrap)]
     use super::*;
-    use crate::test_support::Must;
 
     #[test]
     fn test_authentication_error_display() {
@@ -323,7 +325,7 @@ mod tests {
     fn test_result_type_ok() {
         let result: Result<i32> = Ok(42);
         assert!(result.is_ok());
-        assert_eq!(result.must(), 42);
+        assert_eq!(result.unwrap(), 42);
     }
 
     #[test]
