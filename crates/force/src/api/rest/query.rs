@@ -610,4 +610,54 @@ mod tests {
         assert!(result.is_empty());
         assert_eq!(result.len(), 0);
     }
+
+    #[tokio::test]
+    async fn test_query_more_absolute_url() {
+        let mock_server = MockServer::start().await;
+        let auth = MockAuthenticator::new("test_token", &mock_server.uri());
+
+        // Mock first page
+        Mock::given(method("GET"))
+            .and(path("/services/data/v60.0/query"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "totalSize": 4,
+                "done": false,
+                // Absolute URL pointing back to the mock server
+                "nextRecordsUrl": format!("{}/services/data/v60.0/query/batch2", mock_server.uri()),
+                "records": [
+                    {"Id": "001xx0000000001", "Name": "Record1"}
+                ]
+            })))
+            .mount(&mock_server)
+            .await;
+
+        // Mock second page
+        Mock::given(method("GET"))
+            .and(path("/services/data/v60.0/query/batch2"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "totalSize": 4,
+                "done": true,
+                "records": [
+                    {"Id": "001xx0000000002", "Name": "Record2"}
+                ]
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = builder().authenticate(auth).build().await.must();
+
+        let page1: QueryResult<TestAccount> = client
+            .rest()
+            .query("SELECT Id, Name FROM Account")
+            .await
+            .must();
+
+        let next_url = page1.next_records_url.as_ref().must();
+        assert!(next_url.starts_with("http")); // Verify it is absolute
+
+        let page2: QueryResult<TestAccount> = client.rest().query_more(next_url).await.must();
+
+        assert_eq!(page2.len(), 1);
+        assert_eq!(page2.records[0].name, "Record2");
+    }
 }

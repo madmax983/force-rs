@@ -666,6 +666,19 @@ mod tests {
             .returning("Account", &["Name\\"])
             .build();
     }
+
+    #[test]
+    fn test_returning_valid_escaped_quote_in_string() {
+        let query = SearchQueryBuilder::new()
+            .find("test")
+            .returning("Account", &["Name WHERE Name = 'O\\'Reilly'"])
+            .build();
+
+        assert_eq!(
+            query,
+            "FIND {test} RETURNING Account(Name WHERE Name = 'O\\'Reilly')"
+        );
+    }
 }
 
 // Integration tests with wiremock
