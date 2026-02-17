@@ -383,11 +383,7 @@ impl HttpExecutor {
         .into()
     }
 
-    async fn handle_service_unavailable(
-        &self,
-        retry_attempt: u32,
-        ctx: &TelemetryContext,
-    ) {
+    async fn handle_service_unavailable(&self, retry_attempt: u32, ctx: &TelemetryContext) {
         let backoff = exponential_backoff(retry_attempt, self.base_backoff);
         tracing::warn!(
             retry.attempt = retry_attempt,
