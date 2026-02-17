@@ -10,6 +10,13 @@ use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
 
 use super::RestHandler;
 
+// Don't encode standard URL characters that are safe in path segments
+static ENCODE_SET: percent_encoding::AsciiSet = NON_ALPHANUMERIC
+    .remove(b'-')
+    .remove(b'_')
+    .remove(b'.')
+    .remove(b'~');
+
 impl<A: crate::auth::Authenticator> RestHandler<A> {
     /// Helper method to handle error responses from Salesforce API.
     ///
@@ -244,15 +251,6 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
         validator::validate_field_name(external_id_field)?;
 
         // URL encode the external ID value to prevent injection and handle special characters
-        // Don't encode standard URL characters that are safe in path segments
-        // We move the constant to the top scope or define it before use, but here it's fine if it's the first statement in this block context?
-        // Actually clippy says "adding items after statements is confusing". We have validator calls before this const.
-        // Let's define the const at module level or top of function.
-        static ENCODE_SET: percent_encoding::AsciiSet = NON_ALPHANUMERIC
-            .remove(b'-')
-            .remove(b'_')
-            .remove(b'.')
-            .remove(b'~');
         let encoded_value = utf8_percent_encode(external_id_value, &ENCODE_SET).to_string();
 
         let url = format!(
