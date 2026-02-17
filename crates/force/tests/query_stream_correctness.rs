@@ -2,10 +2,10 @@
 #![allow(clippy::unwrap_used)]
 #![cfg(feature = "rest")]
 
+use async_trait::async_trait;
 use force::auth::{AccessToken, Authenticator, TokenResponse};
 use force::client::builder;
 use force::error::Result;
-use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use wiremock::matchers::{method, path};
