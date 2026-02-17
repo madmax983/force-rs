@@ -165,6 +165,52 @@ impl TelemetryHooks {
     }
 }
 
+struct TelemetryContext {
+    method: String,
+    path: String,
+    request_class: &'static str,
+    start_time: Instant,
+}
+
+impl TelemetryContext {
+    fn new(method: &str, path: &str, request_class: RequestRetryClass) -> Self {
+        Self {
+            method: method.to_string(),
+            path: path.to_string(),
+            request_class: request_class.as_str(),
+            start_time: Instant::now(),
+        }
+    }
+
+    fn create_completion(
+        &self,
+        status_code: Option<u16>,
+        error_kind: Option<RequestErrorKind>,
+        retries: u32,
+    ) -> RequestCompletion {
+        RequestCompletion {
+            method: self.method.clone(),
+            path: self.path.clone(),
+            request_class: self.request_class,
+            status_code,
+            error_kind,
+            retries,
+            elapsed_ms: self.start_time.elapsed().as_millis(),
+        }
+    }
+
+    fn create_retry_event(&self, attempt: u32, status_code: u16, backoff_ms: u128) -> RetryEvent {
+        RetryEvent {
+            method: self.method.clone(),
+            path: self.path.clone(),
+            request_class: self.request_class,
+            attempt,
+            status_code,
+            backoff_ms,
+        }
+    }
+}
+
 /// HTTP executor that handles middleware concerns.
 ///
 /// The executor manages all HTTP communication with Salesforce, applying
@@ -293,37 +339,26 @@ impl HttpExecutor {
         &self,
         request: Request,
         retry_attempt: u32,
-        start: Instant,
-        method: &str,
-        path: &str,
-        request_class_str: &'static str,
+        ctx: &TelemetryContext,
     ) -> Result<Response> {
         match tokio::time::timeout(self.timeout, self.client.execute(request)).await {
             Err(_) => {
-                self.record_completion(RequestCompletion {
-                    method: method.to_string(),
-                    path: path.to_string(),
-                    request_class: request_class_str,
-                    status_code: None,
-                    error_kind: Some(RequestErrorKind::Timeout),
-                    retries: retry_attempt,
-                    elapsed_ms: start.elapsed().as_millis(),
-                });
+                self.record_completion(ctx.create_completion(
+                    None,
+                    Some(RequestErrorKind::Timeout),
+                    retry_attempt,
+                ));
                 Err(HttpError::Timeout {
                     timeout_seconds: self.timeout.as_secs(),
                 }
                 .into())
             }
             Ok(Err(error)) => {
-                self.record_completion(RequestCompletion {
-                    method: method.to_string(),
-                    path: path.to_string(),
-                    request_class: request_class_str,
-                    status_code: None,
-                    error_kind: Some(RequestErrorKind::Transport),
-                    retries: retry_attempt,
-                    elapsed_ms: start.elapsed().as_millis(),
-                });
+                self.record_completion(ctx.create_completion(
+                    None,
+                    Some(RequestErrorKind::Transport),
+                    retry_attempt,
+                ));
                 Err(HttpError::from(error).into())
             }
             Ok(Ok(response)) => Ok(response),
@@ -333,22 +368,15 @@ impl HttpExecutor {
     fn handle_rate_limit(
         &self,
         response: &Response,
-        method: &str,
-        path: &str,
-        request_class_str: &'static str,
-        start: Instant,
         retry_attempt: u32,
+        ctx: &TelemetryContext,
     ) -> crate::error::ForceError {
         let retry_after = parse_retry_after(response.headers()).unwrap_or(60);
-        self.record_completion(RequestCompletion {
-            method: method.to_string(),
-            path: path.to_string(),
-            request_class: request_class_str,
-            status_code: Some(StatusCode::TOO_MANY_REQUESTS.as_u16()),
-            error_kind: Some(RequestErrorKind::RateLimited),
-            retries: retry_attempt,
-            elapsed_ms: start.elapsed().as_millis(),
-        });
+        self.record_completion(ctx.create_completion(
+            Some(StatusCode::TOO_MANY_REQUESTS.as_u16()),
+            Some(RequestErrorKind::RateLimited),
+            retry_attempt,
+        ));
         HttpError::RateLimitExceeded {
             retry_after_seconds: retry_after,
         }
@@ -357,10 +385,8 @@ impl HttpExecutor {
 
     async fn handle_service_unavailable(
         &self,
-        method: &str,
-        path: &str,
-        request_class_str: &'static str,
         retry_attempt: u32,
+        ctx: &TelemetryContext,
     ) {
         let backoff = exponential_backoff(retry_attempt, self.base_backoff);
         tracing::warn!(
@@ -369,14 +395,11 @@ impl HttpExecutor {
             retry.backoff_ms = backoff.as_millis(),
             "retrying request after transient failure"
         );
-        self.record_retry(RetryEvent {
-            method: method.to_string(),
-            path: path.to_string(),
-            request_class: request_class_str,
-            attempt: retry_attempt,
-            status_code: StatusCode::SERVICE_UNAVAILABLE.as_u16(),
-            backoff_ms: backoff.as_millis(),
-        });
+        self.record_retry(ctx.create_retry_event(
+            retry_attempt,
+            StatusCode::SERVICE_UNAVAILABLE.as_u16(),
+            backoff.as_millis(),
+        ));
         tokio::time::sleep(backoff).await;
     }
 
@@ -391,15 +414,20 @@ impl HttpExecutor {
         F: Fn() -> Fut,
         Fut: std::future::Future<Output = Result<AccessToken>>,
     {
-        let request_class_str = request_class.as_str();
+        // Capture telemetry context once
+        let ctx = TelemetryContext::new(
+            request.method().as_str(),
+            request.url().path(),
+            request_class,
+        );
+
         let request_span = tracing::info_span!(
             "force_http_request",
-            http.method = %request.method(),
-            http.path = %request.url().path(),
-            request.class = request_class_str
+            http.method = ctx.method,
+            http.path = ctx.path,
+            request.class = ctx.request_class
         );
         let _request_span_guard = request_span.enter();
-        let start = Instant::now();
 
         // Inject Bearer token
         Self::inject_auth_header(&mut request, token)?;
@@ -413,16 +441,7 @@ impl HttpExecutor {
                 HttpError::InvalidUrl("cannot clone request for retry".to_string())
             })?;
 
-            let response = self
-                .execute_attempt(
-                    req_clone,
-                    retry_attempt,
-                    start,
-                    request.method().as_str(),
-                    request.url().path(),
-                    request_class_str,
-                )
-                .await?;
+            let response = self.execute_attempt(req_clone, retry_attempt, &ctx).await?;
 
             match response.status() {
                 StatusCode::UNAUTHORIZED => {
@@ -434,50 +453,29 @@ impl HttpExecutor {
                         continue;
                     }
 
-                    self.record_completion(RequestCompletion {
-                        method: request.method().to_string(),
-                        path: request.url().path().to_string(),
-                        request_class: request_class_str,
-                        status_code: Some(StatusCode::UNAUTHORIZED.as_u16()),
-                        error_kind: None,
-                        retries: retry_attempt,
-                        elapsed_ms: start.elapsed().as_millis(),
-                    });
+                    self.record_completion(ctx.create_completion(
+                        Some(StatusCode::UNAUTHORIZED.as_u16()),
+                        None,
+                        retry_attempt,
+                    ));
                     return Ok(response);
                 }
                 StatusCode::TOO_MANY_REQUESTS => {
                     // 429: Rate limit - respect Retry-After header
-                    return Err(self.handle_rate_limit(
-                        &response,
-                        request.method().as_str(),
-                        request.url().path(),
-                        request_class_str,
-                        start,
-                        retry_attempt,
-                    ));
+                    return Err(self.handle_rate_limit(&response, retry_attempt, &ctx));
                 }
                 StatusCode::SERVICE_UNAVAILABLE if retry_attempt < max_retries => {
                     // 503: Retry with exponential backoff
-                    self.handle_service_unavailable(
-                        request.method().as_str(),
-                        request.url().path(),
-                        request_class_str,
-                        retry_attempt,
-                    )
-                    .await;
+                    self.handle_service_unavailable(retry_attempt, &ctx).await;
                     retry_attempt += 1;
                     continue;
                 }
                 _ => {
-                    self.record_completion(RequestCompletion {
-                        method: request.method().to_string(),
-                        path: request.url().path().to_string(),
-                        request_class: request_class_str,
-                        status_code: Some(response.status().as_u16()),
-                        error_kind: None,
-                        retries: retry_attempt,
-                        elapsed_ms: start.elapsed().as_millis(),
-                    });
+                    self.record_completion(ctx.create_completion(
+                        Some(response.status().as_u16()),
+                        None,
+                        retry_attempt,
+                    ));
                     return Ok(response);
                 }
             }
