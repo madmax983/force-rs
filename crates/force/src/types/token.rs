@@ -436,6 +436,25 @@ mod tests {
     }
 
     #[test]
+    fn test_access_token_expires_in_cap_boundary() {
+        // Test value that is exactly the cap (3 billion)
+        let boundary_seconds = 3_000_000_000_u64;
+        let response = TokenResponse {
+            access_token: "test_token".to_string(),
+            instance_url: "https://example.salesforce.com".to_string(),
+            token_type: "Bearer".to_string(),
+            issued_at: "1704067200000".to_string(),
+            signature: String::new(),
+            expires_in: Some(boundary_seconds),
+            refresh_token: None,
+        };
+
+        let token = AccessToken::from_response(response);
+        // Should be Some because 3B <= 3B
+        assert!(token.expires_at.is_some());
+    }
+
+    #[test]
     fn test_parse_issued_at_milliseconds_precision() {
         // Timestamp with 500ms: 1704067200500
         let timestamp = "1704067200500";

@@ -367,6 +367,8 @@ mod integration_tests {
             .on_retry(move |event: &RetryEvent| {
                 assert_eq!(event.method, "GET");
                 assert_eq!(event.path, "/test");
+                // Verify request class is correctly identified
+                assert_eq!(event.request_class, "read");
                 retries_clone.fetch_add(1, Ordering::SeqCst);
             })
             .on_complete(move |completion| {
@@ -409,6 +411,7 @@ mod integration_tests {
         };
         assert_eq!(completions.len(), 1);
         assert_eq!(completions[0].path, "/test");
+        assert_eq!(completions[0].request_class, "read");
         assert_eq!(completions[0].status_code, Some(200));
         assert_eq!(completions[0].retries, 1);
     }
