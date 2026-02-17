@@ -26,7 +26,7 @@ force-rs provides idiomatic Rust bindings to the Salesforce Platform APIs, enabl
 - **Error Handling** - Comprehensive job monitoring and failure analysis
 
 ### Core Features
-- **Multiple Auth Flows** - JWT bearer, OAuth 2.0 client credentials, username-password
+- **Multiple Auth Flows** - JWT bearer, OAuth 2.0 client credentials
 - **Feature-Gated** - Enable only the APIs you need for minimal binary size
 - **Async/Await** - Built on Tokio for high-concurrency workloads
 - **Type-Safe Errors** - Structured error types with context for debugging
@@ -243,7 +243,6 @@ force-rs v0.1.0 provides production-ready REST and Bulk API support. Future rele
 - **v0.5.0** - Pub/Sub API for Change Data Capture and Platform Events
 - **v1.0.0** - Complete Salesforce Platform API coverage with stability guarantees
 
-See [`ROADMAP.md`](ROADMAP.md) for detailed milestones.
 
 ## Testing
 
