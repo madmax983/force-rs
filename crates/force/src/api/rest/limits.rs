@@ -608,11 +608,7 @@ mod integration_tests {
             .await
             .expect("Failed to build client");
 
-        let limits = client
-            .rest()
-            .limits()
-            .await
-            .expect("Failed to get limits");
+        let limits = client.rest().limits().await.expect("Failed to get limits");
 
         assert_eq!(limits.daily_api_requests.max, 15000);
         assert_eq!(limits.daily_api_requests.remaining, 14850);
@@ -641,11 +637,7 @@ mod integration_tests {
             .await
             .expect("Failed to build client");
 
-        let limits = client
-            .rest()
-            .limits()
-            .await
-            .expect("Failed to get limits");
+        let limits = client.rest().limits().await.expect("Failed to get limits");
         assert_eq!(limits.daily_api_requests.max, 15000);
     }
 
@@ -710,11 +702,7 @@ mod integration_tests {
             .await
             .expect("Failed to build client");
 
-        client
-            .rest()
-            .limits()
-            .await
-            .expect("Failed to get limits");
+        client.rest().limits().await.expect("Failed to get limits");
         // Mock will verify the headers were correct
     }
 
@@ -763,11 +751,7 @@ mod integration_tests {
             .await
             .expect("Failed to build client");
 
-        let limits = client
-            .rest()
-            .limits()
-            .await
-            .expect("Failed to get limits");
+        let limits = client.rest().limits().await.expect("Failed to get limits");
         assert!(limits.daily_api_requests.is_at_limit());
         assert!((limits.daily_api_requests.percentage_used() - 100.0).abs() < f64::EPSILON);
     }
@@ -795,11 +779,7 @@ mod integration_tests {
             .await
             .expect("Failed to build client");
 
-        let limits = client
-            .rest()
-            .limits()
-            .await
-            .expect("Failed to get limits");
+        let limits = client.rest().limits().await.expect("Failed to get limits");
         assert!(limits.additional_limits.contains_key("FutureNewLimit"));
         assert_eq!(limits.additional_limits["FutureNewLimit"].max, 5000);
     }
@@ -849,11 +829,7 @@ mod integration_tests {
             .await
             .expect("Failed to build client");
 
-        let limits = client
-            .rest()
-            .limits()
-            .await
-            .expect("Failed to get limits");
+        let limits = client.rest().limits().await.expect("Failed to get limits");
         assert!(limits.daily_api_requests.is_above_threshold(80.0));
         assert!((limits.daily_api_requests.percentage_used() - 90.0).abs() < f64::EPSILON);
     }
@@ -878,11 +854,7 @@ mod integration_tests {
 
         // Make multiple calls to verify endpoint can be called repeatedly
         for _ in 0..3 {
-            let limits = client
-                .rest()
-                .limits()
-                .await
-                .expect("Failed to get limits");
+            let limits = client.rest().limits().await.expect("Failed to get limits");
             assert_eq!(limits.daily_api_requests.max, 15000);
         }
     }

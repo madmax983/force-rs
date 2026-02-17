@@ -180,13 +180,19 @@ mod tests {
 
     #[test]
     fn test_content_type_serialization() {
-        assert_eq!(serde_json::to_string(&ContentType::Csv).unwrap(), r#""CSV""#);
+        assert_eq!(
+            serde_json::to_string(&ContentType::Csv).unwrap(),
+            r#""CSV""#
+        );
     }
 
     #[test]
     fn test_line_ending_serialization() {
         assert_eq!(serde_json::to_string(&LineEnding::Lf).unwrap(), r#""LF""#);
-        assert_eq!(serde_json::to_string(&LineEnding::Crlf).unwrap(), r#""CRLF""#);
+        assert_eq!(
+            serde_json::to_string(&LineEnding::Crlf).unwrap(),
+            r#""CRLF""#
+        );
     }
 
     #[test]

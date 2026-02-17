@@ -173,9 +173,7 @@ mod tests {
     #[cfg(feature = "mock")]
     use crate::auth::Authenticator;
     #[cfg(feature = "mock")]
-
     // RED PHASE - Write failing tests first
-
     #[test]
     fn test_client_credentials_new() {
         let auth = ClientCredentials::new(
