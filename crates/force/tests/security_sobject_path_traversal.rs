@@ -1,4 +1,5 @@
 #![allow(missing_docs)]
+#![allow(clippy::unwrap_used)]
 use force::types::{Attributes, SalesforceId};
 
 #[test]
@@ -11,7 +12,10 @@ fn test_security_sobject_path_traversal_try_new() {
     // Should return error
     assert!(result.is_err());
     let err = result.unwrap_err();
-    assert!(err.to_string().contains("object type contains invalid characters"));
+    assert!(
+        err.to_string()
+            .contains("object type contains invalid characters")
+    );
 }
 
 #[test]

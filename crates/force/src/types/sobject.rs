@@ -50,10 +50,7 @@ impl Attributes {
         let type_: String = type_name.into();
 
         // Validate type name to prevent path traversal/injection
-        if !type_
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '_')
-        {
+        if !type_.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
             return Err(ForceError::Serialization(
                 SerializationError::InvalidFormat(format!(
                     "object type contains invalid characters: {}",
@@ -84,6 +81,7 @@ impl Attributes {
         since = "0.1.1",
         note = "Use `try_new` instead to handle validation errors gracefully"
     )]
+    #[allow(clippy::expect_used)]
     pub fn new(type_name: impl Into<String>, id: &SalesforceId, api_version: &str) -> Self {
         Self::try_new(type_name, id, api_version).expect("object type contains invalid characters")
     }
@@ -239,6 +237,7 @@ impl DynamicSObjectBuilder {
     ///
     /// Panics if `type_name` contains characters other than alphanumeric or underscores.
     #[must_use]
+    #[allow(clippy::expect_used)]
     pub fn new(type_name: impl Into<String>, id: &SalesforceId, api_version: &str) -> Self {
         let attributes =
             Attributes::try_new(type_name, id, api_version).expect("invalid object type");
