@@ -13,6 +13,7 @@ pub mod search;
 pub use query_stream::QueryStream;
 
 use crate::error::Result;
+use crate::types::validator;
 use serde::de::DeserializeOwned;
 use std::sync::Arc;
 
@@ -317,6 +318,7 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
     /// }
     /// ```
     pub async fn describe(&self, sobject_name: &str) -> Result<describe::SObjectDescribe> {
+        validator::validate_sobject_name(sobject_name)?;
         let path = format!("/sobjects/{}/describe", sobject_name);
         self.execute_get(
             &path,

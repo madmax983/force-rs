@@ -4,8 +4,8 @@
 //! for Salesforce objects.
 
 use crate::error::Result;
-use crate::types::SalesforceId;
 use crate::types::common::{CreateResponse, DeleteResponse, UpdateResponse, UpsertResponse};
+use crate::types::{validator, SalesforceId};
 
 use super::RestHandler;
 
@@ -49,6 +49,7 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
     /// println!("Created account with ID: {}", response.id.must());
     /// ```
     pub async fn create(&self, sobject: &str, data: &serde_json::Value) -> Result<CreateResponse> {
+        validator::validate_sobject_name(sobject)?;
         let path = format!("/sobjects/{}", sobject);
         self.execute_post(&path, data, "Create request failed")
             .await
@@ -76,6 +77,7 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
     /// println!("Account name: {}", account["Name"]);
     /// ```
     pub async fn get(&self, sobject: &str, id: &SalesforceId) -> Result<serde_json::Value> {
+        validator::validate_sobject_name(sobject)?;
         let path = format!("/sobjects/{}/{}", sobject, id.as_str());
         self.execute_get(&path, None, "Get request failed").await
     }
@@ -115,6 +117,7 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
         id: &SalesforceId,
         data: &serde_json::Value,
     ) -> Result<UpdateResponse> {
+        validator::validate_sobject_name(sobject)?;
         let path = format!("/sobjects/{}/{}", sobject, id.as_str());
         self.execute_patch_empty(&path, data, "Update request failed")
             .await?;
@@ -142,6 +145,7 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
     /// client.rest().delete("Account", &account_id).await?;
     /// ```
     pub async fn delete(&self, sobject: &str, id: &SalesforceId) -> Result<DeleteResponse> {
+        validator::validate_sobject_name(sobject)?;
         let path = format!("/sobjects/{}/{}", sobject, id.as_str());
         self.execute_delete_empty(&path, "Delete request failed")
             .await?;
@@ -235,12 +239,25 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
         data: &serde_json::Value,
         retry_class: crate::http::RequestRetryClass,
     ) -> Result<UpsertResponse> {
+        validator::validate_sobject_name(sobject)?;
+        validator::validate_field_name(external_id_field)?;
+
+        // URL encode the external ID value to prevent injection and handle special characters
+        use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
+        // Don't encode standard URL characters that are safe in path segments
+        const ENCODE_SET: percent_encoding::AsciiSet = NON_ALPHANUMERIC
+            .remove(b'-')
+            .remove(b'_')
+            .remove(b'.')
+            .remove(b'~');
+        let encoded_value = utf8_percent_encode(external_id_value, &ENCODE_SET).to_string();
+
         let url = format!(
             "{}/sobjects/{}/{}/{}",
             self.base_url().await?,
             sobject,
             external_id_field,
-            external_id_value
+            encoded_value
         );
         let request = self
             .inner

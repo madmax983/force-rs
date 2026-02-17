@@ -7,6 +7,7 @@
 use super::CompositeHandler;
 use crate::auth::Authenticator;
 use crate::error::{ForceError, Result};
+use crate::types::validator;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -47,6 +48,8 @@ impl<A: Authenticator> BatchBuilder<A> {
     /// * `id` - The record ID
     #[must_use]
     pub fn get(mut self, sobject: &str, id: &str) -> Self {
+        validator::validate_sobject_name(sobject).expect("Invalid SObject name");
+        validator::validate_id(id).expect("Invalid Salesforce ID");
         self.requests.push(BatchSubRequest {
             method: "GET".to_string(),
             url: format!("sobjects/{}/{}", sobject, id),
@@ -63,6 +66,7 @@ impl<A: Authenticator> BatchBuilder<A> {
     /// * `body` - The JSON body of the record
     #[must_use]
     pub fn post(mut self, sobject: &str, body: Value) -> Self {
+        validator::validate_sobject_name(sobject).expect("Invalid SObject name");
         self.requests.push(BatchSubRequest {
             method: "POST".to_string(),
             url: format!("sobjects/{}", sobject),
@@ -80,6 +84,8 @@ impl<A: Authenticator> BatchBuilder<A> {
     /// * `body` - The JSON body with fields to update
     #[must_use]
     pub fn patch(mut self, sobject: &str, id: &str, body: Value) -> Self {
+        validator::validate_sobject_name(sobject).expect("Invalid SObject name");
+        validator::validate_id(id).expect("Invalid Salesforce ID");
         self.requests.push(BatchSubRequest {
             method: "PATCH".to_string(),
             url: format!("sobjects/{}/{}", sobject, id),
@@ -96,6 +102,8 @@ impl<A: Authenticator> BatchBuilder<A> {
     /// * `id` - The record ID
     #[must_use]
     pub fn delete(mut self, sobject: &str, id: &str) -> Self {
+        validator::validate_sobject_name(sobject).expect("Invalid SObject name");
+        validator::validate_id(id).expect("Invalid Salesforce ID");
         self.requests.push(BatchSubRequest {
             method: "DELETE".to_string(),
             url: format!("sobjects/{}/{}", sobject, id),
