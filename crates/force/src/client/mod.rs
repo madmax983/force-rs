@@ -94,6 +94,22 @@ impl<A: crate::types::authenticator::Authenticator> ForceClient<A> {
     pub fn bulk(&self) -> crate::api::bulk::BulkHandler<A> {
         crate::api::bulk::BulkHandler::new(Arc::clone(&self.inner))
     }
+
+    /// Creates a Composite API handler for this client.
+    ///
+    /// The Composite handler provides access to batch and graph operations.
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// let client = builder().authenticate(auth).build().await?;
+    /// let composite = client.composite();
+    /// ```
+    #[cfg(feature = "composite")]
+    #[must_use]
+    pub fn composite(&self) -> crate::api::composite::CompositeHandler<A> {
+        crate::api::composite::CompositeHandler::new(Arc::clone(&self.inner))
+    }
 }
 
 #[cfg(test)]

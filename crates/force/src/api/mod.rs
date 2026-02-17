@@ -11,3 +11,6 @@ pub mod bulk;
 
 #[cfg(feature = "pub_sub")]
 pub mod pub_sub;
+
+#[cfg(feature = "composite")]
+pub mod composite;
