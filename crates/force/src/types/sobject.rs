@@ -3,6 +3,7 @@
 //! This module provides types for working with Salesforce SObjects (Standard Objects),
 //! including dynamic field access and typed SObject representations.
 
+use crate::error::{ForceError, SerializationError};
 use crate::types::SalesforceId;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -37,16 +38,54 @@ impl Attributes {
     /// Creates new attributes for the given SObject type and ID.
     ///
     /// The URL format follows Salesforce's REST API convention.
-    #[must_use]
-    pub fn new(type_name: impl Into<String>, id: &SalesforceId, api_version: &str) -> Self {
-        let type_ = type_name.into();
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `type_name` contains characters other than alphanumeric or underscores.
+    pub fn try_new(
+        type_name: impl Into<String>,
+        id: &SalesforceId,
+        api_version: &str,
+    ) -> Result<Self, ForceError> {
+        let type_: String = type_name.into();
+
+        // Validate type name to prevent path traversal/injection
+        if !type_
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_')
+        {
+            return Err(ForceError::Serialization(
+                SerializationError::InvalidFormat(format!(
+                    "object type contains invalid characters: {}",
+                    type_
+                )),
+            ));
+        }
+
         let url = format!(
             "/services/data/{}/sobjects/{}/{}",
             api_version,
             type_,
             id.as_str()
         );
-        Self { type_, url }
+        Ok(Self { type_, url })
+    }
+
+    /// Creates new attributes for the given SObject type and ID.
+    ///
+    /// The URL format follows Salesforce's REST API convention.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `type_name` contains characters other than alphanumeric or underscores,
+    /// to prevent URL manipulation or path traversal.
+    #[must_use]
+    #[deprecated(
+        since = "0.1.1",
+        note = "Use `try_new` instead to handle validation errors gracefully"
+    )]
+    pub fn new(type_name: impl Into<String>, id: &SalesforceId, api_version: &str) -> Self {
+        Self::try_new(type_name, id, api_version).expect("object type contains invalid characters")
     }
 
     /// Returns the `SObject` type name.
@@ -195,9 +234,14 @@ pub struct DynamicSObjectBuilder {
 
 impl DynamicSObjectBuilder {
     /// Creates a new builder for the given `SObject` type and ID.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `type_name` contains characters other than alphanumeric or underscores.
     #[must_use]
     pub fn new(type_name: impl Into<String>, id: &SalesforceId, api_version: &str) -> Self {
-        let attributes = Attributes::new(type_name, id, api_version);
+        let attributes =
+            Attributes::try_new(type_name, id, api_version).expect("invalid object type");
         Self {
             sobject: DynamicSObject::new(attributes),
         }
@@ -225,9 +269,9 @@ mod tests {
     // RED PHASE - Write failing tests first
 
     #[test]
-    fn test_attributes_new() {
+    fn test_attributes_try_new() {
         let id = SalesforceId::new("001000000000001AAA").must();
-        let attrs = Attributes::new("Account", &id, "v60.0");
+        let attrs = Attributes::try_new("Account", &id, "v60.0").must();
 
         assert_eq!(attrs.type_, "Account");
         assert_eq!(
@@ -237,9 +281,16 @@ mod tests {
     }
 
     #[test]
+    fn test_attributes_try_new_invalid() {
+        let id = SalesforceId::new("001000000000001AAA").must();
+        let result = Attributes::try_new("Account/../../", &id, "v60.0");
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn test_attributes_object_type() {
         let id = SalesforceId::new("001000000000001AAA").must();
-        let attrs = Attributes::new("Contact", &id, "v60.0");
+        let attrs = Attributes::try_new("Contact", &id, "v60.0").must();
 
         assert_eq!(attrs.object_type(), "Contact");
     }
@@ -247,7 +298,7 @@ mod tests {
     #[test]
     fn test_attributes_serialize() {
         let id = SalesforceId::new("001000000000001AAA").must();
-        let attrs = Attributes::new("Account", &id, "v60.0");
+        let attrs = Attributes::try_new("Account", &id, "v60.0").must();
 
         let json = serde_json::to_string(&attrs).must();
         assert!(json.contains("\"type\":\"Account\""));
@@ -268,7 +319,7 @@ mod tests {
     #[test]
     fn test_dynamic_sobject_new() {
         let id = SalesforceId::new("001000000000001AAA").must();
-        let attrs = Attributes::new("Account", &id, "v60.0");
+        let attrs = Attributes::try_new("Account", &id, "v60.0").must();
         let sobject = DynamicSObject::new(attrs);
 
         assert_eq!(sobject.object_type(), "Account");
@@ -278,7 +329,7 @@ mod tests {
     #[test]
     fn test_dynamic_sobject_set_and_get_field() {
         let id = SalesforceId::new("001000000000001AAA").must();
-        let attrs = Attributes::new("Account", &id, "v60.0");
+        let attrs = Attributes::try_new("Account", &id, "v60.0").must();
         let mut sobject = DynamicSObject::new(attrs);
 
         sobject.set_field("Name", "Acme Corp");
@@ -297,7 +348,7 @@ mod tests {
     #[test]
     fn test_dynamic_sobject_get_field_as() {
         let id = SalesforceId::new("001000000000001AAA").must();
-        let attrs = Attributes::new("Account", &id, "v60.0");
+        let attrs = Attributes::try_new("Account", &id, "v60.0").must();
         let mut sobject = DynamicSObject::new(attrs);
 
         sobject.set_field("AnnualRevenue", 1_000_000);
@@ -309,7 +360,7 @@ mod tests {
     #[test]
     fn test_dynamic_sobject_get_field_as_type_mismatch() {
         let id = SalesforceId::new("001000000000001AAA").must();
-        let attrs = Attributes::new("Account", &id, "v60.0");
+        let attrs = Attributes::try_new("Account", &id, "v60.0").must();
         let mut sobject = DynamicSObject::new(attrs);
 
         sobject.set_field("Name", "Acme Corp");
@@ -322,7 +373,7 @@ mod tests {
     #[test]
     fn test_dynamic_sobject_has_field() {
         let id = SalesforceId::new("001000000000001AAA").must();
-        let attrs = Attributes::new("Account", &id, "v60.0");
+        let attrs = Attributes::try_new("Account", &id, "v60.0").must();
         let mut sobject = DynamicSObject::new(attrs);
 
         sobject.set_field("Name", "Acme Corp");
@@ -334,7 +385,7 @@ mod tests {
     #[test]
     fn test_dynamic_sobject_remove_field() {
         let id = SalesforceId::new("001000000000001AAA").must();
-        let attrs = Attributes::new("Account", &id, "v60.0");
+        let attrs = Attributes::try_new("Account", &id, "v60.0").must();
         let mut sobject = DynamicSObject::new(attrs);
 
         sobject.set_field("Name", "Acme Corp");
@@ -348,7 +399,7 @@ mod tests {
     #[test]
     fn test_dynamic_sobject_field_names() {
         let id = SalesforceId::new("001000000000001AAA").must();
-        let attrs = Attributes::new("Account", &id, "v60.0");
+        let attrs = Attributes::try_new("Account", &id, "v60.0").must();
         let mut sobject = DynamicSObject::new(attrs);
 
         sobject.set_field("Name", "Acme Corp");
@@ -363,7 +414,7 @@ mod tests {
     #[test]
     fn test_dynamic_sobject_field_count() {
         let id = SalesforceId::new("001000000000001AAA").must();
-        let attrs = Attributes::new("Account", &id, "v60.0");
+        let attrs = Attributes::try_new("Account", &id, "v60.0").must();
         let mut sobject = DynamicSObject::new(attrs);
 
         assert_eq!(sobject.field_count(), 0);
@@ -378,7 +429,7 @@ mod tests {
     #[test]
     fn test_dynamic_sobject_serialize() {
         let id = SalesforceId::new("001000000000001AAA").must();
-        let attrs = Attributes::new("Account", &id, "v60.0");
+        let attrs = Attributes::try_new("Account", &id, "v60.0").must();
         let mut sobject = DynamicSObject::new(attrs);
         sobject.set_field("Name", "Acme Corp");
 
@@ -425,7 +476,7 @@ mod tests {
     #[test]
     fn test_dynamic_sobject_to_value() {
         let id = SalesforceId::new("001000000000001AAA").must();
-        let attrs = Attributes::new("Account", &id, "v60.0");
+        let attrs = Attributes::try_new("Account", &id, "v60.0").must();
         let mut sobject = DynamicSObject::new(attrs);
         sobject.set_field("Name", "Acme Corp");
 
