@@ -7,3 +7,7 @@
 **2024-05-23 - [The Sprawl: Consolidating API Methods]**
 **Tangle:** The `api::rest` modules (`crud`, `query`, `search`, etc.) were extending `ForceClient` with convenience methods, creating a sprawl of business logic on the main client struct and introducing a conceptual circular dependency between `client` and `api`.
 **Blueprint:** Removed `impl ForceClient` blocks from `api::rest` modules. Moved `query` implementation to `RestHandler`. Standardized all API access through handlers (`client.rest().method(...)`, `client.bulk().method(...)`). This enforces high cohesion and eliminates the cycle.
+
+**2024-05-24 - [The Leak: DynamicSObject Encapsulation]**
+**Tangle:** `DynamicSObject` exposed internal `Map` and `Attributes` exposed raw strings, allowing invalid states and coupling users to implementation details.
+**Blueprint:** Encapsulated `DynamicSObject` fields, added `try_new` validation to `Attributes` with `url()` accessor, and forced usage of accessors.

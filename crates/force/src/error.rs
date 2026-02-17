@@ -166,6 +166,10 @@ pub enum SerializationError {
     /// Invalid data format.
     #[error("invalid data format: {0}")]
     InvalidFormat(String),
+
+    /// Invalid SObject type.
+    #[error("invalid SObject type: {0}")]
+    InvalidType(String),
 }
 
 /// A specialized Result type for Force API operations.
