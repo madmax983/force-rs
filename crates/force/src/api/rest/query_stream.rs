@@ -22,7 +22,6 @@ use crate::auth::Authenticator;
 use crate::error::Result;
 use futures::Stream;
 use serde::de::DeserializeOwned;
-use std::collections::VecDeque;
 
 /// Stream for iterating over query results.
 ///
@@ -31,7 +30,7 @@ use std::collections::VecDeque;
 pub struct QueryStream<T, A: Authenticator> {
     client: RestHandler<A>,
     soql: String,
-    buffer: VecDeque<T>,
+    current_page: std::vec::IntoIter<T>,
     next_url: Option<String>,
     done: bool,
     started: bool,
@@ -48,7 +47,7 @@ where
         Self {
             client,
             soql: soql.into(),
-            buffer: VecDeque::new(),
+            current_page: Vec::new().into_iter(),
             next_url: None,
             done: false,
             started: false,
@@ -61,8 +60,8 @@ where
     /// Returns `None` when all records have been consumed.
     pub async fn next(&mut self) -> Result<Option<T>> {
         loop {
-            // 1. Try to yield from buffer
-            if let Some(record) = self.buffer.pop_front() {
+            // 1. Try to yield from current page
+            if let Some(record) = self.current_page.next() {
                 return Ok(Some(record));
             }
 
@@ -71,7 +70,7 @@ where
                 return Ok(None);
             }
 
-            // 3. Buffer is empty, fetch more
+            // 3. Current page is empty, fetch more
             let result = if !self.started {
                 self.started = true;
                 self.client.query::<T>(&self.soql).await?
@@ -84,19 +83,21 @@ where
                     return Ok(None);
                 }
             } else {
-                // Started, buffer empty, done = true -> exhausted
+                // Started, current page empty, done = true -> exhausted
                 self.exhausted = true;
                 return Ok(None);
             };
 
             // 4. Update state
-            self.buffer.extend(result.records);
+            // Optimization: Use IntoIter to avoid moving elements into a VecDeque
+            self.current_page = result.records.into_iter();
             self.next_url = result.next_records_url;
             self.done = result.done;
 
             // 5. If fetch returned nothing and we are done, mark exhausted.
             // If fetch returned nothing but not done (weird), loop again to fetch next page.
-            if self.buffer.is_empty() && self.done {
+            // Note: self.current_page.len() requires ExactSizeIterator which IntoIter is.
+            if self.current_page.len() == 0 && self.done {
                 self.exhausted = true;
                 return Ok(None);
             }
