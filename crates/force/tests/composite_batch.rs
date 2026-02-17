@@ -1,4 +1,6 @@
 #![cfg(feature = "composite")]
+#![allow(clippy::unwrap_used)]
+#![allow(clippy::expect_used)]
 //! Integration tests for Composite API.
 
 use async_trait::async_trait;

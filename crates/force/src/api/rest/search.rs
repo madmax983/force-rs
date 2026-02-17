@@ -275,6 +275,73 @@ fn escape_sosl(text: &str) -> String {
     escaped
 }
 
+/// Validates field syntax to prevent SOSL injection while allowing complex clauses.
+///
+/// Implements a state machine to track quoting and parenthesis balance.
+/// - Inside quotes (`'` or `"`): All characters are allowed (except unescaped quote).
+/// - Outside quotes: Only alphanumeric and safe symbols allowed.
+/// - Parentheses must be balanced.
+fn validate_field_syntax(field: &str) {
+    let chars = field.chars();
+    let mut balance = 0;
+    let mut in_quote = None; // None, Some('\''), Some('"')
+    let mut escaped = false;
+
+    for c in chars {
+        if escaped {
+            escaped = false;
+            continue;
+        }
+
+        if c == '\\' {
+            escaped = true;
+            continue;
+        }
+
+        if let Some(quote_char) = in_quote {
+            if c == quote_char {
+                in_quote = None;
+            }
+            // Inside quotes, any character is allowed (besides the closing quote)
+        } else {
+            // Outside quotes
+            match c {
+                '\'' | '"' => in_quote = Some(c),
+                '(' => balance += 1,
+                ')' => {
+                    balance -= 1;
+                    assert!(
+                        balance >= 0,
+                        "unbalanced parentheses (unexpected closing) in field: {}",
+                        field
+                    );
+                }
+                // Allowed structure characters
+                _ if c.is_ascii_alphanumeric() => {}
+                '_' | '.' | ' ' | '\t' | '\n' | '\r' | ',' | '=' | '!' | '<' | '>' | '-' | '+'
+                | ':' | '%' | '&' | '|' | '^' | '*' | '$' => {}
+                // Disallowed injection characters outside quotes
+                ';' | '{' | '}' | '[' | ']' => panic!(
+                    "field name contains invalid character outside quotes: '{}' in \"{}\"",
+                    c, field
+                ),
+                _ => panic!(
+                    "field name contains invalid character: '{}' in \"{}\"",
+                    c, field
+                ),
+            }
+        }
+    }
+
+    assert!(in_quote.is_none(), "unclosed quote in field: {}", field);
+    assert!(
+        balance == 0,
+        "unbalanced parentheses (unclosed opening) in field: {}",
+        field
+    );
+    assert!(!escaped, "field cannot end with a backslash: {}", field);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1121,71 +1188,4 @@ mod integration_tests {
 
         assert_eq!(results1.search_records.len(), results2.search_records.len());
     }
-}
-
-/// Validates field syntax to prevent SOSL injection while allowing complex clauses.
-///
-/// Implements a state machine to track quoting and parenthesis balance.
-/// - Inside quotes (`'` or `"`): All characters are allowed (except unescaped quote).
-/// - Outside quotes: Only alphanumeric and safe symbols allowed.
-/// - Parentheses must be balanced.
-fn validate_field_syntax(field: &str) {
-    let chars = field.chars();
-    let mut balance = 0;
-    let mut in_quote = None; // None, Some('\''), Some('"')
-    let mut escaped = false;
-
-    for c in chars {
-        if escaped {
-            escaped = false;
-            continue;
-        }
-
-        if c == '\\' {
-            escaped = true;
-            continue;
-        }
-
-        if let Some(quote_char) = in_quote {
-            if c == quote_char {
-                in_quote = None;
-            }
-            // Inside quotes, any character is allowed (besides the closing quote)
-        } else {
-            // Outside quotes
-            match c {
-                '\'' | '"' => in_quote = Some(c),
-                '(' => balance += 1,
-                ')' => {
-                    balance -= 1;
-                    assert!(
-                        balance >= 0,
-                        "unbalanced parentheses (unexpected closing) in field: {}",
-                        field
-                    );
-                }
-                // Allowed structure characters
-                _ if c.is_ascii_alphanumeric() => {}
-                '_' | '.' | ' ' | '\t' | '\n' | '\r' | ',' | '=' | '!' | '<' | '>' | '-' | '+'
-                | ':' | '%' | '&' | '|' | '^' | '*' | '$' => {}
-                // Disallowed injection characters outside quotes
-                ';' | '{' | '}' | '[' | ']' => panic!(
-                    "field name contains invalid character outside quotes: '{}' in \"{}\"",
-                    c, field
-                ),
-                _ => panic!(
-                    "field name contains invalid character: '{}' in \"{}\"",
-                    c, field
-                ),
-            }
-        }
-    }
-
-    assert!(in_quote.is_none(), "unclosed quote in field: {}", field);
-    assert!(
-        balance == 0,
-        "unbalanced parentheses (unclosed opening) in field: {}",
-        field
-    );
-    assert!(!escaped, "field cannot end with a backslash: {}", field);
 }
