@@ -14,12 +14,15 @@ use std::sync::LazyLock;
 /// Cannot contain consecutive underscores (this is standard Salesforce validation).
 /// Cannot end with an underscore.
 static SOBJECT_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
+    #[allow(clippy::expect_used)]
     Regex::new(r"^[a-zA-Z](?:[a-zA-Z0-9_]*[a-zA-Z0-9])?$").expect("Invalid regex")
 });
 
 /// Regex for validating API versions (e.g., "v60.0").
-static API_VERSION_PATTERN: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"^v\d+\.\d+$").expect("Invalid regex"));
+static API_VERSION_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
+    #[allow(clippy::expect_used)]
+    Regex::new(r"^v\d+\.\d+$").expect("Invalid regex")
+});
 
 /// Validates an SObject type name.
 ///
