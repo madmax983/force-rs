@@ -161,30 +161,62 @@ where
     R: Read,
     F: FnMut(Vec<T>) -> Result<()>,
 {
-    let mut csv_reader = csv::Reader::from_reader(reader);
+    let batches = CsvBatchIterator::new(reader, batch_size);
 
-    // Cap initial allocation to avoid panic/OOM on huge batch_size
-    // If the user requests a huge batch, we start small and let Vec grow naturally
-    let capacity = std::cmp::min(batch_size, 10_000);
-    let mut batch = Vec::with_capacity(capacity);
-
-    for result in csv_reader.deserialize() {
-        let record: T = result.map_err(crate::error::SerializationError::from)?;
-        batch.push(record);
-
-        if batch.len() >= batch_size {
-            callback(batch)?;
-            // Re-allocate with capped capacity
-            batch = Vec::with_capacity(capacity);
-        }
-    }
-
-    // Process any remaining records
-    if !batch.is_empty() {
-        callback(batch)?;
+    for batch in batches {
+        callback(batch?)?;
     }
 
     Ok(())
+}
+
+struct CsvBatchIterator<R, T> {
+    iter: csv::DeserializeRecordsIntoIter<R, T>,
+    batch_size: usize,
+}
+
+impl<R, T> CsvBatchIterator<R, T>
+where
+    R: Read,
+    T: for<'de> Deserialize<'de>,
+{
+    fn new(reader: R, batch_size: usize) -> Self {
+        let csv_reader = csv::Reader::from_reader(reader);
+        Self {
+            iter: csv_reader.into_deserialize(),
+            batch_size,
+        }
+    }
+}
+
+impl<R, T> Iterator for CsvBatchIterator<R, T>
+where
+    R: Read,
+    T: for<'de> Deserialize<'de>,
+{
+    type Item = Result<Vec<T>>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        // Cap initial allocation to avoid panic/OOM on huge batch_size
+        let capacity = std::cmp::min(self.batch_size, 10_000);
+        let mut batch = Vec::with_capacity(capacity);
+
+        for _ in 0..self.batch_size {
+            match self.iter.next() {
+                Some(Ok(record)) => batch.push(record),
+                Some(Err(e)) => {
+                    return Some(Err(crate::error::SerializationError::from(e).into()));
+                }
+                None => break,
+            }
+        }
+
+        if batch.is_empty() {
+            None
+        } else {
+            Some(Ok(batch))
+        }
+    }
 }
 #[cfg(test)]
 mod tests {
