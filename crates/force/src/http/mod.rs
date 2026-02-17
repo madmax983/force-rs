@@ -605,16 +605,23 @@ const BASE_BACKOFF_MS: u64 = 500;
 
 /// Calculates exponential backoff duration for retry attempt.
 ///
-/// Uses formula: base_delay * 2^attempt, capped at 30 seconds.
+/// Uses formula: base_delay * 2^attempt, capped at 30 seconds (or base_delay if larger).
 fn exponential_backoff(attempt: u32, base: Duration) -> Duration {
-    // Cap at 64 to prevent overflow in 2^attempt (u128)
-    // 2^64 is much larger than the 30s cap anyway.
+    let base_ms = base.as_millis();
+    // Cap should at least be the base duration, otherwise we retry faster than the base
+    let max_cap = std::cmp::max(base_ms, u128::from(MAX_BACKOFF_MS));
+
+    // Cap at 64 to prevent overflow in 2^attempt
     if attempt >= 64 {
-        return Duration::from_millis(MAX_BACKOFF_MS);
+        #[allow(clippy::cast_possible_truncation)]
+        return Duration::from_millis(max_cap as u64);
     }
-    let backoff_ms = base.as_millis() * 2_u128.pow(attempt);
+
+    let multiplier = 2_u128.pow(attempt);
+    let backoff_ms = base_ms.saturating_mul(multiplier);
+
     #[allow(clippy::cast_possible_truncation)]
-    Duration::from_millis(backoff_ms.min(u128::from(MAX_BACKOFF_MS)) as u64)
+    Duration::from_millis(backoff_ms.min(max_cap) as u64)
 }
 
 fn classify_request(method: &Method) -> RequestRetryClass {
@@ -883,5 +890,12 @@ mod unit_tests {
         headers.insert("Retry-After", "-1".parse().unwrap());
         // But u64 parsing should fail
         assert_eq!(parse_retry_after(&headers), None);
+    }
+
+    #[test]
+    fn test_exponential_backoff_respects_large_base() {
+        let base = Duration::from_secs(60);
+        // We expect at least 60s, but the old implementation capped it at 30s
+        assert_eq!(exponential_backoff(0, base).as_secs(), 60);
     }
 }
