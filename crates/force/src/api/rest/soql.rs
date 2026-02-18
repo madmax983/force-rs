@@ -145,8 +145,8 @@ impl SoqlQueryBuilder {
     pub fn where_in(mut self, field: &str, values: &[impl AsRef<str>]) -> Self {
         validate_field_name(field).expect("Invalid field name in where_in");
         if values.is_empty() {
-             self.where_clauses.push(format!("{} IN ()", field));
-             return self;
+            self.where_clauses.push(format!("{} IN ()", field));
+            return self;
         }
 
         let escaped_values: Vec<String> = values
@@ -188,17 +188,17 @@ impl SoqlQueryBuilder {
     /// Sets the ORDER BY clause.
     #[must_use]
     pub fn order_by(mut self, field: &str) -> Self {
-         validate_field_name(field).expect("Invalid field name in order_by");
-         self.order_by = Some(field.to_string());
-         self
+        validate_field_name(field).expect("Invalid field name in order_by");
+        self.order_by = Some(field.to_string());
+        self
     }
 
     /// Sets the ORDER BY clause with direction (DESC).
     #[must_use]
     pub fn order_by_desc(mut self, field: &str) -> Self {
-         validate_field_name(field).expect("Invalid field name in order_by_desc");
-         self.order_by = Some(format!("{} DESC", field));
-         self
+        validate_field_name(field).expect("Invalid field name in order_by_desc");
+        self.order_by = Some(format!("{} DESC", field));
+        self
     }
 
     /// Builds the final SOQL query string.
@@ -208,9 +208,13 @@ impl SoqlQueryBuilder {
     /// Returns an error if no fields are selected or no SObject is specified.
     pub fn try_build(self) -> Result<String, ForceError> {
         if self.fields.is_empty() {
-            return Err(ForceError::InvalidInput("Select fields cannot be empty".to_string()));
+            return Err(ForceError::InvalidInput(
+                "Select fields cannot be empty".to_string(),
+            ));
         }
-        let sobject = self.sobject.ok_or_else(|| ForceError::InvalidInput("FROM clause (SObject) is required".to_string()))?;
+        let sobject = self.sobject.ok_or_else(|| {
+            ForceError::InvalidInput("FROM clause (SObject) is required".to_string())
+        })?;
 
         let mut query = format!("SELECT {} FROM {}", self.fields.join(", "), sobject);
 
@@ -245,11 +249,16 @@ impl SoqlQueryBuilder {
 /// Validates an SObject name (alphanumeric and underscore only).
 fn validate_sobject_name(name: &str) -> Result<(), ForceError> {
     if name.is_empty() {
-        return Err(ForceError::InvalidInput("SObject name cannot be empty".to_string()));
+        return Err(ForceError::InvalidInput(
+            "SObject name cannot be empty".to_string(),
+        ));
     }
     // Strict: [a-zA-Z0-9_]+
     if !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
-        return Err(ForceError::InvalidInput(format!("SObject name contains invalid characters: {}", name)));
+        return Err(ForceError::InvalidInput(format!(
+            "SObject name contains invalid characters: {}",
+            name
+        )));
     }
     Ok(())
 }
@@ -258,7 +267,9 @@ fn validate_sobject_name(name: &str) -> Result<(), ForceError> {
 /// Also allows parentheses for function calls like `count(Id)` or `toLabel(Field)`.
 fn validate_field_name(name: &str) -> Result<(), ForceError> {
     if name.is_empty() {
-        return Err(ForceError::InvalidInput("Field name cannot be empty".to_string()));
+        return Err(ForceError::InvalidInput(
+            "Field name cannot be empty".to_string(),
+        ));
     }
 
     // Check for dangerous characters that could break out of context
@@ -270,21 +281,33 @@ fn validate_field_name(name: &str) -> Result<(), ForceError> {
 
     for c in name.chars() {
         if !c.is_ascii_alphanumeric() && c != '_' && c != '.' && c != '(' && c != ')' {
-            return Err(ForceError::InvalidInput(format!("Field name contains invalid character '{}': {}", c, name)));
+            return Err(ForceError::InvalidInput(format!(
+                "Field name contains invalid character '{}': {}",
+                c, name
+            )));
         }
     }
 
     // Check parenthesis balance
     let mut balance = 0;
     for c in name.chars() {
-        if c == '(' { balance += 1; }
-        else if c == ')' { balance -= 1; }
+        if c == '(' {
+            balance += 1;
+        } else if c == ')' {
+            balance -= 1;
+        }
         if balance < 0 {
-            return Err(ForceError::InvalidInput(format!("Unbalanced parentheses in field name: {}", name)));
+            return Err(ForceError::InvalidInput(format!(
+                "Unbalanced parentheses in field name: {}",
+                name
+            )));
         }
     }
     if balance != 0 {
-        return Err(ForceError::InvalidInput(format!("Unbalanced parentheses in field name: {}", name)));
+        return Err(ForceError::InvalidInput(format!(
+            "Unbalanced parentheses in field name: {}",
+            name
+        )));
     }
 
     Ok(())
@@ -320,7 +343,10 @@ mod tests {
             .where_eq("LastName", "O'Connor")
             .build();
 
-        assert_eq!(query, "SELECT Id FROM Contact WHERE LastName = 'O\\'Connor'");
+        assert_eq!(
+            query,
+            "SELECT Id FROM Contact WHERE LastName = 'O\\'Connor'"
+        );
     }
 
     #[test]

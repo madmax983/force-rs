@@ -1,4 +1,5 @@
 #![allow(missing_docs)]
+#![cfg(feature = "rest")]
 //! Tests for SOQL injection prevention.
 
 use force::api::rest::SoqlQueryBuilder;
