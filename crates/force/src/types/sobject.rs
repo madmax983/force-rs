@@ -3,7 +3,9 @@
 //! This module provides types for working with Salesforce SObjects (Standard Objects),
 //! including dynamic field access and typed SObject representations.
 
+use crate::error::Result as ForceResult;
 use crate::types::SalesforceId;
+use crate::types::validator::{validate_api_version, validate_sobject_name};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
@@ -37,16 +39,38 @@ impl Attributes {
     /// Creates new attributes for the given SObject type and ID.
     ///
     /// The URL format follows Salesforce's REST API convention.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the `type_name` or `api_version` are invalid.
     #[must_use]
     pub fn new(type_name: impl Into<String>, id: &SalesforceId, api_version: &str) -> Self {
+        Self::try_new(type_name, id, api_version).unwrap_or_else(|e| panic!("{}", e))
+    }
+
+    /// Creates new attributes for the given SObject type and ID.
+    ///
+    /// The URL format follows Salesforce's REST API convention.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the `type_name` or `api_version` are invalid.
+    pub fn try_new(
+        type_name: impl Into<String>,
+        id: &SalesforceId,
+        api_version: &str,
+    ) -> ForceResult<Self> {
         let type_ = type_name.into();
+        validate_sobject_name(&type_)?;
+        validate_api_version(api_version)?;
+
         let url = format!(
             "/services/data/{}/sobjects/{}/{}",
             api_version,
             type_,
             id.as_str()
         );
-        Self { type_, url }
+        Ok(Self { type_, url })
     }
 
     /// Returns the `SObject` type name.
