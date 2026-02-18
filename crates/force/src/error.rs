@@ -34,6 +34,10 @@ pub enum ForceError {
     #[error("invalid Salesforce ID: {0}")]
     InvalidId(#[from] crate::types::salesforce_id::SalesforceIdError),
 
+    /// Invalid input provided to an API method.
+    #[error("invalid input: {0}")]
+    InvalidInput(String),
+
     /// Feature not yet implemented.
     #[error("not implemented: {0}")]
     NotImplemented(String),

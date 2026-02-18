@@ -9,8 +9,10 @@ pub mod limits;
 pub mod query;
 pub mod query_stream;
 pub mod search;
+pub mod soql;
 
 pub use query_stream::QueryStream;
+pub use soql::{SoqlQueryBuilder, escape_soql};
 
 use crate::error::Result;
 use serde::de::DeserializeOwned;
