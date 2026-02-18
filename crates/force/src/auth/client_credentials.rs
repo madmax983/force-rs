@@ -94,6 +94,40 @@ impl ClientCredentials {
         }
     }
 
+    /// Creates a new `ClientCredentials` authenticator for Production.
+    ///
+    /// Uses the standard Salesforce Production token URL:
+    /// `https://login.salesforce.com/services/oauth2/token`
+    ///
+    /// # Arguments
+    ///
+    /// * `client_id` - OAuth client ID from Connected App
+    /// * `client_secret` - OAuth client secret from Connected App
+    pub fn new_production(client_id: impl Into<String>, client_secret: impl Into<String>) -> Self {
+        Self::new(
+            client_id,
+            client_secret,
+            "https://login.salesforce.com/services/oauth2/token",
+        )
+    }
+
+    /// Creates a new `ClientCredentials` authenticator for Sandbox.
+    ///
+    /// Uses the standard Salesforce Sandbox token URL:
+    /// `https://test.salesforce.com/services/oauth2/token`
+    ///
+    /// # Arguments
+    ///
+    /// * `client_id` - OAuth client ID from Connected App
+    /// * `client_secret` - OAuth client secret from Connected App
+    pub fn new_sandbox(client_id: impl Into<String>, client_secret: impl Into<String>) -> Self {
+        Self::new(
+            client_id,
+            client_secret,
+            "https://test.salesforce.com/services/oauth2/token",
+        )
+    }
+
     /// Returns the OAuth 2.0 grant type for this flow.
     pub fn grant_type(&self) -> &'static str {
         "client_credentials"

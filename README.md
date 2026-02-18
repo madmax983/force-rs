@@ -50,7 +50,7 @@ Here's a minimal example using OAuth 2.0 client credentials to query Salesforce:
 
 ```rust
 use force::auth::ClientCredentials;
-use force::client::builder;
+use force::client::ForceClientBuilder;
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
@@ -66,13 +66,12 @@ struct Account {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     // Authenticate with OAuth 2.0 client credentials
-    let auth = ClientCredentials::new(
+    let auth = ClientCredentials::new_production(
         "your-client-id",
         "your-client-secret",
-        "https://login.salesforce.com/services/oauth2/token",
     );
 
-    let client = builder()
+    let client = ForceClientBuilder::new()
         .authenticate(auth)
         .build()
         .await?;
@@ -102,7 +101,7 @@ The Bulk API uses typestate patterns to enforce correct job lifecycle at compile
 
 ```rust
 // Requires the "bulk" feature: force = { version = "0.1", features = ["bulk"] }
-use force::client::builder;
+use force::client::ForceClientBuilder;
 use force::auth::ClientCredentials;
 use serde::Serialize;
 
@@ -116,12 +115,11 @@ struct Account {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let auth = ClientCredentials::new(
+    let auth = ClientCredentials::new_production(
         "client-id",
         "client-secret",
-        "https://login.salesforce.com/services/oauth2/token",
     );
-    let client = builder().authenticate(auth).build().await?;
+    let client = ForceClientBuilder::new().authenticate(auth).build().await?;
 
     let accounts = vec![
         Account { name: "Acme Corp".into(), industry: "Technology".into() },
@@ -129,7 +127,7 @@ async fn main() -> anyhow::Result<()> {
     ];
 
     // Convenience method handles: create job → upload CSV → close → poll
-    let job_info = client.bulk().bulk_insert("Account", &accounts).await?;
+    let job_info = client.bulk().insert("Account", &accounts).await?;
 
     println!("Processed: {}, Failed: {}",
         job_info.number_records_processed.unwrap_or(0),
@@ -146,7 +144,7 @@ Stream millions of records without loading the entire dataset into memory:
 
 ```rust
 // Requires the "bulk" feature: force = { version = "0.1", features = ["bulk"] }
-use force::client::builder;
+use force::client::ForceClientBuilder;
 use force::auth::ClientCredentials;
 use serde::Deserialize;
 
@@ -160,16 +158,15 @@ struct Contact {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let auth = ClientCredentials::new(
+    let auth = ClientCredentials::new_production(
         "client-id",
         "client-secret",
-        "https://login.salesforce.com/services/oauth2/token",
     );
-    let client = builder().authenticate(auth).build().await?;
+    let client = ForceClientBuilder::new().authenticate(auth).build().await?;
 
     // Create bulk query job and stream results
     let mut stream = client.bulk()
-        .bulk_query::<Contact>(
+        .query::<Contact>(
             "SELECT Id, Email FROM Contact WHERE Email != null"
         )
         .await?;

@@ -20,7 +20,7 @@ mod example {
     use anyhow::Context;
     use force::api::rest::limits::OrgLimits;
     use force::auth::ClientCredentials;
-    use force::client::builder;
+    use force::client::ForceClientBuilder;
 
     fn required_env(name: &str) -> anyhow::Result<String> {
         std::env::var(name).with_context(|| format!("{name} environment variable not set"))
@@ -174,12 +174,8 @@ mod example {
         let client_secret = required_env("SF_CLIENT_SECRET")?;
 
         println!("Authenticating with Salesforce...");
-        let auth = ClientCredentials::new(
-            client_id,
-            client_secret,
-            "https://login.salesforce.com/services/oauth2/token",
-        );
-        let client = builder().authenticate(auth).build().await?;
+        let auth = ClientCredentials::new_production(client_id, client_secret);
+        let client = ForceClientBuilder::new().authenticate(auth).build().await?;
         println!("Authentication successful\n");
 
         println!("Fetching organization limits...");

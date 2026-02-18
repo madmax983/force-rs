@@ -18,7 +18,7 @@
 mod example {
     use anyhow::Context;
     use force::auth::ClientCredentials;
-    use force::client::builder;
+    use force::client::ForceClientBuilder;
     use serde::Deserialize;
 
     #[derive(Deserialize, Debug)]
@@ -46,12 +46,9 @@ mod example {
         let client_secret = required_env("SF_CLIENT_SECRET")?;
 
         println!("═══ Authenticating ═══");
-        let auth = ClientCredentials::new(
-            client_id,
-            client_secret,
-            "https://login.salesforce.com/services/oauth2/token",
-        );
-        let client = builder().authenticate(auth).build().await?;
+        // Use new_production() for standard login URL
+        let auth = ClientCredentials::new_production(client_id, client_secret);
+        let client = ForceClientBuilder::new().authenticate(auth).build().await?;
         println!("✓ Authentication successful\n");
 
         // Execute bulk query
@@ -60,7 +57,7 @@ mod example {
         println!("Query: {soql}");
 
         // Creates job, polls until complete, returns streaming results
-        let mut stream = client.bulk().bulk_query::<Account>(soql).await?;
+        let mut stream = client.bulk().query::<Account>(soql).await?;
 
         println!("\n═══ Results ═══");
         let mut count = 0;
