@@ -3,8 +3,10 @@
 //! This module provides the `SmartIngest` utility for efficiently uploading
 //! large datasets to Salesforce Bulk API 2.0 using async streams and automatic batching.
 
-use crate::api::bulk::types::{CreateJobRequest, JobInfo, JobOperation, JobState, UpdateJobRequest};
-use crate::api::bulk::{csv, BulkHandler};
+use crate::api::bulk::types::{
+    CreateJobRequest, JobInfo, JobOperation, JobState, UpdateJobRequest,
+};
+use crate::api::bulk::{BulkHandler, csv};
 use crate::error::Result;
 use futures::{Stream, StreamExt};
 use serde::Serialize;
@@ -193,11 +195,9 @@ impl<'a, A: crate::auth::Authenticator> SmartIngest<'a, A> {
         let response = self.handler.inner.execute_request(request).await?;
 
         if !response.status().is_success() {
-            return Err(crate::http::response_to_force_error(
-                response,
-                "Batch upload failed",
-            )
-            .await);
+            return Err(
+                crate::http::response_to_force_error(response, "Batch upload failed").await,
+            );
         }
 
         Ok(())
@@ -208,7 +208,7 @@ impl<'a, A: crate::auth::Authenticator> SmartIngest<'a, A> {
 mod tests {
     use super::*;
     use crate::auth::{AccessToken, Authenticator, TokenResponse};
-    use crate::client::{builder, ForceClient};
+    use crate::client::{ForceClient, builder};
     use crate::test_support::MustMsg;
     use async_trait::async_trait;
     use wiremock::matchers::{body_string, header, method, path};

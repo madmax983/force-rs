@@ -32,12 +32,12 @@ pub mod auth;
 pub mod client;
 pub mod config;
 pub mod error;
+pub mod experimental;
 pub mod http;
 pub mod storage;
 #[cfg(test)]
 pub(crate) mod test_support;
 pub mod types;
-pub mod experimental;
 
 /// Force crate placeholder - foundation being built
 #[must_use]
