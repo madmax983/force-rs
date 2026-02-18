@@ -27,7 +27,7 @@ fn test_soql_injection_prevention() {
 #[test]
 fn test_soql_injection_complex_chars() {
     // Scenario: User input contains backslashes and quotes
-    let complex_input = r#"C:\Windows\'System32'"#;
+    let complex_input = r"C:\Windows\'System32'";
 
     // We expect backslashes to be escaped as well
     let query = SoqlQueryBuilder::new()
