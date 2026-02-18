@@ -49,7 +49,30 @@ where
     T: Serialize,
     W: Write,
 {
-    let mut csv_writer = csv::Writer::from_writer(writer);
+    serialize_to_csv_with_options(records, writer, true)
+}
+
+/// Serializes a collection of records to CSV format with configuration options.
+///
+/// Allows configuring whether to include headers in the output.
+///
+/// # Arguments
+///
+/// * `records` - The records to serialize
+/// * `writer` - The writer to output CSV data to
+/// * `has_headers` - Whether to include the header row
+pub fn serialize_to_csv_with_options<T, W>(
+    records: &[T],
+    writer: W,
+    has_headers: bool,
+) -> Result<()>
+where
+    T: Serialize,
+    W: Write,
+{
+    let mut csv_writer = csv::WriterBuilder::new()
+        .has_headers(has_headers)
+        .from_writer(writer);
 
     for record in records {
         csv_writer

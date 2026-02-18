@@ -122,6 +122,9 @@ pub struct JobInfo {
     /// System modstamp timestamp.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub system_modstamp: Option<String>,
+    /// Error message if the job failed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_message: Option<String>,
 }
 
 /// Request to update a job state.
