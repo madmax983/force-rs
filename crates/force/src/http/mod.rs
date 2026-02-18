@@ -163,20 +163,33 @@ impl TelemetryHooks {
         self.on_complete = Some(Arc::new(hook));
         self
     }
+
+    /// Checks if any telemetry hooks are registered.
+    pub fn has_hooks(&self) -> bool {
+        self.on_retry.is_some() || self.on_complete.is_some()
+    }
 }
 
 struct TelemetryContext {
-    method: String,
-    path: String,
+    method: Option<String>,
+    path: Option<String>,
     request_class: &'static str,
     start_time: Instant,
 }
 
 impl TelemetryContext {
-    fn new(method: &str, path: &str, request_class: RequestRetryClass) -> Self {
+    fn new(method: &str, path: &str, request_class: RequestRetryClass, capture: bool) -> Self {
         Self {
-            method: method.to_string(),
-            path: path.to_string(),
+            method: if capture {
+                Some(method.to_string())
+            } else {
+                None
+            },
+            path: if capture {
+                Some(path.to_string())
+            } else {
+                None
+            },
             request_class: request_class.as_str(),
             start_time: Instant::now(),
         }
@@ -189,8 +202,8 @@ impl TelemetryContext {
         retries: u32,
     ) -> RequestCompletion {
         RequestCompletion {
-            method: self.method.clone(),
-            path: self.path.clone(),
+            method: self.method.clone().unwrap_or_default(),
+            path: self.path.clone().unwrap_or_default(),
             request_class: self.request_class,
             status_code,
             error_kind,
@@ -201,8 +214,8 @@ impl TelemetryContext {
 
     fn create_retry_event(&self, attempt: u32, status_code: u16, backoff_ms: u128) -> RetryEvent {
         RetryEvent {
-            method: self.method.clone(),
-            path: self.path.clone(),
+            method: self.method.clone().unwrap_or_default(),
+            path: self.path.clone().unwrap_or_default(),
             request_class: self.request_class,
             attempt,
             status_code,
@@ -343,22 +356,14 @@ impl HttpExecutor {
     ) -> Result<Response> {
         match tokio::time::timeout(self.timeout, self.client.execute(request)).await {
             Err(_) => {
-                self.record_completion(ctx.create_completion(
-                    None,
-                    Some(RequestErrorKind::Timeout),
-                    retry_attempt,
-                ));
+                self.record_completion(ctx, None, Some(RequestErrorKind::Timeout), retry_attempt);
                 Err(HttpError::Timeout {
                     timeout_seconds: self.timeout.as_secs(),
                 }
                 .into())
             }
             Ok(Err(error)) => {
-                self.record_completion(ctx.create_completion(
-                    None,
-                    Some(RequestErrorKind::Transport),
-                    retry_attempt,
-                ));
+                self.record_completion(ctx, None, Some(RequestErrorKind::Transport), retry_attempt);
                 Err(HttpError::from(error).into())
             }
             Ok(Ok(response)) => Ok(response),
@@ -372,11 +377,12 @@ impl HttpExecutor {
         ctx: &TelemetryContext,
     ) -> crate::error::ForceError {
         let retry_after = parse_retry_after(response.headers()).unwrap_or(60);
-        self.record_completion(ctx.create_completion(
+        self.record_completion(
+            ctx,
             Some(StatusCode::TOO_MANY_REQUESTS.as_u16()),
             Some(RequestErrorKind::RateLimited),
             retry_attempt,
-        ));
+        );
         HttpError::RateLimitExceeded {
             retry_after_seconds: retry_after,
         }
@@ -391,11 +397,12 @@ impl HttpExecutor {
             retry.backoff_ms = backoff.as_millis(),
             "retrying request after transient failure"
         );
-        self.record_retry(ctx.create_retry_event(
+        self.record_retry(
+            ctx,
             retry_attempt,
             StatusCode::SERVICE_UNAVAILABLE.as_u16(),
             backoff.as_millis(),
-        ));
+        );
         tokio::time::sleep(backoff).await;
     }
 
@@ -415,12 +422,13 @@ impl HttpExecutor {
             request.method().as_str(),
             request.url().path(),
             request_class,
+            self.telemetry_hooks.has_hooks(),
         );
 
         let request_span = tracing::info_span!(
             "force_http_request",
-            http.method = ctx.method,
-            http.path = ctx.path,
+            http.method = request.method().as_str(),
+            http.path = request.url().path(),
             request.class = ctx.request_class
         );
         let _request_span_guard = request_span.enter();
@@ -449,11 +457,12 @@ impl HttpExecutor {
                         continue;
                     }
 
-                    self.record_completion(ctx.create_completion(
+                    self.record_completion(
+                        &ctx,
                         Some(StatusCode::UNAUTHORIZED.as_u16()),
                         None,
                         retry_attempt,
-                    ));
+                    );
                     return Ok(response);
                 }
                 StatusCode::TOO_MANY_REQUESTS => {
@@ -467,11 +476,12 @@ impl HttpExecutor {
                     continue;
                 }
                 _ => {
-                    self.record_completion(ctx.create_completion(
+                    self.record_completion(
+                        &ctx,
                         Some(response.status().as_u16()),
                         None,
                         retry_attempt,
-                    ));
+                    );
                     return Ok(response);
                 }
             }
@@ -489,23 +499,35 @@ impl HttpExecutor {
     }
 
     #[allow(clippy::needless_pass_by_value)]
-    fn record_retry(&self, retry_event: RetryEvent) {
+    fn record_retry(
+        &self,
+        ctx: &TelemetryContext,
+        attempt: u32,
+        status_code: u16,
+        backoff_ms: u128,
+    ) {
         if let Some(on_retry) = &self.telemetry_hooks.on_retry {
-            on_retry(&retry_event);
+            on_retry(&ctx.create_retry_event(attempt, status_code, backoff_ms));
         }
     }
 
     #[allow(clippy::needless_pass_by_value)]
-    fn record_completion(&self, completion: RequestCompletion) {
+    fn record_completion(
+        &self,
+        ctx: &TelemetryContext,
+        status_code: Option<u16>,
+        error_kind: Option<RequestErrorKind>,
+        retries: u32,
+    ) {
         tracing::info!(
-            http.status_code = completion.status_code.unwrap_or_default(),
-            retries = completion.retries,
-            elapsed_ms = completion.elapsed_ms,
-            error.kind = ?completion.error_kind,
+            http.status_code = status_code.unwrap_or_default(),
+            retries = retries,
+            elapsed_ms = ctx.start_time.elapsed().as_millis(),
+            error.kind = ?error_kind,
             "request completed"
         );
         if let Some(on_complete) = &self.telemetry_hooks.on_complete {
-            on_complete(&completion);
+            on_complete(&ctx.create_completion(status_code, error_kind, retries));
         }
     }
 
