@@ -1,22 +1,18 @@
 //! Test-only helper utilities for ergonomic assertions without `unwrap`/`expect`.
 
-#[cfg(test)]
 use core::fmt::Debug;
-#[cfg(test)]
+
 use async_trait::async_trait;
-#[cfg(test)]
+
 use crate::auth::{AccessToken, Authenticator, TokenResponse};
-#[cfg(test)]
 use crate::error::Result as ForceResult;
 
 /// Extension trait for unwrapping `Result`/`Option` in tests without `unwrap()`.
-#[cfg(test)]
 pub trait Must<T> {
     /// Extracts the inner value or panics with a default diagnostic message.
     fn must(self) -> T;
 }
 
-#[cfg(test)]
 impl<T, E: Debug> Must<T> for std::result::Result<T, E> {
     fn must(self) -> T {
         match self {
@@ -26,7 +22,6 @@ impl<T, E: Debug> Must<T> for std::result::Result<T, E> {
     }
 }
 
-#[cfg(test)]
 impl<T> Must<T> for Option<T> {
     fn must(self) -> T {
         match self {
@@ -37,13 +32,11 @@ impl<T> Must<T> for Option<T> {
 }
 
 /// Extension trait for unwrapping with custom panic messages.
-#[cfg(test)]
 pub trait MustMsg<T> {
     /// Extracts the inner value or panics with `message`.
     fn must_msg(self, message: &str) -> T;
 }
 
-#[cfg(test)]
 impl<T, E: Debug> MustMsg<T> for std::result::Result<T, E> {
     fn must_msg(self, message: &str) -> T {
         match self {
@@ -53,7 +46,6 @@ impl<T, E: Debug> MustMsg<T> for std::result::Result<T, E> {
     }
 }
 
-#[cfg(test)]
 impl<T> MustMsg<T> for Option<T> {
     fn must_msg(self, message: &str) -> T {
         match self {
@@ -64,14 +56,12 @@ impl<T> MustMsg<T> for Option<T> {
 }
 
 /// Mock authenticator for testing.
-#[cfg(test)]
 #[derive(Debug, Clone)]
 pub struct MockAuthenticator {
     token: String,
     instance_url: String,
 }
 
-#[cfg(test)]
 impl MockAuthenticator {
     /// Creates a new mock authenticator.
     pub fn new(token: &str, instance_url: &str) -> Self {
@@ -82,7 +72,6 @@ impl MockAuthenticator {
     }
 }
 
-#[cfg(test)]
 #[async_trait]
 impl Authenticator for MockAuthenticator {
     async fn authenticate(&self) -> ForceResult<AccessToken> {

@@ -118,7 +118,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::client::builder;
     use crate::test_support::{MockAuthenticator, Must};
     use futures::StreamExt;

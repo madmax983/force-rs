@@ -758,7 +758,6 @@ mod integration_tests {
     use wiremock::matchers::{bearer_token, method, path, query_param};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
-
     fn sample_search_response() -> serde_json::Value {
         serde_json::json!({
             "searchRecords": [
