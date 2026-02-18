@@ -2,6 +2,12 @@
 
 #[cfg(test)]
 use core::fmt::Debug;
+#[cfg(test)]
+use async_trait::async_trait;
+#[cfg(test)]
+use crate::auth::{AccessToken, Authenticator, TokenResponse};
+#[cfg(test)]
+use crate::error::Result as ForceResult;
 
 /// Extension trait for unwrapping `Result`/`Option` in tests without `unwrap()`.
 #[cfg(test)]
@@ -11,7 +17,7 @@ pub trait Must<T> {
 }
 
 #[cfg(test)]
-impl<T, E: Debug> Must<T> for Result<T, E> {
+impl<T, E: Debug> Must<T> for std::result::Result<T, E> {
     fn must(self) -> T {
         match self {
             Ok(value) => value,
@@ -38,7 +44,7 @@ pub trait MustMsg<T> {
 }
 
 #[cfg(test)]
-impl<T, E: Debug> MustMsg<T> for Result<T, E> {
+impl<T, E: Debug> MustMsg<T> for std::result::Result<T, E> {
     fn must_msg(self, message: &str) -> T {
         match self {
             Ok(value) => value,
@@ -54,5 +60,44 @@ impl<T> MustMsg<T> for Option<T> {
             Some(value) => value,
             None => panic!("{message}"),
         }
+    }
+}
+
+/// Mock authenticator for testing.
+#[cfg(test)]
+#[derive(Debug, Clone)]
+pub struct MockAuthenticator {
+    token: String,
+    instance_url: String,
+}
+
+#[cfg(test)]
+impl MockAuthenticator {
+    /// Creates a new mock authenticator.
+    pub fn new(token: &str, instance_url: &str) -> Self {
+        Self {
+            token: token.to_string(),
+            instance_url: instance_url.to_string(),
+        }
+    }
+}
+
+#[cfg(test)]
+#[async_trait]
+impl Authenticator for MockAuthenticator {
+    async fn authenticate(&self) -> ForceResult<AccessToken> {
+        Ok(AccessToken::from_response(TokenResponse {
+            access_token: self.token.clone(),
+            instance_url: self.instance_url.clone(),
+            token_type: "Bearer".to_string(),
+            issued_at: "1704067200000".to_string(),
+            signature: "test_sig".to_string(),
+            expires_in: Some(7200),
+            refresh_token: None,
+        }))
+    }
+
+    async fn refresh(&self) -> ForceResult<AccessToken> {
+        self.authenticate().await
     }
 }
