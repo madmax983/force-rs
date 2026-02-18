@@ -14,6 +14,13 @@ impl<A: crate::auth::Authenticator> super::RestHandler<A> {
     /// This method performs a single query and returns only the first page.
     /// Use `query_more()` to fetch additional pages using the `nextRecordsUrl`.
     ///
+    /// # Security Warning
+    ///
+    /// This method accepts a raw SOQL string. **Do not construct queries using `format!`
+    /// with untrusted input**, as this leads to SOQL injection vulnerabilities.
+    /// Instead, use [`SoqlQueryBuilder`](crate::api::rest::SoqlQueryBuilder) or
+    /// [`escape_soql`](crate::api::rest::escape_soql).
+    ///
     /// # Errors
     ///
     /// Returns an error if:
@@ -25,12 +32,18 @@ impl<A: crate::auth::Authenticator> super::RestHandler<A> {
     ///
     /// ```ignore
     /// use force::types::DynamicSObject;
+    /// use force::api::rest::SoqlQueryBuilder;
     ///
-    /// let result = client.rest().query::<DynamicSObject>("SELECT Id, Name FROM Account LIMIT 10").await?;
+    /// // Safe query construction
+    /// let query = SoqlQueryBuilder::new()
+    ///     .select(&["Id", "Name"])
+    ///     .from("Account")
+    ///     .where_eq("Name", "Acme Corp")
+    ///     .limit(10)
+    ///     .build();
+    ///
+    /// let result = client.rest().query::<DynamicSObject>(&query).await?;
     /// println!("Total: {}", result.total_size);
-    /// for record in result.records {
-    ///     println!("{:?}", record);
-    /// }
     /// ```
     pub async fn query<T>(&self, soql: &str) -> Result<QueryResult<T>, ForceError>
     where
