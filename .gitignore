@@ -22,3 +22,7 @@ Thumbs.db
 
 # Temp files
 nul
+
+# Mutants
+mutants.out/
+mutants.out.old/

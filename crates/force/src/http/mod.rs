@@ -892,4 +892,14 @@ mod unit_tests {
         // We expect at least 60s, but the old implementation capped it at 30s
         assert_eq!(exponential_backoff(0, base).as_secs(), 60);
     }
+
+    #[test]
+    fn test_request_retry_class_as_str() {
+        assert_eq!(RequestRetryClass::Read.as_str(), "read");
+        assert_eq!(
+            RequestRetryClass::IdempotentMutation.as_str(),
+            "idempotent_mutation"
+        );
+        assert_eq!(RequestRetryClass::Mutation.as_str(), "mutation");
+    }
 }

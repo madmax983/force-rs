@@ -37,3 +37,23 @@ The most dangerous test is one that passes for the wrong reason.
 1.  `test_search_query_builder_escaping` explicitly tests special character escaping.
 2.  `validate_field_syntax` is well-tested for balanced parentheses and quotes.
 **Resolution:** Added one edge case for escaped quotes within string literals (`'O\'Reilly'`).
+
+### 🟢 Acquitted (Fixed): `crates/force/src/types/token.rs`
+
+**Module:** `crates::force::types::token`
+**Severity:** 🟢 Acquitted (Fixed)
+**Finding:** Minor boundary condition in `expires_in` cap.
+**Evidence:** Mutation `replace > with >=` survived, indicating that the exact boundary value (3 billion) was not tested.
+**Resolution:** Added `test_access_token_expires_in_cap_boundary` to verify behavior at the boundary.
+
+### 🟢 Acquitted (Fixed): `crates/force/src/http/mod.rs` & `tests.rs`
+
+**Module:** `crates::force::http`
+**Severity:** 🟢 Acquitted (Fixed)
+**Finding:** Weak assertions in telemetry tests and missing unit tests for `RequestRetryClass`.
+**Evidence:**
+1.  Mutant `replace RequestRetryClass::as_str -> ""` survived because integration tests did not assert on `request_class`.
+2.  Unit tests for `RequestRetryClass` were missing.
+**Resolution:**
+1.  Added `test_request_retry_class_as_str` unit test.
+2.  Strengthened `test_telemetry_hooks_capture_retry_and_completion` integration test to assert `request_class`.
