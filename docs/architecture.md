@@ -61,13 +61,71 @@ classDiagram
     +authenticate()
     +refresh()
   }
-  class RestHandler
+  class RestHandler {
+    +query_stream() QueryStream
+  }
+  class BulkHandler {
+    +smart_ingest() SmartIngest
+  }
+  class SmartIngest {
+    +execute_stream()
+  }
+  class QueryStream {
+    +next()
+  }
 
   ForceClient *-- Inner : Shared State (Arc)
   RestHandler *-- Inner : Shared State (Arc)
+  BulkHandler *-- Inner : Shared State (Arc)
   Inner --> TokenManager : Owns
   Inner --> HttpExecutor : Owns
   TokenManager --> Authenticator : Uses (Strategy)
+
+  RestHandler ..> QueryStream : Creates
+  BulkHandler ..> SmartIngest : Creates
+```
+
+## Sequence Diagram: Smart Ingest
+
+The following sequence diagram illustrates the `SmartIngest` flow for high-volume data uploads.
+
+```mermaid
+sequenceDiagram
+    participant App as Application
+    participant SI as SmartIngest
+    participant BH as BulkHandler
+    participant API as Salesforce API
+
+    Note over App, API: Streaming Ingest Flow
+    App->>SI: execute_stream(RecordStream)
+    SI->>BH: create_job()
+    BH->>API: POST /jobs/ingest
+    API-->>BH: Job ID (Open)
+
+    loop Every Batch (e.g., 10k records)
+        SI->>SI: Buffer Records
+        SI->>SI: Serialize to CSV
+        SI->>BH: upload_batch(csv_data)
+        BH->>API: PUT /jobs/ingest/{id}/batches
+        API-->>BH: 201 Created
+    end
+
+    SI->>BH: close_job()
+    BH->>API: PATCH /jobs/ingest/{id} (UploadComplete)
+    API-->>BH: Job Info (UploadComplete)
+
+    loop Polling
+        SI->>BH: get_job_info()
+        BH->>API: GET /jobs/ingest/{id}
+        API-->>BH: Job Status
+        alt JobComplete
+            BH-->>SI: JobInfo (Success)
+            SI-->>App: JobInfo
+        else Failed
+            BH-->>SI: Error
+            SI-->>App: Error
+        end
+    end
 ```
 
 ## Sequence Diagram: Token Storage

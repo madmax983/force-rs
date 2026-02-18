@@ -32,7 +32,6 @@ pub mod auth;
 pub mod client;
 pub mod config;
 pub mod error;
-pub mod experimental;
 pub mod http;
 pub mod storage;
 #[cfg(test)]

@@ -11,6 +11,11 @@ pub use query::BulkQueryStream;
 
 #[cfg(feature = "bulk")]
 pub mod csv;
+#[cfg(feature = "bulk")]
+pub mod smart_ingest;
+
+#[cfg(feature = "bulk")]
+pub use smart_ingest::SmartIngest;
 
 use crate::error::Result;
 use std::sync::Arc;
@@ -611,6 +616,22 @@ impl<A: crate::auth::Authenticator> BulkHandler<A> {
         T: for<'de> serde::Deserialize<'de>,
     {
         self.query(soql).await
+    }
+
+    /// Creates a SmartIngest builder for high-level streaming ingest.
+    ///
+    /// # Arguments
+    ///
+    /// * `object` - The SObject type (e.g., "Account").
+    /// * `operation` - The operation to perform.
+    #[cfg(feature = "bulk")]
+    #[must_use]
+    pub fn smart_ingest(
+        &self,
+        object: impl Into<String>,
+        operation: types::JobOperation,
+    ) -> smart_ingest::SmartIngest<'_, A> {
+        smart_ingest::SmartIngest::new(self, object, operation)
     }
 
     /// Creates a bulk query job with a custom polling policy and returns a stream of results.
