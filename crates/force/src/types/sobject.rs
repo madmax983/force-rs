@@ -3,7 +3,8 @@
 //! This module provides types for working with Salesforce SObjects (Standard Objects),
 //! including dynamic field access and typed SObject representations.
 
-use crate::types::SalesforceId;
+use crate::error::ForceError;
+use crate::types::{validator, SalesforceId};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
@@ -15,44 +16,74 @@ use serde_json::{Map, Value};
 /// # Examples
 ///
 /// ```
-/// use force::types::Attributes;
+/// use force::types::{Attributes, SalesforceId};
 ///
-/// let attrs = Attributes {
-///     type_: "Account".to_string(),
-///     url: "/services/data/v60.0/sobjects/Account/001000000000001AAA".to_string(),
-/// };
-/// assert_eq!(attrs.type_, "Account");
+/// let id = SalesforceId::new("001000000000001AAA").unwrap();
+/// let attrs = Attributes::new("Account", &id, "v60.0");
+/// assert_eq!(attrs.object_type(), "Account");
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Attributes {
     /// The SObject type name (e.g., "Account", "Contact").
     #[serde(rename = "type")]
-    pub type_: String,
+    type_: String,
 
     /// The resource URL for this record.
-    pub url: String,
+    url: String,
 }
 
 impl Attributes {
     /// Creates new attributes for the given SObject type and ID.
     ///
     /// The URL format follows Salesforce's REST API convention.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the SObject type or API version are invalid.
     #[must_use]
+    #[allow(clippy::expect_used)]
     pub fn new(type_name: impl Into<String>, id: &SalesforceId, api_version: &str) -> Self {
+        Self::try_new(type_name, id, api_version).expect("Invalid SObject attributes")
+    }
+
+    /// Creates new attributes for the given SObject type and ID.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the SObject type or API version are invalid.
+    pub fn try_new(
+        type_name: impl Into<String>,
+        id: &SalesforceId,
+        api_version: &str,
+    ) -> Result<Self, ForceError> {
         let type_ = type_name.into();
+
+        validator::validate_sobject_type(&type_)
+            .map_err(|e| ForceError::InvalidInput(format!("Invalid SObject type: {}", e)))?;
+
+        validator::validate_api_version(api_version)
+            .map_err(|e| ForceError::InvalidInput(format!("Invalid API version: {}", e)))?;
+
         let url = format!(
             "/services/data/{}/sobjects/{}/{}",
             api_version,
             type_,
             id.as_str()
         );
-        Self { type_, url }
+
+        Ok(Self { type_, url })
     }
 
     /// Returns the `SObject` type name.
     #[must_use]
     pub fn object_type(&self) -> &str {
         &self.type_
+    }
+
+    /// Returns the resource URL for this record.
+    #[must_use]
+    pub fn url(&self) -> &str {
+        &self.url
     }
 }
 
@@ -217,6 +248,7 @@ impl DynamicSObjectBuilder {
     }
 }
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use crate::test_support::Must;
@@ -229,9 +261,9 @@ mod tests {
         let id = SalesforceId::new("001000000000001AAA").must();
         let attrs = Attributes::new("Account", &id, "v60.0");
 
-        assert_eq!(attrs.type_, "Account");
+        assert_eq!(attrs.object_type(), "Account");
         assert_eq!(
-            attrs.url,
+            attrs.url(),
             "/services/data/v60.0/sobjects/Account/001000000000001AAA"
         );
     }
@@ -262,7 +294,7 @@ mod tests {
         }"#;
 
         let attrs: Attributes = serde_json::from_str(json).must();
-        assert_eq!(attrs.type_, "Account");
+        assert_eq!(attrs.object_type(), "Account");
     }
 
     #[test]
@@ -482,5 +514,38 @@ mod tests {
         let deserialized: DynamicSObject = serde_json::from_str(&json).must();
 
         assert_eq!(original, deserialized);
+    }
+
+    #[test]
+    fn test_attributes_try_new_valid() {
+        let id = SalesforceId::new("001000000000001AAA").must();
+        let attrs = Attributes::try_new("Account", &id, "v60.0");
+        assert!(attrs.is_ok());
+    }
+
+    #[test]
+    fn test_attributes_try_new_invalid_type() {
+        let id = SalesforceId::new("001000000000001AAA").must();
+        let attrs = Attributes::try_new("Account/", &id, "v60.0");
+        assert!(attrs.is_err());
+        let err = attrs.unwrap_err();
+        assert!(err.to_string().contains("Invalid SObject type"));
+    }
+
+    #[test]
+    fn test_attributes_try_new_invalid_version() {
+        let id = SalesforceId::new("001000000000001AAA").must();
+        let attrs = Attributes::try_new("Account", &id, "v60");
+        assert!(attrs.is_err());
+        let err = attrs.unwrap_err();
+        assert!(err.to_string().contains("Invalid API version"));
+    }
+
+    #[test]
+    #[should_panic(expected = "Invalid SObject attributes")]
+    fn test_attributes_new_panics_on_invalid() {
+        let id = SalesforceId::new("001000000000001AAA").must();
+        // This should panic now
+        let _ = Attributes::new("Account/", &id, "v60.0");
     }
 }
