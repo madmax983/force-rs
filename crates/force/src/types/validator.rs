@@ -24,13 +24,18 @@ pub fn validate_sobject_type(type_name: &str) -> Result<(), String> {
         .chars()
         .all(|c| c.is_ascii_alphanumeric() || c == '_')
     {
-        return Err("SObject type contains invalid characters (must be alphanumeric or underscore)"
-            .to_string());
+        return Err(
+            "SObject type contains invalid characters (must be alphanumeric or underscore)"
+                .to_string(),
+        );
     }
 
     // Must start with a letter
     // Safety: we checked is_empty() above
-    let first_char = type_name.chars().next().ok_or("SObject type cannot be empty")?;
+    let first_char = type_name
+        .chars()
+        .next()
+        .ok_or("SObject type cannot be empty")?;
     if !first_char.is_ascii_alphabetic() {
         return Err("SObject type must start with a letter".to_string());
     }
@@ -85,7 +90,7 @@ pub fn validate_sobject_type(type_name: &str) -> Result<(), String> {
 
                 if let Some(&next_char) = chars.peek() {
                     if next_char == '_' {
-                         return Err("SObject type cannot contain triple underscores".to_string());
+                        return Err("SObject type cannot contain triple underscores".to_string());
                     }
                 }
             }
