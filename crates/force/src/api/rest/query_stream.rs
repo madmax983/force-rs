@@ -20,6 +20,7 @@
 use super::RestHandler;
 use crate::auth::Authenticator;
 use crate::error::Result;
+use crate::types::QueryResult;
 use futures::Stream;
 use serde::de::DeserializeOwned;
 
@@ -71,19 +72,8 @@ where
             }
 
             // 3. Current page is empty, fetch more
-            let result = if !self.started {
-                self.started = true;
-                self.client.query::<T>(&self.soql).await?
-            } else if !self.done {
-                if let Some(ref url) = self.next_url {
-                    self.client.query_more::<T>(url).await?
-                } else {
-                    // Done is false but no URL? Treat as done to avoid infinite loop.
-                    self.exhausted = true;
-                    return Ok(None);
-                }
-            } else {
-                // Started, current page empty, done = true -> exhausted
+            let Some(result) = self.fetch_next_page().await? else {
+                // No more pages to fetch
                 self.exhausted = true;
                 return Ok(None);
             };
@@ -101,6 +91,29 @@ where
                 self.exhausted = true;
                 return Ok(None);
             }
+        }
+    }
+
+    /// Helper to fetch the next page of results.
+    ///
+    /// Returns `Some(QueryResult)` if a page was fetched, or `None` if no more pages exist.
+    async fn fetch_next_page(&mut self) -> Result<Option<QueryResult<T>>> {
+        if !self.started {
+            self.started = true;
+            let result = self.client.query::<T>(&self.soql).await?;
+            return Ok(Some(result));
+        }
+
+        if self.done {
+            return Ok(None);
+        }
+
+        if let Some(ref url) = self.next_url {
+            let result = self.client.query_more::<T>(url).await?;
+            Ok(Some(result))
+        } else {
+            // Done is false but no URL? Treat as done to avoid infinite loop.
+            Ok(None)
         }
     }
 
