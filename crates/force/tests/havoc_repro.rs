@@ -1,3 +1,6 @@
+#![allow(clippy::unwrap_used)]
+#![allow(missing_docs)]
+
 use force::types::{Attributes, SalesforceId};
 
 #[test]
