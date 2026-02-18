@@ -212,80 +212,6 @@ impl AsRef<str> for QueryLocator {
     }
 }
 
-/// Iterator for paginated query results.
-///
-/// This provides a way to iterate over all pages of a query result.
-/// Note: This is a synchronous iterator over already-fetched pages.
-/// For async pagination, use the async client methods.
-///
-/// # Examples
-///
-/// ```
-/// use force::types::{QueryResult, QueryIterator};
-///
-/// let page1: QueryResult<i32> = QueryResult::with_next_page(
-///     10,
-///     vec![1, 2, 3],
-///     "/next".to_string()
-/// );
-///
-/// let iter = QueryIterator::new(vec![page1]);
-/// assert_eq!(iter.count(), 3);
-/// ```
-#[derive(Debug)]
-pub struct QueryIterator<T> {
-    pages: Vec<QueryResult<T>>,
-    current_page: usize,
-    current_index: usize,
-}
-
-impl<T> QueryIterator<T> {
-    /// Creates a new iterator from a list of query result pages.
-    #[must_use]
-    pub fn new(pages: Vec<QueryResult<T>>) -> Self {
-        Self {
-            pages,
-            current_page: 0,
-            current_index: 0,
-        }
-    }
-
-    /// Returns the total number of pages.
-    #[must_use]
-    pub fn page_count(&self) -> usize {
-        self.pages.len()
-    }
-
-    /// Returns the total number of records across all pages.
-    #[must_use]
-    pub fn total_count(&self) -> usize {
-        self.pages.iter().map(|p| p.records.len()).sum()
-    }
-}
-
-impl<T> Iterator for QueryIterator<T> {
-    type Item = T;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            // Check if we've exhausted all pages
-            if self.current_page >= self.pages.len() {
-                return None;
-            }
-
-            let page = &mut self.pages[self.current_page];
-
-            // Check if we've exhausted current page
-            if self.current_index >= page.records.len() {
-                self.current_page += 1;
-                self.current_index = 0;
-                continue;
-            }
-
-            return Some(page.records.remove(self.current_index));
-        }
-    }
-}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -444,45 +370,6 @@ mod tests {
 
         let locator: QueryLocator = serde_json::from_str(json).must();
         assert!(locator.is_continuation());
-    }
-
-    #[test]
-    fn test_query_iterator_new() {
-        let page1: QueryResult<i32> = QueryResult::new(3, true, vec![1, 2, 3]);
-        let iter = QueryIterator::new(vec![page1]);
-
-        assert_eq!(iter.page_count(), 1);
-        assert_eq!(iter.total_count(), 3);
-    }
-
-    #[test]
-    fn test_query_iterator_iterates_records_in_order() {
-        let page1: QueryResult<i32> = QueryResult::with_next_page(5, vec![1, 2, 3], "/next".into());
-        let page2: QueryResult<i32> = QueryResult::new(5, true, vec![4, 5]);
-
-        let iter = QueryIterator::new(vec![page1, page2]);
-        let collected: Vec<i32> = iter.collect();
-
-        assert_eq!(collected, vec![1, 2, 3, 4, 5]);
-    }
-
-    #[test]
-    fn test_query_iterator_multiple_pages() {
-        let page1: QueryResult<i32> = QueryResult::new(5, false, vec![1, 2]);
-        let page2: QueryResult<i32> = QueryResult::new(5, true, vec![3, 4, 5]);
-
-        let iter = QueryIterator::new(vec![page1, page2]);
-
-        assert_eq!(iter.page_count(), 2);
-        assert_eq!(iter.total_count(), 5);
-    }
-
-    #[test]
-    fn test_query_iterator_empty() {
-        let iter: QueryIterator<i32> = QueryIterator::new(vec![]);
-
-        assert_eq!(iter.page_count(), 0);
-        assert_eq!(iter.total_count(), 0);
     }
 
     #[test]
