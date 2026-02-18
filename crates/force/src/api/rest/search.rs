@@ -752,49 +752,11 @@ mod tests {
 #[cfg(all(test, feature = "mock"))]
 mod integration_tests {
     use super::*;
-    use crate::auth::{AccessToken, Authenticator, TokenResponse};
     use crate::client::builder;
     use crate::config::ClientConfigBuilder;
-    use crate::error::Result;
-    use crate::test_support::MustMsg;
-    use async_trait::async_trait;
+    use crate::test_support::{MockAuthenticator, MustMsg};
     use wiremock::matchers::{bearer_token, method, path, query_param};
     use wiremock::{Mock, MockServer, ResponseTemplate};
-
-    // Mock authenticator for integration tests
-    #[derive(Debug, Clone)]
-    struct MockAuthenticator {
-        token: String,
-        instance_url: String,
-    }
-
-    impl MockAuthenticator {
-        fn new(token: &str, instance_url: &str) -> Self {
-            Self {
-                token: token.to_string(),
-                instance_url: instance_url.to_string(),
-            }
-        }
-    }
-
-    #[async_trait]
-    impl Authenticator for MockAuthenticator {
-        async fn authenticate(&self) -> Result<AccessToken> {
-            Ok(AccessToken::from_response(TokenResponse {
-                access_token: self.token.clone(),
-                instance_url: self.instance_url.clone(),
-                token_type: "Bearer".to_string(),
-                issued_at: "1704067200000".to_string(),
-                signature: "test_sig".to_string(),
-                expires_in: Some(7200),
-                refresh_token: None,
-            }))
-        }
-
-        async fn refresh(&self) -> Result<AccessToken> {
-            self.authenticate().await
-        }
-    }
 
     fn sample_search_response() -> serde_json::Value {
         serde_json::json!({

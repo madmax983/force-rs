@@ -131,51 +131,13 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::auth::{AccessToken, Authenticator, TokenResponse};
     use crate::client::builder;
-    use crate::test_support::Must;
-    use async_trait::async_trait;
+    use crate::test_support::{MockAuthenticator, Must};
     use futures::StreamExt;
     use serde::{Deserialize, Serialize};
     use serde_json::json;
     use wiremock::matchers::{method, path, query_param};
     use wiremock::{Mock, MockServer, ResponseTemplate};
-
-    // Mock authenticator for testing
-    #[derive(Debug, Clone)]
-    struct MockAuthenticator {
-        token: String,
-        instance_url: String,
-    }
-
-    impl MockAuthenticator {
-        fn new(token: &str, instance_url: &str) -> Self {
-            Self {
-                token: token.to_string(),
-                instance_url: instance_url.to_string(),
-            }
-        }
-    }
-
-    #[async_trait]
-    impl Authenticator for MockAuthenticator {
-        async fn authenticate(&self) -> Result<AccessToken> {
-            Ok(AccessToken::from_response(TokenResponse {
-                access_token: self.token.clone(),
-                instance_url: self.instance_url.clone(),
-                token_type: "Bearer".to_string(),
-                issued_at: "1704067200000".to_string(),
-                signature: "test_sig".to_string(),
-                expires_in: Some(7200),
-                refresh_token: None,
-            }))
-        }
-
-        async fn refresh(&self) -> Result<AccessToken> {
-            self.authenticate().await
-        }
-    }
 
     #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
     struct TestAccount {
