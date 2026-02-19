@@ -4,6 +4,7 @@
 //! safely, preventing injection vulnerabilities.
 
 use crate::error::ForceError;
+use crate::types::validator::{validate_field_name, validate_sobject_name};
 
 /// Escapes special characters for SOQL string literals.
 ///
@@ -301,73 +302,6 @@ impl SoqlQueryBuilder {
             Err(e) => panic!("Failed to build SOQL query: {}", e),
         }
     }
-}
-
-/// Validates an SObject name (alphanumeric and underscore only).
-fn validate_sobject_name(name: &str) -> Result<(), ForceError> {
-    if name.is_empty() {
-        return Err(ForceError::InvalidInput(
-            "SObject name cannot be empty".to_string(),
-        ));
-    }
-    // Strict: [a-zA-Z0-9_]+
-    if !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
-        return Err(ForceError::InvalidInput(format!(
-            "SObject name contains invalid characters: {}",
-            name
-        )));
-    }
-    Ok(())
-}
-
-/// Validates a field name (alphanumeric, underscore, dot).
-/// Also allows parentheses for function calls like `count(Id)` or `toLabel(Field)`.
-fn validate_field_name(name: &str) -> Result<(), ForceError> {
-    if name.is_empty() {
-        return Err(ForceError::InvalidInput(
-            "Field name cannot be empty".to_string(),
-        ));
-    }
-
-    // Check for dangerous characters that could break out of context
-    // We strictly forbid: ; ' " \ - /
-    // Allowed: a-z A-Z 0-9 _ . ( ) ,
-    // Commas are allowed inside function calls? No, field list handles commas.
-    // Inside a single "field" string, comma might be used for `convertCurrency(Amount)`? No.
-    // `FORMAT(Date)`?
-
-    for c in name.chars() {
-        if !c.is_ascii_alphanumeric() && c != '_' && c != '.' && c != '(' && c != ')' {
-            return Err(ForceError::InvalidInput(format!(
-                "Field name contains invalid character '{}': {}",
-                c, name
-            )));
-        }
-    }
-
-    // Check parenthesis balance
-    let mut balance = 0;
-    for c in name.chars() {
-        if c == '(' {
-            balance += 1;
-        } else if c == ')' {
-            balance -= 1;
-        }
-        if balance < 0 {
-            return Err(ForceError::InvalidInput(format!(
-                "Unbalanced parentheses in field name: {}",
-                name
-            )));
-        }
-    }
-    if balance != 0 {
-        return Err(ForceError::InvalidInput(format!(
-            "Unbalanced parentheses in field name: {}",
-            name
-        )));
-    }
-
-    Ok(())
 }
 
 #[cfg(test)]
