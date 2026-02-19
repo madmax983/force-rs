@@ -7,6 +7,7 @@
 use super::CompositeHandler;
 use crate::auth::Authenticator;
 use crate::error::{ForceError, Result};
+use crate::types::{SalesforceId, validator};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -45,8 +46,18 @@ impl<A: Authenticator> BatchBuilder<A> {
     ///
     /// * `sobject` - The SObject type (e.g., "Account")
     /// * `id` - The record ID
+    ///
+    /// # Panics
+    ///
+    /// Panics if the `sobject` name or `id` contains invalid characters.
     #[must_use]
     pub fn get(mut self, sobject: &str, id: &str) -> Self {
+        if let Err(e) = validator::validate_sobject_name(sobject) {
+            panic!("{}", e);
+        }
+        if let Err(e) = SalesforceId::new(id) {
+            panic!("Salesforce ID contains invalid characters: {}", e);
+        }
         self.requests.push(BatchSubRequest {
             method: "GET".to_string(),
             url: format!("sobjects/{}/{}", sobject, id),
@@ -61,8 +72,15 @@ impl<A: Authenticator> BatchBuilder<A> {
     ///
     /// * `sobject` - The SObject type (e.g., "Account")
     /// * `body` - The JSON body of the record
+    ///
+    /// # Panics
+    ///
+    /// Panics if the `sobject` name contains invalid characters.
     #[must_use]
     pub fn post(mut self, sobject: &str, body: Value) -> Self {
+        if let Err(e) = validator::validate_sobject_name(sobject) {
+            panic!("{}", e);
+        }
         self.requests.push(BatchSubRequest {
             method: "POST".to_string(),
             url: format!("sobjects/{}", sobject),
@@ -78,8 +96,18 @@ impl<A: Authenticator> BatchBuilder<A> {
     /// * `sobject` - The SObject type (e.g., "Account")
     /// * `id` - The record ID
     /// * `body` - The JSON body with fields to update
+    ///
+    /// # Panics
+    ///
+    /// Panics if the `sobject` name or `id` contains invalid characters.
     #[must_use]
     pub fn patch(mut self, sobject: &str, id: &str, body: Value) -> Self {
+        if let Err(e) = validator::validate_sobject_name(sobject) {
+            panic!("{}", e);
+        }
+        if let Err(e) = SalesforceId::new(id) {
+            panic!("Salesforce ID contains invalid characters: {}", e);
+        }
         self.requests.push(BatchSubRequest {
             method: "PATCH".to_string(),
             url: format!("sobjects/{}/{}", sobject, id),
@@ -94,8 +122,18 @@ impl<A: Authenticator> BatchBuilder<A> {
     ///
     /// * `sobject` - The SObject type (e.g., "Account")
     /// * `id` - The record ID
+    ///
+    /// # Panics
+    ///
+    /// Panics if the `sobject` name or `id` contains invalid characters.
     #[must_use]
     pub fn delete(mut self, sobject: &str, id: &str) -> Self {
+        if let Err(e) = validator::validate_sobject_name(sobject) {
+            panic!("{}", e);
+        }
+        if let Err(e) = SalesforceId::new(id) {
+            panic!("Salesforce ID contains invalid characters: {}", e);
+        }
         self.requests.push(BatchSubRequest {
             method: "DELETE".to_string(),
             url: format!("sobjects/{}/{}", sobject, id),
@@ -136,6 +174,13 @@ impl<A: Authenticator> BatchBuilder<A> {
     /// - The batch size exceeds 25
     /// - The response cannot be deserialized
     pub async fn execute(self) -> Result<BatchResponse> {
+        if self.requests.is_empty() {
+            return Err(ForceError::Serialization(
+                crate::error::SerializationError::InvalidFormat(
+                    "Batch cannot be empty".to_string(),
+                ),
+            ));
+        }
         if self.requests.len() > 25 {
             return Err(ForceError::Serialization(
                 crate::error::SerializationError::InvalidFormat(
@@ -220,6 +265,9 @@ pub struct BatchSubResponse {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::expect_used)]
+
     use super::*;
     use crate::test_support::Must;
 
@@ -270,5 +318,94 @@ mod tests {
         assert!(!resp.has_errors);
         assert_eq!(resp.results.len(), 2);
         assert_eq!(resp.results[0].status_code, 200);
+    }
+
+    use crate::client::builder as client_builder;
+    use crate::test_support::MockAuthenticator;
+
+    async fn create_builder() -> BatchBuilder<MockAuthenticator> {
+        let auth = MockAuthenticator::new("token", "https://test.salesforce.com");
+        let client = client_builder()
+            .authenticate(auth)
+            .build()
+            .await
+            .expect("failed to build client");
+
+        client.composite().batch()
+    }
+
+    #[tokio::test]
+    #[should_panic(expected = "SObject name contains invalid characters")]
+    async fn test_batch_validation_sobject_invalid() {
+        let builder = create_builder().await;
+        let _ = builder.get("Invalid;Name", "001000000000000");
+    }
+
+    #[tokio::test]
+    #[should_panic(expected = "SObject name cannot be empty")]
+    async fn test_batch_validation_sobject_empty() {
+        let builder = create_builder().await;
+        let _ = builder.get("", "001000000000000");
+    }
+
+    #[tokio::test]
+    #[should_panic(expected = "Salesforce ID contains invalid characters")]
+    async fn test_batch_validation_id_invalid() {
+        let builder = create_builder().await;
+        let _ = builder.get("Account", "Invalid;ID");
+    }
+
+    #[tokio::test]
+    async fn test_batch_execute_empty() {
+        let builder = create_builder().await;
+        let result = builder.execute().await;
+        match result {
+            Err(ForceError::Serialization(e)) => {
+                assert!(e.to_string().contains("Batch cannot be empty"));
+            }
+            _ => panic!(
+                "Expected Serialization error for empty batch, got {:?}",
+                result
+            ),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_batch_size_limit() {
+        let mut builder = create_builder().await;
+        // Add 26 requests
+        for i in 0..26 {
+            // Use different IDs to avoid any potential deduplication (though not expected here)
+            builder = builder.get("Account", &format!("001000000000{:03}AAA", i));
+        }
+
+        let result = builder.execute().await;
+        match result {
+            Err(ForceError::Serialization(e)) => {
+                assert!(e.to_string().contains("Batch size exceeds limit"));
+            }
+            _ => panic!(
+                "Expected Serialization error for batch size limit, got {:?}",
+                result
+            ),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_batch_size_limit_boundary_25() {
+        let mut builder = create_builder().await;
+        // Add 25 requests
+        for i in 0..25 {
+            builder = builder.get("Account", &format!("001000000000{:03}AAA", i));
+        }
+
+        let result = builder.execute().await;
+        // Should NOT be serialization error about size
+        if let Err(ForceError::Serialization(e)) = &result {
+            assert!(
+                !e.to_string().contains("Batch size exceeds limit"),
+                "Batch size limit triggered for 25 requests (should allow up to 25)"
+            );
+        }
     }
 }
