@@ -12,6 +12,9 @@ pub use query::BulkQueryStream;
 #[cfg(feature = "bulk")]
 pub mod csv;
 
+#[cfg(feature = "bulk")]
+pub mod smart_ingest;
+
 use crate::error::Result;
 use std::sync::Arc;
 use std::time::Duration;
@@ -340,6 +343,28 @@ impl<A: crate::auth::Authenticator> BulkHandler<A> {
         }
 
         Ok(())
+    }
+
+    /// Creates a builder for a smart ingest job.
+    ///
+    /// `SmartIngest` is a high-level utility that handles the entire lifecycle of a bulk ingest job:
+    /// - Creating the job
+    /// - Uploading data in batches
+    /// - Closing the job
+    /// - Polling for completion
+    ///
+    /// # Arguments
+    ///
+    /// * `object` - The SObject type (e.g., "Account")
+    /// * `operation` - The operation to perform (Insert, Update, etc.)
+    #[cfg(feature = "bulk")]
+    #[must_use]
+    pub fn smart_ingest(
+        &self,
+        object: impl Into<String>,
+        operation: types::JobOperation,
+    ) -> smart_ingest::SmartIngest<'_, A> {
+        smart_ingest::SmartIngest::new(self, object, operation)
     }
 
     /// Convenience method to perform a bulk insert operation.
