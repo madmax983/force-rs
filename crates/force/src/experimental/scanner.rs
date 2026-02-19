@@ -99,20 +99,13 @@ impl<A: crate::auth::Authenticator> FieldUsageScanner<A> {
 
             // 4. Execute query
             // We use serde_json::Value because the structure is dynamic (expr0, expr1...)
-            let response = self
-                .client
-                .rest()
-                .query::<serde_json::Value>(&soql)
-                .await?;
+            let response = self.client.rest().query::<serde_json::Value>(&soql).await?;
 
             // 5. Parse results
             // Aggregate queries return one row (unless grouped, which we aren't doing)
             if let Some(record) = response.records.first() {
                 // expr0 is COUNT(Id) - total records
-                let total_records = record
-                    .get("expr0")
-                    .and_then(|v| v.as_u64())
-                    .unwrap_or(0);
+                let total_records = record.get("expr0").and_then(|v| v.as_u64()).unwrap_or(0);
 
                 for (i, field) in chunk.iter().enumerate() {
                     // expr1, expr2, ... correspond to fields in the chunk
@@ -121,10 +114,7 @@ impl<A: crate::auth::Authenticator> FieldUsageScanner<A> {
                     // the subsequent counts are expr1, expr2...
                     let expr_key = format!("expr{}", i + 1);
 
-                    let count = record
-                        .get(&expr_key)
-                        .and_then(|v| v.as_u64())
-                        .unwrap_or(0);
+                    let count = record.get(&expr_key).and_then(|v| v.as_u64()).unwrap_or(0);
 
                     let usage_percentage = if total_records > 0 {
                         (count as f64 / total_records as f64) * 100.0
