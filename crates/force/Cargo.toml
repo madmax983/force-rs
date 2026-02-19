@@ -30,6 +30,7 @@ tracing = { workspace = true }
 futures = { workspace = true }
 async-trait = { workspace = true }
 bytes = { workspace = true }
+percent-encoding = { workspace = true }
 
 # Feature-gated dependencies
 jsonwebtoken = { workspace = true, optional = true }

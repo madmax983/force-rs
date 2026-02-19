@@ -3,6 +3,7 @@
 //! This module provides types and methods for executing SOSL searches across
 //! multiple objects and fields in Salesforce.
 
+use crate::types::validator::validate_sobject_name;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -171,13 +172,9 @@ impl SearchQueryBuilder {
     #[must_use]
     pub fn returning(mut self, sobject: impl Into<String>, fields: &[impl AsRef<str>]) -> Self {
         let sobject = sobject.into();
-        assert!(
-            sobject
-                .chars()
-                .all(|c| c.is_ascii_alphanumeric() || c == '_'),
-            "sobject name contains invalid characters: {}",
-            sobject
-        );
+        if let Err(e) = validate_sobject_name(&sobject) {
+            panic!("{}", e);
+        }
 
         let fields: Vec<String> = fields
             .iter()
@@ -571,7 +568,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "sobject name contains invalid characters")]
+    #[should_panic(expected = "SObject name contains invalid characters")]
     fn test_returning_invalid_sobject_space() {
         let _ = SearchQueryBuilder::new()
             .find("test")
@@ -580,7 +577,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "sobject name contains invalid characters")]
+    #[should_panic(expected = "SObject name contains invalid characters")]
     fn test_returning_invalid_sobject_injection() {
         let _ = SearchQueryBuilder::new()
             .find("test")
