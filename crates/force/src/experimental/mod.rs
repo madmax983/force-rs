@@ -5,3 +5,6 @@
 
 #[cfg(feature = "bulk")]
 pub mod smart_ingest;
+
+#[cfg(feature = "nova")]
+pub mod scanner;
