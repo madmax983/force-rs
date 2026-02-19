@@ -99,7 +99,7 @@ impl<A: crate::auth::Authenticator> super::RestHandler<A> {
         let url = if next_records_url.starts_with("http") {
             next_records_url.to_string()
         } else {
-            let token = self.inner.token_manager.token().await?;
+            let token = self.inner.token_manager.get_token_arc().await?;
             format!("{}{}", token.instance_url(), next_records_url)
         };
 
