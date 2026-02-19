@@ -226,6 +226,7 @@ impl<'a, A: crate::auth::Authenticator> SmartIngest<'a, A> {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use crate::auth::{AccessToken, Authenticator, TokenResponse};
@@ -445,5 +446,267 @@ mod tests {
             println!("Error: {:?}", e);
         }
         assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_smart_ingest_create_job_failure() {
+        let mock_server = MockServer::start().await;
+
+        // Mock: Create Job (Failure)
+        Mock::given(method("POST"))
+            .and(path("/services/data/v60.0/jobs/ingest"))
+            .respond_with(ResponseTemplate::new(400).set_body_json(serde_json::json!({
+                "message": "Bad Request",
+                "errorCode": "INVALID_JOB"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = create_test_client(mock_server.uri()).await;
+        let handler = client.bulk();
+
+        let records = vec![TestRecord {
+            id: "001".to_string(),
+            name: "Test".to_string(),
+        }];
+        let stream = futures::stream::iter(records);
+
+        let result = SmartIngest::new(&handler, "Account", JobOperation::Insert)
+            .execute_stream(stream)
+            .await;
+
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_smart_ingest_upload_batch_failure() {
+        let mock_server = MockServer::start().await;
+
+        // Mock: Create Job (Success)
+        Mock::given(method("POST"))
+            .and(path("/services/data/v60.0/jobs/ingest"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "id": "JOB_ID",
+                "state": "Open",
+                "operation": "insert",
+                "object": "Account",
+                "createdDate": "2024-01-01T00:00:00.000Z",
+                "createdById": "005xx0000000001AAA"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        // Mock: Upload Batch (Failure)
+        Mock::given(method("PUT"))
+            .and(path("/services/data/v60.0/jobs/ingest/JOB_ID/batches"))
+            .respond_with(ResponseTemplate::new(500))
+            .mount(&mock_server)
+            .await;
+
+        let client = create_test_client(mock_server.uri()).await;
+        let handler = client.bulk();
+
+        let records = vec![TestRecord {
+            id: "001".to_string(),
+            name: "Test".to_string(),
+        }];
+        let stream = futures::stream::iter(records);
+
+        let result = SmartIngest::new(&handler, "Account", JobOperation::Insert)
+            .execute_stream(stream)
+            .await;
+
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_smart_ingest_close_job_failure() {
+        let mock_server = MockServer::start().await;
+
+        // Mock: Create Job (Success)
+        Mock::given(method("POST"))
+            .and(path("/services/data/v60.0/jobs/ingest"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "id": "JOB_ID",
+                "state": "Open",
+                "operation": "insert",
+                "object": "Account",
+                "createdDate": "2024-01-01T00:00:00.000Z",
+                "createdById": "005xx0000000001AAA"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        // Mock: Upload Batch (Success)
+        Mock::given(method("PUT"))
+            .and(path("/services/data/v60.0/jobs/ingest/JOB_ID/batches"))
+            .respond_with(ResponseTemplate::new(201))
+            .mount(&mock_server)
+            .await;
+
+        // Mock: Close Job (Failure)
+        Mock::given(method("PATCH"))
+            .and(path("/services/data/v60.0/jobs/ingest/JOB_ID"))
+            .respond_with(ResponseTemplate::new(500))
+            .mount(&mock_server)
+            .await;
+
+        let client = create_test_client(mock_server.uri()).await;
+        let handler = client.bulk();
+
+        let records = vec![TestRecord {
+            id: "001".to_string(),
+            name: "Test".to_string(),
+        }];
+        let stream = futures::stream::iter(records);
+
+        let result = SmartIngest::new(&handler, "Account", JobOperation::Insert)
+            .execute_stream(stream)
+            .await;
+
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_smart_ingest_poll_failed_job() {
+        let mock_server = MockServer::start().await;
+
+        // Mock: Create Job (Success)
+        Mock::given(method("POST"))
+            .and(path("/services/data/v60.0/jobs/ingest"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "id": "JOB_ID",
+                "state": "Open",
+                "operation": "insert",
+                "object": "Account",
+                "createdDate": "2024-01-01T00:00:00.000Z",
+                "createdById": "005xx0000000001AAA"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        // Mock: Upload Batch (Success)
+        Mock::given(method("PUT"))
+            .and(path("/services/data/v60.0/jobs/ingest/JOB_ID/batches"))
+            .respond_with(ResponseTemplate::new(201))
+            .mount(&mock_server)
+            .await;
+
+        // Mock: Close Job (Success)
+        Mock::given(method("PATCH"))
+            .and(path("/services/data/v60.0/jobs/ingest/JOB_ID"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "id": "JOB_ID",
+                "state": "UploadComplete",
+                "operation": "insert",
+                "object": "Account",
+                "createdDate": "2024-01-01T00:00:00.000Z",
+                "createdById": "005xx0000000001AAA"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        // Mock: Poll (Failed)
+        Mock::given(method("GET"))
+            .and(path("/services/data/v60.0/jobs/ingest/JOB_ID"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "id": "JOB_ID",
+                "state": "Failed",
+                "errorMessage": "Something went wrong",
+                "operation": "insert",
+                "object": "Account",
+                "createdDate": "2024-01-01T00:00:00.000Z",
+                "createdById": "005xx0000000001AAA"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = create_test_client(mock_server.uri()).await;
+        let handler = client.bulk();
+
+        let records = vec![TestRecord {
+            id: "001".to_string(),
+            name: "Test".to_string(),
+        }];
+        let stream = futures::stream::iter(records);
+
+        let result = SmartIngest::new(&handler, "Account", JobOperation::Insert)
+            .execute_stream(stream)
+            .await;
+
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("Job failed: Something went wrong"));
+    }
+
+    #[tokio::test]
+    async fn test_smart_ingest_poll_aborted_job() {
+        let mock_server = MockServer::start().await;
+
+        // Mock: Create Job (Success)
+        Mock::given(method("POST"))
+            .and(path("/services/data/v60.0/jobs/ingest"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "id": "JOB_ID",
+                "state": "Open",
+                "operation": "insert",
+                "object": "Account",
+                "createdDate": "2024-01-01T00:00:00.000Z",
+                "createdById": "005xx0000000001AAA"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        // Mock: Upload Batch (Success)
+        Mock::given(method("PUT"))
+            .and(path("/services/data/v60.0/jobs/ingest/JOB_ID/batches"))
+            .respond_with(ResponseTemplate::new(201))
+            .mount(&mock_server)
+            .await;
+
+        // Mock: Close Job (Success)
+        Mock::given(method("PATCH"))
+            .and(path("/services/data/v60.0/jobs/ingest/JOB_ID"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "id": "JOB_ID",
+                "state": "UploadComplete",
+                "operation": "insert",
+                "object": "Account",
+                "createdDate": "2024-01-01T00:00:00.000Z",
+                "createdById": "005xx0000000001AAA"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        // Mock: Poll (Aborted)
+        Mock::given(method("GET"))
+            .and(path("/services/data/v60.0/jobs/ingest/JOB_ID"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "id": "JOB_ID",
+                "state": "Aborted",
+                "operation": "insert",
+                "object": "Account",
+                "createdDate": "2024-01-01T00:00:00.000Z",
+                "createdById": "005xx0000000001AAA"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = create_test_client(mock_server.uri()).await;
+        let handler = client.bulk();
+
+        let records = vec![TestRecord {
+            id: "001".to_string(),
+            name: "Test".to_string(),
+        }];
+        let stream = futures::stream::iter(records);
+
+        let result = SmartIngest::new(&handler, "Account", JobOperation::Insert)
+            .execute_stream(stream)
+            .await;
+
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("Job was aborted"));
     }
 }
