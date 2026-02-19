@@ -14,15 +14,9 @@ struct Account {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     // Authenticate with OAuth 2.0 client credentials
-    let auth = ClientCredentials::new_production(
-        "your-client-id",
-        "your-client-secret",
-    );
+    let auth = ClientCredentials::new_production("your-client-id", "your-client-secret");
 
-    let client = ForceClientBuilder::new()
-        .authenticate(auth)
-        .build()
-        .await?;
+    let client = ForceClientBuilder::new().authenticate(auth).build().await?;
 
     // Execute typed SOQL query
     let soql = "SELECT Id, Name, Industry FROM Account WHERE Industry = 'Technology' LIMIT 10";
@@ -30,7 +24,8 @@ async fn main() -> anyhow::Result<()> {
 
     // Process results
     for account in result.records {
-        println!("{}: {} ({})",
+        println!(
+            "{}: {} ({})",
             account.id,
             account.name,
             account.industry.unwrap_or_default()
