@@ -103,3 +103,43 @@ sequenceDiagram
         end
     end
 ```
+
+## Sequence Diagram: Smart Ingest
+
+The `SmartIngest` utility automates the Bulk API 2.0 lifecycle, including chunking, uploading, and polling.
+
+```mermaid
+sequenceDiagram
+    participant App
+    participant SI as SmartIngest
+    participant BH as BulkHandler
+    participant SF as Salesforce API
+
+    App->>SI: execute_stream(records)
+    SI->>BH: create_job()
+    BH->>SF: POST /jobs/ingest
+    SF-->>BH: Job ID (Open)
+    BH-->>SI: Job ID
+
+    loop Every Batch (10k records)
+        SI->>SI: Buffer & Serialize (CSV)
+        SI->>BH: upload_batch(job_id, csv)
+        BH->>SF: PUT /jobs/ingest/{id}/batches
+        SF-->>BH: 201 Created
+    end
+
+    SI->>BH: close_job(job_id)
+    BH->>SF: PATCH /jobs/ingest/{id} (UploadComplete)
+    SF-->>BH: Job Info (UploadComplete)
+
+    loop Polling
+        SI->>BH: get_job(job_id)
+        BH->>SF: GET /jobs/ingest/{id}
+        SF-->>BH: Job Info (InProgress)
+        SI->>SI: sleep(backoff)
+    end
+
+    SF-->>BH: Job Info (JobComplete)
+    BH-->>SI: Job Info
+    SI-->>App: Job Info
+```
