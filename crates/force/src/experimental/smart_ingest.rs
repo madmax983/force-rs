@@ -80,25 +80,12 @@ impl<'a, A: crate::auth::Authenticator> SmartIngest<'a, A> {
     /// # Returns
     ///
     /// The final `JobInfo` after the job completes.
-    pub async fn execute_stream<S, T>(self, stream: S) -> Result<JobInfo>
+    pub async fn execute_stream<S, T>(self, mut stream: S) -> Result<JobInfo>
     where
         S: Stream<Item = T> + Unpin + Send,
         T: Serialize + Send + Sync,
     {
         // 1. Create Job
-        let job_id = self.create_job_internal().await?;
-
-        // 2. Process Stream
-        self.process_stream(&job_id, stream).await?;
-
-        // 3. Close Job
-        self.close_job_internal(&job_id).await?;
-
-        // 4. Poll for Completion
-        self.poll_for_completion(&job_id).await
-    }
-
-    async fn create_job_internal(&self) -> Result<String> {
         let create_request = CreateJobRequest {
             object: self.object.clone(),
             operation: self.operation,
@@ -109,14 +96,9 @@ impl<'a, A: crate::auth::Authenticator> SmartIngest<'a, A> {
         };
 
         let job_info = self.handler.create_job(create_request).await?;
-        Ok(job_info.id)
-    }
+        let job_id = job_info.id;
 
-    async fn process_stream<S, T>(&self, job_id: &str, mut stream: S) -> Result<()>
-    where
-        S: Stream<Item = T> + Unpin + Send,
-        T: Serialize + Send + Sync,
-    {
+        // 2. Process Stream
         let mut buffer = Vec::with_capacity(self.batch_size);
         let mut is_first_batch = true;
 
@@ -124,32 +106,29 @@ impl<'a, A: crate::auth::Authenticator> SmartIngest<'a, A> {
             buffer.push(record);
 
             if buffer.len() >= self.batch_size {
-                self.upload_batch(job_id, &buffer, is_first_batch).await?;
+                self.upload_batch(&job_id, &buffer, is_first_batch).await?;
                 buffer.clear();
                 is_first_batch = false;
             }
         }
 
+        // Upload remaining records
         if !buffer.is_empty() {
-            self.upload_batch(job_id, &buffer, is_first_batch).await?;
+            self.upload_batch(&job_id, &buffer, is_first_batch).await?;
         }
-        Ok(())
-    }
 
-    async fn close_job_internal(&self, job_id: &str) -> Result<()> {
+        // 3. Close Job
         let update_request = UpdateJobRequest {
             state: JobState::UploadComplete,
         };
-        self.handler.update_job(job_id, update_request).await?;
-        Ok(())
-    }
+        self.handler.update_job(&job_id, update_request).await?;
 
-    async fn poll_for_completion(&self, job_id: &str) -> Result<JobInfo> {
+        // 4. Poll for Completion
         let poll_policy = crate::api::bulk::BulkPollPolicy::default();
         let mut attempt = 0;
 
         loop {
-            let job_info = self.handler.get_job(job_id).await?;
+            let job_info = self.handler.get_job(&job_id).await?;
 
             match job_info.state {
                 JobState::JobComplete => return Ok(job_info),

@@ -39,9 +39,6 @@ Add force-rs to your `Cargo.toml`:
 ```toml
 [dependencies]
 force = "0.1"
-tokio = { version = "1", features = ["full"] }
-serde = { version = "1", features = ["derive"] }
-anyhow = "1.0"
 
 # Or enable specific features:
 force = { version = "0.1", features = ["rest", "bulk", "jwt"] }

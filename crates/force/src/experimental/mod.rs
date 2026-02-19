@@ -1,11 +1,10 @@
-//! Experimental features.
+//! Experimental features that are not yet stable.
 //!
-//! # Deprecation
-//!
-//! `SmartIngest` has been promoted to `crate::api::bulk::smart_ingest`.
+//! These features are subject to breaking changes or removal without notice.
+//! Use at your own risk.
+
+#[cfg(feature = "bulk")]
+pub mod smart_ingest;
 
 #[cfg(feature = "nova")]
 pub mod scanner;
-
-#[deprecated(since = "0.2.0", note = "Use `crate::api::bulk::smart_ingest` instead")]
-pub use crate::api::bulk::smart_ingest;
