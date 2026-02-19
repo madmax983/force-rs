@@ -34,7 +34,6 @@ pub mod config;
 pub mod error;
 pub mod experimental;
 pub mod http;
-pub mod storage;
 #[cfg(test)]
 pub(crate) mod test_support;
 pub mod types;

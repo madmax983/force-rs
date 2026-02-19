@@ -2,8 +2,8 @@
 //!
 //! This module defines the core traits for authentication with Salesforce.
 
+use crate::auth::token::AccessToken;
 use crate::error::Result;
-use crate::types::token::AccessToken;
 use async_trait::async_trait;
 use std::fmt::Debug;
 

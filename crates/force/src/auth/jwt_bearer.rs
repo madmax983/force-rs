@@ -25,11 +25,11 @@
 //! ```
 
 #[cfg(feature = "jwt")]
+use crate::auth::authenticator::Authenticator;
+#[cfg(feature = "jwt")]
+use crate::auth::token::{AccessToken, TokenResponse};
+#[cfg(feature = "jwt")]
 use crate::error::{AuthenticationError, ForceError, HttpError, Result};
-#[cfg(feature = "jwt")]
-use crate::types::authenticator::Authenticator;
-#[cfg(feature = "jwt")]
-use crate::types::token::{AccessToken, TokenResponse};
 #[cfg(feature = "jwt")]
 use async_trait::async_trait;
 #[cfg(feature = "jwt")]

@@ -4,10 +4,10 @@
 //! It is extracted to a leaf module to avoid circular dependencies between the main
 //! `ForceClient` and API handlers.
 
+use crate::auth::token_manager::TokenManager;
 use crate::config::ClientConfig;
 use crate::http::HttpExecutor;
 use crate::http::RequestRetryClass;
-use crate::storage::token::TokenManager;
 use serde::de::DeserializeOwned;
 use std::sync::Arc;
 
@@ -15,7 +15,7 @@ use std::sync::Arc;
 ///
 /// This is generic over the authenticator type to avoid trait object overhead.
 #[derive(Debug, Clone)]
-pub struct Inner<A: crate::types::authenticator::Authenticator> {
+pub struct Inner<A: crate::auth::authenticator::Authenticator> {
     /// Client configuration.
     pub(crate) config: ClientConfig,
     /// HTTP client for making requests.
@@ -26,7 +26,7 @@ pub struct Inner<A: crate::types::authenticator::Authenticator> {
     pub(crate) token_manager: Arc<TokenManager<A>>,
 }
 
-impl<A: crate::types::authenticator::Authenticator> Inner<A> {
+impl<A: crate::auth::authenticator::Authenticator> Inner<A> {
     /// Executes a request through the shared middleware pipeline.
     pub(crate) async fn execute_request(
         &self,

@@ -3,9 +3,9 @@
 //! This module provides the `TokenManager` which handles secure storage,
 //! automatic refresh, and concurrent access for OAuth tokens.
 
+use crate::auth::authenticator::Authenticator;
+use crate::auth::token::AccessToken;
 use crate::error::Result;
-use crate::types::authenticator::Authenticator;
-use crate::types::token::AccessToken;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
@@ -143,8 +143,8 @@ impl<A: Authenticator> TokenManager<A> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::auth::authenticator::Authenticator;
     use crate::test_support::Must;
-    use crate::types::authenticator::Authenticator;
     use async_trait::async_trait;
     use chrono::{Duration, Utc};
     use std::sync::Arc as StdArc;
