@@ -132,18 +132,20 @@ impl<A: Authenticator> BatchBuilder<A> {
     }
 
     fn validate_sobject_name(name: &str) {
-        if name.is_empty() {
-            panic!("Invalid SObject name: cannot be empty");
-        }
-        if !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
-            panic!("Invalid SObject name: '{}' contains invalid characters", name);
-        }
+        assert!(!name.is_empty(), "Invalid SObject name: cannot be empty");
+        assert!(
+            name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_'),
+            "Invalid SObject name: '{}' contains invalid characters",
+            name
+        );
     }
 
     fn validate_id(id: &str) {
-        if crate::types::SalesforceId::new(id).is_err() {
-            panic!("Invalid Salesforce ID: '{}'", id);
-        }
+        assert!(
+            crate::types::SalesforceId::new(id).is_ok(),
+            "Invalid Salesforce ID: '{}'",
+            id
+        );
     }
 
     /// Adds a custom subrequest to the batch.
