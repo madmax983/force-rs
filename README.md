@@ -39,6 +39,9 @@ Add force-rs to your `Cargo.toml`:
 ```toml
 [dependencies]
 force = "0.1"
+tokio = { version = "1.0", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+anyhow = "1.0"
 
 # Or enable specific features:
 force = { version = "0.1", features = ["rest", "bulk", "jwt"] }
@@ -51,6 +54,8 @@ Here's a minimal example using OAuth 2.0 client credentials to query Salesforce:
 ```rust
 use force::auth::ClientCredentials;
 use force::client::ForceClientBuilder;
+// or: use force::prelude::*;
+
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
@@ -97,10 +102,15 @@ async fn main() -> anyhow::Result<()> {
 
 ### Bulk Insert with Typestate Safety
 
-The Bulk API uses typestate patterns to enforce correct job lifecycle at compile time:
+The Bulk API uses typestate patterns to enforce correct job lifecycle at compile time.
+
+**Requires `bulk` feature:**
+```toml
+[dependencies]
+force = { version = "0.1", features = ["bulk"] }
+```
 
 ```rust
-// Requires the "bulk" feature: force = { version = "0.1", features = ["bulk"] }
 use force::client::ForceClientBuilder;
 use force::auth::ClientCredentials;
 use serde::Serialize;
@@ -140,10 +150,15 @@ async fn main() -> anyhow::Result<()> {
 
 ### Memory-Efficient Bulk Query
 
-Stream millions of records without loading the entire dataset into memory:
+Stream millions of records without loading the entire dataset into memory.
+
+**Requires `bulk` feature:**
+```toml
+[dependencies]
+force = { version = "0.1", features = ["bulk"] }
+```
 
 ```rust
-// Requires the "bulk" feature: force = { version = "0.1", features = ["bulk"] }
 use force::client::ForceClientBuilder;
 use force::auth::ClientCredentials;
 use serde::Deserialize;
