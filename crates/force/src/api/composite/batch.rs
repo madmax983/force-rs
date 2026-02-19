@@ -375,7 +375,9 @@ mod tests {
         let result = builder.execute().await;
         assert!(result.is_err());
         match result {
-            Err(ForceError::Serialization(crate::error::SerializationError::InvalidFormat(msg))) => {
+            Err(ForceError::Serialization(crate::error::SerializationError::InvalidFormat(
+                msg,
+            ))) => {
                 assert_eq!(msg, "Batch cannot be empty");
             }
             _ => panic!("Expected InvalidFormat error for empty batch"),
