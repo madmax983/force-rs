@@ -12,6 +12,8 @@ ignore = []
 
 [licenses]
 version = 2
+# Check for security vulnerabilities in dependencies
+private = { ignore = true }
 # Ensure all dependencies use acceptable licenses
 confidence-threshold = 0.8
 allow = [

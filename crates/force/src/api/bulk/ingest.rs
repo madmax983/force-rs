@@ -89,7 +89,7 @@ impl<S: Send + Sync, A: Authenticator> IngestJob<S, A> {
         headers: Option<reqwest::header::HeaderMap>,
         error_context: &str,
     ) -> Result<reqwest::Response> {
-        let token = self.inner.token_manager.get_token_arc().await?;
+        let token = self.inner.token_manager.token().await?;
         let mut url = format!(
             "{}/services/data/{}/jobs/ingest/{}",
             token.instance_url(),
@@ -490,7 +490,7 @@ impl IngestJobBuilder {
         };
 
         // Call create_job directly
-        let token = inner.token_manager.get_token_arc().await?;
+        let token = inner.token_manager.token().await?;
         let url = format!(
             "{}/services/data/{}/jobs/ingest",
             token.instance_url(),

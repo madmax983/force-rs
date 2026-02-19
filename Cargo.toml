@@ -52,9 +52,6 @@ futures = "0.3"
 async-trait = "0.1"
 bytes = "1.9"
 
-# Encoding
-percent-encoding = "2.3"
-
 # Feature-gated dependencies
 jsonwebtoken = "9.3"
 csv = "1.3"

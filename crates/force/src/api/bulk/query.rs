@@ -176,7 +176,7 @@ impl<T, A: crate::auth::Authenticator> BulkQueryStream<T, A> {
         }
 
         // Fetch results from the API
-        let token = self.inner.token_manager.get_token_arc().await?;
+        let token = self.inner.token_manager.token().await?;
         let base_url = format!(
             "{}/services/data/{}/jobs/query/{}/results",
             token.instance_url(),
@@ -291,7 +291,7 @@ impl<A: crate::auth::Authenticator> super::BulkHandler<A> {
     /// Returns an error if token retrieval fails.
     pub async fn query_base_url(&self) -> Result<String> {
         let inner = self.inner();
-        let token = inner.token_manager.get_token_arc().await?;
+        let token = inner.token_manager.token().await?;
         Ok(format!(
             "{}/services/data/{}/jobs/query",
             token.instance_url(),
