@@ -6,8 +6,18 @@
 use crate::error::Result;
 use crate::types::SalesforceId;
 use crate::types::common::{CreateResponse, DeleteResponse, UpdateResponse, UpsertResponse};
+use crate::types::validator::{validate_external_id_field, validate_sobject_name};
+use percent_encoding::{AsciiSet, NON_ALPHANUMERIC, utf8_percent_encode};
 
 use super::RestHandler;
+
+/// Custom encode set for External ID values.
+/// Preserves safe path characters (-, _, ., ~) as per RFC 3986.
+const UPSERT_ENCODE_SET: &AsciiSet = &NON_ALPHANUMERIC
+    .remove(b'-')
+    .remove(b'_')
+    .remove(b'.')
+    .remove(b'~');
 
 impl<A: crate::auth::Authenticator> RestHandler<A> {
     /// Helper method to handle error responses from Salesforce API.
@@ -49,6 +59,7 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
     /// println!("Created account with ID: {}", response.id.must());
     /// ```
     pub async fn create(&self, sobject: &str, data: &serde_json::Value) -> Result<CreateResponse> {
+        validate_sobject_name(sobject)?;
         let path = format!("/sobjects/{}", sobject);
         self.execute_post(&path, data, "Create request failed")
             .await
@@ -76,6 +87,7 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
     /// println!("Account name: {}", account["Name"]);
     /// ```
     pub async fn get(&self, sobject: &str, id: &SalesforceId) -> Result<serde_json::Value> {
+        validate_sobject_name(sobject)?;
         let path = format!("/sobjects/{}/{}", sobject, id.as_str());
         self.execute_get(&path, None, "Get request failed").await
     }
@@ -115,6 +127,7 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
         id: &SalesforceId,
         data: &serde_json::Value,
     ) -> Result<UpdateResponse> {
+        validate_sobject_name(sobject)?;
         let path = format!("/sobjects/{}/{}", sobject, id.as_str());
         self.execute_patch_empty(&path, data, "Update request failed")
             .await?;
@@ -142,6 +155,7 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
     /// client.rest().delete("Account", &account_id).await?;
     /// ```
     pub async fn delete(&self, sobject: &str, id: &SalesforceId) -> Result<DeleteResponse> {
+        validate_sobject_name(sobject)?;
         let path = format!("/sobjects/{}/{}", sobject, id.as_str());
         self.execute_delete_empty(&path, "Delete request failed")
             .await?;
@@ -235,12 +249,17 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
         data: &serde_json::Value,
         retry_class: crate::http::RequestRetryClass,
     ) -> Result<UpsertResponse> {
+        validate_sobject_name(sobject)?;
+        validate_external_id_field(external_id_field)?;
+
+        let encoded_value = utf8_percent_encode(external_id_value, UPSERT_ENCODE_SET).to_string();
+
         let url = format!(
             "{}/sobjects/{}/{}/{}",
             self.base_url().await?,
             sobject,
             external_id_field,
-            external_id_value
+            encoded_value
         );
         let request = self
             .inner
