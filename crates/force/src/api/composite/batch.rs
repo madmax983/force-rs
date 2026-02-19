@@ -45,8 +45,15 @@ impl<A: Authenticator> BatchBuilder<A> {
     ///
     /// * `sobject` - The SObject type (e.g., "Account")
     /// * `id` - The record ID
+    ///
+    /// # Panics
+    ///
+    /// Panics if the SObject name or ID contains invalid characters.
     #[must_use]
     pub fn get(mut self, sobject: &str, id: &str) -> Self {
+        Self::validate_sobject_name(sobject);
+        Self::validate_id(id);
+
         self.requests.push(BatchSubRequest {
             method: "GET".to_string(),
             url: format!("sobjects/{}/{}", sobject, id),
@@ -61,8 +68,14 @@ impl<A: Authenticator> BatchBuilder<A> {
     ///
     /// * `sobject` - The SObject type (e.g., "Account")
     /// * `body` - The JSON body of the record
+    ///
+    /// # Panics
+    ///
+    /// Panics if the SObject name contains invalid characters.
     #[must_use]
     pub fn post(mut self, sobject: &str, body: Value) -> Self {
+        Self::validate_sobject_name(sobject);
+
         self.requests.push(BatchSubRequest {
             method: "POST".to_string(),
             url: format!("sobjects/{}", sobject),
@@ -78,8 +91,15 @@ impl<A: Authenticator> BatchBuilder<A> {
     /// * `sobject` - The SObject type (e.g., "Account")
     /// * `id` - The record ID
     /// * `body` - The JSON body with fields to update
+    ///
+    /// # Panics
+    ///
+    /// Panics if the SObject name or ID contains invalid characters.
     #[must_use]
     pub fn patch(mut self, sobject: &str, id: &str, body: Value) -> Self {
+        Self::validate_sobject_name(sobject);
+        Self::validate_id(id);
+
         self.requests.push(BatchSubRequest {
             method: "PATCH".to_string(),
             url: format!("sobjects/{}/{}", sobject, id),
@@ -94,14 +114,36 @@ impl<A: Authenticator> BatchBuilder<A> {
     ///
     /// * `sobject` - The SObject type (e.g., "Account")
     /// * `id` - The record ID
+    ///
+    /// # Panics
+    ///
+    /// Panics if the SObject name or ID contains invalid characters.
     #[must_use]
     pub fn delete(mut self, sobject: &str, id: &str) -> Self {
+        Self::validate_sobject_name(sobject);
+        Self::validate_id(id);
+
         self.requests.push(BatchSubRequest {
             method: "DELETE".to_string(),
             url: format!("sobjects/{}/{}", sobject, id),
             rich_input: None,
         });
         self
+    }
+
+    fn validate_sobject_name(name: &str) {
+        if name.is_empty() {
+            panic!("Invalid SObject name: cannot be empty");
+        }
+        if !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+            panic!("Invalid SObject name: '{}' contains invalid characters", name);
+        }
+    }
+
+    fn validate_id(id: &str) {
+        if crate::types::SalesforceId::new(id).is_err() {
+            panic!("Invalid Salesforce ID: '{}'", id);
+        }
     }
 
     /// Adds a custom subrequest to the batch.
@@ -133,9 +175,17 @@ impl<A: Authenticator> BatchBuilder<A> {
     /// Returns an error if:
     /// - Authentication fails
     /// - The HTTP request fails
-    /// - The batch size exceeds 25
+    /// - The batch size is 0 or exceeds 25
     /// - The response cannot be deserialized
     pub async fn execute(self) -> Result<BatchResponse> {
+        if self.requests.is_empty() {
+            return Err(ForceError::Serialization(
+                crate::error::SerializationError::InvalidFormat(
+                    "Batch cannot be empty".to_string(),
+                ),
+            ));
+        }
+
         if self.requests.len() > 25 {
             return Err(ForceError::Serialization(
                 crate::error::SerializationError::InvalidFormat(
@@ -270,5 +320,63 @@ mod tests {
         assert!(!resp.has_errors);
         assert_eq!(resp.results.len(), 2);
         assert_eq!(resp.results[0].status_code, 200);
+    }
+
+    // Validation tests
+
+    use crate::client::builder;
+    use crate::test_support::MockAuthenticator;
+
+    async fn create_test_handler() -> super::CompositeHandler<MockAuthenticator> {
+        let auth = MockAuthenticator::new("test_token", "http://localhost");
+        let client = builder().authenticate(auth).build().await.must();
+        client.composite()
+    }
+
+    #[tokio::test]
+    #[should_panic(expected = "Invalid SObject name")]
+    async fn test_batch_builder_panics_on_invalid_sobject_name() {
+        let handler = create_test_handler().await;
+        // Should panic
+        let _ = BatchBuilder::new(handler).get("Account; DROP TABLE", "001000000000001");
+    }
+
+    #[tokio::test]
+    #[should_panic(expected = "Invalid Salesforce ID")]
+    async fn test_batch_builder_panics_on_invalid_id() {
+        let handler = create_test_handler().await;
+        // Should panic
+        let _ = BatchBuilder::new(handler).get("Account", "invalid_id_format");
+    }
+
+    #[tokio::test]
+    #[should_panic(expected = "Invalid SObject name")]
+    async fn test_batch_builder_panics_on_empty_sobject() {
+        let handler = create_test_handler().await;
+        // Should panic
+        let _ = BatchBuilder::new(handler).get("", "001000000000001");
+    }
+
+    #[tokio::test]
+    #[should_panic(expected = "Invalid Salesforce ID")]
+    async fn test_batch_builder_panics_on_malformed_id_chars() {
+        let handler = create_test_handler().await;
+        // Should panic - special chars not allowed in ID
+        let _ = BatchBuilder::new(handler).get("Account", "001000000@00001");
+    }
+
+    #[tokio::test]
+    async fn test_batch_builder_execute_fails_on_empty_batch() {
+        let handler = create_test_handler().await;
+        let builder = BatchBuilder::new(handler);
+
+        let result = builder.execute().await;
+        assert!(result.is_err());
+        match result {
+            Err(ForceError::Serialization(crate::error::SerializationError::InvalidFormat(msg))) => {
+                assert_eq!(msg, "Batch cannot be empty");
+            }
+            _ => panic!("Expected InvalidFormat error for empty batch"),
+        }
     }
 }
