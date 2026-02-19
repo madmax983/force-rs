@@ -8,6 +8,7 @@ pub mod common;
 pub mod query;
 pub mod salesforce_id;
 pub mod sobject;
+pub mod validator;
 
 pub use api_version::{ApiVersion, ApiVersionSupportTier};
 pub use common::{ApiError, CreateResponse, DeleteResponse, UpdateResponse, UpsertResponse};

@@ -4,7 +4,7 @@
 use force::api::rest::search::SearchQueryBuilder;
 
 #[test]
-#[should_panic(expected = "SObject name contains invalid characters")]
+#[should_panic(expected = "sobject name contains invalid characters")]
 fn test_sosl_injection_vulnerability_sobject() {
     let malicious_sobject = "Account; DROP TABLE";
 
