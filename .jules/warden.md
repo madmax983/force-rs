@@ -11,3 +11,7 @@
 ## 2024-06-25 - [Path Traversal / Injection in Upsert]
 **Threat:** The `upsert` operation blindly concatenated `external_id_value` into the URL path. An attacker could supply a value containing `/` or `..` to manipulate the request path or inject arbitrary path segments.
 **Defense:** Implemented strict allowlist validation for `sobject` and `external_id_field`. Added URL encoding for `external_id_value` using a custom `AsciiSet` that preserves safe Salesforce characters but encodes separators.
+
+## 2026-02-20 - [Input Validation in Bulk API]
+**Threat:** The `BulkHandler::create_job` and `IngestJobBuilder` accepted arbitrary strings for `object` and `external_id_field_name` without validation. Although `serde_json` handles escaping, sending invalid identifiers (e.g., containing semicolons or dots where not allowed) violates the principle of fail-fast and could potentially be exploited if the server-side validation is insufficient or if these values are reflected in logs/errors.
+**Defense:** Enforced strict validation using `validate_sobject_name` and `validate_external_id_field` in `BulkHandler::create_job` and `IngestJobBuilder`. This ensures only valid Salesforce identifiers are transmitted.
