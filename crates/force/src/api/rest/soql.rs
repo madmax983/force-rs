@@ -360,4 +360,146 @@ mod tests {
         assert!(validate_field_name("Name--").is_err());
         assert!(validate_field_name("count(Id").is_err()); // Unbalanced
     }
+
+    #[test]
+    fn test_builder_where_ne() {
+        let query = SoqlQueryBuilder::new()
+            .select(&["Id"])
+            .from("Contact")
+            .where_ne("LastName", "O'Connor")
+            .build();
+
+        assert_eq!(
+            query,
+            "SELECT Id FROM Contact WHERE LastName != 'O\\'Connor'"
+        );
+    }
+
+    #[test]
+    fn test_builder_where_in_single() {
+        let query = SoqlQueryBuilder::new()
+            .select(&["Id"])
+            .from("Account")
+            .where_in("Name", &["Acme"])
+            .build();
+
+        assert_eq!(query, "SELECT Id FROM Account WHERE Name IN ('Acme')");
+    }
+
+    #[test]
+    fn test_builder_where_in_multiple() {
+        let query = SoqlQueryBuilder::new()
+            .select(&["Id"])
+            .from("Account")
+            .where_in("Name", &["Acme", "Globex"])
+            .build();
+
+        assert_eq!(
+            query,
+            "SELECT Id FROM Account WHERE Name IN ('Acme', 'Globex')"
+        );
+    }
+
+    #[test]
+    fn test_builder_where_in_empty() {
+        let query = SoqlQueryBuilder::new()
+            .select(&["Id"])
+            .from("Account")
+            .where_in("Name", &[] as &[&str])
+            .build();
+
+        // Currently generates IN (). Documenting behavior.
+        assert_eq!(query, "SELECT Id FROM Account WHERE Name IN ()");
+    }
+
+    #[test]
+    fn test_builder_where_like() {
+        let query = SoqlQueryBuilder::new()
+            .select(&["Id"])
+            .from("Account")
+            .where_like("Name", "Acme%")
+            .build();
+
+        assert_eq!(query, "SELECT Id FROM Account WHERE Name LIKE 'Acme%'");
+    }
+
+    #[test]
+    fn test_builder_where_like_escaping() {
+        let query = SoqlQueryBuilder::new()
+            .select(&["Id"])
+            .from("Account")
+            .where_like("Name", "O'Reilly%")
+            .build();
+
+        assert_eq!(
+            query,
+            "SELECT Id FROM Account WHERE Name LIKE 'O\\'Reilly%'"
+        );
+    }
+
+    #[test]
+    fn test_builder_limit_offset_order() {
+        let query = SoqlQueryBuilder::new()
+            .select(&["Id"])
+            .from("Account")
+            .limit(10)
+            .offset(5)
+            .order_by("Name")
+            .build();
+
+        assert_eq!(
+            query,
+            "SELECT Id FROM Account ORDER BY Name LIMIT 10 OFFSET 5"
+        );
+    }
+
+    #[test]
+    fn test_builder_order_by_desc() {
+        let query = SoqlQueryBuilder::new()
+            .select(&["Id"])
+            .from("Account")
+            .order_by_desc("CreatedDate")
+            .build();
+
+        assert_eq!(query, "SELECT Id FROM Account ORDER BY CreatedDate DESC");
+    }
+
+    #[test]
+    fn test_builder_mixed_conditions() {
+        let query = SoqlQueryBuilder::new()
+            .select(&["Id"])
+            .from("Account")
+            .where_eq("Type", "Customer")
+            .where_ne("Status", "Inactive")
+            .limit(100)
+            .build();
+
+        assert_eq!(
+            query,
+            "SELECT Id FROM Account WHERE Type = 'Customer' AND Status != 'Inactive' LIMIT 100"
+        );
+    }
+
+    #[test]
+    fn test_builder_try_build_errors() {
+        // Missing fields
+        let builder = SoqlQueryBuilder::new().from("Account");
+        assert!(builder.try_build().is_err());
+
+        // Missing SObject
+        let builder = SoqlQueryBuilder::new().select(&["Id"]);
+        assert!(builder.try_build().is_err());
+    }
+
+    #[test]
+    #[should_panic(expected = "Invalid field name")]
+    fn test_builder_invalid_field_panic() {
+        let _ = SoqlQueryBuilder::new().select(&["Name; DROP"]);
+    }
+
+    #[test]
+    #[should_panic(expected = "Invalid SObject name")]
+    fn test_builder_invalid_sobject_panic() {
+        let _ = SoqlQueryBuilder::new().from("Account; DROP");
+    }
 }

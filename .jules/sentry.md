@@ -15,3 +15,7 @@
 ## [Timestamp Precision Loss]
 **Learning:** `parse_issued_at` used integer division by 1000 to convert milliseconds to seconds, discarding sub-second precision. This could lead to incorrect token expiration calculations (off by up to 1 second).
 **Action:** Use `DateTime::from_timestamp_millis` or similar high-precision constructors when parsing timestamps to preserve fidelity.
+
+## [Empty IN Clause Generation]
+**Learning:** `SoqlQueryBuilder::where_in` generates `IN ()` when provided with an empty value list. This syntax is invalid in SOQL and will likely result in a runtime error from the Salesforce API.
+**Action:** Future refactoring should handle empty lists gracefully, either by omitting the clause (if semantically correct), generating a condition that always evaluates to false (e.g., matching a non-existent ID), or returning an error during query construction.
