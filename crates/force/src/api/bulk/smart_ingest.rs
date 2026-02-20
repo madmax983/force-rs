@@ -117,7 +117,9 @@ impl<'a, A: crate::auth::Authenticator> SmartIngest<'a, A> {
         S: Stream<Item = T> + Unpin + Send,
         T: Serialize + Send + Sync,
     {
-        let mut buffer = Vec::with_capacity(self.batch_size);
+        // Cap initial allocation to avoid panic/OOM on huge batch_size
+        let capacity = std::cmp::min(self.batch_size, 10_000);
+        let mut buffer = Vec::with_capacity(capacity);
         let mut is_first_batch = true;
 
         while let Some(record) = stream.next().await {
