@@ -43,6 +43,7 @@ use crate::api::bulk::types::{
 };
 use crate::auth::Authenticator;
 use crate::error::Result;
+use crate::types::validator::{validate_external_id_field, validate_sobject_name};
 use std::marker::PhantomData;
 use std::sync::Arc;
 
@@ -480,6 +481,11 @@ impl IngestJobBuilder {
         self,
         inner: Arc<crate::client::Inner<A>>,
     ) -> Result<IngestJob<Open, A>> {
+        validate_sobject_name(&self.object)?;
+        if let Some(field) = &self.external_id_field_name {
+            validate_external_id_field(field)?;
+        }
+
         let request = CreateJobRequest {
             object: self.object,
             operation: self.operation,

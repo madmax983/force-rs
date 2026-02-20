@@ -16,6 +16,7 @@ pub mod csv;
 pub mod smart_ingest;
 
 use crate::error::Result;
+use crate::types::validator::{validate_external_id_field, validate_sobject_name};
 use std::sync::Arc;
 use std::time::Duration;
 use types::{CreateJobRequest, JobInfo, UpdateJobRequest};
@@ -175,6 +176,11 @@ impl<A: crate::auth::Authenticator> BulkHandler<A> {
     /// println!("Created job: {}", job.id);
     /// ```
     pub async fn create_job(&self, request: CreateJobRequest) -> Result<JobInfo> {
+        validate_sobject_name(&request.object)?;
+        if let Some(field) = &request.external_id_field_name {
+            validate_external_id_field(field)?;
+        }
+
         let url = self.base_url().await?;
         let request = self
             .inner
