@@ -4,18 +4,17 @@
 //! including IDs, API versions, and other domain primitives.
 
 pub mod api_version;
-pub mod authenticator;
 pub mod common;
 pub mod query;
 pub mod salesforce_id;
 pub mod sobject;
-pub mod token;
 pub mod validator;
 
 pub use api_version::{ApiVersion, ApiVersionSupportTier};
-pub use authenticator::Authenticator;
 pub use common::{ApiError, CreateResponse, DeleteResponse, UpdateResponse, UpsertResponse};
 pub use query::{QueryIterator, QueryLocator, QueryResult};
 pub use salesforce_id::SalesforceId;
 pub use sobject::{Attributes, DynamicSObject, DynamicSObjectBuilder};
-pub use token::{AccessToken, TokenResponse};
+
+// Re-exports for backward compatibility (moved to auth)
+pub use crate::auth::{AccessToken, Authenticator, TokenResponse};

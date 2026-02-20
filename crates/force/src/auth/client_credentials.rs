@@ -36,8 +36,8 @@
 //! let token = auth.authenticate().await?;
 //! ```
 
+use crate::auth::token::{AccessToken, TokenResponse};
 use crate::error::{AuthenticationError, ForceError, HttpError, Result};
-use crate::types::token::{AccessToken, TokenResponse};
 use async_trait::async_trait;
 use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
@@ -135,7 +135,7 @@ impl ClientCredentials {
 }
 
 #[async_trait]
-impl crate::types::authenticator::Authenticator for ClientCredentials {
+impl crate::auth::authenticator::Authenticator for ClientCredentials {
     async fn authenticate(&self) -> Result<AccessToken> {
         // Build form parameters for token request
         let params = [
