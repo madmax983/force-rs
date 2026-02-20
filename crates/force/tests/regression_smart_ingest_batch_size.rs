@@ -1,21 +1,22 @@
-//! Regression test for SmartIngest batch size panic.
+//! Regression test for `SmartIngest` batch size panic.
 //!
-//! Ensures that setting a huge batch size (e.g., usize::MAX) does not cause
+//! Ensures that setting a huge batch size (e.g., `usize::MAX`) does not cause
 //! an immediate panic due to allocation failure.
 
 #[cfg(feature = "bulk")]
 #[allow(clippy::unwrap_used)]
 mod tests {
-    use force::api::bulk::types::JobOperation;
-    use force::api::bulk::smart_ingest::SmartIngest;
-    use force::client::{ForceClient, builder};
-    use force::auth::{AccessToken, Authenticator, TokenResponse};
-    use force::error::Result as ForceResult;
-    use wiremock::MockServer;
-    use serde::Serialize;
-    use futures::stream;
     use async_trait::async_trait;
+    use force::api::bulk::smart_ingest::SmartIngest;
+    use force::api::bulk::types::JobOperation;
+    use force::auth::{AccessToken, Authenticator, TokenResponse};
+    use force::client::{ForceClient, builder};
+    use force::error::Result as ForceResult;
+    use futures::stream;
+    use serde::Serialize;
     use std::fmt::Debug;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
 
     // Helper trait for unwrapping Result/Option in tests
     trait MustMsg<T> {
@@ -84,9 +85,6 @@ mod tests {
     async fn test_smart_ingest_huge_batch_size_no_panic() {
         let mock_server = MockServer::start().await;
 
-        use wiremock::matchers::{method, path};
-        use wiremock::{Mock, ResponseTemplate};
-
         Mock::given(method("POST"))
             .and(path("/services/data/v60.0/jobs/ingest"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
@@ -136,6 +134,9 @@ mod tests {
             .execute_stream(stream)
             .await;
 
-        assert!(result.is_ok(), "Should complete successfully with empty stream even with huge batch size");
+        assert!(
+            result.is_ok(),
+            "Should complete successfully with empty stream even with huge batch size"
+        );
     }
 }
