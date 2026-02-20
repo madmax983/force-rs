@@ -57,3 +57,18 @@ The most dangerous test is one that passes for the wrong reason.
 **Resolution:**
 1.  Added `test_request_retry_class_as_str` unit test.
 2.  Strengthened `test_telemetry_hooks_capture_retry_and_completion` integration test to assert `request_class`.
+
+### 🟢 Acquitted (Fixed): `crates/force/src/api/composite/batch.rs`
+
+**Module:** `crates::force::api::composite::batch`
+**Severity:** 🟢 Acquitted (Fixed)
+**Finding:** Missing validation for SObject names, IDs, empty batch, and batch size boundary.
+**Evidence:**
+1.  Mutation testing showed `BatchBuilder::execute` logic for batch size (> 25) was not fully tested (boundary conditions missed).
+2.  Empty batch execution was not prevented, potentially sending invalid requests to Salesforce.
+3.  Integration tests used invalid ID format ("invalid_id"), which passed only because client-side validation was missing.
+**Resolution:**
+1.  Implemented strict validation in `BatchBuilder` methods using `validator::validate_sobject_name` and `SalesforceId::new`.
+2.  Added check for empty batch in `execute`.
+3.  Added comprehensive unit tests covering validation failures, empty batch, and batch size limits (including boundary 25/26).
+4.  Updated `tests/composite_batch.rs` to use syntactically valid Salesforce IDs, fixing the "Alibi Test" pattern.
