@@ -1,43 +1,31 @@
 # DX Audit
 
 **Auditor:** Echo 🗣️
-**Date:** 2024-05-23
-**Scope:** README.md examples
+**Date:** 2024-05-24
+**Scope:** README.md examples, crates/force/examples, and API ergonomics
 
 ## Findings
 
-### 1. Quick Start Example
+### 1. Examples in `crates/force/examples/README.md`
 - **Issue:** `ClientCredentials::new` signature mismatch.
   - **Expected:** 2 arguments (`client_id`, `client_secret`)
   - **Actual:** 3 arguments (`client_id`, `client_secret`, `token_url`)
-  - **Impact:** Compilation error.
-- **Issue:** `client.rest().query_typed` does not exist.
-  - **Expected:** `client.rest().query_typed(...)`
-  - **Actual:** `client.query(...)`
-  - **Impact:** Compilation error.
+  - **Impact:** Compilation error for users copy-pasting from examples README.
+  - **Resolution:** Updated example to use `ClientCredentials::new_production(client_id, client_secret)`.
 
-### 2. Bulk Insert Example
-- **Issue:** `ClientCredentials::new` signature mismatch.
-  - **Expected:** 2 arguments (`client_id`, `client_secret`)
-  - **Actual:** 3 arguments (`client_id`, `client_secret`, `token_url`)
-  - **Impact:** Compilation error.
+### 2. Missing Prelude
+- **Issue:** Users must import multiple modules (`force::auth::*`, `force::client::*`, `force::error::*`) to get started.
+  - **Impact:** Verbose imports and friction for new users.
+  - **Resolution:** Added `force::prelude` module exporting `ForceClient`, `ForceClientBuilder`, `ClientCredentials`, `ForceError`, and `ForceResult`.
 
-### 3. Bulk Query Example
-- **Issue:** `ClientCredentials::new` signature mismatch.
-  - **Expected:** 2 arguments (`client_id`, `client_secret`)
-  - **Actual:** 3 arguments (`client_id`, `client_secret`, `token_url`)
-  - **Impact:** Compilation error.
-- **Issue:** `bulk_query_typed` does not exist.
-  - **Expected:** `bulk_query_typed`
-  - **Actual:** `bulk_query`
-  - **Impact:** Compilation error.
-- **Issue:** `futures::StreamExt` import is unnecessary.
-  - **Reason:** `BulkQueryStream` does not implement `Stream` (uses inherent `next()` method).
-  - **Impact:** Potential confusion and unused import warning.
+### 3. Bulk Query API naming
+- **Issue:** Previous audit mentioned `bulk_query_typed` missing.
+  - **Reality:** The API provides `client.bulk().query<T>(soql)` which is typed and ergonomic. The method name is `query`, not `bulk_query_typed` (though `bulk_query` legacy alias exists).
+  - **Resolution:** Verified that `query<T>` works as expected. No code change needed.
+
+### 4. Main README.md
+- **Status:** Verified that "Quick Start", "Bulk Insert", and "Bulk Query" examples in the main `README.md` are correct and compile.
 
 ## Recommendations
-- Update `README.md` examples to match the current API.
-- Ensure `ClientCredentials::new` is called correctly with 3 arguments.
-- Replace `query_typed` with `query`.
-- Replace `bulk_query_typed` with `bulk_query`.
-- Remove unnecessary `futures::StreamExt` import if not used.
+- Use `force::prelude::*` in future examples to simplify imports.
+- Ensure all README code blocks are tested in CI (e.g., via doc tests or `dx_test_app`).
