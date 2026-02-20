@@ -26,7 +26,7 @@ C4Component
 
   Container_Boundary(sdk, "Force SDK") {
     Component(client, "Client Core", "crates/force/client", "Facade & Configuration")
-    Component(api, "API Handlers", "crates/force/api", "REST, Bulk, Composite logic")
+    Component(api, "API Handlers", "crates/force/api", "REST (QueryStream), Bulk (SmartIngest), Composite")
     Component(storage, "Storage", "crates/force/storage", "Token persistence & state")
     Component(auth, "Auth", "crates/force/auth", "Authentication strategies")
     Component(http, "HTTP", "crates/force/http", "Resilience & Middleware")
@@ -61,13 +61,27 @@ classDiagram
     +authenticate()
     +refresh()
   }
-  class RestHandler
+  class RestHandler {
+    +query() QueryStream
+  }
+  class BulkHandler {
+    +smart_ingest() SmartIngest
+  }
+  class QueryStream {
+    +next() Result<Record>
+  }
+  class SmartIngest {
+    +upload_stream()
+  }
 
   ForceClient *-- Inner : Shared State (Arc)
   RestHandler *-- Inner : Shared State (Arc)
+  BulkHandler *-- Inner : Shared State (Arc)
   Inner --> TokenManager : Owns
   Inner --> HttpExecutor : Owns
   TokenManager --> Authenticator : Uses (Strategy)
+  RestHandler ..> QueryStream : Creates
+  BulkHandler ..> SmartIngest : Creates
 ```
 
 ## Sequence Diagram: Token Storage

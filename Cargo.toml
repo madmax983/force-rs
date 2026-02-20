@@ -61,7 +61,3 @@ csv = "1.3"
 quick-xml = "0.37"
 wiremock = "0.6"
 
-# gRPC/Protobuf (for pub_sub)
-tonic = "0.12"
-prost = "0.13"
-apache-avro = "0.17"
