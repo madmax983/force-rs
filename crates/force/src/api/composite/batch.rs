@@ -29,6 +29,15 @@ impl<A: Authenticator> BatchBuilder<A> {
         }
     }
 
+    fn push_request(mut self, method: &str, url: String, body: Option<Value>) -> Self {
+        self.requests.push(BatchSubRequest {
+            method: method.to_string(),
+            url,
+            body,
+        });
+        self
+    }
+
     /// sets whether the entire batch should stop processing if a subrequest fails.
     ///
     /// If true, subsequent requests in the batch will not be executed.
@@ -46,13 +55,8 @@ impl<A: Authenticator> BatchBuilder<A> {
     /// * `sobject` - The SObject type (e.g., "Account")
     /// * `id` - The record ID
     #[must_use]
-    pub fn get(mut self, sobject: &str, id: &str) -> Self {
-        self.requests.push(BatchSubRequest {
-            method: "GET".to_string(),
-            url: format!("sobjects/{}/{}", sobject, id),
-            rich_input: None,
-        });
-        self
+    pub fn get(self, sobject: &str, id: &str) -> Self {
+        self.push_request("GET", format!("sobjects/{}/{}", sobject, id), None)
     }
 
     /// Adds a POST (Create) request to the batch.
@@ -62,13 +66,8 @@ impl<A: Authenticator> BatchBuilder<A> {
     /// * `sobject` - The SObject type (e.g., "Account")
     /// * `body` - The JSON body of the record
     #[must_use]
-    pub fn post(mut self, sobject: &str, body: Value) -> Self {
-        self.requests.push(BatchSubRequest {
-            method: "POST".to_string(),
-            url: format!("sobjects/{}", sobject),
-            rich_input: Some(body),
-        });
-        self
+    pub fn post(self, sobject: &str, body: Value) -> Self {
+        self.push_request("POST", format!("sobjects/{}", sobject), Some(body))
     }
 
     /// Adds a PATCH (Update) request to the batch.
@@ -79,13 +78,8 @@ impl<A: Authenticator> BatchBuilder<A> {
     /// * `id` - The record ID
     /// * `body` - The JSON body with fields to update
     #[must_use]
-    pub fn patch(mut self, sobject: &str, id: &str, body: Value) -> Self {
-        self.requests.push(BatchSubRequest {
-            method: "PATCH".to_string(),
-            url: format!("sobjects/{}/{}", sobject, id),
-            rich_input: Some(body),
-        });
-        self
+    pub fn patch(self, sobject: &str, id: &str, body: Value) -> Self {
+        self.push_request("PATCH", format!("sobjects/{}/{}", sobject, id), Some(body))
     }
 
     /// Adds a DELETE request to the batch.
@@ -95,13 +89,8 @@ impl<A: Authenticator> BatchBuilder<A> {
     /// * `sobject` - The SObject type (e.g., "Account")
     /// * `id` - The record ID
     #[must_use]
-    pub fn delete(mut self, sobject: &str, id: &str) -> Self {
-        self.requests.push(BatchSubRequest {
-            method: "DELETE".to_string(),
-            url: format!("sobjects/{}/{}", sobject, id),
-            rich_input: None,
-        });
-        self
+    pub fn delete(self, sobject: &str, id: &str) -> Self {
+        self.push_request("DELETE", format!("sobjects/{}/{}", sobject, id), None)
     }
 
     /// Adds a custom subrequest to the batch.
@@ -115,13 +104,8 @@ impl<A: Authenticator> BatchBuilder<A> {
     /// * `url` - Relative URL (e.g., "query?q=Select+Id+From+Account")
     /// * `body` - Optional JSON body
     #[must_use]
-    pub fn add_request(mut self, method: &str, url: &str, body: Option<Value>) -> Self {
-        self.requests.push(BatchSubRequest {
-            method: method.to_string(),
-            url: url.to_string(),
-            rich_input: body,
-        });
-        self
+    pub fn add_request(self, method: &str, url: &str, body: Option<Value>) -> Self {
+        self.push_request(method, url.to_string(), body)
     }
 
     /// Executes the batch request.
@@ -192,8 +176,8 @@ struct BatchRequest {
 struct BatchSubRequest {
     method: String,
     url: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    rich_input: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none", rename = "richInput")]
+    body: Option<Value>,
 }
 
 /// The response from a Composite Batch API call.
@@ -233,12 +217,12 @@ mod tests {
                 BatchSubRequest {
                     method: "GET".to_string(),
                     url: "sobjects/Account/001".to_string(),
-                    rich_input: None,
+                    body: None,
                 },
                 BatchSubRequest {
                     method: "POST".to_string(),
                     url: "sobjects/Contact".to_string(),
-                    rich_input: Some(serde_json::json!({"LastName": "Doe"})),
+                    body: Some(serde_json::json!({"LastName": "Doe"})),
                 },
             ],
         };
