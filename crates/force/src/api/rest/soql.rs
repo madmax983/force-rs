@@ -5,6 +5,7 @@
 
 use crate::error::ForceError;
 use crate::types::validator::{validate_field_name, validate_sobject_name};
+use std::borrow::Cow;
 
 /// Escapes special characters for SOQL string literals.
 ///
@@ -23,16 +24,33 @@ use crate::types::validator::{validate_field_name, validate_sobject_name};
 /// ```
 #[must_use]
 pub fn escape_soql(input: &str) -> String {
-    let mut escaped = String::with_capacity(input.len());
-    for c in input.chars() {
-        match c {
-            '\'' => escaped.push_str(r"\'"),
-            '\\' => escaped.push_str(r"\\"),
-            '"' => escaped.push_str(r#"\""#),
-            _ => escaped.push(c),
+    escape_soql_cow(input).into_owned()
+}
+
+/// Zero-cost abstraction for SOQL escaping.
+///
+/// Returns `Cow::Borrowed` if no escaping is required, avoiding allocation.
+/// Returns `Cow::Owned` if escaping is needed.
+pub(crate) fn escape_soql_cow(input: &str) -> Cow<'_, str> {
+    let first_special = input.find(['\'', '\\', '"']);
+
+    match first_special {
+        Some(idx) => {
+            let mut escaped = String::with_capacity(input.len() + 8);
+            escaped.push_str(&input[..idx]);
+
+            for c in input[idx..].chars() {
+                match c {
+                    '\'' => escaped.push_str(r"\'"),
+                    '\\' => escaped.push_str(r"\\"),
+                    '"' => escaped.push_str(r#"\""#),
+                    _ => escaped.push(c),
+                }
+            }
+            Cow::Owned(escaped)
         }
+        None => Cow::Borrowed(input),
     }
-    escaped
 }
 
 /// Builder for constructing safe SOQL queries.
@@ -145,7 +163,8 @@ impl SoqlQueryBuilder {
         if let Err(e) = validate_field_name(field) {
             panic!("Invalid field name in where_eq: {}", e);
         }
-        let escaped_value = escape_soql(value);
+        // Optimization: Use escape_soql_cow to avoid allocation if escape not needed
+        let escaped_value = escape_soql_cow(value);
         self.where_clauses
             .push(format!("{} = '{}'", field, escaped_value));
         self
@@ -161,7 +180,7 @@ impl SoqlQueryBuilder {
         if let Err(e) = validate_field_name(field) {
             panic!("Invalid field name in where_ne: {}", e);
         }
-        let escaped_value = escape_soql(value);
+        let escaped_value = escape_soql_cow(value);
         self.where_clauses
             .push(format!("{} != '{}'", field, escaped_value));
         self
@@ -184,7 +203,7 @@ impl SoqlQueryBuilder {
 
         let escaped_values: Vec<String> = values
             .iter()
-            .map(|v| format!("'{}'", escape_soql(v.as_ref())))
+            .map(|v| format!("'{}'", escape_soql_cow(v.as_ref())))
             .collect();
 
         self.where_clauses
@@ -204,7 +223,7 @@ impl SoqlQueryBuilder {
         if let Err(e) = validate_field_name(field) {
             panic!("Invalid field name in where_like: {}", e);
         }
-        let escaped_value = escape_soql(value);
+        let escaped_value = escape_soql_cow(value);
         self.where_clauses
             .push(format!("{} LIKE '{}'", field, escaped_value));
         self
@@ -359,5 +378,20 @@ mod tests {
         assert!(validate_field_name("Name; DROP").is_err());
         assert!(validate_field_name("Name--").is_err());
         assert!(validate_field_name("count(Id").is_err()); // Unbalanced
+    }
+
+    #[test]
+    fn test_escape_soql_cow_optimization() {
+        // Case 1: No escape needed -> should be Borrowed
+        let safe = "SafeString123";
+        let result = escape_soql_cow(safe);
+        assert!(matches!(result, Cow::Borrowed(_)));
+        assert_eq!(result, "SafeString123");
+
+        // Case 2: Escape needed -> should be Owned
+        let unsafe_str = "O'Reilly";
+        let result = escape_soql_cow(unsafe_str);
+        assert!(matches!(result, Cow::Owned(_)));
+        assert_eq!(result, r"O\'Reilly");
     }
 }
