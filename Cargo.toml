@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/force", "dx_check"]
+members = ["crates/force"]
 
 [workspace.package]
 version = "0.1.0"
