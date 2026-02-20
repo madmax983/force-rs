@@ -89,7 +89,15 @@ impl<'a, A: crate::auth::Authenticator> SmartIngest<'a, A> {
         let job_id = self.create_job_internal().await?;
 
         // 2. Process Stream
-        self.process_stream(&job_id, stream).await?;
+        if let Err(e) = self.process_stream(&job_id, stream).await {
+            // Attempt to abort the job on failure to avoid leaving it Open
+            let abort_req = UpdateJobRequest {
+                state: JobState::Aborted,
+            };
+            // We ignore errors from the abort attempt to ensure the original error is returned
+            let _ = self.handler.update_job(&job_id, abort_req).await;
+            return Err(e);
+        }
 
         // 3. Close Job
         self.close_job_internal(&job_id).await?;
@@ -230,11 +238,14 @@ impl<'a, A: crate::auth::Authenticator> SmartIngest<'a, A> {
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
-    use super::*;
+    use super::SmartIngest;
+    use crate::api::bulk::types::{JobOperation, JobState};
     use crate::auth::{AccessToken, Authenticator, TokenResponse};
     use crate::client::{ForceClient, builder};
+    use crate::error::Result;
     use crate::test_support::MustMsg;
     use async_trait::async_trait;
+    use serde::Serialize;
     use wiremock::matchers::{body_string, header, method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -302,6 +313,7 @@ mod tests {
                 "createdDate": "2024-01-01T00:00:00.000Z",
                 "createdById": "005xx0000000001AAA"
             })))
+            .expect(1)
             .mount(&mock_server)
             .await;
 
@@ -311,6 +323,7 @@ mod tests {
             .and(header("content-type", "text/csv"))
             .and(body_string("id,name\n001,Test\n"))
             .respond_with(ResponseTemplate::new(201))
+            .expect(1)
             .mount(&mock_server)
             .await;
 
@@ -325,6 +338,7 @@ mod tests {
                 "createdDate": "2024-01-01T00:00:00.000Z",
                 "createdById": "005xx0000000001AAA"
             })))
+            .expect(1)
             .mount(&mock_server)
             .await;
 
@@ -337,8 +351,11 @@ mod tests {
                 "operation": "insert",
                 "object": "Account",
                 "createdDate": "2024-01-01T00:00:00.000Z",
-                "createdById": "005xx0000000001AAA"
+                "createdById": "005xx0000000001AAA",
+                "numberRecordsProcessed": 1,
+                "numberRecordsFailed": 0
             })))
+            .expect(1)
             .mount(&mock_server)
             .await;
 
@@ -355,10 +372,11 @@ mod tests {
             .execute_stream(stream)
             .await;
 
-        if let Err(e) = &result {
-            println!("Error: {:?}", e);
-        }
         assert!(result.is_ok());
+        let info = result.unwrap();
+        assert_eq!(info.id, "JOB_ID");
+        assert_eq!(info.state, JobState::JobComplete);
+        assert_eq!(info.number_records_processed, Some(1));
     }
 
     #[tokio::test]
@@ -376,6 +394,7 @@ mod tests {
                 "createdDate": "2024-01-01T00:00:00.000Z",
                 "createdById": "005xx0000000001AAA"
             })))
+            .expect(1)
             .mount(&mock_server)
             .await;
 
@@ -384,6 +403,7 @@ mod tests {
             .and(path("/services/data/v60.0/jobs/ingest/JOB_ID/batches"))
             .and(body_string("id,name\n001,Test1\n"))
             .respond_with(ResponseTemplate::new(201))
+            .expect(1)
             .mount(&mock_server)
             .await;
 
@@ -392,6 +412,7 @@ mod tests {
             .and(path("/services/data/v60.0/jobs/ingest/JOB_ID/batches"))
             .and(body_string("002,Test2\n"))
             .respond_with(ResponseTemplate::new(201))
+            .expect(1)
             .mount(&mock_server)
             .await;
 
@@ -406,6 +427,7 @@ mod tests {
                 "createdDate": "2024-01-01T00:00:00.000Z",
                 "createdById": "005xx0000000001AAA"
             })))
+            .expect(1)
             .mount(&mock_server)
             .await;
 
@@ -420,6 +442,7 @@ mod tests {
                 "createdDate": "2024-01-01T00:00:00.000Z",
                 "createdById": "005xx0000000001AAA"
             })))
+            .expect(1)
             .mount(&mock_server)
             .await;
 
@@ -444,9 +467,6 @@ mod tests {
             .execute_stream(stream)
             .await;
 
-        if let Err(e) = &result {
-            println!("Error: {:?}", e);
-        }
         assert!(result.is_ok());
     }
 
@@ -461,6 +481,7 @@ mod tests {
                 "message": "Bad Request",
                 "errorCode": "INVALID_JOB"
             })))
+            .expect(1)
             .mount(&mock_server)
             .await;
 
@@ -481,7 +502,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_smart_ingest_upload_batch_failure() {
+    async fn test_smart_ingest_upload_batch_failure_triggers_abort() {
         let mock_server = MockServer::start().await;
 
         // Mock: Create Job (Success)
@@ -495,6 +516,7 @@ mod tests {
                 "createdDate": "2024-01-01T00:00:00.000Z",
                 "createdById": "005xx0000000001AAA"
             })))
+            .expect(1)
             .mount(&mock_server)
             .await;
 
@@ -502,6 +524,19 @@ mod tests {
         Mock::given(method("PUT"))
             .and(path("/services/data/v60.0/jobs/ingest/JOB_ID/batches"))
             .respond_with(ResponseTemplate::new(500))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        // Mock: Abort Job (Critical Check)
+        Mock::given(method("PATCH"))
+            .and(path("/services/data/v60.0/jobs/ingest/JOB_ID"))
+            .and(body_string(r#"{"state":"Aborted"}"#))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "id": "JOB_ID",
+                "state": "Aborted"
+            })))
+            .expect(1)
             .mount(&mock_server)
             .await;
 
@@ -536,6 +571,7 @@ mod tests {
                 "createdDate": "2024-01-01T00:00:00.000Z",
                 "createdById": "005xx0000000001AAA"
             })))
+            .expect(1)
             .mount(&mock_server)
             .await;
 
@@ -543,6 +579,7 @@ mod tests {
         Mock::given(method("PUT"))
             .and(path("/services/data/v60.0/jobs/ingest/JOB_ID/batches"))
             .respond_with(ResponseTemplate::new(201))
+            .expect(1)
             .mount(&mock_server)
             .await;
 
@@ -550,6 +587,7 @@ mod tests {
         Mock::given(method("PATCH"))
             .and(path("/services/data/v60.0/jobs/ingest/JOB_ID"))
             .respond_with(ResponseTemplate::new(500))
+            .expect(1)
             .mount(&mock_server)
             .await;
 
@@ -584,6 +622,7 @@ mod tests {
                 "createdDate": "2024-01-01T00:00:00.000Z",
                 "createdById": "005xx0000000001AAA"
             })))
+            .expect(1)
             .mount(&mock_server)
             .await;
 
@@ -591,6 +630,7 @@ mod tests {
         Mock::given(method("PUT"))
             .and(path("/services/data/v60.0/jobs/ingest/JOB_ID/batches"))
             .respond_with(ResponseTemplate::new(201))
+            .expect(1)
             .mount(&mock_server)
             .await;
 
@@ -605,6 +645,7 @@ mod tests {
                 "createdDate": "2024-01-01T00:00:00.000Z",
                 "createdById": "005xx0000000001AAA"
             })))
+            .expect(1)
             .mount(&mock_server)
             .await;
 
@@ -620,6 +661,7 @@ mod tests {
                 "createdDate": "2024-01-01T00:00:00.000Z",
                 "createdById": "005xx0000000001AAA"
             })))
+            .expect(1)
             .mount(&mock_server)
             .await;
 
@@ -656,6 +698,7 @@ mod tests {
                 "createdDate": "2024-01-01T00:00:00.000Z",
                 "createdById": "005xx0000000001AAA"
             })))
+            .expect(1)
             .mount(&mock_server)
             .await;
 
@@ -663,6 +706,7 @@ mod tests {
         Mock::given(method("PUT"))
             .and(path("/services/data/v60.0/jobs/ingest/JOB_ID/batches"))
             .respond_with(ResponseTemplate::new(201))
+            .expect(1)
             .mount(&mock_server)
             .await;
 
@@ -677,6 +721,7 @@ mod tests {
                 "createdDate": "2024-01-01T00:00:00.000Z",
                 "createdById": "005xx0000000001AAA"
             })))
+            .expect(1)
             .mount(&mock_server)
             .await;
 
@@ -691,6 +736,7 @@ mod tests {
                 "createdDate": "2024-01-01T00:00:00.000Z",
                 "createdById": "005xx0000000001AAA"
             })))
+            .expect(1)
             .mount(&mock_server)
             .await;
 
@@ -710,5 +756,75 @@ mod tests {
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert!(err.to_string().contains("Job was aborted"));
+    }
+
+    #[tokio::test]
+    async fn test_smart_ingest_empty_stream() {
+        let mock_server = MockServer::start().await;
+
+        // Mock: Create Job
+        Mock::given(method("POST"))
+            .and(path("/services/data/v60.0/jobs/ingest"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "id": "JOB_ID",
+                "state": "Open",
+                "operation": "insert",
+                "object": "Account",
+                "createdDate": "2024-01-01T00:00:00.000Z",
+                "createdById": "005xx0000000001AAA"
+            })))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        // Mock: Upload Batch (Should NOT be called for empty stream)
+        Mock::given(method("PUT"))
+            .and(path("/services/data/v60.0/jobs/ingest/JOB_ID/batches"))
+            .respond_with(ResponseTemplate::new(200)) // Needed for type system even if expected 0
+            .expect(0) // Should NOT be called
+            .mount(&mock_server)
+            .await;
+
+        // Mock: Close Job
+        Mock::given(method("PATCH"))
+            .and(path("/services/data/v60.0/jobs/ingest/JOB_ID"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "id": "JOB_ID",
+                "state": "UploadComplete",
+                "operation": "insert",
+                "object": "Account",
+                "createdDate": "2024-01-01T00:00:00.000Z",
+                "createdById": "005xx0000000001AAA"
+            })))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        // Mock: Poll (Complete)
+        Mock::given(method("GET"))
+            .and(path("/services/data/v60.0/jobs/ingest/JOB_ID"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "id": "JOB_ID",
+                "state": "JobComplete",
+                "operation": "insert",
+                "object": "Account",
+                "createdDate": "2024-01-01T00:00:00.000Z",
+                "createdById": "005xx0000000001AAA"
+            })))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let client = create_test_client(mock_server.uri()).await;
+        let handler = client.bulk();
+
+        let records: Vec<TestRecord> = vec![];
+        let stream = futures::stream::iter(records);
+
+        let result = SmartIngest::new(&handler, "Account", JobOperation::Insert)
+            .execute_stream(stream)
+            .await;
+
+        assert!(result.is_ok());
     }
 }
