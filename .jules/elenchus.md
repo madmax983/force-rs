@@ -89,3 +89,16 @@ The most dangerous test is one that passes for the wrong reason.
     *   Added `test_smart_ingest_empty_stream` for edge case coverage.
     *   Strengthened assertions in `test_smart_ingest_single_batch` to verify `JobInfo` content.
 3.  **Result:** Mutation score improved significantly (critical logic now guarded).
+
+### 🟢 Acquitted (Fixed): `crates/force/src/auth/token.rs`
+
+**Module:** `crates::force::auth::token`
+**Severity:** 🟡 Suspect (Fixed)
+**Finding:** Inconsistent expiration logic and undocumented fallback.
+**Evidence:**
+1. `u64::MAX` resulted in a 3600-second expiration (via failure fallback), while `4_000_000_000` resulted in infinite expiration (via explicit cap).
+2. `issued_at` parsing failure silently fell back to `Utc::now()` without test coverage.
+**Resolution:**
+1. Updated `expires_in` logic to treat all values > 3 billion (including `u64::MAX`) as infinite (None).
+2. Added `test_access_token_from_response_invalid_issued_at` to verify/document the fallback behavior.
+3. Added `crates/force/tests/token_audit.rs` as a regression suite for these edge cases.
