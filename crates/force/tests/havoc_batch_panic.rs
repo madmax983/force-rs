@@ -1,11 +1,17 @@
+//! Integration test for robust `BatchBuilder` behavior.
+
 #![cfg(feature = "composite")]
-use force::client::builder;
-use force::auth::{AccessToken, Authenticator, TokenResponse};
-use force::error::Result;
-use force::api::composite::batch::BatchBuilder;
-use async_trait::async_trait;
-use proptest::prelude::*;
+#![allow(clippy::unwrap_used)]
+#![allow(clippy::expect_used)]
+
 use std::sync::OnceLock;
+
+use async_trait::async_trait;
+use force::api::composite::batch::BatchBuilder;
+use force::auth::{AccessToken, Authenticator, TokenResponse};
+use force::client::builder;
+use force::error::Result;
+use proptest::prelude::*;
 use tokio::runtime::Runtime;
 
 // Mock Authenticator
@@ -38,11 +44,7 @@ fn get_runtime() -> &'static Runtime {
 
 async fn create_batch_builder() -> BatchBuilder<MockAuthenticator> {
     let auth = MockAuthenticator;
-    let client = builder()
-        .authenticate(auth)
-        .build()
-        .await
-        .expect("client");
+    let client = builder().authenticate(auth).build().await.expect("client");
     client.composite().batch()
 }
 

@@ -1,12 +1,8 @@
-// Only compile this test when loom is enabled, or just run it with cargo test
-// But loom requires specific flags usually.
-// However, loom exports a `model` function that runs the closure many times.
-
-// We need to import loom.
-// Since we added loom as a dev-dependency, it's available.
+//! Havoc concurrency test for double-checked locking verification.
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)]
     use loom::sync::{Arc, RwLock};
     use loom::thread;
 
@@ -53,10 +49,9 @@ mod tests {
         loom::model(|| {
             let manager = TokenManager::new();
             let m1 = manager.clone();
-            let m2 = manager.clone();
 
             let t1 = thread::spawn(move || m1.get_token());
-            let t2 = thread::spawn(move || m2.get_token());
+            let t2 = thread::spawn(move || manager.get_token());
 
             let r1 = t1.join().unwrap();
             let r2 = t2.join().unwrap();
