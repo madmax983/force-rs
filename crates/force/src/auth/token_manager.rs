@@ -156,6 +156,7 @@ mod tests {
         auth_count: StdArc<AtomicUsize>,
         refresh_count: StdArc<AtomicUsize>,
         should_fail: bool,
+        refresh_delay: Option<std::time::Duration>,
     }
 
     impl MockAuthenticator {
@@ -164,6 +165,7 @@ mod tests {
                 auth_count: StdArc::new(AtomicUsize::new(0)),
                 refresh_count: StdArc::new(AtomicUsize::new(0)),
                 should_fail: false,
+                refresh_delay: None,
             }
         }
 
@@ -172,7 +174,13 @@ mod tests {
                 auth_count: StdArc::new(AtomicUsize::new(0)),
                 refresh_count: StdArc::new(AtomicUsize::new(0)),
                 should_fail: true,
+                refresh_delay: None,
             }
+        }
+
+        fn with_delay(mut self, delay: std::time::Duration) -> Self {
+            self.refresh_delay = Some(delay);
+            self
         }
 
         fn auth_count(&self) -> usize {
@@ -205,6 +213,10 @@ mod tests {
         }
 
         async fn refresh(&self) -> Result<AccessToken> {
+            if let Some(delay) = self.refresh_delay {
+                tokio::time::sleep(delay).await;
+            }
+
             self.refresh_count.fetch_add(1, Ordering::SeqCst);
 
             if self.should_fail {
@@ -377,5 +389,52 @@ mod tests {
         } else {
             panic!("Expected TokenRefreshFailed error");
         }
+    }
+
+    #[tokio::test]
+    async fn test_token_manager_concurrent_refresh_only_one_request() {
+        let auth = MockAuthenticator::new().with_delay(std::time::Duration::from_millis(50));
+        let manager = StdArc::new(TokenManager::new(auth));
+
+        // 1. Initial auth to set a token
+        let _ = manager.token().await.must();
+        assert_eq!(manager.authenticator.auth_count(), 1);
+
+        // 2. Manually expire the token
+        {
+            let mut state = manager.state.write().await;
+            if let Some(token) = &mut state.token {
+                *token = Arc::new(AccessToken::new(
+                    "expired_token".to_string(),
+                    "https://test.salesforce.com".to_string(),
+                    Some(Utc::now() - Duration::hours(1)),
+                ));
+            }
+        }
+
+        // 3. Spawn concurrent tasks requesting token
+        let mut handles = vec![];
+        for _ in 0..50 {
+            let manager_clone = StdArc::clone(&manager);
+            handles.push(tokio::spawn(
+                async move { manager_clone.token().await.must() },
+            ));
+        }
+
+        // 4. Verify results
+        for handle in handles {
+            let token = handle.await.must();
+            // Should get the refreshed token
+            assert_eq!(token.as_str(), "refresh_token_1");
+        }
+
+        // 5. Assert refresh was called EXACTLY once
+        assert_eq!(
+            manager.authenticator.refresh_count(),
+            1,
+            "Should have refreshed exactly once despite concurrent load"
+        );
+        // Auth count should remain 1 (from initial setup)
+        assert_eq!(manager.authenticator.auth_count(), 1);
     }
 }
