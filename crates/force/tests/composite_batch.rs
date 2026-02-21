@@ -91,7 +91,9 @@ async fn test_composite_batch_execution() {
         .composite()
         .batch()
         .get("Account", "001000000000001AAA")
+        .expect("valid get")
         .post("Contact", json!({"LastName": "Doe"}))
+        .expect("valid post")
         .execute()
         .await
         .expect("batch execution failed");
@@ -150,6 +152,7 @@ async fn test_composite_batch_failure_handling() {
         .composite()
         .batch()
         .get("Account", "001000000000000AAA")
+        .expect("valid get")
         .execute()
         .await
         .expect("batch execution failed");

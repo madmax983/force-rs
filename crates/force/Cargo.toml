@@ -38,6 +38,7 @@ csv = { workspace = true, optional = true }
 wiremock = { workspace = true, optional = true }
 
 [dev-dependencies]
+loom = "0.7"
 tokio-test = "0.4"
 anyhow = { workspace = true }
 wiremock = { workspace = true }
