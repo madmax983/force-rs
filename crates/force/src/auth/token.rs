@@ -87,13 +87,14 @@ impl AccessToken {
     pub fn from_response(response: TokenResponse) -> Self {
         let issued_at = parse_issued_at(&response.issued_at).unwrap_or_else(|_| Utc::now());
         let expires_at = response.expires_in.and_then(|seconds| {
-            let seconds = i64::try_from(seconds).unwrap_or(3600);
             // Cap duration to ~100 years (3B seconds) to prevent overflow in Duration::seconds
             // Duration::seconds panics if value > i64::MAX / 1_000_000_000 (~9B seconds)
             if seconds > 3_000_000_000 {
                 return None;
             }
-            let duration = Duration::seconds(seconds);
+            // Safe to cast because we checked <= 3B, which fits in i64 (max ~9e18)
+            #[allow(clippy::cast_possible_wrap)]
+            let duration = Duration::seconds(seconds as i64);
             issued_at.checked_add_signed(duration)
         });
 
@@ -406,14 +407,8 @@ mod tests {
         };
 
         let token = AccessToken::from_response(response);
-        // Should default to 1 hour (3600s) because u64::MAX conversion to i64 fails
-        // Wait, i64::try_from(u64::MAX) fails, unwrap_or(3600) makes it 3600.
-        // Let's verify that.
-        assert!(token.expires_at.is_some());
-        let expires_at = token.expires_at.must();
-        let issued_at = token.issued_at;
-        let duration = expires_at - issued_at;
-        assert_eq!(duration.num_seconds(), 3600);
+        // Should be None (infinite validity) because u64::MAX > 3B cap
+        assert!(token.expires_at.is_none());
     }
 
     #[test]
@@ -462,5 +457,27 @@ mod tests {
 
         // This fails if precision is lost (it becomes 0)
         assert_eq!(result.timestamp_subsec_millis(), 500);
+    }
+
+    #[test]
+    fn test_access_token_from_response_invalid_issued_at() {
+        let response = TokenResponse {
+            access_token: "test_token".to_string(),
+            instance_url: "https://example.salesforce.com".to_string(),
+            token_type: "Bearer".to_string(),
+            issued_at: "garbage".to_string(),
+            signature: String::new(),
+            expires_in: Some(3600),
+            refresh_token: None,
+        };
+
+        let token = AccessToken::from_response(response);
+        // Verify fallback to approximately now
+        let now = Utc::now();
+        let diff = (now - token.issued_at).num_seconds().abs();
+        assert!(
+            diff < 5,
+            "Should fallback to current time when issued_at is invalid"
+        );
     }
 }
