@@ -5,6 +5,7 @@
 //! type (GET, POST, PATCH, DELETE).
 
 use super::CompositeHandler;
+use crate::api::rest::SoqlQueryBuilder;
 use crate::auth::Authenticator;
 use crate::error::{ForceError, Result};
 use crate::types::{SalesforceId, validator};
@@ -127,6 +128,11 @@ impl<A: Authenticator> BatchBuilder<A> {
     /// Use this for requests that don't fit the standard CRUD patterns,
     /// such as queries or parameterized searches.
     ///
+    /// # Warning
+    ///
+    /// The `url` parameter must be properly URL-encoded, especially for query parameters.
+    /// For SOQL queries, use [`query`](Self::query) instead, which handles encoding safely.
+    ///
     /// # Arguments
     ///
     /// * `method` - HTTP method (GET, POST, etc.)
@@ -138,6 +144,44 @@ impl<A: Authenticator> BatchBuilder<A> {
             method: method.to_string(),
             url: url.to_string(),
             rich_input: body,
+        });
+        self
+    }
+
+    /// Adds a SOQL query request to the batch.
+    ///
+    /// This method automatically URL-encodes the query string to prevent injection vulnerabilities
+    /// and ensures valid URL formatting.
+    ///
+    /// # Arguments
+    ///
+    /// * `query_builder` - The SOQL query builder
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// let query = SoqlQueryBuilder::new()
+    ///     .select(&["Id", "Name"])
+    ///     .from("Account")
+    ///     .where_eq("Name", "Acme Corp");
+    ///
+    /// let batch = client.composite().batch()
+    ///     .query(query)
+    ///     .execute()
+    ///     .await?;
+    /// ```
+    #[must_use]
+    pub fn query(mut self, query_builder: SoqlQueryBuilder) -> Self {
+        let query_string = query_builder.build();
+        // Use form_urlencoded for correct query param encoding
+        let encoded: String = url::form_urlencoded::Serializer::new(String::new())
+            .append_pair("q", &query_string)
+            .finish();
+
+        self.requests.push(BatchSubRequest {
+            method: "GET".to_string(),
+            url: format!("query?{}", encoded),
+            rich_input: None,
         });
         self
     }
@@ -379,5 +423,38 @@ mod tests {
                 "Batch size limit triggered for 25 requests (should allow up to 25)"
             );
         }
+    }
+
+    #[tokio::test]
+    async fn test_batch_query_encoding() {
+        let builder = create_builder().await;
+
+        let query = SoqlQueryBuilder::new()
+            .select(&["Id", "Name"])
+            .from("Account")
+            .where_eq("Name", "Acme & Co.");
+
+        let mut builder = builder.query(query);
+
+        // Check the request
+        let req = builder.requests.pop().expect("No request added");
+        assert_eq!(req.method, "GET");
+
+        // Verify encoding
+        // SoqlQueryBuilder produces: SELECT Id, Name FROM Account WHERE Name = 'Acme & Co.'
+        // Note: SoqlQueryBuilder escapes ' but not & unless needed for SOSL, but for SOQL literals & is fine inside quotes.
+        // Wait, does SoqlQueryBuilder escape &? No.
+
+        let expected_soql = "SELECT Id, Name FROM Account WHERE Name = 'Acme & Co.'";
+        let expected_encoded: String = url::form_urlencoded::Serializer::new(String::new())
+            .append_pair("q", expected_soql)
+            .finish();
+
+        assert_eq!(req.url, format!("query?{}", expected_encoded));
+
+        // Also ensure + is used for space (application/x-www-form-urlencoded default)
+        assert!(req.url.contains("SELECT+Id"));
+        // Ensure & is encoded as %26 inside the value
+        assert!(req.url.contains("%26"));
     }
 }
