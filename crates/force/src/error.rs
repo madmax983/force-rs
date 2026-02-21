@@ -162,11 +162,6 @@ pub enum SerializationError {
     #[error("CSV error: {0}")]
     Csv(#[from] csv::Error),
 
-    /// XML parsing error (feature-gated).
-    #[cfg(feature = "soap")]
-    #[error("XML error: {0}")]
-    Xml(String),
-
     /// Invalid data format.
     #[error("invalid data format: {0}")]
     InvalidFormat(String),
@@ -361,13 +356,6 @@ mod tests {
         // CSV errors require actual CSV parsing to generate, so we test the variant exists
         let err = SerializationError::InvalidFormat("CSV test".to_string());
         assert!(err.to_string().contains("invalid data format"));
-    }
-
-    #[cfg(feature = "soap")]
-    #[test]
-    fn test_xml_error() {
-        let err = SerializationError::Xml("malformed XML".to_string());
-        assert_eq!(err.to_string(), "XML error: malformed XML");
     }
 
     #[test]

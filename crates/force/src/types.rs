@@ -14,7 +14,7 @@ pub use api_version::{ApiVersion, ApiVersionSupportTier};
 pub use common::{ApiError, CreateResponse, DeleteResponse, UpdateResponse, UpsertResponse};
 pub use query::{QueryIterator, QueryLocator, QueryResult};
 pub use salesforce_id::SalesforceId;
-pub use sobject::{Attributes, DynamicSObject, DynamicSObjectBuilder};
+pub use sobject::{Attributes, DynamicSObject};
 
 // Re-exports for backward compatibility (moved to auth)
 pub use crate::auth::{AccessToken, Authenticator, TokenResponse};
