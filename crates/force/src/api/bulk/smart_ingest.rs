@@ -129,19 +129,26 @@ impl<'a, A: crate::auth::Authenticator> SmartIngest<'a, A> {
         let capacity = std::cmp::min(self.batch_size, 10_000);
         let mut buffer = Vec::with_capacity(capacity);
         let mut is_first_batch = true;
+        // Optimization: track the size of the previous batch's CSV data
+        // to pre-allocate the next buffer and reduce reallocations.
+        let mut capacity_hint = 0;
 
         while let Some(record) = stream.next().await {
             buffer.push(record);
 
             if buffer.len() >= self.batch_size {
-                self.upload_batch(job_id, &buffer, is_first_batch).await?;
+                let size = self
+                    .upload_batch(job_id, &buffer, is_first_batch, capacity_hint)
+                    .await?;
+                capacity_hint = size;
                 buffer.clear();
                 is_first_batch = false;
             }
         }
 
         if !buffer.is_empty() {
-            self.upload_batch(job_id, &buffer, is_first_batch).await?;
+            self.upload_batch(job_id, &buffer, is_first_batch, capacity_hint)
+                .await?;
         }
         Ok(())
     }
@@ -194,14 +201,22 @@ impl<'a, A: crate::auth::Authenticator> SmartIngest<'a, A> {
         }
     }
 
-    async fn upload_batch<T>(&self, job_id: &str, records: &[T], is_first_batch: bool) -> Result<()>
+    async fn upload_batch<T>(
+        &self,
+        job_id: &str,
+        records: &[T],
+        is_first_batch: bool,
+        capacity_hint: usize,
+    ) -> Result<usize>
     where
         T: Serialize + Sync,
     {
         // Serialize to CSV
-        let mut csv_data = Vec::new();
+        // Use capacity hint to reduce reallocations
+        let mut csv_data = Vec::with_capacity(capacity_hint);
         // Use the new helper with options
         csv::serialize_to_csv_with_options(records, &mut csv_data, is_first_batch)?;
+        let size = csv_data.len();
 
         // Upload
         let base_url = self.handler.base_url().await?;
@@ -231,7 +246,7 @@ impl<'a, A: crate::auth::Authenticator> SmartIngest<'a, A> {
             );
         }
 
-        Ok(())
+        Ok(size)
     }
 }
 
