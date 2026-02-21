@@ -57,4 +57,18 @@ impl<A: Authenticator> CompositeHandler<A> {
     pub(crate) fn api_version(&self) -> &str {
         &self.inner.config.api_version
     }
+
+    /// Constructs the base URL for Composite API operations.
+    ///
+    /// The base URL is constructed as: `{instance_url}/services/data/{api_version}`
+    ///
+    /// This method requires token access to get the instance URL from authentication.
+    pub async fn base_url(&self) -> crate::error::Result<String> {
+        let token = self.inner.token_manager.get_token_arc().await?;
+        Ok(format!(
+            "{}/services/data/{}",
+            token.instance_url(),
+            self.api_version()
+        ))
+    }
 }
