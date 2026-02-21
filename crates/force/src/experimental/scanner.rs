@@ -6,7 +6,7 @@
 use crate::api::rest::describe::FieldType;
 use crate::client::ForceClient;
 use crate::error::Result;
-use crate::types::authenticator::Authenticator;
+use crate::types::Authenticator;
 use serde::Deserialize;
 use serde_json::Value;
 

@@ -72,3 +72,20 @@ The most dangerous test is one that passes for the wrong reason.
 2.  Added check for empty batch in `execute`.
 3.  Added comprehensive unit tests covering validation failures, empty batch, and batch size limits (including boundary 25/26).
 4.  Updated `tests/composite_batch.rs` to use syntactically valid Salesforce IDs, fixing the "Alibi Test" pattern.
+
+### 🟢 Acquitted (Fixed): `crates/force/src/api/bulk/smart_ingest.rs`
+
+**Module:** `crates::force::api::bulk::smart_ingest`
+**Severity:** 🔴 Critical (Fixed)
+**Finding:** "Dangling Job" bug and Ceremonial Tests.
+**Evidence:**
+1.  **Bug:** `execute_stream` returned early on upload failure, leaving the job in `Open` state on Salesforce. Confirmed by `test_smart_ingest_aborts_job_on_upload_failure` failure.
+2.  **Weak Tests:** Initial mutation score was 0% (18/18 missed). Tests lacked `.expect(1)` on mocks, allowing them to pass even if logic was removed ("The Ceremony Test").
+**Resolution:**
+1.  **Fixed Bug:** Updated `execute_stream` to catch errors and explicitly call `abort` on the job.
+2.  **Strengthened Tests:**
+    *   Added `.expect(1)` (or explicit counts) to all mocks to ensure interactions occur.
+    *   Added `test_smart_ingest_aborts_job_on_upload_failure` to verify the fix.
+    *   Added `test_smart_ingest_empty_stream` for edge case coverage.
+    *   Strengthened assertions in `test_smart_ingest_single_batch` to verify `JobInfo` content.
+3.  **Result:** Mutation score improved significantly (critical logic now guarded).
