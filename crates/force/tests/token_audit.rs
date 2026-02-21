@@ -1,7 +1,7 @@
 //! Audit tests for token expiration logic.
 
+use chrono::{Duration, Utc};
 use force::auth::{AccessToken, TokenResponse};
-use chrono::{Utc, Duration};
 
 #[test]
 fn test_expires_in_inconsistency_repro() {
@@ -18,7 +18,10 @@ fn test_expires_in_inconsistency_repro() {
     let token_overflow = AccessToken::from_response(response_overflow);
 
     // Assert FIXED behavior: overflow returns None (infinite), consistent with large values
-    assert!(token_overflow.expires_at().is_none(), "u64::MAX should result in infinite validity");
+    assert!(
+        token_overflow.expires_at().is_none(),
+        "u64::MAX should result in infinite validity"
+    );
 
     // Case B: 4 Billion (via cap logic) -> Infinite (None)
     let response_large = TokenResponse {
@@ -33,7 +36,10 @@ fn test_expires_in_inconsistency_repro() {
     let token_large = AccessToken::from_response(response_large);
 
     // Assert consistent behavior: explicit large value returns None (infinite)
-    assert!(token_large.expires_at().is_none(), "4B should result in infinite validity");
+    assert!(
+        token_large.expires_at().is_none(),
+        "4B should result in infinite validity"
+    );
 }
 
 #[test]

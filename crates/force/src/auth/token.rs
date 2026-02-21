@@ -475,6 +475,9 @@ mod tests {
         // Verify fallback to approximately now
         let now = Utc::now();
         let diff = (now - token.issued_at).num_seconds().abs();
-        assert!(diff < 5, "Should fallback to current time when issued_at is invalid");
+        assert!(
+            diff < 5,
+            "Should fallback to current time when issued_at is invalid"
+        );
     }
 }
