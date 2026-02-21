@@ -11,6 +11,20 @@ use crate::types::{SalesforceId, validator};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+/// Helper to validate SObject names.
+fn validate_sobject_name_or_panic(sobject: &str) {
+    if let Err(e) = validator::validate_sobject_name(sobject) {
+        panic!("{}", e);
+    }
+}
+
+/// Helper to validate Salesforce IDs.
+fn validate_id_or_panic(id: &str) {
+    if let Err(e) = SalesforceId::new(id) {
+        panic!("Salesforce ID contains invalid characters: {}", e);
+    }
+}
+
 /// Builder for constructing a Composite Batch request.
 ///
 /// Use this builder to add up to 25 subrequests and execute them atomically.
@@ -51,19 +65,10 @@ impl<A: Authenticator> BatchBuilder<A> {
     ///
     /// Panics if the `sobject` name or `id` contains invalid characters.
     #[must_use]
-    pub fn get(mut self, sobject: &str, id: &str) -> Self {
-        if let Err(e) = validator::validate_sobject_name(sobject) {
-            panic!("{}", e);
-        }
-        if let Err(e) = SalesforceId::new(id) {
-            panic!("Salesforce ID contains invalid characters: {}", e);
-        }
-        self.requests.push(BatchSubRequest {
-            method: "GET".to_string(),
-            url: format!("sobjects/{}/{}", sobject, id),
-            rich_input: None,
-        });
-        self
+    pub fn get(self, sobject: &str, id: &str) -> Self {
+        validate_sobject_name_or_panic(sobject);
+        validate_id_or_panic(id);
+        self.add_request("GET", &format!("sobjects/{}/{}", sobject, id), None)
     }
 
     /// Adds a POST (Create) request to the batch.
@@ -77,16 +82,9 @@ impl<A: Authenticator> BatchBuilder<A> {
     ///
     /// Panics if the `sobject` name contains invalid characters.
     #[must_use]
-    pub fn post(mut self, sobject: &str, body: Value) -> Self {
-        if let Err(e) = validator::validate_sobject_name(sobject) {
-            panic!("{}", e);
-        }
-        self.requests.push(BatchSubRequest {
-            method: "POST".to_string(),
-            url: format!("sobjects/{}", sobject),
-            rich_input: Some(body),
-        });
-        self
+    pub fn post(self, sobject: &str, body: Value) -> Self {
+        validate_sobject_name_or_panic(sobject);
+        self.add_request("POST", &format!("sobjects/{}", sobject), Some(body))
     }
 
     /// Adds a PATCH (Update) request to the batch.
@@ -101,19 +99,10 @@ impl<A: Authenticator> BatchBuilder<A> {
     ///
     /// Panics if the `sobject` name or `id` contains invalid characters.
     #[must_use]
-    pub fn patch(mut self, sobject: &str, id: &str, body: Value) -> Self {
-        if let Err(e) = validator::validate_sobject_name(sobject) {
-            panic!("{}", e);
-        }
-        if let Err(e) = SalesforceId::new(id) {
-            panic!("Salesforce ID contains invalid characters: {}", e);
-        }
-        self.requests.push(BatchSubRequest {
-            method: "PATCH".to_string(),
-            url: format!("sobjects/{}/{}", sobject, id),
-            rich_input: Some(body),
-        });
-        self
+    pub fn patch(self, sobject: &str, id: &str, body: Value) -> Self {
+        validate_sobject_name_or_panic(sobject);
+        validate_id_or_panic(id);
+        self.add_request("PATCH", &format!("sobjects/{}/{}", sobject, id), Some(body))
     }
 
     /// Adds a DELETE request to the batch.
@@ -127,19 +116,10 @@ impl<A: Authenticator> BatchBuilder<A> {
     ///
     /// Panics if the `sobject` name or `id` contains invalid characters.
     #[must_use]
-    pub fn delete(mut self, sobject: &str, id: &str) -> Self {
-        if let Err(e) = validator::validate_sobject_name(sobject) {
-            panic!("{}", e);
-        }
-        if let Err(e) = SalesforceId::new(id) {
-            panic!("Salesforce ID contains invalid characters: {}", e);
-        }
-        self.requests.push(BatchSubRequest {
-            method: "DELETE".to_string(),
-            url: format!("sobjects/{}/{}", sobject, id),
-            rich_input: None,
-        });
-        self
+    pub fn delete(self, sobject: &str, id: &str) -> Self {
+        validate_sobject_name_or_panic(sobject);
+        validate_id_or_panic(id);
+        self.add_request("DELETE", &format!("sobjects/{}/{}", sobject, id), None)
     }
 
     /// Adds a custom subrequest to the batch.
@@ -189,18 +169,10 @@ impl<A: Authenticator> BatchBuilder<A> {
             ));
         }
 
-        let api_version = self.handler.api_version();
         // Construct the composite batch URL
         // It must be absolute for the HTTP client
-        // We use the same pattern as RestHandler: resolve_url
-
-        // We need access to inner client to get token and instance URL
-        let token = self.handler.inner.token_manager.get_token_arc().await?;
-        let url = format!(
-            "{}/services/data/{}/composite/batch",
-            token.instance_url(),
-            api_version
-        );
+        let base_url = self.handler.base_url().await?;
+        let url = format!("{}/composite/batch", base_url);
 
         let request_body = BatchRequest {
             batch_requests: self.requests,
