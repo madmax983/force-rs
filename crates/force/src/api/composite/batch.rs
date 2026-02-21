@@ -12,18 +12,12 @@ use crate::types::{SalesforceId, validator};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-/// Helper to validate SObject names.
-fn validate_sobject_name_or_panic(sobject: &str) {
-    if let Err(e) = validator::validate_sobject_name(sobject) {
-        panic!("{}", e);
-    }
-}
-
 /// Helper to validate Salesforce IDs.
-fn validate_id_or_panic(id: &str) {
-    if let Err(e) = SalesforceId::new(id) {
-        panic!("Salesforce ID contains invalid characters: {}", e);
-    }
+fn validate_id(id: &str) -> Result<()> {
+    SalesforceId::new(id).map_err(|e| {
+        ForceError::InvalidInput(format!("Salesforce ID contains invalid characters: {}", e))
+    })?;
+    Ok(())
 }
 
 /// Builder for constructing a Composite Batch request.
@@ -62,14 +56,13 @@ impl<A: Authenticator> BatchBuilder<A> {
     /// * `sobject` - The SObject type (e.g., "Account")
     /// * `id` - The record ID
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics if the `sobject` name or `id` contains invalid characters.
-    #[must_use]
-    pub fn get(self, sobject: &str, id: &str) -> Self {
-        validate_sobject_name_or_panic(sobject);
-        validate_id_or_panic(id);
-        self.add_request("GET", &format!("sobjects/{}/{}", sobject, id), None)
+    /// Returns an error if the `sobject` name or `id` contains invalid characters.
+    pub fn get(self, sobject: &str, id: &str) -> Result<Self> {
+        validator::validate_sobject_name(sobject)?;
+        validate_id(id)?;
+        Ok(self.add_request("GET", &format!("sobjects/{}/{}", sobject, id), None))
     }
 
     /// Adds a POST (Create) request to the batch.
@@ -79,13 +72,12 @@ impl<A: Authenticator> BatchBuilder<A> {
     /// * `sobject` - The SObject type (e.g., "Account")
     /// * `body` - The JSON body of the record
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics if the `sobject` name contains invalid characters.
-    #[must_use]
-    pub fn post(self, sobject: &str, body: Value) -> Self {
-        validate_sobject_name_or_panic(sobject);
-        self.add_request("POST", &format!("sobjects/{}", sobject), Some(body))
+    /// Returns an error if the `sobject` name contains invalid characters.
+    pub fn post(self, sobject: &str, body: Value) -> Result<Self> {
+        validator::validate_sobject_name(sobject)?;
+        Ok(self.add_request("POST", &format!("sobjects/{}", sobject), Some(body)))
     }
 
     /// Adds a PATCH (Update) request to the batch.
@@ -96,14 +88,13 @@ impl<A: Authenticator> BatchBuilder<A> {
     /// * `id` - The record ID
     /// * `body` - The JSON body with fields to update
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics if the `sobject` name or `id` contains invalid characters.
-    #[must_use]
-    pub fn patch(self, sobject: &str, id: &str, body: Value) -> Self {
-        validate_sobject_name_or_panic(sobject);
-        validate_id_or_panic(id);
-        self.add_request("PATCH", &format!("sobjects/{}/{}", sobject, id), Some(body))
+    /// Returns an error if the `sobject` name or `id` contains invalid characters.
+    pub fn patch(self, sobject: &str, id: &str, body: Value) -> Result<Self> {
+        validator::validate_sobject_name(sobject)?;
+        validate_id(id)?;
+        Ok(self.add_request("PATCH", &format!("sobjects/{}/{}", sobject, id), Some(body)))
     }
 
     /// Adds a DELETE request to the batch.
@@ -113,14 +104,13 @@ impl<A: Authenticator> BatchBuilder<A> {
     /// * `sobject` - The SObject type (e.g., "Account")
     /// * `id` - The record ID
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics if the `sobject` name or `id` contains invalid characters.
-    #[must_use]
-    pub fn delete(self, sobject: &str, id: &str) -> Self {
-        validate_sobject_name_or_panic(sobject);
-        validate_id_or_panic(id);
-        self.add_request("DELETE", &format!("sobjects/{}/{}", sobject, id), None)
+    /// Returns an error if the `sobject` name or `id` contains invalid characters.
+    pub fn delete(self, sobject: &str, id: &str) -> Result<Self> {
+        validator::validate_sobject_name(sobject)?;
+        validate_id(id)?;
+        Ok(self.add_request("DELETE", &format!("sobjects/{}/{}", sobject, id), None))
     }
 
     /// Adds a custom subrequest to the batch.
@@ -351,24 +341,42 @@ mod tests {
     }
 
     #[tokio::test]
-    #[should_panic(expected = "SObject name contains invalid characters")]
     async fn test_batch_validation_sobject_invalid() {
         let builder = create_builder().await;
-        let _ = builder.get("Invalid;Name", "001000000000000");
+        let result = builder.get("Invalid;Name", "001000000000000");
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("SObject name contains invalid characters")
+        );
     }
 
     #[tokio::test]
-    #[should_panic(expected = "SObject name cannot be empty")]
     async fn test_batch_validation_sobject_empty() {
         let builder = create_builder().await;
-        let _ = builder.get("", "001000000000000");
+        let result = builder.get("", "001000000000000");
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("SObject name cannot be empty")
+        );
     }
 
     #[tokio::test]
-    #[should_panic(expected = "Salesforce ID contains invalid characters")]
     async fn test_batch_validation_id_invalid() {
         let builder = create_builder().await;
-        let _ = builder.get("Account", "Invalid;ID");
+        let result = builder.get("Account", "Invalid;ID");
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Salesforce ID contains invalid characters")
+        );
     }
 
     #[tokio::test]
@@ -392,7 +400,9 @@ mod tests {
         // Add 26 requests
         for i in 0..26 {
             // Use different IDs to avoid any potential deduplication (though not expected here)
-            builder = builder.get("Account", &format!("001000000000{:03}AAA", i));
+            builder = builder
+                .get("Account", &format!("001000000000{:03}AAA", i))
+                .unwrap();
         }
 
         let result = builder.execute().await;
@@ -412,7 +422,9 @@ mod tests {
         let mut builder = create_builder().await;
         // Add 25 requests
         for i in 0..25 {
-            builder = builder.get("Account", &format!("001000000000{:03}AAA", i));
+            builder = builder
+                .get("Account", &format!("001000000000{:03}AAA", i))
+                .unwrap();
         }
 
         let result = builder.execute().await;
