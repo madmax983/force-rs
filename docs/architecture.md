@@ -103,3 +103,67 @@ sequenceDiagram
         end
     end
 ```
+
+## C4 Component Diagram: Bulk API & Smart Ingest
+
+The Bulk API module includes a high-level utility `SmartIngest` that orchestrates the complex lifecycle of bulk jobs.
+
+```mermaid
+C4Component
+  title Component Diagram for Bulk API & Smart Ingest
+
+  Container_Boundary(bulk_mod, "Bulk Module") {
+    Component(smart_ingest, "SmartIngest", "High-Level Utility", "Orchestrates streaming upload & polling")
+    Component(bulk_handler, "BulkHandler", "API Facade", "Manages Job Lifecycle (Create, AddBatch, Close)")
+    Component(csv_ser, "CSV Serializer", "csv crate", "Serializes Rust structs to CSV")
+
+    Rel(smart_ingest, csv_ser, "Uses")
+    Rel(smart_ingest, bulk_handler, "Calls")
+  }
+
+  System_Ext(sf_bulk, "Salesforce Bulk API 2.0")
+
+  Rel(bulk_handler, sf_bulk, "HTTP/REST")
+```
+
+## Sequence Diagram: Smart Ingest Lifecycle
+
+The following sequence diagram illustrates the `SmartIngest::execute_stream` workflow, handling chunking, uploading, and polling.
+
+```mermaid
+sequenceDiagram
+    participant App
+    participant SI as SmartIngest
+    participant BH as BulkHandler
+    participant SF as Salesforce API
+
+    App->>SI: execute_stream(records)
+    activate SI
+    SI->>BH: create_job()
+    BH->>SF: POST /jobs/ingest
+    SF-->>BH: Job ID (Open)
+    BH-->>SI: Job ID
+
+    loop Every Batch (10k records)
+        SI->>SI: Buffer & Serialize CSV
+        SI->>BH: upload_batch()
+        BH->>SF: PUT /jobs/ingest/.../batches
+        SF-->>BH: 201 Created
+    end
+
+    SI->>BH: close_job()
+    BH->>SF: PATCH /jobs/ingest/... (UploadComplete)
+    SF-->>BH: 200 OK
+
+    loop Polling
+        SI->>BH: get_job()
+        BH->>SF: GET /jobs/ingest/...
+        SF-->>BH: Job Status
+        alt JobComplete
+            SI-->>App: JobInfo
+        else Failed/Aborted
+            SI-->>App: Error
+        end
+    end
+    deactivate SI
+```
