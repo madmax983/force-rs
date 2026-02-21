@@ -35,10 +35,6 @@ percent-encoding = { workspace = true }
 # Feature-gated dependencies
 jsonwebtoken = { workspace = true, optional = true }
 csv = { workspace = true, optional = true }
-quick-xml = { workspace = true, optional = true }
-tonic = { workspace = true, optional = true }
-prost = { workspace = true, optional = true }
-apache-avro = { workspace = true, optional = true }
 wiremock = { workspace = true, optional = true }
 
 [dev-dependencies]
@@ -55,16 +51,6 @@ default = ["rest"]
 rest = []
 bulk = ["dep:csv"]
 composite = ["rest"]
-tooling = ["rest"]
-metadata = []
-graphql = []
-pub_sub = ["dep:tonic", "dep:prost", "dep:apache-avro"]
-streaming = []
-analytics = ["rest"]
-connect = ["rest"]
-apex_rest = ["rest"]
-ui = ["rest"]
-soap = ["dep:quick-xml"]
 
 # Auth flows
 jwt = ["dep:jsonwebtoken"]
@@ -73,6 +59,5 @@ jwt = ["dep:jsonwebtoken"]
 mock = ["dep:wiremock"]
 
 # Meta features
-full = ["rest", "bulk", "composite", "tooling", "metadata",
-        "graphql", "analytics", "connect", "apex_rest", "ui", "jwt"]
-all = ["full", "pub_sub", "streaming", "soap"]
+full = ["rest", "bulk", "composite", "jwt"]
+all = ["full"]
