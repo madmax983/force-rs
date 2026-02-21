@@ -110,6 +110,22 @@ impl<A: crate::auth::authenticator::Authenticator> ForceClient<A> {
     pub fn composite(&self) -> crate::api::composite::CompositeHandler<A> {
         crate::api::composite::CompositeHandler::new(Arc::clone(&self.inner))
     }
+
+    /// Creates a Tooling API handler for this client.
+    ///
+    /// The Tooling handler provides access to developer tools like Execute Anonymous Apex.
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// let client = builder().authenticate(auth).build().await?;
+    /// let tooling = client.tooling();
+    /// ```
+    #[cfg(feature = "tooling")]
+    #[must_use]
+    pub fn tooling(&self) -> crate::api::tooling::ToolingHandler<A> {
+        crate::api::tooling::ToolingHandler::new(Arc::clone(&self.inner))
+    }
 }
 
 #[cfg(test)]

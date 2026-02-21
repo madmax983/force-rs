@@ -14,3 +14,6 @@ pub mod pub_sub;
 
 #[cfg(feature = "composite")]
 pub mod composite;
+
+#[cfg(feature = "tooling")]
+pub mod tooling;
