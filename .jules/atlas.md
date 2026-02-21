@@ -11,3 +11,11 @@
 **2024-05-24 - [Unified Authentication Module]**
 **Tangle:** Authentication logic (`TokenManager`), types (`AccessToken`), and traits (`Authenticator`) were scattered across `storage`, `types`, and `auth` modules, creating a fragmented domain model and confusing import paths. `storage` was a misnomer for an in-memory token manager.
 **Blueprint:** Consolidated all authentication-related code into `crates/force/src/auth`. Moved `TokenManager`, `AccessToken`, and `Authenticator` to `auth`. Re-exported types from `types` for backward compatibility but deprecated the old locations structure-wise. Removed the `storage` module entirely.
+
+**2024-05-25 - [Decomposed HTTP Module]**
+**Tangle:** The `http` module was a "Blob" containing mixed concerns: execution logic, retry policies, telemetry, and error parsing (over 600 lines).
+**Blueprint:** Refactored `http` into four cohesive submodules: `executor` (HTTP execution), `retry` (policies & backoff), `telemetry` (hooks & events), and `error` (parsing logic). This separates concerns and improves maintainability.
+
+**2024-05-25 - [Removed Zombie Code]**
+**Tangle:** `crates/force/src/api/pub_sub.rs` existed as a placeholder for a removed feature (ADR-011).
+**Blueprint:** Deleted the file and removed the module declaration to keep the codebase clean.
