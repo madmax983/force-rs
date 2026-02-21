@@ -1,4 +1,4 @@
-//! Integration test for SmartIngest multi-batch behavior.
+//! Integration test for `SmartIngest` multi-batch behavior.
 //! Ensures that optimizations to buffer allocation don't break multi-batch uploads.
 
 #[cfg(feature = "bulk")]
@@ -116,7 +116,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-         // Mock: Upload Batch 3
+        // Mock: Upload Batch 3
         Mock::given(method("PUT"))
             .and(path("/services/data/v60.0/jobs/ingest/JOB_ID/batches"))
             .and(body_string("003,Batch3\n"))
@@ -159,9 +159,18 @@ mod tests {
         let handler = client.bulk();
 
         let records = vec![
-            TestRecord { id: "001".to_string(), name: "Batch1".to_string() },
-            TestRecord { id: "002".to_string(), name: "Batch2".to_string() },
-            TestRecord { id: "003".to_string(), name: "Batch3".to_string() },
+            TestRecord {
+                id: "001".to_string(),
+                name: "Batch1".to_string(),
+            },
+            TestRecord {
+                id: "002".to_string(),
+                name: "Batch2".to_string(),
+            },
+            TestRecord {
+                id: "003".to_string(),
+                name: "Batch3".to_string(),
+            },
         ];
         let stream = stream::iter(records);
 
