@@ -430,4 +430,121 @@ mod tests {
         let expected = "SELECT Id, Name, BillingCity FROM Account WHERE Type = 'Customer' AND Industry IN ('Tech', 'Finance') ORDER BY CreatedDate DESC LIMIT 100 OFFSET 50";
         assert_eq!(query, expected);
     }
+
+    #[test]
+    fn test_builder_try_methods_errors() {
+        let builder = SoqlQueryBuilder::new();
+
+        // Invalid field name
+        let result = builder.clone().try_select(&["Valid", "Invalid;DROP"]);
+        assert!(result.is_err());
+        if let Err(ForceError::InvalidInput(msg)) = result {
+            assert!(msg.contains("invalid character"));
+        } else {
+            panic!("Expected ForceError::InvalidInput");
+        }
+
+        // Invalid SObject name
+        let result = builder.try_from("Invalid SObject");
+        assert!(result.is_err());
+        if let Err(ForceError::InvalidInput(msg)) = result {
+            assert!(msg.contains("invalid characters"));
+        } else {
+            panic!("Expected ForceError::InvalidInput");
+        }
+    }
+
+    #[test]
+    fn test_build_errors() {
+        // Missing fields
+        let builder = SoqlQueryBuilder::new().from("Account");
+        let result = builder.try_build();
+        match result {
+            Err(e) => assert_eq!(
+                e.to_string(),
+                "invalid input: Select fields cannot be empty"
+            ),
+            Ok(_) => panic!("Expected error"),
+        }
+
+        // Missing SObject
+        let builder = SoqlQueryBuilder::new().select(&["Id"]);
+        let result = builder.try_build();
+        match result {
+            Err(e) => assert_eq!(
+                e.to_string(),
+                "invalid input: FROM clause (SObject) is required"
+            ),
+            Ok(_) => panic!("Expected error"),
+        }
+    }
+
+    #[test]
+    fn test_where_in_edge_cases() {
+        // Empty list
+        let query = SoqlQueryBuilder::new()
+            .select(&["Id"])
+            .from("Account")
+            .where_in("Name", &[] as &[&str])
+            .build();
+        assert_eq!(query, "SELECT Id FROM Account WHERE Name IN ()");
+
+        // Single item
+        let query = SoqlQueryBuilder::new()
+            .select(&["Id"])
+            .from("Account")
+            .where_in("Name", &["One"])
+            .build();
+        assert_eq!(query, "SELECT Id FROM Account WHERE Name IN ('One')");
+    }
+
+    #[test]
+    fn test_where_like() {
+        let query = SoqlQueryBuilder::new()
+            .select(&["Id"])
+            .from("Account")
+            .where_like("Name", "Acme%")
+            .build();
+        assert_eq!(query, "SELECT Id FROM Account WHERE Name LIKE 'Acme%'");
+
+        // Escaping in LIKE
+        let query = SoqlQueryBuilder::new()
+            .select(&["Id"])
+            .from("Account")
+            .where_like("Name", "O'Reilly%")
+            .build();
+        assert_eq!(
+            query,
+            "SELECT Id FROM Account WHERE Name LIKE 'O\\'Reilly%'"
+        );
+    }
+
+    #[test]
+    fn test_limit_offset_only() {
+        let query = SoqlQueryBuilder::new()
+            .select(&["Id"])
+            .from("Account")
+            .limit(10)
+            .offset(5)
+            .build();
+        assert_eq!(query, "SELECT Id FROM Account LIMIT 10 OFFSET 5");
+    }
+
+    #[test]
+    fn test_order_independence() {
+        // Build in random order
+        let query = SoqlQueryBuilder::new()
+            .limit(10)
+            .where_eq("Name", "Acme")
+            .select(&["Id"])
+            .offset(5)
+            .from("Account")
+            .build();
+
+        // Output should be standard SOQL order: SELECT ... FROM ... WHERE ... LIMIT ... OFFSET
+        assert_eq!(
+            query,
+            "SELECT Id FROM Account WHERE Name = 'Acme' LIMIT 10 OFFSET 5"
+        );
+    }
 }
