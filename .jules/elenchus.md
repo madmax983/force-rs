@@ -80,7 +80,7 @@ The most dangerous test is one that passes for the wrong reason.
 **Finding:** "Dangling Job" bug and Ceremonial Tests.
 **Evidence:**
 1.  **Bug:** `execute_stream` returned early on upload failure, leaving the job in `Open` state on Salesforce. Confirmed by `test_smart_ingest_aborts_job_on_upload_failure` failure.
-2.  **Weak Tests:** Initial mutation score was 0% (18/18 missed). Tests lacked `.expect(1)` on mocks, allowing them to pass even if logic was removed ("The Ceremony Test").
+2.  **Weak Tests:** Initial mutation score was 0% (18/18 missed). Tests lacked `.expect(1)` (or explicit counts) on mocks, allowing them to pass even if logic was removed ("The Ceremony Test").
 **Resolution:**
 1.  **Fixed Bug:** Updated `execute_stream` to catch errors and explicitly call `abort` on the job.
 2.  **Strengthened Tests:**
@@ -102,3 +102,18 @@ The most dangerous test is one that passes for the wrong reason.
 1. Updated `expires_in` logic to treat all values > 3 billion (including `u64::MAX`) as infinite (None).
 2. Added `test_access_token_from_response_invalid_issued_at` to verify/document the fallback behavior.
 3. Added `crates/force/tests/token_audit.rs` as a regression suite for these edge cases.
+
+### 🟢 Acquitted (Fixed): `crates/force/src/api/rest/soql.rs`
+
+**Module:** `crates::force::api::rest::soql`
+**Severity:** 🟢 Acquitted (Fixed)
+**Finding:** Tests for error conditions and edge cases were missing.
+**Evidence:**
+1. `try_select` and `try_from` error paths were not tested.
+2. `try_build` failure conditions (missing fields/sobject) were not tested.
+3. `where_in` with empty list behavior was implicit.
+4. `where_like` escaping was not explicitly verified.
+**Resolution:**
+1. Added `test_builder_try_methods_errors` and `test_build_errors` to verify validation logic.
+2. Added `test_where_in_edge_cases` and `test_where_like` to verify correct query generation and escaping.
+3. Added `test_limit_offset_only` and `test_order_independence` to ensure robust builder behavior.
