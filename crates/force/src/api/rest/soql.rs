@@ -445,7 +445,7 @@ mod tests {
         }
 
         // Invalid SObject name
-        let result = builder.clone().try_from("Invalid SObject");
+        let result = builder.try_from("Invalid SObject");
         assert!(result.is_err());
         if let Err(ForceError::InvalidInput(msg)) = result {
             assert!(msg.contains("invalid characters"));
@@ -459,20 +459,24 @@ mod tests {
         // Missing fields
         let builder = SoqlQueryBuilder::new().from("Account");
         let result = builder.try_build();
-        assert!(result.is_err());
-        assert_eq!(
-            result.unwrap_err().to_string(),
-            "invalid input: Select fields cannot be empty"
-        );
+        match result {
+            Err(e) => assert_eq!(
+                e.to_string(),
+                "invalid input: Select fields cannot be empty"
+            ),
+            Ok(_) => panic!("Expected error"),
+        }
 
         // Missing SObject
         let builder = SoqlQueryBuilder::new().select(&["Id"]);
         let result = builder.try_build();
-        assert!(result.is_err());
-        assert_eq!(
-            result.unwrap_err().to_string(),
-            "invalid input: FROM clause (SObject) is required"
-        );
+        match result {
+            Err(e) => assert_eq!(
+                e.to_string(),
+                "invalid input: FROM clause (SObject) is required"
+            ),
+            Ok(_) => panic!("Expected error"),
+        }
     }
 
     #[test]
@@ -509,7 +513,10 @@ mod tests {
             .from("Account")
             .where_like("Name", "O'Reilly%")
             .build();
-        assert_eq!(query, "SELECT Id FROM Account WHERE Name LIKE 'O\\'Reilly%'");
+        assert_eq!(
+            query,
+            "SELECT Id FROM Account WHERE Name LIKE 'O\\'Reilly%'"
+        );
     }
 
     #[test]
