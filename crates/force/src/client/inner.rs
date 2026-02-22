@@ -4,8 +4,8 @@
 //! It is extracted to a leaf module to avoid circular dependencies between the main
 //! `ForceClient` and API handlers.
 
-use crate::auth::token_manager::TokenManager;
 use crate::config::ClientConfig;
+use crate::storage::TokenManager;
 use crate::http::HttpExecutor;
 use crate::http::RequestRetryClass;
 use serde::de::DeserializeOwned;

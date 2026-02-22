@@ -1,8 +1,8 @@
 //! Builder for `ForceClient` with type-state pattern for authentication safety.
 
 use crate::auth::authenticator::Authenticator;
-use crate::auth::token_manager::TokenManager;
 use crate::client::ForceClient;
+use crate::storage::TokenManager;
 use crate::config::ClientConfig;
 use crate::error::Result;
 use std::marker::PhantomData;

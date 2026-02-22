@@ -17,11 +17,9 @@ pub mod client_credentials;
 #[cfg(feature = "jwt")]
 pub mod jwt_bearer;
 pub mod token;
-pub mod token_manager;
 
 pub use authenticator::Authenticator;
 pub use client_credentials::ClientCredentials;
 #[cfg(feature = "jwt")]
 pub use jwt_bearer::JwtBearerFlow;
 pub use token::{AccessToken, TokenResponse};
-pub use token_manager::TokenManager;
