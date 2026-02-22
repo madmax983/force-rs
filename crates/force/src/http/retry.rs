@@ -219,4 +219,12 @@ mod tests {
         );
         assert_eq!(RequestRetryClass::Mutation.as_str(), "mutation");
     }
+
+    #[test]
+    fn test_exponential_backoff_max_attempts() {
+        let base = Duration::from_millis(500);
+        let duration = exponential_backoff(u32::MAX, base);
+        // Should be capped at 30 seconds
+        assert_eq!(duration.as_millis(), 30_000);
+    }
 }

@@ -85,6 +85,12 @@ impl<'a, A: crate::auth::Authenticator> SmartIngest<'a, A> {
         S: Stream<Item = T> + Unpin + Send,
         T: Serialize + Send + Sync,
     {
+        if self.batch_size == 0 {
+            return Err(crate::error::ForceError::InvalidInput(
+                "Batch size must be greater than 0".to_string(),
+            ));
+        }
+
         // 1. Create Job
         let job_id = self.create_job_internal().await?;
 

@@ -15,3 +15,7 @@
 ## [Timestamp Precision Loss]
 **Learning:** `parse_issued_at` used integer division by 1000 to convert milliseconds to seconds, discarding sub-second precision. This could lead to incorrect token expiration calculations (off by up to 1 second).
 **Action:** Use `DateTime::from_timestamp_millis` or similar high-precision constructors when parsing timestamps to preserve fidelity.
+
+## [Silent Data Loss on Zero Batch Size]
+**Learning:** Functions that batch data (like `process_csv_batches`) must explicitly reject `batch_size: 0`. The iterator logic `0..0` creates an empty range, leading to immediate termination (`None`) which was interpreted as "successful completion" rather than "invalid configuration". This caused silent data loss where records were simply ignored.
+**Action:** Always validate configuration parameters like `batch_size`, `concurrency`, etc., against 0 if 0 is not a valid state (like "infinite"). Use `NonZeroUsize` where applicable or explicit checks.
