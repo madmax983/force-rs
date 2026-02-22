@@ -4,10 +4,9 @@
 mod integration_tests {
     use crate::auth::{AccessToken, TokenResponse};
     use crate::error::ForceError;
-    use crate::http::{HttpExecutor, RequestCompletion, RetryEvent, RetryPolicy, TelemetryHooks};
+    use crate::http::{HttpExecutor, RetryPolicy};
     use crate::test_support::Must;
     use std::sync::Arc;
-    use std::sync::Mutex;
     use std::sync::atomic::{AtomicU32, Ordering};
     use wiremock::matchers::{header, method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -35,6 +34,7 @@ mod integration_tests {
         };
         AccessToken::from_response(response)
     }
+
     #[tokio::test]
     async fn test_successful_request_with_bearer_token() {
         // Arrange
@@ -352,68 +352,6 @@ mod integration_tests {
             .await;
 
         assert!(result.is_ok());
-    }
-
-    #[tokio::test]
-    async fn test_telemetry_hooks_capture_retry_and_completion() {
-        let mock_server = MockServer::start().await;
-        let token = create_test_token();
-        let retries = Arc::new(AtomicU32::new(0));
-        let completions: Arc<Mutex<Vec<RequestCompletion>>> = Arc::new(Mutex::new(Vec::new()));
-        let retries_clone = Arc::clone(&retries);
-        let completions_clone = Arc::clone(&completions);
-
-        let hooks = TelemetryHooks::new()
-            .on_retry(move |event: &RetryEvent| {
-                assert_eq!(event.method, "GET");
-                assert_eq!(event.path, "/test");
-                // Verify request class is correctly identified
-                assert_eq!(event.request_class, "read");
-                retries_clone.fetch_add(1, Ordering::SeqCst);
-            })
-            .on_complete(move |completion| {
-                if let Ok(mut guard) = completions_clone.lock() {
-                    guard.push(completion.clone());
-                } else {
-                    panic!("completion lock poisoned");
-                }
-            });
-
-        let executor = HttpExecutor::with_config(2, std::time::Duration::from_secs(30))
-            .with_telemetry_hooks(hooks);
-
-        Mock::given(method("GET"))
-            .and(path("/test"))
-            .respond_with(ResponseTemplate::new(503))
-            .up_to_n_times(1)
-            .mount(&mock_server)
-            .await;
-
-        Mock::given(method("GET"))
-            .and(path("/test"))
-            .respond_with(ResponseTemplate::new(200))
-            .mount(&mock_server)
-            .await;
-
-        let url = format!("{}/test?secret=redacted", mock_server.uri());
-        let request = reqwest::Client::new().get(&url).build().must();
-
-        let result = executor
-            .execute(request, &token, || async {
-                panic!("Should not refresh on 503")
-            })
-            .await;
-
-        assert!(result.is_ok());
-        assert_eq!(retries.load(Ordering::SeqCst), 1);
-        let Ok(completions) = completions.lock() else {
-            panic!("completion lock poisoned");
-        };
-        assert_eq!(completions.len(), 1);
-        assert_eq!(completions[0].path, "/test");
-        assert_eq!(completions[0].request_class, "read");
-        assert_eq!(completions[0].status_code, Some(200));
-        assert_eq!(completions[0].retries, 1);
     }
 
     #[tokio::test]

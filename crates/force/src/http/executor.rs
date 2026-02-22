@@ -4,12 +4,11 @@ use super::error::parse_api_error;
 use super::retry::{
     RequestRetryClass, RetryPolicy, classify_request, exponential_backoff, parse_retry_after,
 };
-use super::telemetry::{RequestErrorKind, TelemetryContext, TelemetryHooks};
 use crate::auth::AccessToken;
 use crate::error::{HttpError, Result};
 use reqwest::{Request, Response, StatusCode};
 use serde::de::DeserializeOwned;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 const BASE_BACKOFF_MS: u64 = 500;
 
@@ -27,8 +26,6 @@ pub struct HttpExecutor {
     timeout: Duration,
     /// Base backoff duration (default 500ms).
     base_backoff: Duration,
-    /// Optional telemetry hooks.
-    telemetry_hooks: TelemetryHooks,
 }
 
 impl HttpExecutor {
@@ -40,7 +37,6 @@ impl HttpExecutor {
             retry_policy: RetryPolicy::new(3, 0),
             timeout: Duration::from_secs(30),
             base_backoff: Duration::from_millis(BASE_BACKOFF_MS),
-            telemetry_hooks: TelemetryHooks::new(),
         }
     }
 
@@ -52,7 +48,6 @@ impl HttpExecutor {
             retry_policy: RetryPolicy::new(max_retries, 0),
             timeout,
             base_backoff: Duration::from_millis(BASE_BACKOFF_MS),
-            telemetry_hooks: TelemetryHooks::new(),
         }
     }
 
@@ -64,7 +59,6 @@ impl HttpExecutor {
             retry_policy: RetryPolicy::new(max_retries, 0),
             timeout,
             base_backoff: Duration::from_millis(BASE_BACKOFF_MS),
-            telemetry_hooks: TelemetryHooks::new(),
         }
     }
 
@@ -76,7 +70,6 @@ impl HttpExecutor {
             retry_policy,
             timeout,
             base_backoff: Duration::from_millis(BASE_BACKOFF_MS),
-            telemetry_hooks: TelemetryHooks::new(),
         }
     }
 
@@ -84,13 +77,6 @@ impl HttpExecutor {
     #[must_use]
     pub fn with_base_backoff(mut self, base_backoff: Duration) -> Self {
         self.base_backoff = base_backoff;
-        self
-    }
-
-    /// Attaches telemetry hooks to this executor.
-    #[must_use]
-    pub fn with_telemetry_hooks(mut self, telemetry_hooks: TelemetryHooks) -> Self {
-        self.telemetry_hooks = telemetry_hooks;
         self
     }
 
@@ -141,18 +127,18 @@ impl HttpExecutor {
         &self,
         request: Request,
         retry_attempt: u32,
-        ctx: &TelemetryContext,
+        start_time: Instant,
     ) -> Result<Response> {
         match tokio::time::timeout(self.timeout, self.client.execute(request)).await {
             Err(_) => {
-                self.record_completion(ctx, None, Some(RequestErrorKind::Timeout), retry_attempt);
+                Self::log_completion(start_time, None, Some("Timeout"), retry_attempt);
                 Err(HttpError::Timeout {
                     timeout_seconds: self.timeout.as_secs(),
                 }
                 .into())
             }
             Ok(Err(error)) => {
-                self.record_completion(ctx, None, Some(RequestErrorKind::Transport), retry_attempt);
+                Self::log_completion(start_time, None, Some("Transport"), retry_attempt);
                 Err(HttpError::from(error).into())
             }
             Ok(Ok(response)) => Ok(response),
@@ -160,16 +146,15 @@ impl HttpExecutor {
     }
 
     fn handle_rate_limit(
-        &self,
         response: &Response,
         retry_attempt: u32,
-        ctx: &TelemetryContext,
+        start_time: Instant,
     ) -> crate::error::ForceError {
         let retry_after = parse_retry_after(response.headers()).unwrap_or(60);
-        self.record_completion(
-            ctx,
+        Self::log_completion(
+            start_time,
             Some(StatusCode::TOO_MANY_REQUESTS.as_u16()),
-            Some(RequestErrorKind::RateLimited),
+            Some("RateLimited"),
             retry_attempt,
         );
         HttpError::RateLimitExceeded {
@@ -178,19 +163,13 @@ impl HttpExecutor {
         .into()
     }
 
-    async fn handle_service_unavailable(&self, retry_attempt: u32, ctx: &TelemetryContext) {
+    async fn handle_service_unavailable(&self, retry_attempt: u32) {
         let backoff = exponential_backoff(retry_attempt, self.base_backoff);
         tracing::warn!(
             retry.attempt = retry_attempt,
             http.status_code = 503_u16,
             retry.backoff_ms = backoff.as_millis(),
             "retrying request after transient failure"
-        );
-        self.record_retry(
-            ctx,
-            retry_attempt,
-            StatusCode::SERVICE_UNAVAILABLE.as_u16(),
-            backoff.as_millis(),
         );
         tokio::time::sleep(backoff).await;
     }
@@ -206,19 +185,13 @@ impl HttpExecutor {
         F: Fn() -> Fut,
         Fut: std::future::Future<Output = Result<AccessToken>>,
     {
-        // Capture telemetry context once
-        let ctx = TelemetryContext::new(
-            request.method().as_str(),
-            request.url().path(),
-            request_class,
-            self.telemetry_hooks.has_hooks(),
-        );
+        let start_time = Instant::now();
 
         let request_span = tracing::info_span!(
             "force_http_request",
             http.method = request.method().as_str(),
             http.path = request.url().path(),
-            request.class = ctx.request_class
+            request.class = request_class.as_str()
         );
         let _request_span_guard = request_span.enter();
 
@@ -234,7 +207,7 @@ impl HttpExecutor {
                 HttpError::InvalidUrl("cannot clone request for retry".to_string())
             })?;
 
-            let response = self.execute_attempt(req_clone, retry_attempt, &ctx).await?;
+            let response = self.execute_attempt(req_clone, retry_attempt, start_time).await?;
 
             match response.status() {
                 StatusCode::UNAUTHORIZED => {
@@ -246,8 +219,8 @@ impl HttpExecutor {
                         continue;
                     }
 
-                    self.record_completion(
-                        &ctx,
+                    Self::log_completion(
+                        start_time,
                         Some(StatusCode::UNAUTHORIZED.as_u16()),
                         None,
                         retry_attempt,
@@ -256,17 +229,17 @@ impl HttpExecutor {
                 }
                 StatusCode::TOO_MANY_REQUESTS => {
                     // 429: Rate limit - respect Retry-After header
-                    return Err(self.handle_rate_limit(&response, retry_attempt, &ctx));
+                    return Err(Self::handle_rate_limit(&response, retry_attempt, start_time));
                 }
                 StatusCode::SERVICE_UNAVAILABLE if retry_attempt < max_retries => {
                     // 503: Retry with exponential backoff
-                    self.handle_service_unavailable(retry_attempt, &ctx).await;
+                    self.handle_service_unavailable(retry_attempt).await;
                     retry_attempt += 1;
                     continue;
                 }
                 _ => {
-                    self.record_completion(
-                        &ctx,
+                    Self::log_completion(
+                        start_time,
                         Some(response.status().as_u16()),
                         None,
                         retry_attempt,
@@ -287,37 +260,19 @@ impl HttpExecutor {
         }
     }
 
-    #[allow(clippy::needless_pass_by_value)]
-    fn record_retry(
-        &self,
-        ctx: &TelemetryContext,
-        attempt: u32,
-        status_code: u16,
-        backoff_ms: u128,
-    ) {
-        if let Some(on_retry) = &self.telemetry_hooks.on_retry {
-            on_retry(&ctx.create_retry_event(attempt, status_code, backoff_ms));
-        }
-    }
-
-    #[allow(clippy::needless_pass_by_value)]
-    fn record_completion(
-        &self,
-        ctx: &TelemetryContext,
+    fn log_completion(
+        start_time: Instant,
         status_code: Option<u16>,
-        error_kind: Option<RequestErrorKind>,
+        error_kind: Option<&str>,
         retries: u32,
     ) {
         tracing::info!(
             http.status_code = status_code.unwrap_or_default(),
             retries = retries,
-            elapsed_ms = ctx.start_time.elapsed().as_millis(),
+            elapsed_ms = start_time.elapsed().as_millis(),
             error.kind = ?error_kind,
             "request completed"
         );
-        if let Some(on_complete) = &self.telemetry_hooks.on_complete {
-            on_complete(&ctx.create_completion(status_code, error_kind, retries));
-        }
     }
 
     /// Executes an HTTP request with full middleware stack.

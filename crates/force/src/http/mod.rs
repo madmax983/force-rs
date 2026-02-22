@@ -11,12 +11,10 @@
 pub mod error;
 pub mod executor;
 pub mod retry;
-pub mod telemetry;
 
 pub(crate) use error::response_to_force_error;
 pub use executor::HttpExecutor;
 pub use retry::{RequestRetryClass, RetryPolicy};
-pub use telemetry::{RequestCompletion, RequestErrorKind, RetryEvent, TelemetryHooks};
 
 #[cfg(test)]
 mod tests;
