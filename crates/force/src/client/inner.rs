@@ -5,9 +5,9 @@
 //! `ForceClient` and API handlers.
 
 use crate::config::ClientConfig;
-use crate::storage::TokenManager;
 use crate::http::HttpExecutor;
 use crate::http::RequestRetryClass;
+use crate::storage::TokenManager;
 use serde::de::DeserializeOwned;
 use std::sync::Arc;
 
