@@ -53,6 +53,9 @@ rest = []
 bulk = ["dep:csv"]
 composite = ["rest"]
 
+# Experimental
+nova = []
+
 # Auth flows
 jwt = ["dep:jsonwebtoken"]
 

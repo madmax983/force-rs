@@ -5,6 +5,8 @@
 
 pub mod crud;
 pub mod describe;
+#[cfg(feature = "nova")]
+pub mod explain;
 pub mod limits;
 pub mod query;
 pub mod query_stream;
