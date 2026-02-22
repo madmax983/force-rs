@@ -184,6 +184,12 @@ where
     R: Read,
     F: FnMut(Vec<T>) -> Result<()>,
 {
+    if batch_size == 0 {
+        return Err(crate::error::ForceError::InvalidInput(
+            "Batch size must be greater than 0".to_string(),
+        ));
+    }
+
     let batches = CsvBatchIterator::new(reader, batch_size);
 
     for batch in batches {
