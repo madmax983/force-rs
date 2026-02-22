@@ -159,15 +159,8 @@ impl SoqlQueryBuilder {
     ///
     /// Panics if the field name is invalid.
     #[must_use]
-    pub fn where_eq(mut self, field: &str, value: &str) -> Self {
-        if let Err(e) = validate_field_name(field) {
-            panic!("Invalid field name in where_eq: {}", e);
-        }
-        // Optimization: Use escape_soql_cow to avoid allocation if escape not needed
-        let escaped_value = escape_soql_cow(value);
-        self.where_clauses
-            .push(format!("{} = '{}'", field, escaped_value));
-        self
+    pub fn where_eq(self, field: &str, value: &str) -> Self {
+        self.add_condition(field, "=", value, "where_eq")
     }
 
     /// Adds a WHERE condition for NOT equality (e.g., `Field != 'Value'`).
@@ -176,14 +169,25 @@ impl SoqlQueryBuilder {
     ///
     /// Panics if the field name is invalid.
     #[must_use]
-    pub fn where_ne(mut self, field: &str, value: &str) -> Self {
-        if let Err(e) = validate_field_name(field) {
-            panic!("Invalid field name in where_ne: {}", e);
-        }
+    pub fn where_ne(self, field: &str, value: &str) -> Self {
+        self.add_condition(field, "!=", value, "where_ne")
+    }
+
+    /// Adds a simple WHERE condition (helper).
+    fn add_condition(mut self, field: &str, op: &str, value: &str, context: &str) -> Self {
+        Self::validate_field(field, context);
+        // Optimization: Use escape_soql_cow to avoid allocation if escape not needed
         let escaped_value = escape_soql_cow(value);
         self.where_clauses
-            .push(format!("{} != '{}'", field, escaped_value));
+            .push(format!("{} {} '{}'", field, op, escaped_value));
         self
+    }
+
+    /// Helper to validate field names and panic on error.
+    fn validate_field(field: &str, context: &str) {
+        if let Err(e) = validate_field_name(field) {
+            panic!("Invalid field name in {}: {}", context, e);
+        }
     }
 
     /// Adds a WHERE condition for IN clause (e.g., `Field IN ('Val1', 'Val2')`).
@@ -193,9 +197,7 @@ impl SoqlQueryBuilder {
     /// Panics if the field name is invalid.
     #[must_use]
     pub fn where_in(mut self, field: &str, values: &[impl AsRef<str>]) -> Self {
-        if let Err(e) = validate_field_name(field) {
-            panic!("Invalid field name in where_in: {}", e);
-        }
+        Self::validate_field(field, "where_in");
         if values.is_empty() {
             self.where_clauses.push(format!("{} IN ()", field));
             return self;
@@ -219,14 +221,8 @@ impl SoqlQueryBuilder {
     ///
     /// Panics if the field name is invalid.
     #[must_use]
-    pub fn where_like(mut self, field: &str, value: &str) -> Self {
-        if let Err(e) = validate_field_name(field) {
-            panic!("Invalid field name in where_like: {}", e);
-        }
-        let escaped_value = escape_soql_cow(value);
-        self.where_clauses
-            .push(format!("{} LIKE '{}'", field, escaped_value));
-        self
+    pub fn where_like(self, field: &str, value: &str) -> Self {
+        self.add_condition(field, "LIKE", value, "where_like")
     }
 
     /// Sets the LIMIT clause.
@@ -250,9 +246,7 @@ impl SoqlQueryBuilder {
     /// Panics if the field name is invalid.
     #[must_use]
     pub fn order_by(mut self, field: &str) -> Self {
-        if let Err(e) = validate_field_name(field) {
-            panic!("Invalid field name in order_by: {}", e);
-        }
+        Self::validate_field(field, "order_by");
         self.order_by = Some(field.to_string());
         self
     }
@@ -264,9 +258,7 @@ impl SoqlQueryBuilder {
     /// Panics if the field name is invalid.
     #[must_use]
     pub fn order_by_desc(mut self, field: &str) -> Self {
-        if let Err(e) = validate_field_name(field) {
-            panic!("Invalid field name in order_by_desc: {}", e);
-        }
+        Self::validate_field(field, "order_by_desc");
         self.order_by = Some(format!("{} DESC", field));
         self
     }
