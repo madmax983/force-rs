@@ -1,11 +1,13 @@
-//! Havoc test for BatchBuilder limits.
+//! Havoc test for `BatchBuilder` limits.
 //!
-//! Verifies that the BatchBuilder strictly enforces the 25-request limit
+//! Verifies that the `BatchBuilder` strictly enforces the 25-request limit
 //! defined by the Salesforce Composite API.
 //!
 //! "If I can crash it, I win." - Havoc
 
 #![cfg(feature = "composite")]
+#![allow(clippy::unwrap_used)]
+#![allow(clippy::expect_used)]
 
 use async_trait::async_trait;
 use force::auth::{AccessToken, Authenticator, TokenResponse};
@@ -46,7 +48,7 @@ async fn create_client() -> ForceClient<MockAuthenticator> {
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(10))] // Don't need thousands of runs for this
     #[test]
-    fn test_batch_limit_enforcement(n in 26..50usize) {
+    fn test_batch_limit_enforcement(_n in 26..50usize) {
         // We need a runtime for async client creation
         let rt = tokio::runtime::Runtime::new().unwrap();
 
@@ -57,7 +59,7 @@ proptest! {
             // Add 25 valid requests
             for i in 0..25 {
                 // Must be valid SFID (18 chars)
-                let id = format!("001000000000{:03}AAA", i);
+                let id = format!("001000000000{i:03}AAA");
                 let res = batch.get("Account", &id);
                 prop_assert!(res.is_ok(), "Request {} should succeed: {:?}", i, res.err());
                 batch = res.unwrap();
