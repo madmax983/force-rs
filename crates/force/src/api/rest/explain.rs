@@ -142,7 +142,7 @@ mod tests {
         assert_eq!(plan.sobject_type, "Account");
         assert!((plan.relative_cost - 0.33).abs() < f64::EPSILON);
 
-        let note = plan.notes.as_ref().unwrap().first().unwrap();
+        let note = plan.notes.as_ref().must().first().must();
         assert_eq!(note.description.as_deref(), Some("Index used"));
     }
 }
