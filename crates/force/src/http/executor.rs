@@ -207,7 +207,9 @@ impl HttpExecutor {
                 HttpError::InvalidUrl("cannot clone request for retry".to_string())
             })?;
 
-            let response = self.execute_attempt(req_clone, retry_attempt, start_time).await?;
+            let response = self
+                .execute_attempt(req_clone, retry_attempt, start_time)
+                .await?;
 
             match response.status() {
                 StatusCode::UNAUTHORIZED => {
@@ -229,7 +231,11 @@ impl HttpExecutor {
                 }
                 StatusCode::TOO_MANY_REQUESTS => {
                     // 429: Rate limit - respect Retry-After header
-                    return Err(Self::handle_rate_limit(&response, retry_attempt, start_time));
+                    return Err(Self::handle_rate_limit(
+                        &response,
+                        retry_attempt,
+                        start_time,
+                    ));
                 }
                 StatusCode::SERVICE_UNAVAILABLE if retry_attempt < max_retries => {
                     // 503: Retry with exponential backoff
