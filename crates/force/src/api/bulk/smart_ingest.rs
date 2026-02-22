@@ -63,10 +63,22 @@ impl<'a, A: crate::auth::Authenticator> SmartIngest<'a, A> {
     /// Sets the batch size (number of records per chunk).
     ///
     /// Defaults to 10,000.
+    ///
+    /// # Security
+    ///
+    /// The batch size is capped at 50,000 records to prevent memory exhaustion (OOM)
+    /// and to stay within Salesforce API limits (150MB per request).
     #[must_use]
     pub fn batch_size(mut self, size: usize) -> Self {
-        self.batch_size = size;
+        // Cap at 50,000 to prevent OOM
+        self.batch_size = std::cmp::min(size, 50_000);
         self
+    }
+
+    /// Returns the current batch size.
+    #[cfg(test)]
+    pub fn get_batch_size(&self) -> usize {
+        self.batch_size
     }
 
     /// Executes the ingest job using the provided stream of records.
@@ -841,5 +853,17 @@ mod tests {
             .await;
 
         assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_smart_ingest_batch_size_cap() {
+        let mock_server = MockServer::start().await;
+        let client = create_test_client(mock_server.uri()).await;
+        let handler = client.bulk();
+
+        let ingest =
+            SmartIngest::new(&handler, "Account", JobOperation::Insert).batch_size(usize::MAX);
+
+        assert_eq!(ingest.get_batch_size(), 50_000);
     }
 }

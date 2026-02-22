@@ -121,7 +121,8 @@ impl<A: Authenticator> BatchBuilder<A> {
     /// # Warning
     ///
     /// The `url` parameter must be properly URL-encoded, especially for query parameters.
-    /// For SOQL queries, use [`query`](Self::query) instead, which handles encoding safely.
+    /// Consider using [`add_request_with_params`](Self::add_request_with_params) for safer URL construction.
+    /// For SOQL queries, use [`query`](Self::query) instead.
     ///
     /// # Arguments
     ///
@@ -133,6 +134,53 @@ impl<A: Authenticator> BatchBuilder<A> {
         self.requests.push(BatchSubRequest {
             method: method.to_string(),
             url: url.to_string(),
+            rich_input: body,
+        });
+        self
+    }
+
+    /// Adds a custom subrequest with URL-encoded query parameters.
+    ///
+    /// This method safely encodes query parameters to prevent injection vulnerabilities.
+    ///
+    /// # Arguments
+    ///
+    /// * `method` - HTTP method (GET, POST, etc.)
+    /// * `path` - URL path (e.g., "query")
+    /// * `params` - Query parameters to encode
+    /// * `body` - Optional JSON body
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// builder.add_request_with_params(
+    ///     "GET",
+    ///     "query",
+    ///     &[("q", "SELECT Id FROM Account WHERE Name = 'Acme & Co'")],
+    ///     None
+    /// );
+    /// ```
+    #[must_use]
+    pub fn add_request_with_params(
+        mut self,
+        method: &str,
+        path: &str,
+        params: &[(&str, &str)],
+        body: Option<Value>,
+    ) -> Self {
+        let encoded_params = url::form_urlencoded::Serializer::new(String::new())
+            .extend_pairs(params)
+            .finish();
+
+        let full_url = if encoded_params.is_empty() {
+            path.to_string()
+        } else {
+            format!("{}?{}", path, encoded_params)
+        };
+
+        self.requests.push(BatchSubRequest {
+            method: method.to_string(),
+            url: full_url,
             rich_input: body,
         });
         self

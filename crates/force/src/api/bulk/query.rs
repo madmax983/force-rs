@@ -59,12 +59,43 @@ impl BulkQueryRequest {
     ///
     /// let request = BulkQueryRequest::new("SELECT Id, Name FROM Account WHERE CreatedDate > TODAY");
     /// ```
+    ///
+    /// # Panics
+    ///
+    /// Panics if the query is empty or exceeds 1MB in length.
     #[must_use]
     pub fn new(query: impl Into<String>) -> Self {
-        Self {
-            query: query.into(),
-            operation: "query".to_string(),
+        match Self::try_new(query) {
+            Ok(req) => req,
+            Err(e) => panic!("{}", e),
         }
+    }
+
+    /// Creates a new bulk query request (fallible).
+    ///
+    /// # Arguments
+    ///
+    /// * `query` - The SOQL query string
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the query is empty or exceeds 1MB in length.
+    pub fn try_new(query: impl Into<String>) -> Result<Self> {
+        let q = query.into();
+        if q.is_empty() {
+            return Err(crate::error::ForceError::InvalidInput(
+                "Bulk query cannot be empty".to_string(),
+            ));
+        }
+        if q.len() > 1_048_576 {
+            return Err(crate::error::ForceError::InvalidInput(
+                "Bulk query exceeds 1MB limit".to_string(),
+            ));
+        }
+        Ok(Self {
+            query: q,
+            operation: "query".to_string(),
+        })
     }
 }
 
@@ -1009,5 +1040,31 @@ mod tests {
         assert_eq!(results.len(), 2);
         assert!(results[0].is_ok());
         assert!(results[1].is_ok());
+    }
+
+    #[test]
+    fn test_bulk_query_request_validation() {
+        // Valid query
+        let _ = BulkQueryRequest::new("SELECT Id FROM Account");
+
+        // Empty query
+        assert!(BulkQueryRequest::try_new("").is_err());
+
+        // Too long query (1MB + 1 byte)
+        let long_query = "a".repeat(1_048_577);
+        assert!(BulkQueryRequest::try_new(long_query).is_err());
+    }
+
+    #[test]
+    #[should_panic(expected = "Bulk query cannot be empty")]
+    fn test_bulk_query_request_new_panic_empty() {
+        let _ = BulkQueryRequest::new("");
+    }
+
+    #[test]
+    #[should_panic(expected = "Bulk query exceeds 1MB limit")]
+    fn test_bulk_query_request_new_panic_too_long() {
+        let long_query = "a".repeat(1_048_577);
+        let _ = BulkQueryRequest::new(long_query);
     }
 }

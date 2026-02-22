@@ -19,3 +19,15 @@
 ## 2026-02-21 - [Safe Query Construction in Composite Batch]
 **Threat:** `BatchBuilder::add_request` accepts a raw URL string. If users construct this string manually using `format!` with untrusted input (e.g., `format!("query?q=SELECT+Id+FROM+Account+WHERE+Name='{}'", user_input)`), they are vulnerable to SOQL injection or invalid URL formatting (e.g., unencoded spaces).
 **Defense:** Added `BatchBuilder::query` which accepts a `SoqlQueryBuilder` and automatically URL-encodes the query string using `form_urlencoded`. Added a warning to `add_request` documentation emphasizing the need for proper URL encoding.
+
+## 2026-02-24 - [DoS via Memory Exhaustion in SmartIngest]
+**Threat:** `SmartIngest` allowed unbounded `batch_size` (e.g., `usize::MAX`). An attacker or misconfigured client could trigger massive allocations, leading to Denial of Service (DoS) via OOM.
+**Defense:** Enforced a hard cap of 50,000 records on `batch_size` in `SmartIngest::batch_size`. This prevents excessive memory allocation while staying well within Salesforce Bulk API limits.
+
+## 2026-02-24 - [Safe Parameter Encoding in Batch API]
+**Threat:** `BatchBuilder::add_request` relies on manual URL encoding by the user. Improper encoding could lead to injection or invalid requests.
+**Defense:** Added `BatchBuilder::add_request_with_params`, which accepts a map/slice of parameters and safely encodes them using `url::form_urlencoded`. Updated documentation to recommend this safer alternative.
+
+## 2026-02-24 - [DoS via Large Query Strings]
+**Threat:** `BulkQueryRequest::new` blindly accepted arbitrarily large query strings. This could be used for memory exhaustion or DoS attacks.
+**Defense:** Added validation to `BulkQueryRequest::new` and introduced `try_new`. The constructor now strictly limits queries to 1MB and disallows empty strings.
