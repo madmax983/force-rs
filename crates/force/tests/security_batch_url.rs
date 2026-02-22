@@ -1,5 +1,6 @@
 //! Security tests for Batch API URL construction.
 
+#![cfg(feature = "composite")]
 #![allow(clippy::expect_used)]
 
 use async_trait::async_trait;
