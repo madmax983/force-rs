@@ -6,6 +6,7 @@
 use crate::error::ForceError;
 use crate::types::validator::{validate_field_name, validate_sobject_name};
 use std::borrow::Cow;
+use std::fmt::Write;
 
 /// Escapes special characters for SOQL string literals.
 ///
@@ -286,11 +287,38 @@ impl SoqlQueryBuilder {
             ForceError::InvalidInput("FROM clause (SObject) is required".to_string())
         })?;
 
-        let mut query = format!("SELECT {} FROM {}", self.fields.join(", "), sobject);
+        // Calculate capacity to avoid reallocations
+        // Heuristic: Base (SELECT...FROM) + Fields (len + comma) + Where (len + AND) + Limit/Offset
+        let fields_len = self.fields.iter().map(|s| s.len() + 2).sum::<usize>();
+        let where_len = self
+            .where_clauses
+            .iter()
+            .map(|s| s.len() + 5)
+            .sum::<usize>();
+        // 32 is roughly enough for keywords and small numbers
+        let capacity = 32 + fields_len + sobject.len() + where_len + 32;
+
+        let mut query = String::with_capacity(capacity);
+
+        query.push_str("SELECT ");
+        for (i, field) in self.fields.iter().enumerate() {
+            if i > 0 {
+                query.push_str(", ");
+            }
+            query.push_str(field);
+        }
+
+        query.push_str(" FROM ");
+        query.push_str(&sobject);
 
         if !self.where_clauses.is_empty() {
             query.push_str(" WHERE ");
-            query.push_str(&self.where_clauses.join(" AND "));
+            for (i, clause) in self.where_clauses.iter().enumerate() {
+                if i > 0 {
+                    query.push_str(" AND ");
+                }
+                query.push_str(clause);
+            }
         }
 
         if let Some(order) = self.order_by {
@@ -299,11 +327,11 @@ impl SoqlQueryBuilder {
         }
 
         if let Some(limit) = self.limit {
-            query.push_str(&format!(" LIMIT {}", limit));
+            let _ = write!(query, " LIMIT {}", limit);
         }
 
         if let Some(offset) = self.offset {
-            query.push_str(&format!(" OFFSET {}", offset));
+            let _ = write!(query, " OFFSET {}", offset);
         }
 
         Ok(query)
@@ -393,5 +421,21 @@ mod tests {
         let result = escape_soql_cow(unsafe_str);
         assert!(matches!(result, Cow::Owned(_)));
         assert_eq!(result, r"O\'Reilly");
+    }
+
+    #[test]
+    fn test_optimized_query_construction() {
+        let query = SoqlQueryBuilder::new()
+            .select(&["Id", "Name", "BillingCity"])
+            .from("Account")
+            .where_eq("Type", "Customer")
+            .where_in("Industry", &["Tech", "Finance"])
+            .order_by_desc("CreatedDate")
+            .limit(100)
+            .offset(50)
+            .build();
+
+        let expected = "SELECT Id, Name, BillingCity FROM Account WHERE Type = 'Customer' AND Industry IN ('Tech', 'Finance') ORDER BY CreatedDate DESC LIMIT 100 OFFSET 50";
+        assert_eq!(query, expected);
     }
 }
