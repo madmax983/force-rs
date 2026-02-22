@@ -1,12 +1,12 @@
 //! Bulk API handler implementation.
 
-use crate::error::Result;
-use crate::types::validator::{validate_external_id_field, validate_sobject_name};
-use std::sync::Arc;
-use super::types::{self, CreateJobRequest, JobInfo, UpdateJobRequest};
 use super::policy::BulkPollPolicy;
 #[cfg(feature = "bulk")]
 use super::smart_ingest;
+use super::types::{self, CreateJobRequest, JobInfo, UpdateJobRequest};
+use crate::error::Result;
+use crate::types::validator::{validate_external_id_field, validate_sobject_name};
+use std::sync::Arc;
 
 /// Bulk API 2.0 handler for performing Salesforce bulk operations.
 ///
@@ -652,11 +652,11 @@ impl<A: crate::auth::Authenticator> BulkHandler<A> {
 }
 #[cfg(test)]
 mod tests {
+    use super::types::{ContentType, JobOperation, JobState};
     use super::*;
     use crate::client::{ForceClient, builder};
     use crate::config::ClientConfigBuilder;
     use crate::test_support::{MockAuthenticator, Must, MustMsg};
-    use super::types::{ContentType, JobOperation, JobState};
     use wiremock::matchers::{bearer_token, header, method, path, path_regex};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -1607,9 +1607,9 @@ mod tests {
     #[cfg(feature = "bulk")]
     #[tokio::test]
     async fn test_bulk_query_with_policy_retries_then_succeeds() {
+        use super::BulkPollPolicy;
         use serde::Deserialize;
         use std::time::Duration;
-        use super::BulkPollPolicy;
 
         #[derive(Deserialize, Debug)]
         struct Account {
@@ -1681,9 +1681,9 @@ mod tests {
     #[cfg(feature = "bulk")]
     #[tokio::test]
     async fn test_bulk_query_with_policy_times_out_immediately_when_attempts_are_zero() {
+        use super::BulkPollPolicy;
         use serde::Deserialize;
         use std::time::Duration;
-        use super::BulkPollPolicy;
 
         #[derive(Deserialize, Debug)]
         struct Account {
