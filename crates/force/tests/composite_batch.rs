@@ -1,7 +1,8 @@
+//! Integration tests for Composite API.
+
 #![cfg(feature = "composite")]
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::expect_used)]
-//! Integration tests for Composite API.
 
 use async_trait::async_trait;
 use force::auth::{AccessToken, Authenticator, TokenResponse};

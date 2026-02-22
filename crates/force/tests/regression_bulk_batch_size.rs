@@ -3,6 +3,8 @@
 //! Ensures that `process_csv_batches` and `SmartIngest` correctly handle invalid batch sizes.
 
 #![cfg(feature = "bulk")]
+#![allow(clippy::unwrap_used)]
+#![allow(clippy::expect_used)]
 
 use async_trait::async_trait;
 use force::api::bulk::csv::{process_csv_batches, serialize_to_csv};
@@ -39,14 +41,16 @@ impl Authenticator for TestAuthenticator {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct Record {
+    id: String,
+}
+
 #[test]
 fn test_process_csv_batches_errors_on_zero_batch_size() {
-    #[derive(Serialize, Deserialize, Debug)]
-    struct Record {
-        id: String,
-    }
-
-    let records = vec![Record { id: "1".to_string() }];
+    let records = vec![Record {
+        id: "1".to_string(),
+    }];
     let mut csv_data = Vec::new();
     serialize_to_csv(&records, &mut csv_data).unwrap();
 
@@ -58,30 +62,26 @@ fn test_process_csv_batches_errors_on_zero_batch_size() {
 
     // CURRENT BEHAVIOR: Ok(()) (Silent failure to process)
     // DESIRED BEHAVIOR: Err(ForceError::InvalidInput)
-    if result.is_ok() {
-        panic!("Expected error for batch_size 0, but got Ok");
-    }
+    assert!(
+        result.is_err(),
+        "Expected error for batch_size 0, but got Ok"
+    );
 }
 
 #[tokio::test]
 async fn test_smart_ingest_errors_on_zero_batch_size() {
     let mock_server = MockServer::start().await;
-    let auth = TestAuthenticator { instance_url: mock_server.uri() };
+    let auth = TestAuthenticator {
+        instance_url: mock_server.uri(),
+    };
 
-    let client = builder()
-        .authenticate(auth)
-        .build()
-        .await
-        .unwrap();
+    let client = builder().authenticate(auth).build().await.unwrap();
 
     let handler = client.bulk();
 
-    #[derive(Serialize, Clone)]
-    struct Record {
-        id: String,
-    }
-
-    let records = vec![Record { id: "1".to_string() }];
+    let records = vec![Record {
+        id: "1".to_string(),
+    }];
     let stream = futures::stream::iter(records);
 
     // Mock failure to catch if it proceeds to HTTP call
@@ -91,7 +91,8 @@ async fn test_smart_ingest_errors_on_zero_batch_size() {
         .mount(&mock_server)
         .await;
 
-    let result = handler.smart_ingest("Account", JobOperation::Insert)
+    let result = handler
+        .smart_ingest("Account", JobOperation::Insert)
         .batch_size(0)
         .execute_stream(stream)
         .await;
@@ -101,11 +102,12 @@ async fn test_smart_ingest_errors_on_zero_batch_size() {
 
     match result {
         Err(force::error::ForceError::InvalidInput(msg)) => {
-            if !msg.contains("Batch size must be greater than 0") {
-                 panic!("Unexpected error message: {}", msg);
-            }
+            assert!(
+                msg.contains("Batch size must be greater than 0"),
+                "Unexpected error message: {msg}"
+            );
         }
-        Err(e) => panic!("Expected InvalidInput error (batch size 0), got {:?}", e),
+        Err(e) => panic!("Expected InvalidInput error (batch size 0), got {e:?}"),
         Ok(_) => panic!("Expected error, got Ok"),
     }
 }
