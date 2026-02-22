@@ -429,7 +429,12 @@ mod tests {
             // NEW CHECK: The 26th request (i=25) should fail immediately now
             if i == 25 {
                 assert!(result.is_err(), "26th request should fail fast");
-                assert!(result.unwrap_err().to_string().contains("Batch size exceeds limit"));
+                assert!(
+                    result
+                        .unwrap_err()
+                        .to_string()
+                        .contains("Batch size exceeds limit")
+                );
                 return;
             }
 

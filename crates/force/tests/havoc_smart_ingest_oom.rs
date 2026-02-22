@@ -1,10 +1,14 @@
-//! Havoc test for SmartIngest OOM protection.
+//! Havoc test for `SmartIngest` OOM protection.
 //!
 //! Verifies that `SmartIngest` enforces a reasonable upper bound on `batch_size`
 //! (e.g., 50,000 records) to preventing memory exhaustion when users request
 //! huge batch sizes.
 //!
 //! "If I can crash it, I win." - Havoc
+
+#![cfg(feature = "bulk")]
+#![allow(clippy::unwrap_used)]
+#![allow(clippy::expect_used)]
 
 use async_trait::async_trait;
 use force::api::bulk::smart_ingest::SmartIngest;
@@ -131,8 +135,8 @@ async fn test_smart_ingest_enforces_limit() {
     // Generate 60,000 records
     let records: Vec<TestRecord> = (0..60_000)
         .map(|i| TestRecord {
-            id: format!("ID_{}", i),
-            name: format!("Name_{}", i),
+            id: format!("ID_{i}"),
+            name: format!("Name_{i}"),
         })
         .collect();
 

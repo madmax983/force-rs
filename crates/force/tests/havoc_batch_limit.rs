@@ -5,6 +5,8 @@
 //!
 //! "If I can crash it, I win." - Havoc
 
+#![cfg(feature = "composite")]
+
 use async_trait::async_trait;
 use force::auth::{AccessToken, Authenticator, TokenResponse};
 use force::client::{ForceClient, builder};
