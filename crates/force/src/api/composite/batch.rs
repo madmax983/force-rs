@@ -58,8 +58,14 @@ impl<A: Authenticator> BatchBuilder<A> {
     ///
     /// # Errors
     ///
-    /// Returns an error if the `sobject` name or `id` contains invalid characters.
+    /// Returns an error if the `sobject` name or `id` contains invalid characters,
+    /// or if the batch size limit (25) is exceeded.
     pub fn get(self, sobject: &str, id: &str) -> Result<Self> {
+        if self.requests.len() >= 25 {
+            return Err(ForceError::InvalidInput(
+                "Batch size exceeds limit of 25 requests".to_string(),
+            ));
+        }
         validator::validate_sobject_name(sobject)?;
         validate_id(id)?;
         Ok(self.add_request("GET", &format!("sobjects/{}/{}", sobject, id), None))
@@ -74,8 +80,14 @@ impl<A: Authenticator> BatchBuilder<A> {
     ///
     /// # Errors
     ///
-    /// Returns an error if the `sobject` name contains invalid characters.
+    /// Returns an error if the `sobject` name contains invalid characters,
+    /// or if the batch size limit (25) is exceeded.
     pub fn post(self, sobject: &str, body: Value) -> Result<Self> {
+        if self.requests.len() >= 25 {
+            return Err(ForceError::InvalidInput(
+                "Batch size exceeds limit of 25 requests".to_string(),
+            ));
+        }
         validator::validate_sobject_name(sobject)?;
         Ok(self.add_request("POST", &format!("sobjects/{}", sobject), Some(body)))
     }
@@ -90,8 +102,14 @@ impl<A: Authenticator> BatchBuilder<A> {
     ///
     /// # Errors
     ///
-    /// Returns an error if the `sobject` name or `id` contains invalid characters.
+    /// Returns an error if the `sobject` name or `id` contains invalid characters,
+    /// or if the batch size limit (25) is exceeded.
     pub fn patch(self, sobject: &str, id: &str, body: Value) -> Result<Self> {
+        if self.requests.len() >= 25 {
+            return Err(ForceError::InvalidInput(
+                "Batch size exceeds limit of 25 requests".to_string(),
+            ));
+        }
         validator::validate_sobject_name(sobject)?;
         validate_id(id)?;
         Ok(self.add_request("PATCH", &format!("sobjects/{}/{}", sobject, id), Some(body)))
@@ -106,8 +124,14 @@ impl<A: Authenticator> BatchBuilder<A> {
     ///
     /// # Errors
     ///
-    /// Returns an error if the `sobject` name or `id` contains invalid characters.
+    /// Returns an error if the `sobject` name or `id` contains invalid characters,
+    /// or if the batch size limit (25) is exceeded.
     pub fn delete(self, sobject: &str, id: &str) -> Result<Self> {
+        if self.requests.len() >= 25 {
+            return Err(ForceError::InvalidInput(
+                "Batch size exceeds limit of 25 requests".to_string(),
+            ));
+        }
         validator::validate_sobject_name(sobject)?;
         validate_id(id)?;
         Ok(self.add_request("DELETE", &format!("sobjects/{}/{}", sobject, id), None))
@@ -400,20 +424,16 @@ mod tests {
         // Add 26 requests
         for i in 0..26 {
             // Use different IDs to avoid any potential deduplication (though not expected here)
-            builder = builder
-                .get("Account", &format!("001000000000{:03}AAA", i))
-                .unwrap();
-        }
+            let result = builder.get("Account", &format!("001000000000{:03}AAA", i));
 
-        let result = builder.execute().await;
-        match result {
-            Err(ForceError::Serialization(e)) => {
-                assert!(e.to_string().contains("Batch size exceeds limit"));
+            // NEW CHECK: The 26th request (i=25) should fail immediately now
+            if i == 25 {
+                assert!(result.is_err(), "26th request should fail fast");
+                assert!(result.unwrap_err().to_string().contains("Batch size exceeds limit"));
+                return;
             }
-            _ => panic!(
-                "Expected Serialization error for batch size limit, got {:?}",
-                result
-            ),
+
+            builder = result.unwrap();
         }
     }
 

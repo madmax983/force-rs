@@ -63,9 +63,15 @@ impl<'a, A: crate::auth::Authenticator> SmartIngest<'a, A> {
     /// Sets the batch size (number of records per chunk).
     ///
     /// Defaults to 10,000.
+    ///
+    /// # Limits
+    ///
+    /// The batch size is strictly capped at 50,000 records to prevent memory exhaustion
+    /// and ensure reliability. If a larger size is requested, it will be clamped.
     #[must_use]
     pub fn batch_size(mut self, size: usize) -> Self {
-        self.batch_size = size;
+        // Clamp to 50,000 to prevent OOM / DoS (Havoc protection)
+        self.batch_size = std::cmp::min(size, 50_000);
         self
     }
 
