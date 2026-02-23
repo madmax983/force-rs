@@ -29,6 +29,8 @@
 //! }
 //! ```
 
+use crate::api::bulk::BulkPollPolicy;
+use crate::api::bulk::types::JobState;
 use crate::error::Result;
 use futures::Stream;
 use serde::{Deserialize, Serialize};
@@ -526,6 +528,122 @@ impl<A: crate::auth::Authenticator> super::BulkHandler<A> {
             job_id.to_string(),
         ))
     }
+
+    /// Convenience method to perform a bulk query operation.
+    ///
+    /// Creates a bulk query job, polls until completion, and returns a stream of results.
+    ///
+    /// # Arguments
+    ///
+    /// * `soql` - The SOQL query string
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Job creation fails
+    /// - Job processing fails
+    /// - Result streaming fails
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// use serde::Deserialize;
+    ///
+    /// #[derive(Deserialize)]
+    /// struct Account {
+    ///     #[serde(rename = "Id")]
+    ///     id: String,
+    ///     #[serde(rename = "Name")]
+    ///     name: String,
+    /// }
+    ///
+    /// let soql = "SELECT Id, Name FROM Account WHERE Industry = 'Technology'";
+    /// let mut stream = client.bulk().query::<Account>(soql).await?;
+    ///
+    /// while let Some(account) = stream.next().await? {
+    ///     println!("{}: {}", account.id, account.name);
+    /// }
+    /// ```
+    #[cfg(feature = "bulk")]
+    pub async fn query<T>(&self, soql: &str) -> Result<BulkQueryStream<T, A>>
+    where
+        T: for<'de> serde::Deserialize<'de>,
+    {
+        self.bulk_query_with_policy(soql, BulkPollPolicy::default())
+            .await
+    }
+
+    /// Convenience method to perform a bulk query operation (legacy name).
+    #[cfg(feature = "bulk")]
+    pub async fn bulk_query<T>(&self, soql: &str) -> Result<BulkQueryStream<T, A>>
+    where
+        T: for<'de> serde::Deserialize<'de>,
+    {
+        self.query(soql).await
+    }
+
+    /// Creates a bulk query job with a custom polling policy and returns a stream of results.
+    ///
+    /// This variant lets callers tune polling behavior for long-running jobs.
+    #[cfg(feature = "bulk")]
+    pub async fn bulk_query_with_policy<T>(
+        &self,
+        soql: &str,
+        poll_policy: BulkPollPolicy,
+    ) -> Result<BulkQueryStream<T, A>>
+    where
+        T: for<'de> serde::Deserialize<'de>,
+    {
+        // Create query job
+        let request = BulkQueryRequest::new(soql);
+        let job = self.create_query_job(request).await?;
+        self.poll_query_job_until_complete(&job.id, poll_policy)
+            .await?;
+
+        // Return results stream
+        self.query_results(&job.id).await
+    }
+
+    #[cfg(feature = "bulk")]
+    async fn poll_query_job_until_complete(
+        &self,
+        job_id: &str,
+        poll_policy: BulkPollPolicy,
+    ) -> Result<()> {
+        let mut attempt = 0;
+        loop {
+            let job_info = self.get_query_job(job_id).await?;
+
+            match job_info.state {
+                JobState::JobComplete => return Ok(()),
+                JobState::Failed => {
+                    return Err(crate::error::HttpError::StatusError {
+                        status_code: 500,
+                        message: "Query job failed during processing".to_string(),
+                    }
+                    .into());
+                }
+                JobState::Aborted => {
+                    return Err(crate::error::HttpError::StatusError {
+                        status_code: 400,
+                        message: "Query job was aborted".to_string(),
+                    }
+                    .into());
+                }
+                _ => {
+                    if attempt >= poll_policy.max_attempts {
+                        return Err(crate::error::HttpError::Timeout {
+                            timeout_seconds: poll_policy.timeout_seconds(),
+                        }
+                        .into());
+                    }
+
+                    tokio::time::sleep(poll_policy.backoff_for_attempt(attempt)).await;
+                    attempt += 1;
+                }
+            }
+        }
+    }
 }
 #[cfg(test)]
 mod tests {
@@ -548,14 +666,15 @@ mod tests {
             .must_msg("failed to create test client")
     }
 
-    // RED PHASE - Write failing tests first
-
+    // Existing tests...
     #[test]
     fn test_bulk_query_request_new() {
         let request = BulkQueryRequest::new("SELECT Id FROM Account");
         assert_eq!(request.query, "SELECT Id FROM Account");
         assert_eq!(request.operation, "query");
     }
+
+    // ... (include all existing tests here)
 
     #[test]
     fn test_bulk_query_request_serialization() {
@@ -1009,5 +1128,297 @@ mod tests {
         assert_eq!(results.len(), 2);
         assert!(results[0].is_ok());
         assert!(results[1].is_ok());
+    }
+
+    #[cfg(feature = "bulk")]
+    #[tokio::test]
+    async fn test_bulk_query_success() {
+        use serde::Deserialize;
+
+        #[derive(Deserialize, Debug)]
+        struct Account {
+            #[serde(rename = "Id")]
+            id: String,
+            #[serde(rename = "Name")]
+            name: String,
+        }
+
+        let mock_server = MockServer::start().await;
+
+        // Mock: Create query job
+        Mock::given(method("POST"))
+            .and(path("/services/data/v60.0/jobs/query"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "id": "750xx0000000006AAA",
+                "operation": "query",
+                "state": "UploadComplete",
+                "createdDate": "2024-01-01T00:00:00.000Z",
+                "createdById": "005xx0000000001AAA"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        // Mock: Poll query job
+        Mock::given(method("GET"))
+            .and(path("/services/data/v60.0/jobs/query/750xx0000000006AAA"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "id": "750xx0000000006AAA",
+                "operation": "query",
+                "state": "JobComplete",
+                "createdDate": "2024-01-01T00:00:00.000Z",
+                "createdById": "005xx0000000001AAA",
+                "numberRecordsProcessed": 2
+            })))
+            .mount(&mock_server)
+            .await;
+
+        // Mock: Download results
+        Mock::given(method("GET"))
+            .and(path(
+                "/services/data/v60.0/jobs/query/750xx0000000006AAA/results",
+            ))
+            .respond_with(ResponseTemplate::new(200).set_body_string(
+                "Id,Name\n001xx0000000001AAA,Acme Corp\n001xx0000000002AAA,Global Industries\n",
+            ))
+            .mount(&mock_server)
+            .await;
+
+        let client = create_test_client(mock_server.uri()).await;
+        let handler = client.bulk();
+
+        let soql = "SELECT Id, Name FROM Account WHERE Industry = 'Technology'";
+        let mut results = handler.bulk_query::<Account>(soql).await.must();
+
+        let mut count = 0;
+        while let Some(record) = results.next().await.must() {
+            count += 1;
+            assert!(!record.id.is_empty());
+            assert!(!record.name.is_empty());
+        }
+        assert_eq!(count, 2);
+    }
+
+    #[cfg(feature = "bulk")]
+    #[tokio::test]
+    async fn test_bulk_query_empty_results() {
+        use serde::Deserialize;
+
+        #[derive(Deserialize, Debug)]
+        struct Account {
+            #[serde(rename = "Id")]
+            id: String,
+        }
+
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/services/data/v60.0/jobs/query"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "id": "750xx0000000007AAA",
+                "operation": "query",
+                "state": "UploadComplete",
+                "createdDate": "2024-01-01T00:00:00.000Z",
+                "createdById": "005xx0000000001AAA"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path("/services/data/v60.0/jobs/query/750xx0000000007AAA"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "id": "750xx0000000007AAA",
+                "operation": "query",
+                "state": "JobComplete",
+                "createdDate": "2024-01-01T00:00:00.000Z",
+                "createdById": "005xx0000000001AAA",
+                "numberRecordsProcessed": 0
+            })))
+            .mount(&mock_server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path(
+                "/services/data/v60.0/jobs/query/750xx0000000007AAA/results",
+            ))
+            .respond_with(ResponseTemplate::new(200).set_body_string("Id\n"))
+            .mount(&mock_server)
+            .await;
+
+        let client = create_test_client(mock_server.uri()).await;
+        let handler = client.bulk();
+
+        let soql = "SELECT Id FROM Account WHERE Name = 'NonExistent'";
+        let mut results = handler.bulk_query::<Account>(soql).await.must();
+
+        let record = results.next().await.must();
+        assert!(record.is_none());
+    }
+
+    #[cfg(feature = "bulk")]
+    #[tokio::test]
+    async fn test_bulk_query_job_failure() {
+        use serde::Deserialize;
+
+        #[derive(Deserialize, Debug)]
+        struct Account {
+            #[serde(rename = "Id")]
+            id: String,
+        }
+
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/services/data/v60.0/jobs/query"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "id": "750xx0000000009AAA",
+                "operation": "query",
+                "state": "UploadComplete",
+                "createdDate": "2024-01-01T00:00:00.000Z",
+                "createdById": "005xx0000000001AAA"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        // Query job fails
+        Mock::given(method("GET"))
+            .and(path("/services/data/v60.0/jobs/query/750xx0000000009AAA"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "id": "750xx0000000009AAA",
+                "operation": "query",
+                "state": "Failed",
+                "createdDate": "2024-01-01T00:00:00.000Z",
+                "createdById": "005xx0000000001AAA"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = create_test_client(mock_server.uri()).await;
+        let handler = client.bulk();
+
+        let soql = "SELECT Id FROM InvalidObject";
+        let result = handler.bulk_query::<Account>(soql).await;
+        assert!(result.is_err());
+    }
+
+    #[cfg(feature = "bulk")]
+    #[tokio::test]
+    async fn test_bulk_query_with_policy_retries_then_succeeds() {
+        use serde::Deserialize;
+        use std::time::Duration;
+
+        #[derive(Deserialize, Debug)]
+        struct Account {
+            #[serde(rename = "Id")]
+            id: String,
+        }
+
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/services/data/v60.0/jobs/query"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "id": "750xx0000000010AAA",
+                "operation": "query",
+                "state": "UploadComplete",
+                "createdDate": "2024-01-01T00:00:00.000Z",
+                "createdById": "005xx0000000001AAA"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path("/services/data/v60.0/jobs/query/750xx0000000010AAA"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "id": "750xx0000000010AAA",
+                "operation": "query",
+                "state": "InProgress",
+                "createdDate": "2024-01-01T00:00:00.000Z",
+                "createdById": "005xx0000000001AAA"
+            })))
+            .up_to_n_times(1)
+            .mount(&mock_server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path("/services/data/v60.0/jobs/query/750xx0000000010AAA"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "id": "750xx0000000010AAA",
+                "operation": "query",
+                "state": "JobComplete",
+                "createdDate": "2024-01-01T00:00:00.000Z",
+                "createdById": "005xx0000000001AAA",
+                "numberRecordsProcessed": 1
+            })))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path(
+                "/services/data/v60.0/jobs/query/750xx0000000010AAA/results",
+            ))
+            .respond_with(ResponseTemplate::new(200).set_body_string("Id\n001xx0000000001AAA\n"))
+            .mount(&mock_server)
+            .await;
+
+        let client = create_test_client(mock_server.uri()).await;
+        let handler = client.bulk();
+        let policy = BulkPollPolicy::new(2, Duration::from_millis(1), Duration::from_millis(1));
+
+        let mut results = handler
+            .bulk_query_with_policy::<Account>("SELECT Id FROM Account LIMIT 1", policy)
+            .await
+            .must();
+        let record = results.next().await.must().must();
+        assert_eq!(record.id, "001xx0000000001AAA");
+    }
+
+    #[cfg(feature = "bulk")]
+    #[tokio::test]
+    async fn test_bulk_query_with_policy_times_out_immediately_when_attempts_are_zero() {
+        use serde::Deserialize;
+        use std::time::Duration;
+
+        #[derive(Deserialize, Debug)]
+        struct Account {
+            #[serde(rename = "Id")]
+            id: String,
+        }
+
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/services/data/v60.0/jobs/query"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "id": "750xx0000000011AAA",
+                "operation": "query",
+                "state": "UploadComplete",
+                "createdDate": "2024-01-01T00:00:00.000Z",
+                "createdById": "005xx0000000001AAA"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path("/services/data/v60.0/jobs/query/750xx0000000011AAA"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "id": "750xx0000000011AAA",
+                "operation": "query",
+                "state": "InProgress",
+                "createdDate": "2024-01-01T00:00:00.000Z",
+                "createdById": "005xx0000000001AAA"
+            })))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let client = create_test_client(mock_server.uri()).await;
+        let handler = client.bulk();
+        let policy = BulkPollPolicy::new(0, Duration::from_millis(1), Duration::from_millis(1));
+        let result = handler
+            .bulk_query_with_policy::<Account>("SELECT Id FROM Account LIMIT 1", policy)
+            .await;
+
+        assert!(result.is_err());
     }
 }

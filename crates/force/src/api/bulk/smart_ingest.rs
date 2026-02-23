@@ -6,8 +6,9 @@
 use crate::api::bulk::types::{
     CreateJobRequest, JobInfo, JobOperation, JobState, UpdateJobRequest,
 };
-use crate::api::bulk::{BulkHandler, csv};
+use crate::api::bulk::csv;
 use crate::error::Result;
+use super::BulkHandler;
 use futures::{Stream, StreamExt};
 use serde::Serialize;
 
