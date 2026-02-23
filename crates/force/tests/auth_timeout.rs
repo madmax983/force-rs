@@ -8,6 +8,7 @@
 
 use force::auth::ClientCredentials;
 use force::auth::authenticator::Authenticator;
+use force::error::{ForceError, HttpError};
 use std::time::Duration;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -38,8 +39,13 @@ async fn test_client_credentials_timeout() {
 
     let result = auth.authenticate().await;
 
-    // Should fail with timeout
-    assert!(result.is_err());
+    match result {
+        Err(ForceError::Http(HttpError::RequestFailed(e))) => {
+            assert!(e.is_timeout(), "Expected timeout error, got: {}", e);
+        }
+        Err(e) => panic!("Expected ForceError::Http(RequestFailed(timeout)), got: {:?}", e),
+        Ok(_) => panic!("Expected timeout error, got Ok"),
+    }
 }
 
 #[cfg(feature = "jwt")]
@@ -78,6 +84,11 @@ async fn test_jwt_bearer_timeout() {
 
     let result = auth.authenticate().await;
 
-    // Should fail with timeout
-    assert!(result.is_err());
+    match result {
+        Err(ForceError::Http(HttpError::RequestFailed(e))) => {
+            assert!(e.is_timeout(), "Expected timeout error, got: {}", e);
+        }
+        Err(e) => panic!("Expected ForceError::Http(RequestFailed(timeout)), got: {:?}", e),
+        Ok(_) => panic!("Expected timeout error, got Ok"),
+    }
 }
