@@ -37,7 +37,10 @@
 //! let failed = job.failed_results().await?;
 //! ```
 
+use super::BulkHandler;
 use crate::api::bulk::BulkPollPolicy;
+#[cfg(feature = "bulk")]
+use crate::api::bulk::smart_ingest::SmartIngest;
 use crate::api::bulk::types::{
     CreateJobRequest, JobInfo, JobOperation, JobState, UpdateJobRequest,
 };
@@ -46,9 +49,6 @@ use crate::error::Result;
 use crate::types::validator::{validate_external_id_field, validate_sobject_name};
 use std::marker::PhantomData;
 use std::sync::Arc;
-use super::BulkHandler;
-#[cfg(feature = "bulk")]
-use crate::api::bulk::smart_ingest::SmartIngest;
 
 async fn handle_error_response(
     response: reqwest::Response,

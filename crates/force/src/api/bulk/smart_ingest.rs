@@ -3,12 +3,12 @@
 //! This module provides the `SmartIngest` utility for efficiently uploading
 //! large datasets to Salesforce Bulk API 2.0 using async streams and automatic batching.
 
+use super::BulkHandler;
+use crate::api::bulk::csv;
 use crate::api::bulk::types::{
     CreateJobRequest, JobInfo, JobOperation, JobState, UpdateJobRequest,
 };
-use crate::api::bulk::csv;
 use crate::error::Result;
-use super::BulkHandler;
 use futures::{Stream, StreamExt};
 use serde::Serialize;
 
