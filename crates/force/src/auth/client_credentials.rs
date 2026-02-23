@@ -86,12 +86,26 @@ impl ClientCredentials {
         client_secret: impl Into<String>,
         token_url: impl Into<String>,
     ) -> Self {
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(30))
+            .build()
+            .expect("Failed to create secure HTTP client");
+
         Self {
             client_id: client_id.into(),
             client_secret: SecretString::new(client_secret.into().into()),
             token_url: token_url.into(),
-            client: reqwest::Client::new(),
+            client,
         }
+    }
+
+    /// Sets a custom HTTP client.
+    ///
+    /// This allows configuring timeouts, proxies, or certificates.
+    #[must_use]
+    pub fn with_client(mut self, client: reqwest::Client) -> Self {
+        self.client = client;
+        self
     }
 
     /// Creates a new `ClientCredentials` authenticator for Production.

@@ -288,7 +288,12 @@ impl JwtBearerBuilder {
         let token_url = self
             .token_url
             .unwrap_or_else(|| "https://login.salesforce.com/services/oauth2/token".to_string());
-        let http_client = self.http_client.unwrap_or_else(reqwest::Client::new);
+        let http_client = self.http_client.unwrap_or_else(|| {
+            reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(30))
+                .build()
+                .expect("Failed to create secure HTTP client")
+        });
 
         Ok(JwtBearerFlow {
             client_id,
