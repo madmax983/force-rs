@@ -54,6 +54,12 @@ pub(crate) fn escape_soql_cow(input: &str) -> Cow<'_, str> {
     }
 }
 
+#[derive(Debug, Clone)]
+enum WhereClause {
+    Raw(String),
+    In { field: String, values: Vec<String> },
+}
+
 /// Builder for constructing safe SOQL queries.
 ///
 /// Helps prevent SOQL injection by validating object and field names,
@@ -77,7 +83,7 @@ pub(crate) fn escape_soql_cow(input: &str) -> Cow<'_, str> {
 pub struct SoqlQueryBuilder {
     fields: Vec<String>,
     sobject: Option<String>,
-    where_clauses: Vec<String>,
+    where_clauses: Vec<WhereClause>,
     limit: Option<u32>,
     offset: Option<u32>,
     order_by: Option<String>,
@@ -150,7 +156,7 @@ impl SoqlQueryBuilder {
     /// **Warning:** This method does not escape the input. Use with caution.
     #[must_use]
     pub fn where_condition(mut self, condition: impl Into<String>) -> Self {
-        self.where_clauses.push(condition.into());
+        self.where_clauses.push(WhereClause::Raw(condition.into()));
         self
     }
 
@@ -179,8 +185,10 @@ impl SoqlQueryBuilder {
         Self::validate_field(field, context);
         // Optimization: Use escape_soql_cow to avoid allocation if escape not needed
         let escaped_value = escape_soql_cow(value);
-        self.where_clauses
-            .push(format!("{} {} '{}'", field, op, escaped_value));
+        self.where_clauses.push(WhereClause::Raw(format!(
+            "{} {} '{}'",
+            field, op, escaped_value
+        )));
         self
     }
 
@@ -200,17 +208,17 @@ impl SoqlQueryBuilder {
     pub fn where_in(mut self, field: &str, values: &[impl AsRef<str>]) -> Self {
         Self::validate_field(field, "where_in");
         if values.is_empty() {
-            self.where_clauses.push(format!("{} IN ()", field));
+            self.where_clauses
+                .push(WhereClause::Raw(format!("{} IN ()", field)));
             return self;
         }
 
-        let escaped_values: Vec<String> = values
-            .iter()
-            .map(|v| format!("'{}'", escape_soql_cow(v.as_ref())))
-            .collect();
+        let escaped_values: Vec<String> = values.iter().map(|v| escape_soql(v.as_ref())).collect();
 
-        self.where_clauses
-            .push(format!("{} IN ({})", field, escaped_values.join(", ")));
+        self.where_clauses.push(WhereClause::In {
+            field: field.to_string(),
+            values: escaped_values,
+        });
         self
     }
 
@@ -285,7 +293,13 @@ impl SoqlQueryBuilder {
         let where_len = self
             .where_clauses
             .iter()
-            .map(|s| s.len() + 5)
+            .map(|clause| match clause {
+                WhereClause::Raw(s) => s.len() + 5,
+                WhereClause::In { field, values } => {
+                    let vals_len: usize = values.iter().map(|v| v.len() + 3).sum(); // 'v',
+                    field.len() + 11 + vals_len // " IN ()" + AND
+                }
+            })
             .sum::<usize>();
         // 32 is roughly enough for keywords and small numbers
         let capacity = 32 + fields_len + sobject.len() + where_len + 32;
@@ -309,7 +323,22 @@ impl SoqlQueryBuilder {
                 if i > 0 {
                     query.push_str(" AND ");
                 }
-                query.push_str(clause);
+                match clause {
+                    WhereClause::Raw(s) => query.push_str(s),
+                    WhereClause::In { field, values } => {
+                        query.push_str(field);
+                        query.push_str(" IN (");
+                        for (j, v) in values.iter().enumerate() {
+                            if j > 0 {
+                                query.push_str(", ");
+                            }
+                            query.push('\'');
+                            query.push_str(v);
+                            query.push('\'');
+                        }
+                        query.push(')');
+                    }
+                }
             }
         }
 
