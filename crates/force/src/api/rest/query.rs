@@ -103,9 +103,8 @@ impl<A: crate::auth::Authenticator> super::RestHandler<A> {
         let url = if next_records_url.starts_with("http") {
             // Security check: If URL is absolute, ensure it matches the instance host
             // This prevents token leakage if nextRecordsUrl points to a third-party domain
-            let next_parsed = url::Url::parse(next_records_url).map_err(|e| {
-                ForceError::InvalidInput(format!("Invalid nextRecordsUrl: {}", e))
-            })?;
+            let next_parsed = url::Url::parse(next_records_url)
+                .map_err(|e| ForceError::InvalidInput(format!("Invalid nextRecordsUrl: {}", e)))?;
             let instance_parsed = url::Url::parse(instance_url).map_err(|e| {
                 ForceError::InvalidInput(format!("Invalid instance URL in token: {}", e))
             })?;
