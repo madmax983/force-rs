@@ -176,6 +176,26 @@ impl<A: Authenticator> BatchBuilder<A> {
         self
     }
 
+    /// Returns the number of requests currently in the batch.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.requests.len()
+    }
+
+    /// Returns true if the batch is empty.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.requests.is_empty()
+    }
+
+    /// Returns true if the batch is full (25 requests).
+    ///
+    /// The Salesforce Composite API limits batch requests to 25 subrequests.
+    #[must_use]
+    pub fn is_full(&self) -> bool {
+        self.requests.len() >= 25
+    }
+
     /// Executes the batch request.
     ///
     /// Sends all accumulated subrequests to the Salesforce Composite API.
@@ -468,5 +488,43 @@ mod tests {
         assert!(req.url.contains("SELECT+Id"));
         // Ensure & is encoded as %26 inside the value
         assert!(req.url.contains("%26"));
+    }
+
+    #[tokio::test]
+    async fn test_batch_capacity_helpers() {
+        let mut builder = create_builder().await;
+
+        assert!(builder.is_empty());
+        assert_eq!(builder.len(), 0);
+        assert!(!builder.is_full());
+
+        // Add 25 items
+        for i in 0..25 {
+            builder = builder
+                .get("Account", &format!("001000000000{:03}AAA", i))
+                .unwrap();
+        }
+
+        assert!(!builder.is_empty());
+        assert_eq!(builder.len(), 25);
+        assert!(builder.is_full());
+    }
+
+    #[tokio::test]
+    async fn test_add_request_raw_url() {
+        // Verify that add_request does NOT encode the URL
+        // This is important behavior to document via test
+        let builder = create_builder().await;
+
+        let unsafe_url = "query?q=SELECT Id FROM Account";
+        let mut builder = builder.add_request("GET", unsafe_url, None);
+
+        let req = builder.requests.pop().expect("No request added");
+
+        // It should match exactly what was passed
+        assert_eq!(req.url, unsafe_url);
+
+        // It should NOT be encoded (e.g. no + for spaces)
+        assert!(!req.url.contains('+'));
     }
 }
