@@ -257,6 +257,10 @@ impl JwtBearerBuilder {
     /// # Errors
     ///
     /// Returns an error if required fields are missing or the private key is invalid.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the default HTTP client cannot be initialized (e.g., due to missing TLS backend).
     pub fn build(self) -> Result<JwtBearerFlow> {
         let client_id = self.client_id.ok_or_else(|| {
             ForceError::Config(crate::error::ConfigError::MissingValue(
@@ -289,6 +293,8 @@ impl JwtBearerBuilder {
             .token_url
             .unwrap_or_else(|| "https://login.salesforce.com/services/oauth2/token".to_string());
         let http_client = self.http_client.unwrap_or_else(|| {
+            #[allow(clippy::expect_used)]
+            // Client initialization failure is fatal and unrecoverable here
             reqwest::Client::builder()
                 .timeout(std::time::Duration::from_secs(30))
                 .build()

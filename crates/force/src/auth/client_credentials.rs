@@ -81,11 +81,17 @@ impl ClientCredentials {
     ///     "https://login.salesforce.com/services/oauth2/token",
     /// );
     /// ```
+    ///
+    /// # Panics
+    ///
+    /// Panics if the default HTTP client cannot be initialized (e.g., due to missing TLS backend).
     pub fn new(
         client_id: impl Into<String>,
         client_secret: impl Into<String>,
         token_url: impl Into<String>,
     ) -> Self {
+        #[allow(clippy::expect_used)]
+        // Client initialization failure is fatal and unrecoverable here
         let client = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(30))
             .build()

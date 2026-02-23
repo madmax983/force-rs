@@ -1,3 +1,11 @@
+//! Tests for authentication timeout behavior.
+//!
+//! Verifies that `ClientCredentials` and `JwtBearerFlow` authenticators
+//! correctly respect configured timeouts to prevent indefinite hanging.
+
+#![allow(clippy::unwrap_used)]
+#![allow(clippy::expect_used)]
+
 use force::auth::ClientCredentials;
 use force::auth::authenticator::Authenticator;
 use std::time::Duration;
@@ -55,8 +63,8 @@ async fn test_jwt_bearer_timeout() {
         .build()
         .unwrap();
 
-    let key_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/fixtures/dummy_key.pem");
+    let key_path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/dummy_key.pem");
     let private_key = fs::read_to_string(key_path).expect("Failed to read dummy key");
 
     let auth = JwtBearerFlow::builder()
