@@ -41,9 +41,9 @@ async fn test_client_credentials_timeout() {
 
     match result {
         Err(ForceError::Http(HttpError::RequestFailed(e))) => {
-            assert!(e.is_timeout(), "Expected timeout error, got: {}", e);
+            assert!(e.is_timeout(), "Expected timeout error, got: {e}");
         }
-        Err(e) => panic!("Expected ForceError::Http(RequestFailed(timeout)), got: {:?}", e),
+        Err(e) => panic!("Expected ForceError::Http(RequestFailed(timeout)), got: {e:?}"),
         Ok(_) => panic!("Expected timeout error, got Ok"),
     }
 }
@@ -86,9 +86,9 @@ async fn test_jwt_bearer_timeout() {
 
     match result {
         Err(ForceError::Http(HttpError::RequestFailed(e))) => {
-            assert!(e.is_timeout(), "Expected timeout error, got: {}", e);
+            assert!(e.is_timeout(), "Expected timeout error, got: {e}");
         }
-        Err(e) => panic!("Expected ForceError::Http(RequestFailed(timeout)), got: {:?}", e),
+        Err(e) => panic!("Expected ForceError::Http(RequestFailed(timeout)), got: {e:?}"),
         Ok(_) => panic!("Expected timeout error, got Ok"),
     }
 }
