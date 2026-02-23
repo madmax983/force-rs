@@ -19,3 +19,7 @@
 ## [Silent Data Loss on Zero Batch Size]
 **Learning:** Functions that batch data (like `process_csv_batches`) must explicitly reject `batch_size: 0`. The iterator logic `0..0` creates an empty range, leading to immediate termination (`None`) which was interpreted as "successful completion" rather than "invalid configuration". This caused silent data loss where records were simply ignored.
 **Action:** Always validate configuration parameters like `batch_size`, `concurrency`, etc., against 0 if 0 is not a valid state (like "infinite"). Use `NonZeroUsize` where applicable or explicit checks.
+
+## [BatchBuilder URL Encoding Blindspot]
+**Learning:** `BatchBuilder::add_request` accepts raw `&str` URLs and includes them directly in the composite request body without validation or encoding. This differs from `query()` which handles encoding. Users might pass `query?q=Select Id From Account` with spaces, which Salesforce might reject as invalid JSON/URL.
+**Action:** When adding "raw" methods to builders, document whether inputs are treated as raw or encoded, and add tests verifying this behavior to prevent accidental regressions or assumptions.
