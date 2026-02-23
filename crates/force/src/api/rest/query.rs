@@ -95,12 +95,39 @@ impl<A: crate::auth::Authenticator> super::RestHandler<A> {
     where
         T: DeserializeOwned,
     {
+        // Get token to access instance URL
+        let token = self.inner.token_manager.get_token_arc().await?;
+        let instance_url = token.instance_url();
+
         // Construct full URL (next_records_url might be absolute or relative)
         let url = if next_records_url.starts_with("http") {
+            // Security check: If URL is absolute, ensure it matches the instance host
+            // This prevents token leakage if nextRecordsUrl points to a third-party domain
+            let next_parsed = url::Url::parse(next_records_url).map_err(|e| {
+                ForceError::InvalidInput(format!("Invalid nextRecordsUrl: {}", e))
+            })?;
+            let instance_parsed = url::Url::parse(instance_url).map_err(|e| {
+                ForceError::InvalidInput(format!("Invalid instance URL in token: {}", e))
+            })?;
+
+            // Compare schemes and hosts
+            if next_parsed.scheme() != instance_parsed.scheme()
+                || next_parsed.host_str() != instance_parsed.host_str()
+                || next_parsed.port_or_known_default() != instance_parsed.port_or_known_default()
+            {
+                return Err(ForceError::InvalidInput(format!(
+                    "Security Error: nextRecordsUrl origin ({:?}://{:?}:{:?}) does not match instance origin ({:?}://{:?}:{:?})",
+                    next_parsed.scheme(),
+                    next_parsed.host_str(),
+                    next_parsed.port_or_known_default(),
+                    instance_parsed.scheme(),
+                    instance_parsed.host_str(),
+                    instance_parsed.port_or_known_default()
+                )));
+            }
             next_records_url.to_string()
         } else {
-            let token = self.inner.token_manager.get_token_arc().await?;
-            format!("{}{}", token.instance_url(), next_records_url)
+            format!("{}{}", instance_url, next_records_url)
         };
 
         // Execute query
