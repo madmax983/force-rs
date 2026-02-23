@@ -86,26 +86,8 @@ impl AccessToken {
     #[must_use]
     pub fn from_response(response: TokenResponse) -> Self {
         let issued_at = parse_issued_at(&response.issued_at).unwrap_or_else(|_| Utc::now());
-        let expires_at = response.expires_in.and_then(|seconds| {
-            // Cap duration to ~100 years (3B seconds) to prevent overflow in Duration::seconds
-            // Duration::seconds panics if value > i64::MAX / 1_000_000_000 (~9B seconds)
-            if seconds > 3_000_000_000 {
-                return None;
-            }
-            // Safe to cast because we checked <= 3B, which fits in i64 (max ~9e18)
-            #[allow(clippy::cast_possible_wrap)]
-            let duration = Duration::seconds(seconds as i64);
-            issued_at.checked_add_signed(duration)
-        });
-
-        let mut auth_header = HeaderValue::from_str(&format!(
-            "{} {}",
-            response.token_type, response.access_token
-        ))
-        .ok();
-        if let Some(header) = &mut auth_header {
-            header.set_sensitive(true);
-        }
+        let expires_at = calculate_expiration(issued_at, response.expires_in);
+        let auth_header = create_auth_header(&response.token_type, &response.access_token);
 
         Self {
             token: SecretString::new(response.access_token.into()),
@@ -126,10 +108,7 @@ impl AccessToken {
     /// * `expires_at` - Optional expiration time
     #[cfg(test)]
     pub fn new(token: String, instance_url: String, expires_at: Option<DateTime<Utc>>) -> Self {
-        let mut auth_header = HeaderValue::from_str(&format!("Bearer {}", token)).ok();
-        if let Some(header) = &mut auth_header {
-            header.set_sensitive(true);
-        }
+        let auth_header = create_auth_header("Bearer", &token);
 
         Self {
             token: SecretString::new(token.into()),
@@ -216,6 +195,33 @@ impl AccessToken {
             .as_ref()
             .ok_or_else(|| HttpError::InvalidUrl("invalid authorization header".to_string()))
     }
+}
+
+/// Calculates expiration time from issued_at + expires_in seconds.
+fn calculate_expiration(
+    issued_at: DateTime<Utc>,
+    expires_in: Option<u64>,
+) -> Option<DateTime<Utc>> {
+    expires_in.and_then(|seconds| {
+        // Cap duration to ~100 years (3B seconds) to prevent overflow in Duration::seconds
+        // Duration::seconds panics if value > i64::MAX / 1_000_000_000 (~9B seconds)
+        if seconds > 3_000_000_000 {
+            return None;
+        }
+        // Safe to cast because we checked <= 3B, which fits in i64 (max ~9e18)
+        #[allow(clippy::cast_possible_wrap)]
+        let duration = Duration::seconds(seconds as i64);
+        issued_at.checked_add_signed(duration)
+    })
+}
+
+/// Creates a secure Authorization header value.
+fn create_auth_header(token_type: &str, access_token: &str) -> Option<HeaderValue> {
+    let mut header = HeaderValue::from_str(&format!("{} {}", token_type, access_token)).ok();
+    if let Some(h) = &mut header {
+        h.set_sensitive(true);
+    }
+    header
 }
 
 /// Parses the `issued_at` timestamp from Salesforce OAuth response.
