@@ -1,8 +1,13 @@
+//! Havoc token leak test.
+#![cfg(feature = "rest")]
+#![allow(clippy::unwrap_used)]
+#![allow(clippy::expect_used)]
+
+use async_trait::async_trait;
 use force::auth::{AccessToken, Authenticator, TokenResponse};
 use force::client::builder;
 use force::error::Result;
 use force::types::QueryResult;
-use async_trait::async_trait;
 use serde::Deserialize;
 use serde_json::json;
 use wiremock::matchers::{header, method, path};
@@ -82,7 +87,11 @@ async fn test_havoc_token_leak_via_absolute_url() {
         .mount(&attacker)
         .await;
 
-    let client = builder().authenticate(auth).build().await.expect("client build failed");
+    let client = builder()
+        .authenticate(auth)
+        .build()
+        .await
+        .expect("client build failed");
 
     // 5. Execute initial query
     let result: QueryResult<TestAccount> = client
@@ -94,17 +103,21 @@ async fn test_havoc_token_leak_via_absolute_url() {
     let next_url = result.next_records_url.as_ref().expect("no next url");
 
     // 6. Execute query_more - this should fail with a security error
-    let result_more = client
-        .rest()
-        .query_more::<TestAccount>(next_url)
-        .await;
+    let result_more: Result<QueryResult<TestAccount>> =
+        client.rest().query_more::<TestAccount>(next_url).await;
 
     match result_more {
         Ok(_) => panic!("query_more should have failed! Token leak detected!"),
         Err(e) => {
             let msg = e.to_string();
-            assert!(msg.contains("Security Error"), "Expected security error, got: {}", msg);
-            assert!(msg.contains("nextRecordsUrl origin"), "Expected origin mismatch details, got: {}", msg);
+            assert!(
+                msg.contains("Security Error"),
+                "Expected security error, got: {msg}"
+            );
+            assert!(
+                msg.contains("nextRecordsUrl origin"),
+                "Expected origin mismatch details, got: {msg}"
+            );
         }
     }
 }
