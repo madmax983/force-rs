@@ -94,7 +94,7 @@ mod tests {
 
         assert_eq!(plan.cardinality, 50);
         assert_eq!(plan.leading_operation_type, "TableScan");
-        assert_eq!(plan.relative_cost, 1.5);
+        assert!((plan.relative_cost - 1.5).abs() < f64::EPSILON);
         assert_eq!(plan.sobject_cardinality, 1000);
         assert_eq!(plan.sobject_type, "Account");
         assert_eq!(plan.fields, vec!["Name"]);
