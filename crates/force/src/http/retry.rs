@@ -66,7 +66,7 @@ pub(crate) fn exponential_backoff(attempt: u32, base: Duration) -> Duration {
 
     // If max_cap exceeds u64::MAX, cap it to u64::MAX to prevent truncation
     // Duration::from_millis only accepts u64, so we can't represent > u64::MAX ms
-    let safe_max_cap = max_cap.min(u64::MAX as u128) as u64;
+    let safe_max_cap = u64::try_from(max_cap.min(u128::from(u64::MAX))).unwrap_or(u64::MAX);
 
     // Cap at 64 to prevent overflow in 2^attempt
     if attempt >= 64 {
@@ -78,7 +78,8 @@ pub(crate) fn exponential_backoff(attempt: u32, base: Duration) -> Duration {
 
     // We can safely cast backoff_ms because we min() it with max_cap first
     // And safe_max_cap already handles the truncation case
-    let safe_backoff = backoff_ms.min(u128::from(safe_max_cap)) as u64;
+    let safe_backoff =
+        u64::try_from(backoff_ms.min(u128::from(safe_max_cap))).unwrap_or(safe_max_cap);
 
     Duration::from_millis(safe_backoff)
 }
