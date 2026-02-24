@@ -5,6 +5,8 @@
 
 pub mod crud;
 pub mod describe;
+#[cfg(feature = "nova")]
+pub mod explain;
 pub mod limits;
 pub mod query;
 pub mod query_stream;
@@ -324,6 +326,32 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
             &path,
             None,
             &format!("Describe request for {} failed", sobject_name),
+        )
+        .await
+    }
+
+    /// Retrieves the query execution plan for a SOQL query.
+    ///
+    /// The Query Plan API (`/query/?explain=`) allows developers to check the
+    /// performance cost of a query before executing it. This is useful for
+    /// identifying table scans and inefficient filters.
+    ///
+    /// # Arguments
+    ///
+    /// * `soql` - The SOQL query string to analyze.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Authentication fails
+    /// - The HTTP request fails
+    /// - The response cannot be deserialized
+    #[cfg(feature = "nova")]
+    pub async fn explain(&self, soql: &str) -> Result<explain::ExplainResponse> {
+        self.execute_get(
+            "/query",
+            Some(&[("explain", soql)]),
+            "Query Plan API request failed",
         )
         .await
     }
