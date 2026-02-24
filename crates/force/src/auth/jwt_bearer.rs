@@ -18,7 +18,7 @@
 //!     .client_id("your_client_id")
 //!     .username("user@example.com")
 //!     .private_key(&private_key)
-//!     .audience("https://login.salesforce.com")
+//!     .production() // or .sandbox()
 //!     .build()?;
 //!
 //! let token = flow.authenticate().await?;
@@ -252,6 +252,28 @@ impl JwtBearerBuilder {
         self
     }
 
+    /// Configures the flow for the Salesforce Sandbox environment.
+    ///
+    /// Sets the audience to `https://test.salesforce.com` and the token URL to
+    /// `https://test.salesforce.com/services/oauth2/token`.
+    #[must_use]
+    pub fn sandbox(mut self) -> Self {
+        self.audience = Some("https://test.salesforce.com".to_string());
+        self.token_url = Some("https://test.salesforce.com/services/oauth2/token".to_string());
+        self
+    }
+
+    /// Configures the flow for the Salesforce Production environment.
+    ///
+    /// Sets the audience to `https://login.salesforce.com` and the token URL to
+    /// `https://login.salesforce.com/services/oauth2/token`.
+    #[must_use]
+    pub fn production(mut self) -> Self {
+        self.audience = Some("https://login.salesforce.com".to_string());
+        self.token_url = Some("https://login.salesforce.com/services/oauth2/token".to_string());
+        self
+    }
+
     /// Builds the `JwtBearerFlow` instance.
     ///
     /// # Errors
@@ -323,6 +345,7 @@ struct OAuthErrorResponse {
 #[cfg(all(test, feature = "jwt"))]
 mod tests {
     use super::*;
+    #[cfg(feature = "mock")]
     use crate::auth::Authenticator;
     use crate::test_support::Must;
 
@@ -564,5 +587,39 @@ QcWLHR6ul3bFRWNhXoThNBQ=
         // Then refresh (should call authenticate again)
         let token2 = flow.refresh().await.must();
         assert_eq!(token2.as_str(), "refreshed_jwt_token");
+    }
+
+    #[test]
+    fn test_jwt_bearer_builder_sandbox() {
+        let flow = JwtBearerFlow::builder()
+            .client_id("test_client")
+            .username("user@example.com")
+            .private_key(TEST_PRIVATE_KEY)
+            .sandbox()
+            .build()
+            .must();
+
+        assert_eq!(flow.audience, "https://test.salesforce.com");
+        assert_eq!(
+            flow.token_url,
+            "https://test.salesforce.com/services/oauth2/token"
+        );
+    }
+
+    #[test]
+    fn test_jwt_bearer_builder_production() {
+        let flow = JwtBearerFlow::builder()
+            .client_id("test_client")
+            .username("user@example.com")
+            .private_key(TEST_PRIVATE_KEY)
+            .production()
+            .build()
+            .must();
+
+        assert_eq!(flow.audience, "https://login.salesforce.com");
+        assert_eq!(
+            flow.token_url,
+            "https://login.salesforce.com/services/oauth2/token"
+        );
     }
 }
