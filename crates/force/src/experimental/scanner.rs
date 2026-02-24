@@ -294,4 +294,283 @@ mod tests {
             .mount(mock_server)
             .await;
     }
+
+    #[tokio::test]
+    async fn test_scan_with_unsupported_fields() {
+        let mock_server = MockServer::start().await;
+        let auth = MockAuthenticator::new("token", &mock_server.uri());
+        let client = builder().authenticate(auth).build().await.must();
+
+        let id_field = json!({
+            "name": "Id", "type": "id", "label": "Account ID", "aggregatable": true,
+            "autoNumber": false, "byteLength": 18, "calculated": false, "cascadeDelete": false,
+            "caseSensitive": false, "createable": false, "custom": false, "defaultedOnCreate": true,
+            "dependentPicklist": false, "deprecatedAndHidden": false, "digits": 0,
+            "displayLocationInDecimal": false, "encrypted": false, "externalId": false,
+            "filterable": true, "groupable": true, "highScaleNumber": false, "htmlFormatted": false,
+            "idLookup": true, "length": 18, "nameField": false, "namePointing": false,
+            "nillable": false, "permissionable": false, "polymorphicForeignKey": false,
+            "precision": 0, "queryByDistance": false, "referenceTo": [], "restrictedDelete": false,
+            "restrictedPicklist": false, "scale": 0, "soapType": "tns:ID", "sortable": true,
+            "unique": false, "updateable": false, "writeRequiresMasterRead": false
+        });
+
+        let address_field = json!({
+            "name": "BillingAddress", "type": "address", "label": "Billing Address",
+            "aggregatable": true, "autoNumber": false, "byteLength": 0, "calculated": false,
+            "cascadeDelete": false, "caseSensitive": false, "createable": false, "custom": false,
+            "defaultedOnCreate": false, "dependentPicklist": false, "deprecatedAndHidden": false,
+            "digits": 0, "displayLocationInDecimal": false, "encrypted": false, "externalId": false,
+            "filterable": false, "groupable": false, "highScaleNumber": false, "htmlFormatted": false,
+            "idLookup": false, "length": 0, "nameField": false, "namePointing": false,
+            "nillable": true, "permissionable": false, "polymorphicForeignKey": false,
+            "precision": 0, "queryByDistance": false, "referenceTo": [], "restrictedDelete": false,
+            "restrictedPicklist": false, "scale": 0, "soapType": "urn:address", "sortable": false,
+            "unique": false, "updateable": false, "writeRequiresMasterRead": false
+        });
+
+        let describe_json = json!({
+            "name": "Account", "label": "Account", "custom": false, "queryable": true,
+            "activateable": false, "createable": true, "customSetting": false, "deletable": true,
+            "deprecatedAndHidden": false, "feedEnabled": true, "hasSubtypes": false,
+            "isSubtype": false, "keyPrefix": "001", "labelPlural": "Accounts", "layoutable": true,
+            "mergeable": true, "mruEnabled": true, "replicateable": true, "retrieveable": true,
+            "searchable": true, "triggerable": true, "undeletable": true, "updateable": true,
+            "urls": {}, "childRelationships": [], "recordTypeInfos": [],
+            "fields": [id_field, address_field]
+        });
+
+        Mock::given(method("GET"))
+            .and(path("/services/data/v60.0/sobjects/Account/describe"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(describe_json))
+            .mount(&mock_server)
+            .await;
+
+        let query_json = json!({
+            "totalSize": 1, "done": true,
+            "records": [{
+                "attributes": {
+                    "type": "AggregateResult",
+                    "url": "/services/data/v60.0/sobjects/AggregateResult/row0"
+                },
+                "total": 10, "f0": 10
+            }]
+        });
+
+        Mock::given(method("GET"))
+            .and(path("/services/data/v60.0/query"))
+            // Should ONLY query Id (f0), not BillingAddress
+            .and(query_param(
+                "q",
+                "SELECT COUNT(Id) total, COUNT(Id) f0 FROM Account",
+            ))
+            .respond_with(ResponseTemplate::new(200).set_body_json(query_json))
+            .mount(&mock_server)
+            .await;
+
+        let scanner = FieldUsageScanner::new(&client);
+        let usage = scanner.scan("Account").await.must();
+
+        assert_eq!(usage.len(), 1);
+        assert_eq!(usage[0].name, "Id");
+    }
+
+    #[tokio::test]
+    async fn test_scan_empty_table() {
+        let mock_server = MockServer::start().await;
+        let auth = MockAuthenticator::new("token", &mock_server.uri());
+        let client = builder().authenticate(auth).build().await.must();
+
+        // Standard setup for describe (just Id)
+        setup_mock_describe_simple(&mock_server).await;
+
+        let query_json = json!({
+            "totalSize": 1, "done": true,
+            "records": [{
+                "attributes": {
+                    "type": "AggregateResult",
+                    "url": "/services/data/v60.0/sobjects/AggregateResult/row0"
+                },
+                "total": 0, "f0": 0
+            }]
+        });
+
+        Mock::given(method("GET"))
+            .and(path("/services/data/v60.0/query"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(query_json))
+            .mount(&mock_server)
+            .await;
+
+        let scanner = FieldUsageScanner::new(&client);
+        let usage = scanner.scan("Account").await.must();
+
+        assert_eq!(usage.len(), 1);
+        assert_eq!(usage[0].populated_count, 0);
+        assert_eq!(usage[0].total_count, 0);
+        // Ensure no NaN
+        assert!(!usage[0].percentage.is_nan());
+        assert_eq!(usage[0].percentage, 0.0);
+    }
+
+    async fn setup_mock_describe_simple(mock_server: &MockServer) {
+        let id_field = json!({
+            "name": "Id", "type": "id", "label": "Account ID", "aggregatable": true,
+            "autoNumber": false, "byteLength": 18, "calculated": false, "cascadeDelete": false,
+            "caseSensitive": false, "createable": false, "custom": false, "defaultedOnCreate": true,
+            "dependentPicklist": false, "deprecatedAndHidden": false, "digits": 0,
+            "displayLocationInDecimal": false, "encrypted": false, "externalId": false,
+            "filterable": true, "groupable": true, "highScaleNumber": false, "htmlFormatted": false,
+            "idLookup": true, "length": 18, "nameField": false, "namePointing": false,
+            "nillable": false, "permissionable": false, "polymorphicForeignKey": false,
+            "precision": 0, "queryByDistance": false, "referenceTo": [], "restrictedDelete": false,
+            "restrictedPicklist": false, "scale": 0, "soapType": "tns:ID", "sortable": true,
+            "unique": false, "updateable": false, "writeRequiresMasterRead": false
+        });
+
+        let describe_json = json!({
+            "name": "Account", "label": "Account", "custom": false, "queryable": true,
+            "activateable": false, "createable": true, "customSetting": false, "deletable": true,
+            "deprecatedAndHidden": false, "feedEnabled": true, "hasSubtypes": false,
+            "isSubtype": false, "keyPrefix": "001", "labelPlural": "Accounts", "layoutable": true,
+            "mergeable": true, "mruEnabled": true, "replicateable": true, "retrieveable": true,
+            "searchable": true, "triggerable": true, "undeletable": true, "updateable": true,
+            "urls": {}, "childRelationships": [], "recordTypeInfos": [],
+            "fields": [id_field]
+        });
+
+        Mock::given(method("GET"))
+            .and(path("/services/data/v60.0/sobjects/Account/describe"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(describe_json))
+            .mount(mock_server)
+            .await;
+    }
+
+    struct QueryContains(&'static str);
+    impl wiremock::Match for QueryContains {
+        fn matches(&self, request: &wiremock::Request) -> bool {
+            request.url.query_pairs().any(|(k, v)| k == "q" && v.contains(self.0))
+        }
+    }
+
+    struct QueryNotContains(&'static str);
+    impl wiremock::Match for QueryNotContains {
+        fn matches(&self, request: &wiremock::Request) -> bool {
+            !request.url.query_pairs().any(|(k, v)| k == "q" && v.contains(self.0))
+        }
+    }
+
+    #[tokio::test]
+    async fn test_scan_batching() {
+        let mock_server = MockServer::start().await;
+        let auth = MockAuthenticator::new("token", &mock_server.uri());
+        let client = builder().authenticate(auth).build().await.must();
+
+        // Generate 25 fields
+        let mut fields = Vec::new();
+        for i in 0..25 {
+            fields.push(json!({
+                "name": format!("Field{}", i), "type": "string", "label": format!("Field {}", i),
+                // (Other required fields omitted for brevity as they aren't checked by logic, but needed for parsing)
+                "aggregatable": true, "autoNumber": false, "byteLength": 18, "calculated": false,
+                "cascadeDelete": false, "caseSensitive": false, "createable": false, "custom": false,
+                "defaultedOnCreate": true, "dependentPicklist": false, "deprecatedAndHidden": false,
+                "digits": 0, "displayLocationInDecimal": false, "encrypted": false, "externalId": false,
+                "filterable": true, "groupable": true, "highScaleNumber": false, "htmlFormatted": false,
+                "idLookup": true, "length": 18, "nameField": false, "namePointing": false,
+                "nillable": false, "permissionable": false, "polymorphicForeignKey": false,
+                "precision": 0, "queryByDistance": false, "referenceTo": [], "restrictedDelete": false,
+                "restrictedPicklist": false, "scale": 0, "soapType": "xsd:string", "sortable": true,
+                "unique": false, "updateable": false, "writeRequiresMasterRead": false
+            }));
+        }
+
+        let describe_json = json!({
+            "name": "Account", "label": "Account", "custom": false, "queryable": true,
+            "activateable": false, "createable": true, "customSetting": false, "deletable": true,
+            "deprecatedAndHidden": false, "feedEnabled": true, "hasSubtypes": false,
+            "isSubtype": false, "keyPrefix": "001", "labelPlural": "Accounts", "layoutable": true,
+            "mergeable": true, "mruEnabled": true, "replicateable": true, "retrieveable": true,
+            "searchable": true, "triggerable": true, "undeletable": true, "updateable": true,
+            "urls": {}, "childRelationships": [], "recordTypeInfos": [],
+            "fields": fields
+        });
+
+        Mock::given(method("GET"))
+            .and(path("/services/data/v60.0/sobjects/Account/describe"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(describe_json))
+            .mount(&mock_server)
+            .await;
+
+        // Expect 2 queries.
+        // Batch 1: 20 fields (0-19)
+        // Batch 2: 5 fields (20-24)
+
+        // We match strictly on the query param to verify batching
+        Mock::given(method("GET"))
+            .and(path("/services/data/v60.0/query"))
+            .and(QueryContains("Field0"))
+            .and(QueryContains("Field19"))
+            .and(QueryNotContains("Field20")) // Should NOT contain Field20
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "totalSize": 1, "done": true,
+                "records": [{
+                    "attributes": { "type": "AggregateResult", "url": "..." },
+                    "total": 10, "f0": 1, "f19": 1
+                }]
+            })))
+            .mount(&mock_server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path("/services/data/v60.0/query"))
+            .and(QueryContains("Field20"))
+            .and(QueryContains("Field24"))
+            .and(QueryNotContains("Field0")) // Should NOT contain Field0
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "totalSize": 1, "done": true,
+                "records": [{
+                    "attributes": { "type": "AggregateResult", "url": "..." },
+                    "total": 10, "f0": 1, "f4": 1 // f0-f4 map to Field20-Field24 in this batch
+                }]
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let scanner = FieldUsageScanner::new(&client);
+        let usage = scanner.scan("Account").await.must();
+
+        assert_eq!(usage.len(), 25);
+    }
+
+    #[tokio::test]
+    async fn test_scan_api_errors() {
+        let mock_server = MockServer::start().await;
+        let auth = MockAuthenticator::new("token", &mock_server.uri());
+        let client = builder().authenticate(auth).build().await.must();
+
+        // 1. Describe failure
+        Mock::given(method("GET"))
+            .and(path("/services/data/v60.0/sobjects/Account/describe"))
+            .respond_with(ResponseTemplate::new(404)) // Not Found
+            .mount(&mock_server)
+            .await;
+
+        let scanner = FieldUsageScanner::new(&client);
+        let result = scanner.scan("Account").await;
+        assert!(result.is_err());
+
+        mock_server.reset().await;
+
+        // 2. Query failure
+        setup_mock_describe_simple(&mock_server).await;
+
+        Mock::given(method("GET"))
+            .and(path("/services/data/v60.0/query"))
+            .respond_with(ResponseTemplate::new(400).set_body_string("Bad Query"))
+            .mount(&mock_server)
+            .await;
+
+        let result = scanner.scan("Account").await;
+        assert!(result.is_err());
+    }
 }
