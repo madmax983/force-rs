@@ -1,10 +1,11 @@
-//! Havoc race condition test for TokenManager::force_refresh.
+//! Havoc race condition test for `TokenManager::force_refresh`.
 //!
 //! This test simulates the race condition where `force_refresh` (which refreshes outside the lock)
 //! competes with `get_token` (which refreshes inside the lock).
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)]
     use loom::sync::{Arc, RwLock};
     use loom::thread;
     use std::sync::atomic::{AtomicUsize, Ordering};
@@ -64,10 +65,10 @@ mod tests {
             {
                 let mut guard = self.token.write().unwrap();
                 // FIX: Check if current token is newer
-                if let Some(current) = *guard {
-                    if current > new_token {
-                        return current;
-                    }
+                if let Some(current) = *guard
+                    && current > new_token
+                {
+                    return current;
                 }
                 *guard = Some(new_token);
             }
@@ -75,7 +76,7 @@ mod tests {
         }
 
         fn current_token(&self) -> Option<usize> {
-             *self.token.read().unwrap()
+            *self.token.read().unwrap()
         }
     }
 
@@ -87,14 +88,10 @@ mod tests {
             let m2 = manager.clone();
 
             // Thread 1: Calls force_refresh
-            let t1 = thread::spawn(move || {
-                m1.force_refresh()
-            });
+            let t1 = thread::spawn(move || m1.force_refresh());
 
             // Thread 2: Calls get_token (which triggers a refresh because initial state is None)
-            let t2 = thread::spawn(move || {
-                m2.get_token()
-            });
+            let t2 = thread::spawn(move || m2.get_token());
 
             let _ = t1.join();
             let _ = t2.join();
