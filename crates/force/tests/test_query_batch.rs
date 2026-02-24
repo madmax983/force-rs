@@ -112,20 +112,18 @@ async fn test_query_batch_pagination_and_update() {
     let processor = QueryBatch::new(&client, "SELECT Id, Name FROM Account");
 
     let stats = processor
-        .run(|record: Account| {
-            match record.name.as_str() {
-                "Account 1" => Some(BatchOp::Update(
-                    "Account".to_string(),
-                    record.id,
-                    json!({"Name": "Updated 1"}),
-                )),
-                "Account 2" => Some(BatchOp::Delete("Account".to_string(), record.id)),
-                "Account 4" => Some(BatchOp::Create(
-                    "Contact".to_string(),
-                    json!({"AccountId": record.id, "LastName": "Contact"}),
-                )),
-                _ => None,
-            }
+        .run(|record: Account| match record.name.as_str() {
+            "Account 1" => Some(BatchOp::Update(
+                "Account".to_string(),
+                record.id,
+                json!({"Name": "Updated 1"}),
+            )),
+            "Account 2" => Some(BatchOp::Delete("Account".to_string(), record.id)),
+            "Account 4" => Some(BatchOp::Create(
+                "Contact".to_string(),
+                json!({"AccountId": record.id, "LastName": "Contact"}),
+            )),
+            _ => None,
         })
         .await
         .expect("run failed");
