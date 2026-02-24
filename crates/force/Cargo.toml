@@ -46,7 +46,6 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 proptest = "1.5"
 
 [features]
-nova = []
 default = ["rest"]
 
 # Platform API surfaces

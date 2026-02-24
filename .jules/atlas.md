@@ -23,3 +23,7 @@
 **2024-05-26 - [Decomposed Bulk API Module]**
 **Tangle:** The `crates/force/src/api/bulk/mod.rs` file was a "Blob" (1789 lines) containing `BulkHandler` definition, `BulkPollPolicy`, all inherent implementation methods (ingest, query), and massive tests.
 **Blueprint:** Refactored `bulk` module into cohesive submodules: `handler.rs` (struct def), `policy.rs` (polling logic), `ingest.rs` (ingest methods), and `query.rs` (query methods). `mod.rs` is now a facade. Used Rust's ability to split inherent implementations across modules in the same crate to maintain the public API without extension traits.
+
+**2024-05-27 - [Removed Experimental and Nova Features]**
+**Tangle:** The `experimental` module contained deprecated utilities (`scanner`, `query_batch`) and the `nova` feature (`explain`) was a dead-end experiment. These modules were cluttering the API and codebase.
+**Blueprint:** Removed `experimental` module entirely. Removed `api::rest::explain` module and the `nova` feature flag. Cleaned up `lib.rs` and `Cargo.toml`.
