@@ -409,7 +409,7 @@ mod tests {
         assert_eq!(usage[0].total_count, 0);
         // Ensure no NaN
         assert!(!usage[0].percentage.is_nan());
-        assert_eq!(usage[0].percentage, 0.0);
+        assert!(usage[0].percentage.abs() < f64::EPSILON);
     }
 
     async fn setup_mock_describe_simple(mock_server: &MockServer) {
@@ -448,14 +448,20 @@ mod tests {
     struct QueryContains(&'static str);
     impl wiremock::Match for QueryContains {
         fn matches(&self, request: &wiremock::Request) -> bool {
-            request.url.query_pairs().any(|(k, v)| k == "q" && v.contains(self.0))
+            request
+                .url
+                .query_pairs()
+                .any(|(k, v)| k == "q" && v.contains(self.0))
         }
     }
 
     struct QueryNotContains(&'static str);
     impl wiremock::Match for QueryNotContains {
         fn matches(&self, request: &wiremock::Request) -> bool {
-            !request.url.query_pairs().any(|(k, v)| k == "q" && v.contains(self.0))
+            !request
+                .url
+                .query_pairs()
+                .any(|(k, v)| k == "q" && v.contains(self.0))
         }
     }
 
