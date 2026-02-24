@@ -178,18 +178,23 @@ impl HttpExecutor {
         .into()
     }
 
-    async fn handle_service_unavailable(&self, retry_attempt: u32, ctx: &TelemetryContext) {
+    async fn handle_transient_failure(
+        &self,
+        retry_attempt: u32,
+        ctx: &TelemetryContext,
+        status_code: Option<u16>,
+    ) {
         let backoff = exponential_backoff(retry_attempt, self.base_backoff);
         tracing::warn!(
             retry.attempt = retry_attempt,
-            http.status_code = 503_u16,
+            http.status_code = status_code.unwrap_or(0),
             retry.backoff_ms = backoff.as_millis(),
             "retrying request after transient failure"
         );
         self.record_retry(
             ctx,
             retry_attempt,
-            StatusCode::SERVICE_UNAVAILABLE.as_u16(),
+            status_code.unwrap_or(0),
             backoff.as_millis(),
         );
         tokio::time::sleep(backoff).await;
@@ -234,7 +239,32 @@ impl HttpExecutor {
                 HttpError::InvalidUrl("cannot clone request for retry".to_string())
             })?;
 
-            let response = self.execute_attempt(req_clone, retry_attempt, &ctx).await?;
+            let response = match self.execute_attempt(req_clone, retry_attempt, &ctx).await {
+                Ok(resp) => resp,
+                Err(e) if retry_attempt < max_retries => {
+                    // Check if error is retryable (timeout or transport)
+                    let is_retryable = match &e {
+                        // HttpError wraps reqwest::Error via RequestFailed
+                        crate::error::ForceError::Http(http_err) => match http_err {
+                            HttpError::Timeout { .. } => true,
+                            HttpError::RequestFailed(re) => {
+                                !re.is_builder() && !re.is_redirect() && !re.is_status()
+                            }
+                            _ => false,
+                        },
+                        _ => false,
+                    };
+
+                    if is_retryable {
+                        self.handle_transient_failure(retry_attempt, &ctx, None)
+                            .await;
+                        retry_attempt += 1;
+                        continue;
+                    }
+                    return Err(e);
+                }
+                Err(e) => return Err(e),
+            };
 
             match response.status() {
                 StatusCode::UNAUTHORIZED => {
@@ -260,7 +290,8 @@ impl HttpExecutor {
                 }
                 StatusCode::SERVICE_UNAVAILABLE if retry_attempt < max_retries => {
                     // 503: Retry with exponential backoff
-                    self.handle_service_unavailable(retry_attempt, &ctx).await;
+                    self.handle_transient_failure(retry_attempt, &ctx, Some(503))
+                        .await;
                     retry_attempt += 1;
                     continue;
                 }

@@ -568,4 +568,50 @@ mod integration_tests {
             panic!("Expected StatusError with 401, got: {:?}", result);
         }
     }
+
+    #[tokio::test]
+    async fn test_network_timeout_retries() {
+        // Arrange
+        let mock_server = MockServer::start().await;
+        // Use short backoff and timeout
+        let executor = HttpExecutor::with_config(2, std::time::Duration::from_millis(50))
+            .with_base_backoff(std::time::Duration::from_millis(10));
+        let token = create_test_token();
+
+        // First request times out (delay > 50ms)
+        Mock::given(method("GET"))
+            .and(path("/test"))
+            .respond_with(
+                ResponseTemplate::new(200).set_delay(std::time::Duration::from_millis(100)),
+            )
+            .up_to_n_times(1)
+            .mount(&mock_server)
+            .await;
+
+        // Second request succeeds
+        Mock::given(method("GET"))
+            .and(path("/test"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "recovered": true
+            })))
+            .mount(&mock_server)
+            .await;
+
+        // Act
+        let url = format!("{}/test", mock_server.uri());
+        let request = reqwest::Client::new().get(&url).build().must();
+
+        let start = std::time::Instant::now();
+        let result = executor
+            .execute(request, &token, || async {
+                panic!("Should not refresh on timeout retry")
+            })
+            .await;
+        let elapsed = start.elapsed();
+
+        // Assert
+        assert!(result.is_ok());
+        // Should have waited at least 50ms (timeout) + 10ms (backoff)
+        assert!(elapsed.as_millis() >= 60);
+    }
 }
