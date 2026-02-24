@@ -283,11 +283,25 @@ impl SoqlQueryBuilder {
                 "Select fields cannot be empty".to_string(),
             ));
         }
-        let sobject = self.sobject.ok_or_else(|| {
+        let sobject = self.sobject.as_ref().ok_or_else(|| {
             ForceError::InvalidInput("FROM clause (SObject) is required".to_string())
         })?;
 
-        // Calculate capacity to avoid reallocations
+        let capacity = self.calculate_capacity(sobject.len());
+        let mut query = String::with_capacity(capacity);
+
+        self.append_fields(&mut query);
+
+        query.push_str(" FROM ");
+        query.push_str(sobject);
+
+        self.append_where_clauses(&mut query);
+        self.append_modifiers(&mut query);
+
+        Ok(query)
+    }
+
+    fn calculate_capacity(&self, sobject_len: usize) -> usize {
         // Heuristic: Base (SELECT...FROM) + Fields (len + comma) + Where (len + AND) + Limit/Offset
         let fields_len = self.fields.iter().map(|s| s.len() + 2).sum::<usize>();
         let where_len = self
@@ -302,10 +316,10 @@ impl SoqlQueryBuilder {
             })
             .sum::<usize>();
         // 32 is roughly enough for keywords and small numbers
-        let capacity = 32 + fields_len + sobject.len() + where_len + 32;
+        32 + fields_len + sobject_len + where_len + 32
+    }
 
-        let mut query = String::with_capacity(capacity);
-
+    fn append_fields(&self, query: &mut String) {
         query.push_str("SELECT ");
         for (i, field) in self.fields.iter().enumerate() {
             if i > 0 {
@@ -313,38 +327,41 @@ impl SoqlQueryBuilder {
             }
             query.push_str(field);
         }
+    }
 
-        query.push_str(" FROM ");
-        query.push_str(&sobject);
+    fn append_where_clauses(&self, query: &mut String) {
+        if self.where_clauses.is_empty() {
+            return;
+        }
 
-        if !self.where_clauses.is_empty() {
-            query.push_str(" WHERE ");
-            for (i, clause) in self.where_clauses.iter().enumerate() {
-                if i > 0 {
-                    query.push_str(" AND ");
-                }
-                match clause {
-                    WhereClause::Raw(s) => query.push_str(s),
-                    WhereClause::In { field, values } => {
-                        query.push_str(field);
-                        query.push_str(" IN (");
-                        for (j, v) in values.iter().enumerate() {
-                            if j > 0 {
-                                query.push_str(", ");
-                            }
-                            query.push('\'');
-                            query.push_str(v);
-                            query.push('\'');
+        query.push_str(" WHERE ");
+        for (i, clause) in self.where_clauses.iter().enumerate() {
+            if i > 0 {
+                query.push_str(" AND ");
+            }
+            match clause {
+                WhereClause::Raw(s) => query.push_str(s),
+                WhereClause::In { field, values } => {
+                    query.push_str(field);
+                    query.push_str(" IN (");
+                    for (j, v) in values.iter().enumerate() {
+                        if j > 0 {
+                            query.push_str(", ");
                         }
-                        query.push(')');
+                        query.push('\'');
+                        query.push_str(v);
+                        query.push('\'');
                     }
+                    query.push(')');
                 }
             }
         }
+    }
 
-        if let Some(order) = self.order_by {
+    fn append_modifiers(&self, query: &mut String) {
+        if let Some(order) = &self.order_by {
             query.push_str(" ORDER BY ");
-            query.push_str(&order);
+            query.push_str(order);
         }
 
         if let Some(limit) = self.limit {
@@ -354,8 +371,6 @@ impl SoqlQueryBuilder {
         if let Some(offset) = self.offset {
             let _ = write!(query, " OFFSET {}", offset);
         }
-
-        Ok(query)
     }
 
     /// Builds the final SOQL query string (panicking version).
