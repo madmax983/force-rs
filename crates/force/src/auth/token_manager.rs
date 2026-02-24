@@ -125,6 +125,16 @@ impl<A: Authenticator> TokenManager<A> {
 
         {
             let mut state = self.state.write().await;
+
+            // Check if current token is newer than the one we just got.
+            // This protects against race conditions where a concurrent `get_token` call
+            // might have refreshed the token while we were waiting for the refresh.
+            if let Some(current) = &state.token {
+                if current.issued_at() > new_token.issued_at() {
+                    return Ok(current.as_ref().clone());
+                }
+            }
+
             state.token = Some(arc_token);
         } // Write lock dropped here
 
@@ -436,5 +446,40 @@ mod tests {
         );
         // Auth count should remain 1 (from initial setup)
         assert_eq!(manager.authenticator.auth_count(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_token_manager_force_refresh_protects_against_overwrite() {
+        let auth = MockAuthenticator::new();
+        let manager = TokenManager::new(auth);
+
+        // 1. Manually set a token with a FUTURE issued_at to simulate a concurrent refresh finishing later
+        let future_ts = (Utc::now() + Duration::hours(1)).timestamp_millis();
+        let response = crate::auth::token::TokenResponse {
+            access_token: "future_token".to_string(),
+            instance_url: "https://test.salesforce.com".to_string(),
+            token_type: "Bearer".to_string(),
+            issued_at: future_ts.to_string(),
+            signature: String::new(),
+            expires_in: None,
+            refresh_token: None,
+        };
+        let future_token = AccessToken::from_response(response);
+
+        {
+            let mut state = manager.state.write().await;
+            state.token = Some(StdArc::new(future_token));
+        }
+
+        // 2. Call force_refresh
+        // The mock authenticator returns a token with `issued_at` roughly NOW (older than future_token).
+        let result = manager.force_refresh().await.must();
+
+        // 3. Assert that the result matches the FUTURE token, proving we kept the newer one
+        assert_eq!(result.as_str(), "future_token");
+
+        // 4. Verify state also has the future token
+        let state_token = manager.token().await.must();
+        assert_eq!(state_token.as_str(), "future_token");
     }
 }
