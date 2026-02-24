@@ -174,7 +174,9 @@ impl<A: Authenticator> BatchBuilder<A> {
         // 8 is for "query?q=" and a bit of slack
         let mut url = String::with_capacity(query_string.len() + 8);
         url.push_str("query?q=");
-        url.extend(url::form_urlencoded::byte_serialize(query_string.as_bytes()));
+        url.extend(url::form_urlencoded::byte_serialize(
+            query_string.as_bytes(),
+        ));
 
         self.requests.push(BatchSubRequest {
             method: "GET".to_string(),
@@ -489,7 +491,9 @@ mod tests {
 
         // We expect form-urlencoded encoding (spaces are +)
         let mut expected_url = "query?q=".to_string();
-        expected_url.extend(url::form_urlencoded::byte_serialize(expected_soql.as_bytes()));
+        expected_url.extend(url::form_urlencoded::byte_serialize(
+            expected_soql.as_bytes(),
+        ));
 
         assert_eq!(req.url, expected_url);
 
