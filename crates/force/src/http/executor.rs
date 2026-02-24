@@ -256,7 +256,8 @@ impl HttpExecutor {
                     };
 
                     if is_retryable {
-                        self.handle_transient_failure(retry_attempt, &ctx, None).await;
+                        self.handle_transient_failure(retry_attempt, &ctx, None)
+                            .await;
                         retry_attempt += 1;
                         continue;
                     }
@@ -289,7 +290,8 @@ impl HttpExecutor {
                 }
                 StatusCode::SERVICE_UNAVAILABLE if retry_attempt < max_retries => {
                     // 503: Retry with exponential backoff
-                    self.handle_transient_failure(retry_attempt, &ctx, Some(503)).await;
+                    self.handle_transient_failure(retry_attempt, &ctx, Some(503))
+                        .await;
                     retry_attempt += 1;
                     continue;
                 }
