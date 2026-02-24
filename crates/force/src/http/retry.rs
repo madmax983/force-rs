@@ -64,17 +64,24 @@ pub(crate) fn exponential_backoff(attempt: u32, base: Duration) -> Duration {
     // Cap should at least be the base duration, otherwise we retry faster than the base
     let max_cap = std::cmp::max(base_ms, u128::from(MAX_BACKOFF_MS));
 
+    // If max_cap exceeds u64::MAX, cap it to u64::MAX to prevent truncation
+    // Duration::from_millis only accepts u64, so we can't represent > u64::MAX ms
+    let safe_max_cap = u64::try_from(max_cap.min(u128::from(u64::MAX))).unwrap_or(u64::MAX);
+
     // Cap at 64 to prevent overflow in 2^attempt
     if attempt >= 64 {
-        #[allow(clippy::cast_possible_truncation)]
-        return Duration::from_millis(max_cap as u64);
+        return Duration::from_millis(safe_max_cap);
     }
 
     let multiplier = 2_u128.pow(attempt);
     let backoff_ms = base_ms.saturating_mul(multiplier);
 
-    #[allow(clippy::cast_possible_truncation)]
-    Duration::from_millis(backoff_ms.min(max_cap) as u64)
+    // We can safely cast backoff_ms because we min() it with max_cap first
+    // And safe_max_cap already handles the truncation case
+    let safe_backoff =
+        u64::try_from(backoff_ms.min(u128::from(safe_max_cap))).unwrap_or(safe_max_cap);
+
+    Duration::from_millis(safe_backoff)
 }
 
 pub(crate) fn classify_request(method: &Method) -> RequestRetryClass {
@@ -226,5 +233,17 @@ mod tests {
         let duration = exponential_backoff(u32::MAX, base);
         // Should be capped at 30 seconds
         assert_eq!(duration.as_millis(), 30_000);
+    }
+
+    #[test]
+    fn test_exponential_backoff_overflow_truncation() {
+        // Base larger than u64::MAX should saturate, not truncate
+        // 2^64 millis
+        let secs = 18_446_744_073_709_551;
+        let nanos = 616_000_000;
+        let huge_duration = Duration::new(secs, nanos);
+
+        let result = exponential_backoff(65, huge_duration);
+        assert_eq!(result.as_millis(), u128::from(u64::MAX));
     }
 }
