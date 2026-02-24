@@ -167,3 +167,23 @@ sequenceDiagram
     end
     deactivate SI
 ```
+
+## C4 Component Diagram: HTTP Layer
+
+The HTTP layer is decomposed into specialized modules for execution, retry logic, and observability.
+
+```mermaid
+C4Component
+  title Component Diagram for HTTP Layer
+
+  Container_Boundary(http_mod, "HTTP Module") {
+     Component(executor, "Executor", "executor.rs", "Request execution & Middleware orchestration")
+     Component(retry, "Retry Logic", "retry.rs", "Backoff & idempotency policies")
+     Component(telemetry, "Telemetry", "telemetry.rs", "Observability hooks & tracing context")
+     Component(error, "Error Handling", "error.rs", "Response parsing & error mapping")
+
+     Rel(executor, retry, "Uses")
+     Rel(executor, telemetry, "Uses")
+     Rel(executor, error, "Uses")
+  }
+```
