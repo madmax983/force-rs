@@ -327,7 +327,6 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
         )
         .await
     }
-
 }
 #[cfg(test)]
 mod tests {
