@@ -11,8 +11,19 @@ This journal records the findings of the Elenchus test audit.
 | **Acquitted** | `crates/force/tests/havoc_token_leak.rs` | 🟢 Acquitted | The test verifies both the side effect (attacker server not called) and the specific error cause (Security Error due to origin mismatch). |
 | **Commended** | `crates/force/src/auth/token_manager.rs` | ⭐ Commended | Robust concurrency testing using `tokio::spawn`, atomic counters, and specific assertion of call counts. |
 | **Suspect** | `crates/force/tests/security_soql_injection.rs` | 🟡 Suspect | The test mirrors the implementation of `escape_soql`. While valuable as a regression guard, it is tautological in nature. |
+| **Acquitted** | `crates/force/src/experimental/scanner.rs` | 🟢 Acquitted | Initial audit found missing tests for filtering, batching, and zero-division. Added comprehensive tests and verified with mutation testing (12 mutants caught). |
 
 ## Detailed Findings
+
+### [Acquitted] `crates/force/src/experimental/scanner.rs`
+
+**Module:** `crates/force/src/experimental/scanner.rs`
+**Severity:** 🟢 Acquitted (was 🟡 Suspect)
+**Finding:** `cargo mutants` revealed that the filtering logic (`is_scanable`) and division-by-zero protection were not covered by tests. Additionally, the batching logic (`chunks(20)`) was not exercised.
+**Evidence:**
+- Mutation `replace > with >=` survived (division by zero risk).
+- Mutation `replace is_scanable -> bool with true` survived (filtering logic unused).
+**Resolution:** Added `test_scan_with_unsupported_fields`, `test_scan_empty_table`, `test_scan_batching`, and `test_scan_api_errors`. Re-ran `cargo mutants` and confirmed 100% kill rate for viable mutants.
 
 ### [Weak Assertion] `crates/force/tests/auth_timeout.rs`
 
