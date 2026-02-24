@@ -31,10 +31,14 @@ pub struct BatchBuilder<A: Authenticator> {
 }
 
 impl<A: Authenticator> BatchBuilder<A> {
+    /// Creates a new BatchBuilder.
+    ///
+    /// Performance: Pre-allocates capacity for 25 requests (Salesforce limit)
+    /// to avoid heap reallocations during request accumulation.
     pub(crate) fn new(handler: CompositeHandler<A>) -> Self {
         Self {
             handler,
-            requests: Vec::new(),
+            requests: Vec::with_capacity(25),
             halt_on_error: false,
         }
     }
@@ -143,6 +147,9 @@ impl<A: Authenticator> BatchBuilder<A> {
     /// This method automatically URL-encodes the query string to prevent injection vulnerabilities
     /// and ensures valid URL formatting.
     ///
+    /// Performance: Uses `byte_serialize` to stream encoded output directly into the URL buffer,
+    /// avoiding intermediate string allocations and `format!` overhead.
+    ///
     /// # Arguments
     ///
     /// * `query_builder` - The SOQL query builder
@@ -163,14 +170,15 @@ impl<A: Authenticator> BatchBuilder<A> {
     #[must_use]
     pub fn query(mut self, query_builder: SoqlQueryBuilder) -> Self {
         let query_string = query_builder.build();
-        // Use form_urlencoded for correct query param encoding
-        let encoded: String = url::form_urlencoded::Serializer::new(String::new())
-            .append_pair("q", &query_string)
-            .finish();
+
+        // 8 is for "query?q=" and a bit of slack
+        let mut url = String::with_capacity(query_string.len() + 8);
+        url.push_str("query?q=");
+        url.extend(url::form_urlencoded::byte_serialize(query_string.as_bytes()));
 
         self.requests.push(BatchSubRequest {
             method: "GET".to_string(),
-            url: format!("query?{}", encoded),
+            url,
             rich_input: None,
         });
         self
@@ -478,13 +486,14 @@ mod tests {
         // Wait, does SoqlQueryBuilder escape &? No.
 
         let expected_soql = "SELECT Id, Name FROM Account WHERE Name = 'Acme & Co.'";
-        let expected_encoded: String = url::form_urlencoded::Serializer::new(String::new())
-            .append_pair("q", expected_soql)
-            .finish();
 
-        assert_eq!(req.url, format!("query?{}", expected_encoded));
+        // We expect form-urlencoded encoding (spaces are +)
+        let mut expected_url = "query?q=".to_string();
+        expected_url.extend(url::form_urlencoded::byte_serialize(expected_soql.as_bytes()));
 
-        // Also ensure + is used for space (application/x-www-form-urlencoded default)
+        assert_eq!(req.url, expected_url);
+
+        // Ensure space is encoded as + (application/x-www-form-urlencoded default)
         assert!(req.url.contains("SELECT+Id"));
         // Ensure & is encoded as %26 inside the value
         assert!(req.url.contains("%26"));
