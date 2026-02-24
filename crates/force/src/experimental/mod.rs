@@ -10,3 +10,6 @@ pub use crate::api::bulk::smart_ingest;
 
 #[cfg(feature = "rest")]
 pub mod scanner;
+
+#[cfg(feature = "composite")]
+pub mod query_batch;
