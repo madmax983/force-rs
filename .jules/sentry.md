@@ -23,3 +23,11 @@
 ## [BatchBuilder URL Encoding Blindspot]
 **Learning:** `BatchBuilder::add_request` accepts raw `&str` URLs and includes them directly in the composite request body without validation or encoding. This differs from `query()` which handles encoding. Users might pass `query?q=Select Id From Account` with spaces, which Salesforce might reject as invalid JSON/URL.
 **Action:** When adding "raw" methods to builders, document whether inputs are treated as raw or encoded, and add tests verifying this behavior to prevent accidental regressions or assumptions.
+
+## [Retry Logic Gap]
+**Learning:** The documentation claimed network errors were retried, but the implementation only retried 503s. Code analysis revealed `execute_attempt` returned `Err` which bypassed the retry loop.
+**Action:** Always verify "documented behavior" with a test case, especially for error handling paths which are often neglected.
+
+## [Wiremock Delays]
+**Learning:** `wiremock`'s `set_delay` is a powerful way to simulate timeouts without relying on flaky `sleep` or external networks.
+**Action:** Use `set_delay` for timeout testing instead of `tokio::time::sleep` in test logic.
