@@ -486,4 +486,21 @@ mod tests {
             "Should fallback to current time when issued_at is invalid"
         );
     }
+
+    #[test]
+    fn test_access_token_invalid_header_chars() {
+        let response = TokenResponse {
+            access_token: "token\nwith\nnewlines".to_string(),
+            instance_url: "https://example.salesforce.com".to_string(),
+            token_type: "Bearer".to_string(),
+            issued_at: "1704067200000".to_string(),
+            signature: String::new(),
+            expires_in: Some(3600),
+            refresh_token: None,
+        };
+
+        let token = AccessToken::from_response(response);
+        // Verify auth_header() returns error instead of panic or invalid header
+        assert!(token.auth_header().is_err());
+    }
 }
