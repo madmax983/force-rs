@@ -36,6 +36,7 @@ pub mod experimental;
 pub mod http;
 #[cfg(test)]
 pub(crate) mod test_support;
+pub(crate) mod session;
 pub mod types;
 
 /// Force crate placeholder - foundation being built

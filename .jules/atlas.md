@@ -23,3 +23,7 @@
 **2024-05-26 - [Decomposed Bulk API Module]**
 **Tangle:** The `crates/force/src/api/bulk/mod.rs` file was a "Blob" (1789 lines) containing `BulkHandler` definition, `BulkPollPolicy`, all inherent implementation methods (ingest, query), and massive tests.
 **Blueprint:** Refactored `bulk` module into cohesive submodules: `handler.rs` (struct def), `policy.rs` (polling logic), `ingest.rs` (ingest methods), and `query.rs` (query methods). `mod.rs` is now a facade. Used Rust's ability to split inherent implementations across modules in the same crate to maintain the public API without extension traits.
+
+**2024-05-27 - [The Session: Breaking the Cycle]**
+**Tangle:** The `client` module (ForceClient) and `api` modules (handlers) were in a circular dependency at the module level. `client` imported `api` to expose handlers, but `api` imported `client::inner` to access shared state. This "Hub and Spoke" issue meant `api` could not exist without `client`'s internal structure.
+**Blueprint:** Extracted the `Inner` struct into a new `session` module as `Session`. `ForceClient` and all `api` handlers now depend on `session::Session` for their shared state. This creates a clean DAG: `client` -> `session`, `api` -> `session`, and `client` -> `api` (for convenience methods), with no back-references from `api` to `client`.

@@ -9,7 +9,7 @@
 pub mod batch;
 
 use crate::auth::Authenticator;
-use crate::client::inner::Inner;
+use crate::session::Session;
 use std::sync::Arc;
 
 /// Composite API handler for Salesforce.
@@ -17,7 +17,7 @@ use std::sync::Arc;
 /// Provides access to the Composite API resources.
 #[derive(Debug)]
 pub struct CompositeHandler<A: Authenticator> {
-    inner: Arc<Inner<A>>,
+    pub(crate) inner: Arc<Session<A>>,
 }
 
 impl<A: Authenticator> Clone for CompositeHandler<A> {
@@ -31,7 +31,7 @@ impl<A: Authenticator> Clone for CompositeHandler<A> {
 impl<A: Authenticator> CompositeHandler<A> {
     /// Creates a new Composite handler.
     #[must_use]
-    pub(crate) fn new(inner: Arc<Inner<A>>) -> Self {
+    pub(crate) fn new(inner: Arc<Session<A>>) -> Self {
         Self { inner }
     }
 

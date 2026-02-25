@@ -87,7 +87,7 @@ impl<A: Authenticator> AuthenticatedBuilder<A> {
     /// - HTTP client construction fails
     #[allow(clippy::unused_async)] // Async signature for future auth initialization
     pub async fn build(self) -> Result<ForceClient<A>> {
-        use crate::client::Inner;
+        use crate::session::Session;
         use std::sync::Arc;
 
         let config = self.config.unwrap_or_default();
@@ -106,7 +106,7 @@ impl<A: Authenticator> AuthenticatedBuilder<A> {
         // Create token manager with the authenticator
         let token_manager = Arc::new(TokenManager::new(self.authenticator));
 
-        let inner = Inner {
+        let session = Session {
             config,
             http_client,
             http_executor,
@@ -114,7 +114,7 @@ impl<A: Authenticator> AuthenticatedBuilder<A> {
         };
 
         Ok(ForceClient {
-            inner: Arc::new(inner),
+            inner: Arc::new(session),
         })
     }
 }

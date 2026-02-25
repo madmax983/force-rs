@@ -1,8 +1,12 @@
-//! Inner state shared across cloned clients.
+//! Shared session state for Salesforce API clients.
 //!
-//! This module contains the internal state and execution logic for the Salesforce client.
-//! It is extracted to a leaf module to avoid circular dependencies between the main
-//! `ForceClient` and API handlers.
+//! This module contains the `Session` struct which holds the core state:
+//! - Client configuration
+//! - HTTP client
+//! - Authentication token manager
+//!
+//! It acts as the "Context" for all API operations, ensuring they share
+//! the same authentication and configuration.
 
 use crate::auth::token_manager::TokenManager;
 use crate::config::ClientConfig;
@@ -11,11 +15,11 @@ use crate::http::RequestRetryClass;
 use serde::de::DeserializeOwned;
 use std::sync::Arc;
 
-/// Inner state shared across cloned clients.
+/// Shared session state across cloned clients.
 ///
 /// This is generic over the authenticator type to avoid trait object overhead.
 #[derive(Debug, Clone)]
-pub struct Inner<A: crate::auth::authenticator::Authenticator> {
+pub struct Session<A: crate::auth::authenticator::Authenticator> {
     /// Client configuration.
     pub(crate) config: ClientConfig,
     /// HTTP client for making requests.
@@ -26,7 +30,7 @@ pub struct Inner<A: crate::auth::authenticator::Authenticator> {
     pub(crate) token_manager: Arc<TokenManager<A>>,
 }
 
-impl<A: crate::auth::authenticator::Authenticator> Inner<A> {
+impl<A: crate::auth::authenticator::Authenticator> Session<A> {
     /// Executes a request through the shared middleware pipeline.
     pub(crate) async fn execute_request(
         &self,
