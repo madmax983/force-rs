@@ -1,37 +1,52 @@
 // Requires the "bulk" feature: force = { version = "0.1", features = ["bulk"] }
-use force::client::ForceClientBuilder;
-use force::auth::ClientCredentials;
-use serde::Deserialize;
+#![allow(missing_docs)]
 
-#[derive(Debug, Deserialize)]
-struct Contact {
-    #[serde(rename = "Id")]
-    id: String,
-    #[serde(rename = "Email")]
-    email: Option<String>,
-}
+#[cfg(feature = "bulk")]
+mod example {
+    use force::auth::ClientCredentials;
+    use force::client::ForceClientBuilder;
+    use serde::Deserialize;
 
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
-    let auth = ClientCredentials::new_production(
-        "client-id",
-        "client-secret",
-    );
-    let client = ForceClientBuilder::new().authenticate(auth).build().await?;
-
-    // Create bulk query job and stream results
-    let mut stream = client.bulk()
-        .query::<Contact>(
-            "SELECT Id, Email FROM Contact WHERE Email != null"
-        )
-        .await?;
-
-    let mut count = 0;
-    while let Some(contact) = stream.next().await? {
-        println!("Processing: {} ({})", contact.id, contact.email.unwrap_or_default());
-        count += 1;
+    #[derive(Debug, Deserialize)]
+    struct Contact {
+        #[serde(rename = "Id")]
+        id: String,
+        #[serde(rename = "Email")]
+        email: Option<String>,
     }
 
-    println!("Streamed {} contacts", count);
-    Ok(())
+    pub async fn main() -> anyhow::Result<()> {
+        let auth = ClientCredentials::new_production("client-id", "client-secret");
+        let client = ForceClientBuilder::new().authenticate(auth).build().await?;
+
+        // Create bulk query job and stream results
+        let mut stream = client
+            .bulk()
+            .query::<Contact>("SELECT Id, Email FROM Contact WHERE Email != null")
+            .await?;
+
+        let mut count = 0;
+        while let Some(contact) = stream.next().await? {
+            println!(
+                "Processing: {} ({})",
+                contact.id,
+                contact.email.unwrap_or_default()
+            );
+            count += 1;
+        }
+
+        println!("Streamed {count} contacts");
+        Ok(())
+    }
+}
+
+#[cfg(feature = "bulk")]
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    example::main().await
+}
+
+#[cfg(not(feature = "bulk"))]
+fn main() {
+    println!("This example requires the 'bulk' feature.");
 }
