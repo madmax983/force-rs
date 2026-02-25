@@ -155,6 +155,22 @@ impl AccessToken {
         self.is_expired_with_buffer(Duration::seconds(60))
     }
 
+    /// Checks if the token is "hard" expired, meaning it is absolutely invalid.
+    ///
+    /// This uses a 0-second buffer.
+    #[must_use]
+    pub fn is_hard_expired(&self) -> bool {
+        self.is_expired_with_buffer(Duration::zero())
+    }
+
+    /// Checks if the token is "soft" expired, meaning it is valid but should be refreshed.
+    ///
+    /// This uses the standard 60-second buffer.
+    #[must_use]
+    pub fn is_soft_expired(&self) -> bool {
+        self.is_expired_with_buffer(Duration::seconds(60))
+    }
+
     /// Checks if the token is expired with a custom buffer.
     ///
     /// # Arguments
@@ -361,6 +377,34 @@ mod tests {
 
         // Should be expired with 10 minute buffer
         assert!(token.is_expired_with_buffer(Duration::minutes(10)));
+    }
+
+    #[test]
+    fn test_access_token_hard_vs_soft_expiry() {
+        // Token expires in 30 seconds
+        let expires_at = Utc::now() + Duration::seconds(30);
+        let token = AccessToken::new(
+            "token".to_string(),
+            "https://test.salesforce.com".to_string(),
+            Some(expires_at),
+        );
+
+        // Soft expired? Yes, because buffer is 60s (30s < 60s)
+        assert!(token.is_soft_expired());
+
+        // Hard expired? No, because it is valid for 30s more (30s > 0s)
+        assert!(!token.is_hard_expired());
+
+        // Completely expired token
+        let past_expiration = Utc::now() - Duration::seconds(1);
+        let expired_token = AccessToken::new(
+            "expired".to_string(),
+            "https://test.salesforce.com".to_string(),
+            Some(past_expiration),
+        );
+
+        assert!(expired_token.is_soft_expired());
+        assert!(expired_token.is_hard_expired());
     }
 
     #[test]
