@@ -34,7 +34,7 @@ use std::sync::Arc;
 #[derive(Debug)]
 pub struct RestHandler<A: crate::auth::Authenticator> {
     /// Reference to the client's inner state.
-    inner: Arc<crate::client::inner::Inner<A>>,
+    inner: Arc<crate::session::Session<A>>,
 }
 
 impl<A: crate::auth::Authenticator> Clone for RestHandler<A> {
@@ -58,7 +58,7 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
     /// let handler = RestHandler::new(inner);
     /// ```
     #[must_use]
-    pub(crate) fn new(inner: Arc<crate::client::inner::Inner<A>>) -> Self {
+    pub(crate) fn new(inner: Arc<crate::session::Session<A>>) -> Self {
         Self { inner }
     }
 

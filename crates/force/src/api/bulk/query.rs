@@ -108,7 +108,7 @@ pub struct BulkQueryJobInfo {
 /// to a standard `futures::Stream` for use with combinators.
 pub struct BulkQueryStream<T, A: crate::auth::Authenticator> {
     /// Reference to the client's inner state.
-    inner: Arc<crate::client::Inner<A>>,
+    inner: Arc<crate::session::Session<A>>,
     /// Job ID for the query.
     job_id: String,
     /// Current batch of records being iterated.
@@ -124,7 +124,7 @@ pub struct BulkQueryStream<T, A: crate::auth::Authenticator> {
 impl<T, A: crate::auth::Authenticator> BulkQueryStream<T, A> {
     /// Creates a new bulk query stream.
     #[must_use]
-    pub(crate) fn new(inner: Arc<crate::client::Inner<A>>, job_id: String) -> Self {
+    pub(crate) fn new(inner: Arc<crate::session::Session<A>>, job_id: String) -> Self {
         Self {
             inner,
             job_id,
@@ -142,7 +142,7 @@ impl<T, A: crate::auth::Authenticator> BulkQueryStream<T, A> {
     /// This version always succeeds; errors occur during streaming.
     #[allow(clippy::unused_async)]
     pub(crate) async fn new_async(
-        inner: Arc<crate::client::Inner<A>>,
+        inner: Arc<crate::session::Session<A>>,
         job_id: &str,
     ) -> Result<Self> {
         Ok(Self::new(inner, job_id.to_string()))

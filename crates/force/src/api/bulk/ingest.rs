@@ -80,7 +80,7 @@ pub struct JobComplete;
 #[derive(Debug)]
 pub struct IngestJob<S, A: Authenticator> {
     job_id: String,
-    inner: Arc<crate::client::Inner<A>>,
+    inner: Arc<crate::session::Session<A>>,
     _state: PhantomData<S>,
 }
 
@@ -130,7 +130,7 @@ impl<S: Send + Sync, A: Authenticator> IngestJob<S, A> {
 impl<A: Authenticator> IngestJob<Open, A> {
     /// Creates a new ingest job in Open state.
     #[must_use]
-    pub(crate) fn new(job_id: String, inner: Arc<crate::client::Inner<A>>) -> Self {
+    pub(crate) fn new(job_id: String, inner: Arc<crate::session::Session<A>>) -> Self {
         Self {
             job_id,
             inner,
@@ -139,7 +139,7 @@ impl<A: Authenticator> IngestJob<Open, A> {
     }
 
     #[cfg(test)]
-    pub(crate) fn new_for_test(job_id: String, inner: Arc<crate::client::Inner<A>>) -> Self {
+    pub(crate) fn new_for_test(job_id: String, inner: Arc<crate::session::Session<A>>) -> Self {
         Self::new(job_id, inner)
     }
 
@@ -245,7 +245,7 @@ impl<A: Authenticator> IngestJob<UploadComplete, A> {
 
 impl<A: Authenticator> IngestJob<InProgress, A> {
     #[cfg(test)]
-    pub(crate) fn new_for_test(job_id: String, inner: Arc<crate::client::Inner<A>>) -> Self {
+    pub(crate) fn new_for_test(job_id: String, inner: Arc<crate::session::Session<A>>) -> Self {
         Self {
             job_id,
             inner,
@@ -363,7 +363,7 @@ impl<A: Authenticator> IngestJob<InProgress, A> {
 
 impl<A: Authenticator> IngestJob<JobComplete, A> {
     #[cfg(test)]
-    pub(crate) fn new_for_test(job_id: String, inner: Arc<crate::client::Inner<A>>) -> Self {
+    pub(crate) fn new_for_test(job_id: String, inner: Arc<crate::session::Session<A>>) -> Self {
         Self {
             job_id,
             inner,
@@ -485,7 +485,7 @@ impl IngestJobBuilder {
     /// Returns an error if job creation fails.
     pub(crate) async fn build_with_inner<A: Authenticator>(
         self,
-        inner: Arc<crate::client::Inner<A>>,
+        inner: Arc<crate::session::Session<A>>,
     ) -> Result<IngestJob<Open, A>> {
         validate_sobject_name(&self.object)?;
         if let Some(field) = &self.external_id_field_name {

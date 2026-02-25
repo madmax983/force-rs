@@ -4,12 +4,11 @@
 //! markers to ensure authentication is handled at compile-time.
 
 mod builder;
-pub(crate) mod inner;
 
 pub use builder::{AuthenticatedBuilder, ForceClientBuilder, HasAuth, NoAuth};
-pub(crate) use inner::Inner;
 
 use crate::config::ClientConfig;
+use crate::session::Session;
 use std::sync::Arc;
 
 /// Salesforce API client with compile-time authentication safety.
@@ -20,7 +19,7 @@ use std::sync::Arc;
 /// The client is generic over the authenticator type for zero-cost abstraction.
 #[derive(Debug)]
 pub struct ForceClient<A: crate::auth::authenticator::Authenticator> {
-    inner: Arc<Inner<A>>,
+    inner: Arc<Session<A>>,
 }
 
 impl<A: crate::auth::authenticator::Authenticator> Clone for ForceClient<A> {
@@ -59,7 +58,7 @@ impl<A: crate::auth::authenticator::Authenticator> ForceClient<A> {
     ///
     /// This method is internal to the crate and should not be used directly.
     #[must_use]
-    pub(crate) fn inner(&self) -> &Arc<Inner<A>> {
+    pub(crate) fn inner(&self) -> &Arc<Session<A>> {
         &self.inner
     }
 

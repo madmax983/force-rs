@@ -19,7 +19,7 @@ use std::sync::Arc;
 #[derive(Debug, Clone)]
 pub struct BulkHandler<A: crate::auth::Authenticator> {
     /// Reference to the client's inner state.
-    pub(crate) inner: Arc<crate::client::inner::Inner<A>>,
+    pub(crate) inner: Arc<crate::session::Session<A>>,
 }
 
 impl<A: crate::auth::Authenticator> BulkHandler<A> {
@@ -35,7 +35,7 @@ impl<A: crate::auth::Authenticator> BulkHandler<A> {
     /// let handler = BulkHandler::new(inner);
     /// ```
     #[must_use]
-    pub(crate) fn new(inner: Arc<crate::client::inner::Inner<A>>) -> Self {
+    pub(crate) fn new(inner: Arc<crate::session::Session<A>>) -> Self {
         Self { inner }
     }
 
@@ -44,7 +44,7 @@ impl<A: crate::auth::Authenticator> BulkHandler<A> {
     /// This is used internally by bulk API modules to access the HTTP client
     /// and token manager.
     #[must_use]
-    pub(crate) fn inner(&self) -> &Arc<crate::client::inner::Inner<A>> {
+    pub(crate) fn inner(&self) -> &Arc<crate::session::Session<A>> {
         &self.inner
     }
 
