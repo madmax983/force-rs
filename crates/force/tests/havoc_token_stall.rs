@@ -9,9 +9,9 @@ use force::auth::authenticator::Authenticator;
 use force::auth::token::{AccessToken, TokenResponse};
 use force::auth::token_manager::TokenManager;
 use force::error::Result;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
-use tokio::time::{sleep, Instant};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use tokio::time::{Instant, sleep};
 
 // Mock Authenticator for testing TokenManager stalling
 #[derive(Debug)]
@@ -56,7 +56,10 @@ impl Authenticator for MockAuthenticator {
         sleep(std::time::Duration::from_millis(self.refresh_delay_ms)).await;
 
         Ok(create_token(
-            format!("refreshed_token_{}", self.refresh_count.load(Ordering::SeqCst)),
+            format!(
+                "refreshed_token_{}",
+                self.refresh_count.load(Ordering::SeqCst)
+            ),
             3600,
         ))
     }
