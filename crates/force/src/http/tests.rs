@@ -4,7 +4,9 @@
 mod integration_tests {
     use crate::auth::{AccessToken, TokenResponse};
     use crate::error::ForceError;
-    use crate::http::{HttpExecutor, RequestCompletion, RetryEvent, RetryPolicy, TelemetryHooks};
+    use crate::http::{
+        HttpExecutor, RequestCompletion, RequestRetryClass, RetryEvent, RetryPolicy, TelemetryHooks,
+    };
     use crate::test_support::Must;
     use std::sync::Arc;
     use std::sync::Mutex;
@@ -613,5 +615,50 @@ mod integration_tests {
         assert!(result.is_ok());
         // Should have waited at least 50ms (timeout) + 10ms (backoff)
         assert!(elapsed.as_millis() >= 60);
+    }
+
+    #[tokio::test]
+    async fn test_idempotent_mutation_retries_on_503() {
+        let mock_server = MockServer::start().await;
+        // Policy: Read=3, Mutation=0. IdempotentMutation=3 (implied from Read).
+        let executor = HttpExecutor::with_retry_policy(
+            RetryPolicy::new(3, 0),
+            std::time::Duration::from_secs(30),
+        );
+        let token = create_test_token();
+
+        // Fail 2 times with 503
+        Mock::given(method("POST"))
+            .and(path("/test"))
+            .respond_with(ResponseTemplate::new(503))
+            .up_to_n_times(2)
+            .mount(&mock_server)
+            .await;
+
+        // Succeed on 3rd attempt
+        Mock::given(method("POST"))
+            .and(path("/test"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "recovered": true
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let url = format!("{}/test", mock_server.uri());
+        let request = reqwest::Client::new().post(&url).build().must();
+
+        // Explicitly use IdempotentMutation
+        let result = executor
+            .execute_response_with_retry_class(
+                request,
+                &token,
+                || async { panic!("Should not refresh on 503") },
+                RequestRetryClass::IdempotentMutation,
+            )
+            .await;
+
+        assert!(result.is_ok());
+        let response = result.must();
+        assert_eq!(response.status(), 200);
     }
 }

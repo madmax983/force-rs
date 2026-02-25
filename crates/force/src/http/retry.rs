@@ -247,3 +247,25 @@ mod tests {
         assert_eq!(result.as_millis(), u128::from(u64::MAX));
     }
 }
+
+#[cfg(test)]
+mod proptests {
+    use super::*;
+    use proptest::prelude::*;
+
+    proptest! {
+        #[test]
+        fn test_exponential_backoff_no_panic(attempt in any::<u32>(), base_ms in any::<u64>()) {
+            let base = Duration::from_millis(base_ms);
+            let _ = exponential_backoff(attempt, base);
+        }
+
+        #[test]
+        fn test_exponential_backoff_monotonic(attempt in 0u32..100, base_ms in 1u64..1000) {
+            let base = Duration::from_millis(base_ms);
+            let t1 = exponential_backoff(attempt, base);
+            let t2 = exponential_backoff(attempt + 1, base);
+            prop_assert!(t2 >= t1);
+        }
+    }
+}
