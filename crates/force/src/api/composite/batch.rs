@@ -414,8 +414,7 @@ mod tests {
         // % -> %25
         // + -> %2B
 
-        let expected_url =
-            "query?q=SELECT+Id+FROM+Account+WHERE+Name+%3D+%27100%25+%2B+50%25%27";
+        let expected_url = "query?q=SELECT+Id+FROM+Account+WHERE+Name+%3D+%27100%25+%2B+50%25%27";
 
         assert_eq!(req.url, expected_url);
     }
