@@ -7,3 +7,8 @@
 **Bloat:** `DynamicSObjectBuilder` in `crates/force/src/types/sobject.rs`.
 **Cut:** Removed the builder struct and implementation. Refactored tests to use `DynamicSObject::new` and `set_field`.
 **Saved:** ~30 lines of code. Removed a "Factory Factory" pattern that added no value over direct mutation.
+
+## [Reduction]
+**Bloat:** `experimental` module and `nova` feature (Query Plan API).
+**Cut:** Deleted `crates/force/src/experimental` directory, `explain.rs`, and removed `nova` feature.
+**Saved:** 3 files (`scanner.rs`, `query_batch.rs`, `explain.rs`), ~500 lines of code. Removed speculative features and "zombie code".
