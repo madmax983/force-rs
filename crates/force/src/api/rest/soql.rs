@@ -60,6 +60,24 @@ enum WhereClause {
     In { field: String, values: Vec<String> },
 }
 
+impl std::fmt::Display for WhereClause {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Raw(s) => write!(f, "{}", s),
+            Self::In { field, values } => {
+                write!(f, "{} IN (", field)?;
+                for (j, v) in values.iter().enumerate() {
+                    if j > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "'{}'", v)?;
+                }
+                write!(f, ")")
+            }
+        }
+    }
+}
+
 /// Builder for constructing safe SOQL queries.
 ///
 /// Helps prevent SOQL injection by validating object and field names,
@@ -120,10 +138,7 @@ impl SoqlQueryBuilder {
     /// Panics if any field name contains invalid characters.
     #[must_use]
     pub fn select(self, fields: &[impl AsRef<str>]) -> Self {
-        match self.try_select(fields) {
-            Ok(builder) => builder,
-            Err(e) => panic!("Invalid field name in select: {}", e),
-        }
+        Self::unwrap_or_panic(self.try_select(fields), "select")
     }
 
     /// Sets the SObject to select from.
@@ -145,10 +160,7 @@ impl SoqlQueryBuilder {
     /// Panics if the SObject name contains invalid characters.
     #[must_use]
     pub fn from(self, sobject: impl Into<String>) -> Self {
-        match self.try_from(sobject) {
-            Ok(builder) => builder,
-            Err(e) => panic!("Invalid SObject name in from: {}", e),
-        }
+        Self::unwrap_or_panic(self.try_from(sobject), "from")
     }
 
     /// Adds a raw WHERE condition.
@@ -287,8 +299,9 @@ impl SoqlQueryBuilder {
             ForceError::InvalidInput("FROM clause (SObject) is required".to_string())
         })?;
 
-        let capacity = self.calculate_capacity(sobject.len());
-        let mut query = String::with_capacity(capacity);
+        // 256 is a reasonable default to avoid immediate reallocations
+        // without complex pre-calculation logic (YAGNI).
+        let mut query = String::with_capacity(256);
 
         self.append_fields(&mut query);
 
@@ -299,24 +312,6 @@ impl SoqlQueryBuilder {
         self.append_modifiers(&mut query);
 
         Ok(query)
-    }
-
-    fn calculate_capacity(&self, sobject_len: usize) -> usize {
-        // Heuristic: Base (SELECT...FROM) + Fields (len + comma) + Where (len + AND) + Limit/Offset
-        let fields_len = self.fields.iter().map(|s| s.len() + 2).sum::<usize>();
-        let where_len = self
-            .where_clauses
-            .iter()
-            .map(|clause| match clause {
-                WhereClause::Raw(s) => s.len() + 5,
-                WhereClause::In { field, values } => {
-                    let vals_len: usize = values.iter().map(|v| v.len() + 3).sum(); // 'v',
-                    field.len() + 11 + vals_len // " IN ()" + AND
-                }
-            })
-            .sum::<usize>();
-        // 32 is roughly enough for keywords and small numbers
-        32 + fields_len + sobject_len + where_len + 32
     }
 
     fn append_fields(&self, query: &mut String) {
@@ -339,22 +334,7 @@ impl SoqlQueryBuilder {
             if i > 0 {
                 query.push_str(" AND ");
             }
-            match clause {
-                WhereClause::Raw(s) => query.push_str(s),
-                WhereClause::In { field, values } => {
-                    query.push_str(field);
-                    query.push_str(" IN (");
-                    for (j, v) in values.iter().enumerate() {
-                        if j > 0 {
-                            query.push_str(", ");
-                        }
-                        query.push('\'');
-                        query.push_str(v);
-                        query.push('\'');
-                    }
-                    query.push(')');
-                }
-            }
+            let _ = write!(query, "{}", clause);
         }
     }
 
@@ -373,6 +353,10 @@ impl SoqlQueryBuilder {
         }
     }
 
+    fn unwrap_or_panic<T>(result: Result<T, ForceError>, context: &str) -> T {
+        result.unwrap_or_else(|e| panic!("Invalid input in {}: {}", context, e))
+    }
+
     /// Builds the final SOQL query string (panicking version).
     ///
     /// # Panics
@@ -380,10 +364,7 @@ impl SoqlQueryBuilder {
     /// Panics if no fields are selected or no SObject is specified.
     #[must_use]
     pub fn build(self) -> String {
-        match self.try_build() {
-            Ok(s) => s,
-            Err(e) => panic!("Failed to build SOQL query: {}", e),
-        }
+        Self::unwrap_or_panic(self.try_build(), "build")
     }
 }
 
