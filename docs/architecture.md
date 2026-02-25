@@ -18,7 +18,7 @@ C4Context
 
 ## C4 Component Diagram
 
-The following diagram illustrates the internal module structure and dependencies. Authentication state and logic are encapsulated in the `Auth` module.
+The following diagram illustrates the internal module structure and dependencies. Note that the `Storage` module is decoupled from the core `Client` logic.
 
 ```mermaid
 C4Component
@@ -27,20 +27,22 @@ C4Component
   Container_Boundary(sdk, "Force SDK") {
     Component(client, "Client Core", "crates/force/client", "Facade & Configuration")
     Component(api, "API Handlers", "crates/force/api", "REST, Bulk, Composite logic")
-    Component(auth, "Auth", "crates/force/auth", "Authentication, Token Persistence & State")
+    Component(storage, "Storage", "crates/force/storage", "Token persistence & state")
+    Component(auth, "Auth", "crates/force/auth", "Authentication strategies")
     Component(http, "HTTP", "crates/force/http", "Resilience & Middleware")
 
     Rel(client, api, "Exposes")
-    Rel(api, client, "Uses (Session State)")
-    Rel(client, auth, "Uses (TokenManager)")
+    Rel(api, client, "Uses (Inner State)")
+    Rel(client, storage, "Uses (TokenManager)")
     Rel(client, http, "Uses (HttpExecutor)")
+    Rel(storage, auth, "Uses (Authenticator)")
     Rel(api, http, "Uses (HttpExecutor)")
   }
 ```
 
 ## Class Diagram
 
-The core library uses a `Session` struct pattern for shared state and thread safety, decoupled from storage via the `TokenManager`.
+The core library uses an `Inner` struct pattern for shared state and thread safety, decoupled from storage via the `TokenManager`.
 
 ```mermaid
 classDiagram
@@ -48,7 +50,7 @@ classDiagram
     +rest() RestHandler
     +bulk() BulkHandler
   }
-  class Session {
+  class Inner {
     +execute_request()
   }
   class TokenManager {
@@ -61,10 +63,10 @@ classDiagram
   }
   class RestHandler
 
-  ForceClient *-- Session : Shared State (Arc)
-  RestHandler *-- Session : Shared State (Arc)
-  Session --> TokenManager : Owns
-  Session --> HttpExecutor : Owns
+  ForceClient *-- Inner : Shared State (Arc)
+  RestHandler *-- Inner : Shared State (Arc)
+  Inner --> TokenManager : Owns
+  Inner --> HttpExecutor : Owns
   TokenManager --> Authenticator : Uses (Strategy)
 ```
 
@@ -75,29 +77,29 @@ The following sequence diagram illustrates how the Client interacts with the Tok
 ```mermaid
 sequenceDiagram
     participant C as Client (ForceClient)
-    participant S as Session
+    participant I as Inner
     participant TM as TokenManager
     participant A as Authenticator
 
     Note over C, TM: Token Retrieval Flow
-    C->>S: token()
-    S->>TM: token()
+    C->>I: token()
+    I->>TM: token()
     TM->>TM: Check Internal Cache (Read Lock)
     alt Valid Token Exists
-        TM-->>S: AccessToken
-        S-->>C: AccessToken
+        TM-->>I: AccessToken
+        I-->>C: AccessToken
     else Expired / None
         TM->>TM: Acquire Write Lock
         TM->>A: refresh() or authenticate()
         alt Success
             A-->>TM: New AccessToken
             TM->>TM: Update Cache
-            TM-->>S: New AccessToken
-            S-->>C: New AccessToken
+            TM-->>I: New AccessToken
+            I-->>C: New AccessToken
         else Failure
             A-->>TM: Error
-            TM-->>S: Error
-            S-->>C: Error
+            TM-->>I: Error
+            I-->>C: Error
         end
     end
 ```
