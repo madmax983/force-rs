@@ -12,6 +12,7 @@ This journal records the findings of the Elenchus test audit.
 | **Commended** | `crates/force/src/auth/token_manager.rs` | ⭐ Commended | Robust concurrency testing using `tokio::spawn`, atomic counters, and specific assertion of call counts. |
 | **Suspect** | `crates/force/tests/security_soql_injection.rs` | 🟡 Suspect | The test mirrors the implementation of `escape_soql`. While valuable as a regression guard, it is tautological in nature. |
 | **Acquitted** | `crates/force/src/experimental/scanner.rs` | 🟢 Acquitted | Initial audit found missing tests for filtering, batching, and zero-division. Added comprehensive tests and verified with mutation testing (12 mutants caught). |
+| **Acquitted** | `crates/force/src/api/composite/batch.rs` | 🟢 Acquitted | Initial audit found tautological encoding tests and fragile JSON assertions. Refactored to use hardcoded "golden" strings and structural JSON validation. |
 
 ## Detailed Findings
 
@@ -51,3 +52,21 @@ This journal records the findings of the Elenchus test audit.
     }
 ```
 **Recommendation:** Acknowledge the limitation (Loom requires specific types) but mark as Suspect because it doesn't test the shipping code. Ideally, refactor production code to be generic over the lock type or use `cfg` to allow Loom testing, but for now, rely on `crates/force/src/auth/token_manager.rs` tests.
+
+### [Acquitted] `crates/force/src/api/composite/batch.rs`
+
+**Module:** `crates/force/src/api/composite/batch.rs`
+**Severity:** 🟢 Acquitted (was 🟡 Suspect)
+
+**Finding:**
+- `test_batch_query_encoding` was previously tautological, mirroring the implementation's use of `url::form_urlencoded`. It proved only that the code was the code.
+- `test_batch_request_serialization` used fragile string containment checks instead of structural JSON validation.
+
+**Action Taken:**
+- Refactored `test_batch_query_encoding` to assert against a hardcoded expected URL string, breaking the tautology.
+- Added `test_batch_query_encoding_special_chars` to explicitly verify safe encoding of dangerous characters (`+`, `%`, `'`).
+- Refactored `test_batch_request_serialization` to deserialize the output and verify specific fields, preventing regression where keys might be present but with wrong values or structure.
+
+**Recommendation:**
+- Maintain the practice of using hardcoded "golden" strings for serialization and encoding tests.
+- Continue to prefer structural assertions over string matching for JSON.
