@@ -152,7 +152,10 @@ impl<A: Authenticator> IngestJob<Open, A> {
     /// # Errors
     ///
     /// Returns an error if the upload fails.
-    pub async fn upload(self, data: impl Into<reqwest::Body>) -> Result<IngestJob<UploadComplete, A>> {
+    pub async fn upload(
+        self,
+        data: impl Into<reqwest::Body>,
+    ) -> Result<IngestJob<UploadComplete, A>> {
         let mut headers = reqwest::header::HeaderMap::new();
         headers.insert(
             "Content-Type",
@@ -1809,7 +1812,7 @@ mod tests {
             ))
             .and(bearer_token("test_token"))
             .and(header("content-type", "text/csv"))
-            .and(body_bytes("Zero Copy Data".as_bytes()))
+            .and(body_bytes(b"Zero Copy Data"))
             .respond_with(ResponseTemplate::new(201))
             .mount(&mock_server)
             .await;
