@@ -89,7 +89,7 @@ impl<S: Send + Sync, A: Authenticator> IngestJob<S, A> {
         &self,
         method: reqwest::Method,
         path_suffix: Option<&str>,
-        body: Option<Vec<u8>>,
+        body: Option<impl Into<reqwest::Body>>,
         headers: Option<reqwest::header::HeaderMap>,
         error_context: &str,
     ) -> Result<reqwest::Response> {
@@ -147,12 +147,12 @@ impl<A: Authenticator> IngestJob<Open, A> {
     ///
     /// # Arguments
     ///
-    /// * `data` - CSV data as bytes
+    /// * `data` - CSV data (Bytes, Vec<u8>, String, etc.)
     ///
     /// # Errors
     ///
     /// Returns an error if the upload fails.
-    pub async fn upload(self, data: &[u8]) -> Result<IngestJob<UploadComplete, A>> {
+    pub async fn upload(self, data: impl Into<reqwest::Body>) -> Result<IngestJob<UploadComplete, A>> {
         let mut headers = reqwest::header::HeaderMap::new();
         headers.insert(
             "Content-Type",
@@ -162,7 +162,7 @@ impl<A: Authenticator> IngestJob<Open, A> {
         self.execute_job_request(
             reqwest::Method::PUT,
             Some("batches"),
-            Some(data.to_vec()),
+            Some(data),
             Some(headers),
             "CSV upload failed",
         )
@@ -344,7 +344,7 @@ impl<A: Authenticator> IngestJob<InProgress, A> {
             .execute_job_request(
                 reqwest::Method::GET,
                 None,
-                None,
+                Option::<Vec<u8>>::None,
                 None,
                 "Get job status failed",
             )
@@ -407,7 +407,7 @@ impl<A: Authenticator> IngestJob<JobComplete, A> {
             .execute_job_request(
                 reqwest::Method::GET,
                 Some(result_type),
-                None,
+                Option::<Vec<u8>>::None,
                 None,
                 &format!("Get {} failed", result_type),
             )
@@ -813,7 +813,7 @@ impl<A: Authenticator> BulkHandler<A> {
             .await?;
 
         // Upload, close, and poll
-        let job = job.upload(&csv_data).await?;
+        let job = job.upload(csv_data).await?;
         let job = job.close().await?;
         let job = job.poll_until_complete().await?;
 
@@ -889,7 +889,7 @@ impl<A: Authenticator> BulkHandler<A> {
             .await?;
 
         // Upload, close, and poll
-        let job = job.upload(&csv_data).await?;
+        let job = job.upload(csv_data).await?;
         let job = job.close().await?;
         let job = job.poll_until_complete().await?;
 
@@ -960,7 +960,7 @@ impl<A: Authenticator> BulkHandler<A> {
             .await?;
 
         // Upload, close, and poll
-        let job = job.upload(&csv_data).await?;
+        let job = job.upload(csv_data).await?;
         let job = job.close().await?;
         let job = job.poll_until_complete().await?;
 
@@ -1780,5 +1780,51 @@ mod tests {
 
         let csv_data = "Name,Industry\nAcme Corp,Technology\n";
         let _job = job.upload(csv_data.as_bytes()).await.must();
+    }
+
+    #[cfg(feature = "bulk")]
+    #[tokio::test]
+    async fn test_upload_bytes_zero_copy() {
+        let mock_server = MockServer::start().await;
+
+        // Mock job creation
+        Mock::given(method("POST"))
+            .and(path("/services/data/v60.0/jobs/ingest"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "id": "750xx0000000009AAA",
+                "operation": "insert",
+                "object": "Account",
+                "createdDate": "2024-01-01T00:00:00.000Z",
+                "createdById": "005xx0000000001AAA",
+                "state": "Open",
+                "contentType": "CSV"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        // Mock CSV upload
+        Mock::given(method("PUT"))
+            .and(path(
+                "/services/data/v60.0/jobs/ingest/750xx0000000009AAA/batches",
+            ))
+            .and(bearer_token("test_token"))
+            .and(header("content-type", "text/csv"))
+            .and(body_bytes("Zero Copy Data".as_bytes()))
+            .respond_with(ResponseTemplate::new(201))
+            .mount(&mock_server)
+            .await;
+
+        let client = create_test_client(mock_server.uri()).await;
+        let handler = client.bulk();
+
+        let job = IngestJobBuilder::new("Account", JobOperation::Insert)
+            .build(&handler)
+            .await
+            .must();
+
+        // Pass Bytes directly - this verifies the API accepts `impl Into<Body>`
+        // and doesn't require &[u8] or Vec<u8> specifically.
+        let data = bytes::Bytes::from_static(b"Zero Copy Data");
+        let _job = job.upload(data).await.must();
     }
 }

@@ -72,7 +72,7 @@ mod example {
         let job = IngestJobBuilder::new("Account", JobOperation::Insert)
             .build(&client.bulk())
             .await?
-            .upload(&csv)
+            .upload(csv)
             .await?
             .close()
             .await?

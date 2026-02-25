@@ -19,3 +19,7 @@
 ## 2026-02-21 - [Safe Query Construction in Composite Batch]
 **Threat:** `BatchBuilder::add_request` accepts a raw URL string. If users construct this string manually using `format!` with untrusted input (e.g., `format!("query?q=SELECT+Id+FROM+Account+WHERE+Name='{}'", user_input)`), they are vulnerable to SOQL injection or invalid URL formatting (e.g., unencoded spaces).
 **Defense:** Added `BatchBuilder::query` which accepts a `SoqlQueryBuilder` and automatically URL-encodes the query string using `form_urlencoded`. Added a warning to `add_request` documentation emphasizing the need for proper URL encoding.
+
+## 2026-02-25 - [DoS via Unbounded Allocation in Bulk Upload]
+**Threat:** `IngestJob::upload` accepted `&[u8]` and called `to_vec()`, forcing a heap allocation and copy of the entire payload. For large bulk uploads (up to 150MB), this doubled memory usage and increased the risk of OOM DoS.
+**Defense:** Refactored `upload` and internal helpers to accept `impl Into<reqwest::Body>`, allowing zero-copy transmission of `Bytes`, `Vec<u8>`, or streams. Updated internal convenience methods to pass `Vec<u8>` by value instead of reference to avoid cloning.
