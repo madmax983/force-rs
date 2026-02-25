@@ -66,7 +66,7 @@ impl<A: Authenticator> BatchBuilder<A> {
     pub fn get(self, sobject: &str, id: &str) -> Result<Self> {
         validator::validate_sobject_name(sobject)?;
         validate_id(id)?;
-        Ok(self.add_request("GET", &format!("sobjects/{}/{}", sobject, id), None))
+        Ok(self.add_request("GET", format!("sobjects/{}/{}", sobject, id), None))
     }
 
     /// Adds a POST (Create) request to the batch.
@@ -81,7 +81,7 @@ impl<A: Authenticator> BatchBuilder<A> {
     /// Returns an error if the `sobject` name contains invalid characters.
     pub fn post(self, sobject: &str, body: Value) -> Result<Self> {
         validator::validate_sobject_name(sobject)?;
-        Ok(self.add_request("POST", &format!("sobjects/{}", sobject), Some(body)))
+        Ok(self.add_request("POST", format!("sobjects/{}", sobject), Some(body)))
     }
 
     /// Adds a PATCH (Update) request to the batch.
@@ -98,7 +98,7 @@ impl<A: Authenticator> BatchBuilder<A> {
     pub fn patch(self, sobject: &str, id: &str, body: Value) -> Result<Self> {
         validator::validate_sobject_name(sobject)?;
         validate_id(id)?;
-        Ok(self.add_request("PATCH", &format!("sobjects/{}/{}", sobject, id), Some(body)))
+        Ok(self.add_request("PATCH", format!("sobjects/{}/{}", sobject, id), Some(body)))
     }
 
     /// Adds a DELETE request to the batch.
@@ -114,7 +114,7 @@ impl<A: Authenticator> BatchBuilder<A> {
     pub fn delete(self, sobject: &str, id: &str) -> Result<Self> {
         validator::validate_sobject_name(sobject)?;
         validate_id(id)?;
-        Ok(self.add_request("DELETE", &format!("sobjects/{}/{}", sobject, id), None))
+        Ok(self.add_request("DELETE", format!("sobjects/{}/{}", sobject, id), None))
     }
 
     /// Adds a custom subrequest to the batch.
@@ -132,11 +132,21 @@ impl<A: Authenticator> BatchBuilder<A> {
     /// * `method` - HTTP method (GET, POST, etc.)
     /// * `url` - Relative URL (e.g., "query?q=Select+Id+From+Account")
     /// * `body` - Optional JSON body
+    ///
+    /// # Performance
+    ///
+    /// Accepts `impl Into<String>` to avoid unnecessary allocations when the caller
+    /// already has an owned `String` (e.g. from `format!`).
     #[must_use]
-    pub fn add_request(mut self, method: &str, url: &str, body: Option<Value>) -> Self {
+    pub fn add_request(
+        mut self,
+        method: impl Into<String>,
+        url: impl Into<String>,
+        body: Option<Value>,
+    ) -> Self {
         self.requests.push(BatchSubRequest {
-            method: method.to_string(),
-            url: url.to_string(),
+            method: method.into(),
+            url: url.into(),
             rich_input: body,
         });
         self
@@ -539,5 +549,22 @@ mod tests {
 
         // It should NOT be encoded (e.g. no + for spaces)
         assert!(!req.url.contains('+'));
+    }
+
+    #[tokio::test]
+    async fn test_add_request_owned_optimization() {
+        // Verify that add_request accepts owned String directly
+        // This confirms the Zero-Cost Abstraction where we avoid cloning
+        // if the caller already has an owned String (e.g. from format!)
+        let builder = create_builder().await;
+
+        let method = String::from("POST");
+        let url = String::from("sobjects/Account");
+        let mut builder = builder.add_request(method, url, None);
+
+        let req = builder.requests.pop().expect("No request added");
+
+        assert_eq!(req.method, "POST");
+        assert_eq!(req.url, "sobjects/Account");
     }
 }
