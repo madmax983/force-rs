@@ -231,7 +231,9 @@ async fn test_query_batch_halt_on_error() {
 
     Mock::given(method("POST"))
         .and(path("/services/data/v60.0/composite/batch"))
-        .and(wiremock::matchers::body_string_contains("haltOnError\":true"))
+        .and(wiremock::matchers::body_string_contains(
+            "haltOnError\":true",
+        ))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
             "hasErrors": true,
             "results": [{"statusCode": 400, "result": null}]
