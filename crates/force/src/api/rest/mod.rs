@@ -5,11 +5,11 @@
 
 pub mod crud;
 pub mod describe;
-#[cfg(feature = "nova")]
 pub mod explain;
 pub mod limits;
 pub mod query;
 pub mod query_stream;
+pub mod scanner;
 pub mod search;
 pub mod soql;
 
@@ -346,7 +346,6 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
     /// - Authentication fails
     /// - The HTTP request fails
     /// - The response cannot be deserialized
-    #[cfg(feature = "nova")]
     pub async fn explain(&self, soql: &str) -> Result<explain::ExplainResponse> {
         self.execute_get(
             "/query",
