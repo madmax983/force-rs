@@ -205,3 +205,134 @@ async fn test_query_batch_multiple_batches() {
     assert_eq!(stats.records_processed, 26);
     assert_eq!(stats.ops_succeeded, 26);
 }
+
+#[tokio::test]
+async fn test_query_batch_halt_on_error() {
+    let mock_server = MockServer::start().await;
+    let auth = MyMockAuthenticator {
+        token: "token".to_string(),
+        instance_url: mock_server.uri(),
+    };
+    let client = builder()
+        .authenticate(auth)
+        .build()
+        .await
+        .expect("client build failed");
+
+    Mock::given(method("GET"))
+        .and(path("/services/data/v60.0/query"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "totalSize": 1,
+            "done": true,
+            "records": [{"Id": "001000000000001", "Name": "Account 1"}]
+        })))
+        .mount(&mock_server)
+        .await;
+
+    Mock::given(method("POST"))
+        .and(path("/services/data/v60.0/composite/batch"))
+        .and(wiremock::matchers::body_string_contains("haltOnError\":true"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "hasErrors": true,
+            "results": [{"statusCode": 400, "result": null}]
+        })))
+        .mount(&mock_server)
+        .await;
+
+    let processor = QueryBatch::new(&client, "SELECT Id, Name FROM Account").halt_on_error(true);
+
+    let stats = processor
+        .run(|record: Account| Some(BatchOp::Delete("Account".to_string(), record.id)))
+        .await
+        .expect("run failed");
+
+    assert_eq!(stats.ops_failed, 1);
+    assert_eq!(stats.ops_succeeded, 0);
+}
+
+#[tokio::test]
+async fn test_query_batch_empty_results() {
+    let mock_server = MockServer::start().await;
+    let auth = MyMockAuthenticator {
+        token: "token".to_string(),
+        instance_url: mock_server.uri(),
+    };
+    let client = builder()
+        .authenticate(auth)
+        .build()
+        .await
+        .expect("client build failed");
+
+    Mock::given(method("GET"))
+        .and(path("/services/data/v60.0/query"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "totalSize": 0,
+            "done": true,
+            "records": []
+        })))
+        .mount(&mock_server)
+        .await;
+
+    let processor = QueryBatch::new(&client, "SELECT Id, Name FROM Account");
+
+    let stats = processor
+        .run(|record: Account| Some(BatchOp::Delete("Account".to_string(), record.id)))
+        .await
+        .expect("run failed");
+
+    assert_eq!(stats.records_processed, 0);
+    assert_eq!(stats.ops_succeeded, 0);
+    assert_eq!(stats.ops_failed, 0);
+}
+
+#[tokio::test]
+async fn test_query_batch_mixed_results() {
+    let mock_server = MockServer::start().await;
+    let auth = MyMockAuthenticator {
+        token: "token".to_string(),
+        instance_url: mock_server.uri(),
+    };
+    let client = builder()
+        .authenticate(auth)
+        .build()
+        .await
+        .expect("client build failed");
+
+    // 1. Mock Query with 2 records
+    Mock::given(method("GET"))
+        .and(path("/services/data/v60.0/query"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "totalSize": 2,
+            "done": true,
+            "records": [
+                {"Id": "001000000000001", "Name": "Account 1"},
+                {"Id": "001000000000002", "Name": "Account 2"}
+            ]
+        })))
+        .mount(&mock_server)
+        .await;
+
+    // 2. Mock Batch Request with 1 success, 1 failure
+    Mock::given(method("POST"))
+        .and(path("/services/data/v60.0/composite/batch"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "hasErrors": true,
+            "results": [
+                {"statusCode": 204, "result": null},
+                {"statusCode": 400, "result": {"errorCode": "BAD_REQUEST", "message": "Bad"}}
+            ]
+        })))
+        .mount(&mock_server)
+        .await;
+
+    let processor = QueryBatch::new(&client, "SELECT Id, Name FROM Account");
+
+    let stats = processor
+        .run(|record: Account| Some(BatchOp::Delete("Account".to_string(), record.id)))
+        .await
+        .expect("run failed");
+
+    assert_eq!(stats.records_processed, 2);
+    assert_eq!(stats.ops_succeeded, 1);
+    assert_eq!(stats.ops_failed, 1);
+}
