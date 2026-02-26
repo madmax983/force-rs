@@ -82,6 +82,20 @@ fn validate_field_name_internal(name: &str, allow_functions: bool) -> Result<(),
         ));
     }
 
+    if name.starts_with('.') || name.ends_with('.') {
+        return Err(ForceError::InvalidInput(format!(
+            "Field name cannot start or end with a dot: {}",
+            name
+        )));
+    }
+
+    if name.contains("..") {
+        return Err(ForceError::InvalidInput(format!(
+            "Field name cannot contain consecutive dots: {}",
+            name
+        )));
+    }
+
     for c in name.chars() {
         if !c.is_ascii_alphanumeric() && c != '_' && c != '.' {
             if allow_functions && (c == '(' || c == ')') {
@@ -156,6 +170,12 @@ mod tests {
         assert!(validate_field_name("Name--").is_err());
         assert!(validate_field_name("count(Id").is_err());
         assert!(validate_field_name("count)Id(").is_err());
+
+        // New checks
+        assert!(validate_field_name(".Name").is_err());
+        assert!(validate_field_name("Name.").is_err());
+        assert!(validate_field_name("Parent..Name").is_err());
+        assert!(validate_field_name("..").is_err());
     }
 
     #[test]

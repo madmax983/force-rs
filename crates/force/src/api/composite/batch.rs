@@ -122,10 +122,27 @@ impl<A: Authenticator> BatchBuilder<A> {
     /// Use this for requests that don't fit the standard CRUD patterns,
     /// such as queries or parameterized searches.
     ///
-    /// # Warning
+    /// # Security Warning
     ///
-    /// The `url` parameter must be properly URL-encoded, especially for query parameters.
+    /// The `url` parameter is **NOT** URL-encoded by this method. It must be properly
+    /// encoded by the caller, especially for query parameters.
+    /// Failure to do so may lead to injection vulnerabilities or malformed requests.
+    ///
     /// For SOQL queries, use [`query`](Self::query) instead, which handles encoding safely.
+    ///
+    /// # Example (Safe Encoding)
+    ///
+    /// ```rust
+    /// // Safe way to construct a URL with parameters
+    /// let user_input = "Value & Symbol";
+    /// let encoded_param: String = url::form_urlencoded::byte_serialize(user_input.as_bytes()).collect();
+    /// // The base query part (SELECT ...) should also be encoded if constructed manually,
+    /// // but here we assume it's part of the structure.
+    /// // Ideally, use `SoqlQueryBuilder` for queries.
+    /// let url = format!("custom/endpoint?param={}", encoded_param);
+    ///
+    /// // batch.add_request("GET", url, None);
+    /// ```
     ///
     /// # Arguments
     ///

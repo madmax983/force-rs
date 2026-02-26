@@ -23,3 +23,7 @@
 ## 2026-02-25 - [DoS via Unbounded Allocation in Bulk Upload]
 **Threat:** `IngestJob::upload` accepted `&[u8]` and called `to_vec()`, forcing a heap allocation and copy of the entire payload. For large bulk uploads (up to 150MB), this doubled memory usage and increased the risk of OOM DoS.
 **Defense:** Refactored `upload` and internal helpers to accept `impl Into<reqwest::Body>`, allowing zero-copy transmission of `Bytes`, `Vec<u8>`, or streams. Updated internal convenience methods to pass `Vec<u8>` by value instead of reference to avoid cloning.
+
+## 2026-02-28 - [Field Name Validation Weakness]
+**Threat:** The `validate_field_name` function allowed consecutive dots (`..`) and leading/trailing dots in field paths (e.g., `Parent..Name`), which could lead to malformed SOQL queries or unexpected behavior in Salesforce's parser.
+**Defense:** Updated `validate_field_name` to strictly reject field names starting/ending with `.` or containing `..`. Added comprehensive unit tests to `types/validator.rs`.
