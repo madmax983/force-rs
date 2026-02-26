@@ -45,7 +45,29 @@ cargo run --example org_limits
 
 ---
 
-### 2. Basic CRUD Operations (`basic_crud.rs`)
+### 2. Query Plan Analysis (`query_plan.rs`)
+
+Demonstrates how to use the Query Plan API (`explain`) to inspect query performance costs.
+
+**Features:**
+- Analyze SOQL queries before execution
+- Inspect cost, cardinality, and operation types (TableScan vs IndexScan)
+- View optimization notes and warnings
+- **Requires:** `nova` feature enabled
+
+**Run:**
+```bash
+cargo run --example query_plan --features nova
+```
+
+**Use this example to:**
+- Optimize SOQL queries
+- Prevent inefficient queries in CI/CD
+- Understand how Salesforce executes your queries
+
+---
+
+### 3. Basic CRUD Operations (`basic_crud.rs`)
 
 Full lifecycle demonstration of creating, reading, updating, and deleting Salesforce records.
 
@@ -70,7 +92,7 @@ cargo run --example basic_crud
 
 ---
 
-### 3. SOQL Queries with Typed Results (`soql_query.rs`)
+### 4. SOQL Queries with Typed Results (`soql_query.rs`)
 
 Demonstrates typed SOQL queries with automatic deserialization and pagination.
 
@@ -95,7 +117,7 @@ cargo run --example soql_query
 
 ---
 
-### 4. Dynamic Queries (`dynamic_query.rs`)
+### 5. Dynamic Queries (`dynamic_query.rs`)
 
 Demonstrates flexible, untyped queries using `DynamicSObject` for runtime field access.
 
@@ -120,7 +142,7 @@ cargo run --example dynamic_query
 
 ---
 
-### 5. SOSL Search (`search.rs`)
+### 6. SOSL Search (`search.rs`)
 
 Multi-object text search using SOSL (Salesforce Object Search Language).
 
@@ -144,7 +166,7 @@ cargo run --example search
 
 ---
 
-### 6. Schema Introspection (`describe.rs`)
+### 7. Schema Introspection (`describe.rs`)
 
 Explore Salesforce object metadata using the Describe API.
 
