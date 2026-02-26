@@ -6,8 +6,8 @@
 //! Run with:
 //! cargo run --example `query_plan` --features nova
 
-use force::client::ForceClientBuilder;
 use force::auth::ClientCredentials;
+use force::client::ForceClientBuilder;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -17,10 +17,7 @@ async fn main() -> anyhow::Result<()> {
         std::env::var("SF_CLIENT_SECRET").unwrap_or_else(|_| "client-secret".to_string()),
     );
 
-    let client = ForceClientBuilder::new()
-        .authenticate(auth)
-        .build()
-        .await?;
+    let client = ForceClientBuilder::new().authenticate(auth).build().await?;
 
     let soql = "SELECT Id FROM Account WHERE Name LIKE 'A%'";
     println!("Analyzing query: {soql}");
