@@ -62,11 +62,12 @@ impl<A: Authenticator> BatchBuilder<A> {
     ///
     /// # Errors
     ///
-    /// Returns an error if the `sobject` name or `id` contains invalid characters.
+    /// Returns an error if the `sobject` name or `id` contains invalid characters,
+    /// or if the batch is full (25 requests).
     pub fn get(self, sobject: &str, id: &str) -> Result<Self> {
         validator::validate_sobject_name(sobject)?;
         validate_id(id)?;
-        Ok(self.add_request("GET", format!("sobjects/{}/{}", sobject, id), None))
+        self.add_request("GET", format!("sobjects/{}/{}", sobject, id), None)
     }
 
     /// Adds a POST (Create) request to the batch.
@@ -78,10 +79,11 @@ impl<A: Authenticator> BatchBuilder<A> {
     ///
     /// # Errors
     ///
-    /// Returns an error if the `sobject` name contains invalid characters.
+    /// Returns an error if the `sobject` name contains invalid characters,
+    /// or if the batch is full (25 requests).
     pub fn post(self, sobject: &str, body: Value) -> Result<Self> {
         validator::validate_sobject_name(sobject)?;
-        Ok(self.add_request("POST", format!("sobjects/{}", sobject), Some(body)))
+        self.add_request("POST", format!("sobjects/{}", sobject), Some(body))
     }
 
     /// Adds a PATCH (Update) request to the batch.
@@ -94,11 +96,12 @@ impl<A: Authenticator> BatchBuilder<A> {
     ///
     /// # Errors
     ///
-    /// Returns an error if the `sobject` name or `id` contains invalid characters.
+    /// Returns an error if the `sobject` name or `id` contains invalid characters,
+    /// or if the batch is full (25 requests).
     pub fn patch(self, sobject: &str, id: &str, body: Value) -> Result<Self> {
         validator::validate_sobject_name(sobject)?;
         validate_id(id)?;
-        Ok(self.add_request("PATCH", format!("sobjects/{}/{}", sobject, id), Some(body)))
+        self.add_request("PATCH", format!("sobjects/{}/{}", sobject, id), Some(body))
     }
 
     /// Adds a DELETE request to the batch.
@@ -110,11 +113,12 @@ impl<A: Authenticator> BatchBuilder<A> {
     ///
     /// # Errors
     ///
-    /// Returns an error if the `sobject` name or `id` contains invalid characters.
+    /// Returns an error if the `sobject` name or `id` contains invalid characters,
+    /// or if the batch is full (25 requests).
     pub fn delete(self, sobject: &str, id: &str) -> Result<Self> {
         validator::validate_sobject_name(sobject)?;
         validate_id(id)?;
-        Ok(self.add_request("DELETE", format!("sobjects/{}/{}", sobject, id), None))
+        self.add_request("DELETE", format!("sobjects/{}/{}", sobject, id), None)
     }
 
     /// Adds a custom subrequest to the batch.
@@ -137,19 +141,28 @@ impl<A: Authenticator> BatchBuilder<A> {
     ///
     /// Accepts `impl Into<String>` to avoid unnecessary allocations when the caller
     /// already has an owned `String` (e.g. from `format!`).
-    #[must_use]
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the batch is full (25 requests).
     pub fn add_request(
         mut self,
         method: impl Into<String>,
         url: impl Into<String>,
         body: Option<Value>,
-    ) -> Self {
+    ) -> Result<Self> {
+        if self.requests.len() >= 25 {
+            return Err(ForceError::InvalidInput(
+                "Batch size limit exceeded (max 25 requests)".to_string(),
+            ));
+        }
+
         self.requests.push(BatchSubRequest {
             method: method.into(),
             url: url.into(),
             rich_input: body,
         });
-        self
+        Ok(self)
     }
 
     /// Adds a SOQL query request to the batch.
@@ -164,6 +177,10 @@ impl<A: Authenticator> BatchBuilder<A> {
     ///
     /// * `query_builder` - The SOQL query builder
     ///
+    /// # Errors
+    ///
+    /// Returns an error if the batch is full (25 requests).
+    ///
     /// # Examples
     ///
     /// ```ignore
@@ -173,12 +190,17 @@ impl<A: Authenticator> BatchBuilder<A> {
     ///     .where_eq("Name", "Acme Corp");
     ///
     /// let batch = client.composite().batch()
-    ///     .query(query)
+    ///     .query(query)?
     ///     .execute()
     ///     .await?;
     /// ```
-    #[must_use]
-    pub fn query(mut self, query_builder: SoqlQueryBuilder) -> Self {
+    pub fn query(mut self, query_builder: SoqlQueryBuilder) -> Result<Self> {
+        if self.requests.len() >= 25 {
+            return Err(ForceError::InvalidInput(
+                "Batch size limit exceeded (max 25 requests)".to_string(),
+            ));
+        }
+
         let query_string = query_builder.build();
 
         // 8 is for "query?q=" and a bit of slack
@@ -193,7 +215,7 @@ impl<A: Authenticator> BatchBuilder<A> {
             url,
             rich_input: None,
         });
-        self
+        Ok(self)
     }
 
     /// Returns the number of requests currently in the batch.
@@ -235,6 +257,8 @@ impl<A: Authenticator> BatchBuilder<A> {
                 ),
             ));
         }
+        // Double check limit, though add_request enforces it now.
+        // We keep it for safety in case someone manually constructs the struct (unlikely as fields are private)
         if self.requests.len() > 25 {
             return Err(ForceError::Serialization(
                 crate::error::SerializationError::InvalidFormat(
@@ -437,23 +461,21 @@ mod tests {
     #[tokio::test]
     async fn test_batch_size_limit() {
         let mut builder = create_builder().await;
-        // Add 26 requests
-        for i in 0..26 {
-            // Use different IDs to avoid any potential deduplication (though not expected here)
+        // Add 25 requests (allowed)
+        for i in 0..25 {
             builder = builder
                 .get("Account", &format!("001000000000{:03}AAA", i))
                 .unwrap();
         }
 
-        let result = builder.execute().await;
+        // Add 26th request (should fail)
+        let result = builder.get("Account", "001000000000999AAA");
+
         match result {
-            Err(ForceError::Serialization(e)) => {
-                assert!(e.to_string().contains("Batch size exceeds limit"));
+            Err(ForceError::InvalidInput(e)) => {
+                assert!(e.contains("Batch size limit exceeded"));
             }
-            _ => panic!(
-                "Expected Serialization error for batch size limit, got {:?}",
-                result
-            ),
+            _ => panic!("Expected InvalidInput error for batch size limit, got {:?}", result),
         }
     }
 
@@ -486,30 +508,22 @@ mod tests {
             .from("Account")
             .where_eq("Name", "Acme & Co.");
 
-        let mut builder = builder.query(query);
+        // Now returns Result
+        let mut builder = builder.query(query).unwrap();
 
         // Check the request
         let req = builder.requests.pop().expect("No request added");
         assert_eq!(req.method, "GET");
 
-        // Verify encoding
-        // SoqlQueryBuilder produces: SELECT Id, Name FROM Account WHERE Name = 'Acme & Co.'
-        // Note: SoqlQueryBuilder escapes ' but not & unless needed for SOSL, but for SOQL literals & is fine inside quotes.
-        // Wait, does SoqlQueryBuilder escape &? No.
-
         let expected_soql = "SELECT Id, Name FROM Account WHERE Name = 'Acme & Co.'";
 
-        // We expect form-urlencoded encoding (spaces are +)
         let mut expected_url = "query?q=".to_string();
         expected_url.extend(url::form_urlencoded::byte_serialize(
             expected_soql.as_bytes(),
         ));
 
         assert_eq!(req.url, expected_url);
-
-        // Ensure space is encoded as + (application/x-www-form-urlencoded default)
         assert!(req.url.contains("SELECT+Id"));
-        // Ensure & is encoded as %26 inside the value
         assert!(req.url.contains("%26"));
     }
 
@@ -535,32 +549,26 @@ mod tests {
 
     #[tokio::test]
     async fn test_add_request_raw_url() {
-        // Verify that add_request does NOT encode the URL
-        // This is important behavior to document via test
         let builder = create_builder().await;
 
         let unsafe_url = "query?q=SELECT Id FROM Account";
-        let mut builder = builder.add_request("GET", unsafe_url, None);
+        // Now returns Result
+        let mut builder = builder.add_request("GET", unsafe_url, None).unwrap();
 
         let req = builder.requests.pop().expect("No request added");
 
-        // It should match exactly what was passed
         assert_eq!(req.url, unsafe_url);
-
-        // It should NOT be encoded (e.g. no + for spaces)
         assert!(!req.url.contains('+'));
     }
 
     #[tokio::test]
     async fn test_add_request_owned_optimization() {
-        // Verify that add_request accepts owned String directly
-        // This confirms the Zero-Cost Abstraction where we avoid cloning
-        // if the caller already has an owned String (e.g. from format!)
         let builder = create_builder().await;
 
         let method = String::from("POST");
         let url = String::from("sobjects/Account");
-        let mut builder = builder.add_request(method, url, None);
+        // Now returns Result
+        let mut builder = builder.add_request(method, url, None).unwrap();
 
         let req = builder.requests.pop().expect("No request added");
 
