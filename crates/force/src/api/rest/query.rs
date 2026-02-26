@@ -99,35 +99,8 @@ impl<A: crate::auth::Authenticator> super::RestHandler<A> {
         let token = self.inner.token_manager.get_token_arc().await?;
         let instance_url = token.instance_url();
 
-        // Construct full URL (next_records_url might be absolute or relative)
-        let url = if next_records_url.starts_with("http") {
-            // Security check: If URL is absolute, ensure it matches the instance host
-            // This prevents token leakage if nextRecordsUrl points to a third-party domain
-            let next_parsed = url::Url::parse(next_records_url)
-                .map_err(|e| ForceError::InvalidInput(format!("Invalid nextRecordsUrl: {}", e)))?;
-            let instance_parsed = url::Url::parse(instance_url).map_err(|e| {
-                ForceError::InvalidInput(format!("Invalid instance URL in token: {}", e))
-            })?;
-
-            // Compare schemes and hosts
-            if next_parsed.scheme() != instance_parsed.scheme()
-                || next_parsed.host_str() != instance_parsed.host_str()
-                || next_parsed.port_or_known_default() != instance_parsed.port_or_known_default()
-            {
-                return Err(ForceError::InvalidInput(format!(
-                    "Security Error: nextRecordsUrl origin ({:?}://{:?}:{:?}) does not match instance origin ({:?}://{:?}:{:?})",
-                    next_parsed.scheme(),
-                    next_parsed.host_str(),
-                    next_parsed.port_or_known_default(),
-                    instance_parsed.scheme(),
-                    instance_parsed.host_str(),
-                    instance_parsed.port_or_known_default()
-                )));
-            }
-            next_records_url.to_string()
-        } else {
-            format!("{}{}", instance_url, next_records_url)
-        };
+        // Construct and validate full URL
+        let url = resolve_next_records_url(instance_url, next_records_url)?;
 
         // Execute query
         let request = self
@@ -142,6 +115,43 @@ impl<A: crate::auth::Authenticator> super::RestHandler<A> {
             .await
     }
 }
+/// Helper to resolve and validate the next records URL.
+///
+/// Ensures that absolute URLs match the instance origin to prevent
+/// token leakage to third-party domains.
+fn resolve_next_records_url(
+    instance_url: &str,
+    next_records_url: &str,
+) -> Result<String, ForceError> {
+    if next_records_url.starts_with("http") {
+        // Security check: If URL is absolute, ensure it matches the instance host
+        let next_parsed = url::Url::parse(next_records_url)
+            .map_err(|e| ForceError::InvalidInput(format!("Invalid nextRecordsUrl: {}", e)))?;
+        let instance_parsed = url::Url::parse(instance_url).map_err(|e| {
+            ForceError::InvalidInput(format!("Invalid instance URL in token: {}", e))
+        })?;
+
+        // Compare schemes and hosts
+        if next_parsed.scheme() != instance_parsed.scheme()
+            || next_parsed.host_str() != instance_parsed.host_str()
+            || next_parsed.port_or_known_default() != instance_parsed.port_or_known_default()
+        {
+            return Err(ForceError::InvalidInput(format!(
+                "Security Error: nextRecordsUrl origin ({:?}://{:?}:{:?}) does not match instance origin ({:?}://{:?}:{:?})",
+                next_parsed.scheme(),
+                next_parsed.host_str(),
+                next_parsed.port_or_known_default(),
+                instance_parsed.scheme(),
+                instance_parsed.host_str(),
+                instance_parsed.port_or_known_default()
+            )));
+        }
+        Ok(next_records_url.to_string())
+    } else {
+        Ok(format!("{}{}", instance_url, next_records_url))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -661,5 +671,30 @@ mod tests {
 
         assert_eq!(page2.len(), 1);
         assert_eq!(page2.records[0].name, "Record2");
+    }
+
+    #[tokio::test]
+    async fn test_query_more_security_check() {
+        let mock_server = MockServer::start().await;
+        // Instance URL is the mock server
+        let auth = MockAuthenticator::new("test_token", &mock_server.uri());
+        let client = builder().authenticate(auth).build().await.must();
+
+        // Attempt to query_more with a malicious URL (different host)
+        let malicious_url = "https://attacker.com/services/data/v60.0/query/leak_token";
+
+        let result: Result<QueryResult<TestAccount>, _> =
+            client.rest().query_more(malicious_url).await;
+
+        match result {
+            Err(ForceError::InvalidInput(msg)) => {
+                assert!(msg.contains("Security Error"));
+                assert!(msg.contains("does not match instance origin"));
+            }
+            _ => panic!(
+                "Expected ForceError::InvalidInput with security warning, got {:?}",
+                result
+            ),
+        }
     }
 }
