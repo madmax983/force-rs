@@ -609,9 +609,7 @@ mod tests {
 
     #[test]
     fn test_write_query_streaming() {
-        let builder = SoqlQueryBuilder::new()
-            .select(&["Id"])
-            .from("Account");
+        let builder = SoqlQueryBuilder::new().select(&["Id"]).from("Account");
 
         builder.validate().unwrap();
 
