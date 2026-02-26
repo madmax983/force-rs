@@ -46,7 +46,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 proptest = "1.5"
 
 [features]
-nova = []
+nova = ["rest"]
 default = ["rest"]
 
 # Platform API surfaces
@@ -63,3 +63,7 @@ mock = ["dep:wiremock"]
 # Meta features
 full = ["rest", "bulk", "composite", "jwt"]
 all = ["full"]
+
+[[example]]
+name = "query_plan"
+required-features = ["nova"]

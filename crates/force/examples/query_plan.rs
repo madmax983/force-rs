@@ -4,7 +4,7 @@
 //! to analyze the performance cost of SOQL queries.
 //!
 //! Run with:
-//! cargo run --example query_plan --features nova
+//! cargo run --example `query_plan` --features nova
 
 use force::client::ForceClientBuilder;
 use force::auth::ClientCredentials;
@@ -23,12 +23,15 @@ async fn main() -> anyhow::Result<()> {
         .await?;
 
     let soql = "SELECT Id FROM Account WHERE Name LIKE 'A%'";
-    println!("Analyzing query: {}", soql);
+    println!("Analyzing query: {soql}");
 
     let explanation = client.rest().explain(soql).await?;
 
     for plan in explanation.plans {
-        println!("Plan: {}, Cost: {}", plan.leading_operation_type, plan.relative_cost);
+        println!(
+            "Plan: {}, Cost: {}",
+            plan.leading_operation_type, plan.relative_cost
+        );
         println!("  Cardinality: {}", plan.cardinality);
         println!("  SObject Type: {}", plan.sobject_type);
 
