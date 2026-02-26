@@ -475,7 +475,10 @@ mod tests {
             Err(ForceError::InvalidInput(e)) => {
                 assert!(e.contains("Batch size limit exceeded"));
             }
-            _ => panic!("Expected InvalidInput error for batch size limit, got {:?}", result),
+            _ => panic!(
+                "Expected InvalidInput error for batch size limit, got {:?}",
+                result
+            ),
         }
     }
 

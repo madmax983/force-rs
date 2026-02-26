@@ -54,11 +54,9 @@ fn test_unbounded_growth() {
 
         // Fill up the batch (25 items) - These should all succeed
         for i in 0..25 {
-            builder = builder.add_request(
-                "GET",
-                format!("sobjects/Account/{}", i),
-                None
-            ).expect("Should succeed up to 25");
+            builder = builder
+                .add_request("GET", format!("sobjects/Account/{i}"), None)
+                .expect("Should succeed up to 25");
         }
 
         // Verify full
@@ -66,14 +64,13 @@ fn test_unbounded_growth() {
         assert_eq!(builder.len(), 25);
 
         // Attack: Add 26th request.
-        let result = builder.add_request(
-            "GET",
-            "sobjects/Account/25",
-            None
-        );
+        let result = builder.add_request("GET", "sobjects/Account/25", None);
 
         // Verification: The builder REJECTED the 26th request.
-        assert!(result.is_err(), "Vulnerability fixed: BatchBuilder rejected 26th request");
+        assert!(
+            result.is_err(),
+            "Vulnerability fixed: BatchBuilder rejected 26th request"
+        );
 
         let err = result.unwrap_err();
         assert!(err.to_string().contains("Batch size limit exceeded"));
