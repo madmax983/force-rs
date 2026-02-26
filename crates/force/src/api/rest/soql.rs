@@ -6,7 +6,6 @@
 use crate::error::ForceError;
 use crate::types::validator::{validate_field_name, validate_sobject_name};
 use std::borrow::Cow;
-use std::fmt::Write;
 
 /// Escapes special characters for SOQL string literals.
 ///
@@ -284,73 +283,105 @@ impl SoqlQueryBuilder {
         self
     }
 
+    /// Validates that the builder has all necessary components to build a query.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if no fields are selected or no SObject is specified.
+    pub fn validate(&self) -> Result<(), ForceError> {
+        if self.fields.is_empty() {
+            return Err(ForceError::InvalidInput(
+                "Select fields cannot be empty".to_string(),
+            ));
+        }
+        if self.sobject.is_none() {
+            return Err(ForceError::InvalidInput(
+                "FROM clause (SObject) is required".to_string(),
+            ));
+        }
+        Ok(())
+    }
+
+    /// Writes the SOQL query to the provided writer.
+    ///
+    /// This method allows streaming the query directly to a buffer or serializer
+    /// without allocating an intermediate String.
+    ///
+    /// # Errors
+    ///
+    /// Returns `fmt::Error` if writing to the underlying writer fails.
+    /// Note: Validation errors are NOT checked here; call `validate()` first.
+    pub(crate) fn write_query<W: std::fmt::Write>(&self, w: &mut W) -> std::fmt::Result {
+        self.append_fields(w)?;
+
+        w.write_str(" FROM ")?;
+        if let Some(sobject) = &self.sobject {
+            w.write_str(sobject)?;
+        }
+
+        self.append_where_clauses(w)?;
+        self.append_modifiers(w)?;
+        Ok(())
+    }
+
     /// Builds the final SOQL query string.
     ///
     /// # Errors
     ///
     /// Returns an error if no fields are selected or no SObject is specified.
     pub fn try_build(self) -> Result<String, ForceError> {
-        if self.fields.is_empty() {
-            return Err(ForceError::InvalidInput(
-                "Select fields cannot be empty".to_string(),
-            ));
-        }
-        let sobject = self.sobject.as_ref().ok_or_else(|| {
-            ForceError::InvalidInput("FROM clause (SObject) is required".to_string())
-        })?;
+        self.validate()?;
 
         // 256 is a reasonable default to avoid immediate reallocations
         // without complex pre-calculation logic (YAGNI).
         let mut query = String::with_capacity(256);
 
-        self.append_fields(&mut query);
-
-        query.push_str(" FROM ");
-        query.push_str(sobject);
-
-        self.append_where_clauses(&mut query);
-        self.append_modifiers(&mut query);
+        self.write_query(&mut query)
+            .map_err(|_| ForceError::InvalidInput("Formatting error".to_string()))?;
 
         Ok(query)
     }
 
-    fn append_fields(&self, query: &mut String) {
-        query.push_str("SELECT ");
+    fn append_fields<W: std::fmt::Write>(&self, query: &mut W) -> std::fmt::Result {
+        query.write_str("SELECT ")?;
         for (i, field) in self.fields.iter().enumerate() {
             if i > 0 {
-                query.push_str(", ");
+                query.write_str(", ")?;
             }
-            query.push_str(field);
+            query.write_str(field)?;
         }
+        Ok(())
     }
 
-    fn append_where_clauses(&self, query: &mut String) {
+    fn append_where_clauses<W: std::fmt::Write>(&self, query: &mut W) -> std::fmt::Result {
         if self.where_clauses.is_empty() {
-            return;
+            return Ok(());
         }
 
-        query.push_str(" WHERE ");
+        query.write_str(" WHERE ")?;
         for (i, clause) in self.where_clauses.iter().enumerate() {
             if i > 0 {
-                query.push_str(" AND ");
+                query.write_str(" AND ")?;
             }
-            let _ = write!(query, "{}", clause);
+            write!(query, "{}", clause)?;
         }
+        Ok(())
     }
 
-    fn append_modifiers(&self, query: &mut String) {
+    fn append_modifiers<W: std::fmt::Write>(&self, query: &mut W) -> std::fmt::Result {
         if let Some(order) = &self.order_by {
-            query.push_str(" ORDER BY ");
-            query.push_str(order);
+            query.write_str(" ORDER BY ")?;
+            query.write_str(order)?;
         }
 
         if let Some(limit) = self.limit {
-            let _ = write!(query, " LIMIT {}", limit);
+            write!(query, " LIMIT {}", limit)?;
         }
 
         if let Some(offset) = self.offset {
-            let _ = write!(query, " OFFSET {}", offset);
+            write!(query, " OFFSET {}", offset)?;
         }
+        Ok(())
     }
 
     fn unwrap_or_panic<T>(result: Result<T, ForceError>, context: &str) -> T {
@@ -370,6 +401,9 @@ impl SoqlQueryBuilder {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::expect_used)]
+
     use super::*;
 
     #[test]
@@ -571,5 +605,19 @@ mod tests {
             query,
             "SELECT Id FROM Account WHERE Name = 'Acme' LIMIT 10 OFFSET 5"
         );
+    }
+
+    #[test]
+    fn test_write_query_streaming() {
+        let builder = SoqlQueryBuilder::new()
+            .select(&["Id"])
+            .from("Account");
+
+        builder.validate().unwrap();
+
+        let mut buffer = String::new();
+        builder.write_query(&mut buffer).unwrap();
+
+        assert_eq!(buffer, "SELECT Id FROM Account");
     }
 }
