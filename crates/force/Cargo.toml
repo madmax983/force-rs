@@ -63,3 +63,7 @@ mock = ["dep:wiremock"]
 # Meta features
 full = ["rest", "bulk", "composite", "jwt"]
 all = ["full"]
+
+[[example]]
+name = "query_plan"
+required-features = ["nova"]
