@@ -13,3 +13,6 @@ pub mod scanner;
 
 #[cfg(feature = "composite")]
 pub mod query_batch;
+
+#[cfg(feature = "nova")]
+pub mod schema_graph;
