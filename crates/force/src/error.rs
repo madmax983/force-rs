@@ -62,6 +62,10 @@ pub enum AuthenticationError {
     #[error("failed to refresh access token: {0}")]
     TokenRefreshFailed(String),
 
+    /// Invalid token state (internal error).
+    #[error("invalid token state")]
+    InvalidToken,
+
     /// JWT token creation failed (feature-gated).
     #[cfg(feature = "jwt")]
     #[error("JWT token creation failed: {0}")]
