@@ -23,3 +23,7 @@
 ## 2026-02-25 - [DoS via Unbounded Allocation in Bulk Upload]
 **Threat:** `IngestJob::upload` accepted `&[u8]` and called `to_vec()`, forcing a heap allocation and copy of the entire payload. For large bulk uploads (up to 150MB), this doubled memory usage and increased the risk of OOM DoS.
 **Defense:** Refactored `upload` and internal helpers to accept `impl Into<reqwest::Body>`, allowing zero-copy transmission of `Bytes`, `Vec<u8>`, or streams. Updated internal convenience methods to pass `Vec<u8>` by value instead of reference to avoid cloning.
+
+## 2026-02-26 - [DoS via Unbounded Allocation in Composite Batch]
+**Threat:** `BatchBuilder` allowed adding an unlimited number of requests via `add_request` and its convenience wrappers. An attacker could construct a batch with millions of requests, causing unbounded memory consumption before `execute()` is called, leading to an OOM crash.
+**Defense:** Updated `add_request`, `query`, and all convenience methods (`get`, `post`, `patch`, `delete`) to return `Result<Self>` and strictly enforce the Salesforce API limit of 25 subrequests. Attempts to add a 26th request now return `ForceError::InvalidInput`.
