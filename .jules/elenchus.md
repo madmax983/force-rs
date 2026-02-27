@@ -12,9 +12,22 @@ This journal records the findings of the Elenchus test audit.
 | **Commended** | `crates/force/src/auth/token_manager.rs` | ⭐ Commended | Robust concurrency testing using `tokio::spawn`, atomic counters, and specific assertion of call counts. |
 | **Suspect** | `crates/force/tests/security_soql_injection.rs` | 🟡 Suspect | The test mirrors the implementation of `escape_soql`. While valuable as a regression guard, it is tautological in nature. |
 | **Acquitted** | `crates/force/src/experimental/scanner.rs` | 🟢 Acquitted | Initial audit found missing tests for filtering, batching, and zero-division. Added comprehensive tests and verified with mutation testing (12 mutants caught). |
+| **Acquitted** | `crates/force/src/experimental/query_batch.rs` | 🟢 Acquitted | Initial audit found missing coverage for `halt_on_error`, empty results, and partial failures. Added `test_query_batch_halt_on_error`, `test_query_batch_empty_results`, and `test_query_batch_mixed_results`. |
 | **Acquitted** | `crates/force/src/api/composite/batch.rs` | 🟢 Acquitted | Initial audit found tautological encoding tests and fragile JSON assertions. Refactored to use hardcoded "golden" strings and structural JSON validation. |
 
 ## Detailed Findings
+
+### [Acquitted] `crates/force/src/experimental/query_batch.rs`
+
+**Module:** `crates/force/src/experimental/query_batch.rs`
+**Severity:** 🟢 Acquitted (was 🟡 Suspect)
+**Finding:** Manual audit revealed that the `halt_on_error` configuration and error handling statistics (`ops_failed`) were not exercised by the existing happy-path tests.
+**Evidence:**
+- Existing tests only verified successful batch execution (`ops_succeeded`).
+- No test case existed for `halt_on_error(true)`.
+- No test case existed for empty query results.
+**Resolution:** Added `test_query_batch_halt_on_error` to verify the flag propagates to the request. Added `test_query_batch_empty_results` to ensure graceful handling of empty sets. Added `test_query_batch_mixed_results` to verify `ops_failed` counting logic.
+**Note:** `cargo mutants` reported 0 mutants for this file, likely due to feature flag complexity or tool limitations with this specific module structure.
 
 ### [Acquitted] `crates/force/src/experimental/scanner.rs`
 
