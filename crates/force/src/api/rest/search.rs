@@ -5,6 +5,7 @@
 
 use crate::types::validator::validate_sobject_name;
 use serde::{Deserialize, Serialize};
+use std::borrow::Cow;
 use std::collections::HashMap;
 
 /// Result from a SOSL search query.
@@ -119,7 +120,7 @@ impl SearchQueryBuilder {
     /// * `text` - The search text
     #[must_use]
     pub fn find(mut self, text: impl Into<String>) -> Self {
-        self.search_text = escape_sosl(&text.into());
+        self.search_text = escape_sosl(text.into()).into_owned();
         self
     }
 
@@ -257,19 +258,31 @@ impl Default for SearchQueryBuilder {
 /// Escapes special characters for SOSL search queries.
 ///
 /// Reserved characters: ? & | ! { } [ ] ( ) ^ ~ * : \ " ' + -
-fn escape_sosl(text: &str) -> String {
-    let mut escaped = String::with_capacity(text.len());
-    for c in text.chars() {
-        match c {
-            '?' | '&' | '|' | '!' | '{' | '}' | '[' | ']' | '(' | ')' | '^' | '~' | '*' | ':'
-            | '\\' | '"' | '\'' | '+' | '-' => {
-                escaped.push('\\');
-                escaped.push(c);
+fn escape_sosl<'a>(text: impl Into<Cow<'a, str>>) -> Cow<'a, str> {
+    let text = text.into();
+    let first_special = text.find([
+        '?', '&', '|', '!', '{', '}', '[', ']', '(', ')', '^', '~', '*', ':', '\\', '"', '\'',
+        '+', '-',
+    ]);
+
+    match first_special {
+        Some(idx) => {
+            let mut escaped = String::with_capacity(text.len() + 8);
+            escaped.push_str(&text[..idx]);
+            for c in text[idx..].chars() {
+                match c {
+                    '?' | '&' | '|' | '!' | '{' | '}' | '[' | ']' | '(' | ')' | '^' | '~' | '*'
+                    | ':' | '\\' | '"' | '\'' | '+' | '-' => {
+                        escaped.push('\\');
+                        escaped.push(c);
+                    }
+                    _ => escaped.push(c),
+                }
             }
-            _ => escaped.push(c),
+            Cow::Owned(escaped)
         }
+        None => text,
     }
-    escaped
 }
 
 /// Validates field syntax to prevent SOSL injection while allowing complex clauses.
@@ -742,6 +755,30 @@ mod tests {
             query,
             "FIND {test} RETURNING Account(Name WHERE Name = 'O\\'Reilly')"
         );
+    }
+
+    #[test]
+    fn test_escape_sosl_cow_optimization() {
+        // Case 1: No special characters -> Cow::Borrowed
+        let safe_text = "SimpleSearch";
+        let result = escape_sosl(safe_text);
+        assert!(matches!(result, std::borrow::Cow::Borrowed(_)));
+        assert_eq!(result, "SimpleSearch");
+
+        // Case 2: Special characters -> Cow::Owned
+        let unsafe_text = "Search & Destroy";
+        let result = escape_sosl(unsafe_text);
+        assert!(matches!(result, std::borrow::Cow::Owned(_)));
+        assert_eq!(result, r"Search \& Destroy");
+
+        // Case 3: Owned String input, no escape -> Cow::Owned (reused input)
+        let owned_safe = String::from("OwnedString");
+        // We pass the string by value (transfer ownership)
+        let result_owned = escape_sosl(owned_safe);
+        // The implementation checks if special chars exist. If not, it returns the input Cow.
+        // Since input was converted to Cow::Owned, output should be Cow::Owned with same data.
+        assert!(matches!(result_owned, std::borrow::Cow::Owned(_)));
+        assert_eq!(result_owned, "OwnedString");
     }
 }
 
