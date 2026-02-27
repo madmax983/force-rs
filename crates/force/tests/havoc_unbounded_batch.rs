@@ -6,11 +6,11 @@
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::expect_used)]
 
+use async_trait::async_trait;
 use force::api::composite::batch::BatchBuilder;
 use force::auth::{AccessToken, Authenticator, TokenResponse};
 use force::client::builder;
 use force::error::{ForceError, Result};
-use async_trait::async_trait;
 
 // Mock Authenticator
 #[derive(Debug, Clone)]
@@ -47,7 +47,9 @@ async fn test_batch_builder_enforces_request_limit() {
 
     // Add 25 requests (allowed)
     for i in 0..25 {
-        builder = builder.get("Account", &format!("001000000000{:03}AAA", i)).expect("Failed to add valid request");
+        builder = builder
+            .get("Account", &format!("001000000000{i:03}AAA"))
+            .expect("Failed to add valid request");
     }
 
     assert_eq!(builder.len(), 25);

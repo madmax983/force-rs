@@ -218,9 +218,7 @@ impl<A: Authenticator> BatchBuilder<A> {
             ));
         }
 
-        if let Err(e) = query_builder.validate() {
-            return Err(e);
-        }
+        query_builder.validate()?;
 
         // 256 + 8 is a reasonable guess for typical queries
         let mut url = String::with_capacity(256 + 8);
@@ -230,7 +228,10 @@ impl<A: Authenticator> BatchBuilder<A> {
             let mut writer = UrlEncodedWriter(&mut url);
             // write_query guarantees writing succeeds (or returns fmt::Error which we expect/unwrap)
             if let Err(e) = query_builder.write_query(&mut writer) {
-                return Err(ForceError::InvalidInput(format!("Formatting failed: {}", e)));
+                return Err(ForceError::InvalidInput(format!(
+                    "Formatting failed: {}",
+                    e
+                )));
             }
         }
 
@@ -529,7 +530,10 @@ mod tests {
                 Ok(b) => builder = b,
                 Err(e) => {
                     assert_eq!(i, 25);
-                    assert!(e.to_string().contains("Batch size limit of 25 requests reached"));
+                    assert!(
+                        e.to_string()
+                            .contains("Batch size limit of 25 requests reached")
+                    );
                     return;
                 }
             }

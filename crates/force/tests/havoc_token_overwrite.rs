@@ -70,10 +70,10 @@ mod tests {
                 // the issue is that get_token does NOT check.
                 // So if force_refresh wins the race to update, get_token might overwrite it.
 
-                if let Some(current) = *guard {
-                    if current > new_token {
-                        return current;
-                    }
+                if let Some(current) = *guard
+                    && current > new_token
+                {
+                    return current;
                 }
                 *guard = Some(new_token);
             }
@@ -107,7 +107,10 @@ mod tests {
             // If we generated 2 tokens, the final state MUST be 2 (the newest one).
             // If it's 1, then the older token (likely from get_token running slower) overwrote the newer one.
             if max_generated == 2 {
-                assert_eq!(final_token, 2, "Stale token overwrote newer token! (Race Condition Triggered)");
+                assert_eq!(
+                    final_token, 2,
+                    "Stale token overwrote newer token! (Race Condition Triggered)"
+                );
             }
         });
     }
