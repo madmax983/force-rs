@@ -234,32 +234,41 @@ impl AsRef<str> for QueryLocator {
 /// ```
 #[derive(Debug)]
 pub struct QueryIterator<T> {
-    pages: Vec<QueryResult<T>>,
-    current_page: usize,
-    current_index: usize,
+    /// Iterator over the pages of query results.
+    pages: std::vec::IntoIter<QueryResult<T>>,
+    /// Iterator over the records of the current page.
+    current_page: std::vec::IntoIter<T>,
+    /// Pre-calculated total page count.
+    page_count: usize,
+    /// Pre-calculated total record count.
+    total_count: usize,
 }
 
 impl<T> QueryIterator<T> {
     /// Creates a new iterator from a list of query result pages.
     #[must_use]
     pub fn new(pages: Vec<QueryResult<T>>) -> Self {
+        let page_count = pages.len();
+        let total_count = pages.iter().map(|p| p.records.len()).sum();
+
         Self {
-            pages,
-            current_page: 0,
-            current_index: 0,
+            pages: pages.into_iter(),
+            current_page: Vec::new().into_iter(),
+            page_count,
+            total_count,
         }
     }
 
     /// Returns the total number of pages.
     #[must_use]
     pub fn page_count(&self) -> usize {
-        self.pages.len()
+        self.page_count
     }
 
     /// Returns the total number of records across all pages.
     #[must_use]
     pub fn total_count(&self) -> usize {
-        self.pages.iter().map(|p| p.records.len()).sum()
+        self.total_count
     }
 }
 
@@ -268,21 +277,18 @@ impl<T> Iterator for QueryIterator<T> {
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
-            // Check if we've exhausted all pages
-            if self.current_page >= self.pages.len() {
+            // 1. Try to yield from current page
+            if let Some(record) = self.current_page.next() {
+                return Some(record);
+            }
+
+            // 2. If current page is exhausted, move to next page
+            if let Some(next_page_result) = self.pages.next() {
+                self.current_page = next_page_result.records.into_iter();
+            } else {
+                // 3. If no more pages, we are done
                 return None;
             }
-
-            let page = &mut self.pages[self.current_page];
-
-            // Check if we've exhausted current page
-            if self.current_index >= page.records.len() {
-                self.current_page += 1;
-                self.current_index = 0;
-                continue;
-            }
-
-            return Some(page.records.remove(self.current_index));
         }
     }
 }
