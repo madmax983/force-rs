@@ -28,7 +28,7 @@ C4Component
     Component(client, "Client Facade", "crates/force/client", "Public API Surface")
     Component(api, "API Handlers", "crates/force/api", "REST, Bulk, Composite logic")
     Component(session, "Session", "crates/force/session.rs", "Shared State (Config, Http, Tokens)")
-    Component(auth, "Auth & Tokens", "crates/force/auth", "Authentication strategies & TokenManager")
+    Component(auth, "Auth & Tokens", "crates/force/auth", "Authentication & Token Storage")
     Component(http, "HTTP Layer", "crates/force/http", "Resilience & Middleware")
 
     Rel(client, api, "Exposes")

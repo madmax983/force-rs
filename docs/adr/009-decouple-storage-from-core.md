@@ -1,6 +1,6 @@
 # ADR-009: Decouple Storage from Core
 
-**Status:** Accepted
+**Status:** Superseded by [ADR-015](015-merge-storage-into-auth.md)
 **Date:** 2026-02-17
 **Deciders:** Atlas, Codex
 **Context:** Circular dependencies were causing build failures. The `force` crate (Core) depended on the `storage` module for token caching, while the `storage` module depended on `force` for type definitions (e.g., `AccessToken`). This created a circular dependency cycle that made compilation fragile and prevented clean separation of concerns.
