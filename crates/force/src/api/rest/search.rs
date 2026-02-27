@@ -261,8 +261,8 @@ impl Default for SearchQueryBuilder {
 fn escape_sosl<'a>(text: impl Into<Cow<'a, str>>) -> Cow<'a, str> {
     let text = text.into();
     let first_special = text.find([
-        '?', '&', '|', '!', '{', '}', '[', ']', '(', ')', '^', '~', '*', ':', '\\', '"', '\'',
-        '+', '-',
+        '?', '&', '|', '!', '{', '}', '[', ']', '(', ')', '^', '~', '*', ':', '\\', '"', '\'', '+',
+        '-',
     ]);
 
     match first_special {
