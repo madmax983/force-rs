@@ -20,6 +20,16 @@ fn validate_id(id: &str) -> Result<()> {
     Ok(())
 }
 
+struct UrlEncodedWriter<'a>(&'a mut String);
+
+impl std::fmt::Write for UrlEncodedWriter<'_> {
+    fn write_str(&mut self, s: &str) -> std::fmt::Result {
+        self.0
+            .extend(url::form_urlencoded::byte_serialize(s.as_bytes()));
+        Ok(())
+    }
+}
+
 /// Builder for constructing a Composite Batch request.
 ///
 /// Use this builder to add up to 25 subrequests and execute them atomically.
@@ -157,12 +167,17 @@ impl<A: Authenticator> BatchBuilder<A> {
     /// This method automatically URL-encodes the query string to prevent injection vulnerabilities
     /// and ensures valid URL formatting.
     ///
-    /// Performance: Uses `byte_serialize` to stream encoded output directly into the URL buffer,
-    /// avoiding intermediate string allocations and `format!` overhead.
+    /// Performance: Uses streaming URL-encoding to write the query directly into the URL buffer,
+    /// avoiding intermediate string allocations.
     ///
     /// # Arguments
     ///
     /// * `query_builder` - The SOQL query builder
+    ///
+    /// # Panics
+    ///
+    /// Panics if the query builder is invalid (e.g. missing fields or SObject) or if
+    /// URL encoding fails (which should not happen).
     ///
     /// # Examples
     ///
@@ -178,15 +193,23 @@ impl<A: Authenticator> BatchBuilder<A> {
     ///     .await?;
     /// ```
     #[must_use]
+    #[allow(clippy::needless_pass_by_value)] // Ownership consumed to enforce builder pattern
     pub fn query(mut self, query_builder: SoqlQueryBuilder) -> Self {
-        let query_string = query_builder.build();
+        if let Err(e) = query_builder.validate() {
+            panic!("Invalid query builder: {}", e);
+        }
 
-        // 8 is for "query?q=" and a bit of slack
-        let mut url = String::with_capacity(query_string.len() + 8);
+        // 256 + 8 is a reasonable guess for typical queries
+        let mut url = String::with_capacity(256 + 8);
         url.push_str("query?q=");
-        url.extend(url::form_urlencoded::byte_serialize(
-            query_string.as_bytes(),
-        ));
+
+        {
+            let mut writer = UrlEncodedWriter(&mut url);
+            // write_query guarantees writing succeeds (or returns fmt::Error which we expect/unwrap)
+            if let Err(e) = query_builder.write_query(&mut writer) {
+                panic!("Formatting failed: {}", e);
+            }
+        }
 
         self.requests.push(BatchSubRequest {
             method: "GET".to_string(),
