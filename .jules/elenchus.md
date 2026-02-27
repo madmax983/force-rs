@@ -6,11 +6,12 @@ This journal records the findings of the Elenchus test audit.
 
 | Verdict | Module | Severity | Finding |
 | :--- | :--- | :--- | :--- |
-| **Weak Assertion** | `crates/force/tests/auth_timeout.rs` | 🔴 Critical | The test asserts `result.is_err()` without checking the error type. This provides false confidence as it would pass on *any* error (e.g., DNS failure, 404), not just the intended timeout. |
+| **Acquitted** | `crates/force/tests/auth_timeout.rs` | 🟢 Acquitted | Initial audit flagged "Weak Assertion", but verification confirmed assertions are strong (`e.is_timeout()`). |
 | **Mirror Test** | `crates/force/tests/havoc_concurrency.rs` | 🟡 Suspect | The test defines a local `TokenManager` struct to test double-checked locking logic instead of testing the actual `force::auth::TokenManager`. While it uses `loom` to verify the *algorithm*, it does not verify the *implementation*. |
 | **Acquitted** | `crates/force/tests/havoc_token_leak.rs` | 🟢 Acquitted | The test verifies both the side effect (attacker server not called) and the specific error cause (Security Error due to origin mismatch). |
 | **Commended** | `crates/force/src/auth/token_manager.rs` | ⭐ Commended | Robust concurrency testing using `tokio::spawn`, atomic counters, and specific assertion of call counts. |
-| **Suspect** | `crates/force/tests/security_soql_injection.rs` | 🟡 Suspect | The test mirrors the implementation of `escape_soql`. While valuable as a regression guard, it is tautological in nature. |
+| **Strengthened** | `crates/force/tests/security_soql_injection.rs` | 🟢 Acquitted | Original tests were tautological. Added `test_soql_injection_real_world_vectors` to verify defense against actual attack payloads. |
+| **Strengthened** | `crates/force/src/http/retry.rs` | 🟢 Acquitted | `classify_request` defaulted to `Mutation`. Added `test_classify_request_all_methods` to exhaustively verify all HTTP methods. |
 | **Acquitted** | `crates/force/src/experimental/scanner.rs` | 🟢 Acquitted | Initial audit found missing tests for filtering, batching, and zero-division. Added comprehensive tests and verified with mutation testing (12 mutants caught). |
 | **Acquitted** | `crates/force/src/api/composite/batch.rs` | 🟢 Acquitted | Initial audit found tautological encoding tests and fragile JSON assertions. Refactored to use hardcoded "golden" strings and structural JSON validation. |
 
@@ -26,18 +27,21 @@ This journal records the findings of the Elenchus test audit.
 - Mutation `replace is_scanable -> bool with true` survived (filtering logic unused).
 **Resolution:** Added `test_scan_with_unsupported_fields`, `test_scan_empty_table`, `test_scan_batching`, and `test_scan_api_errors`. Re-ran `cargo mutants` and confirmed 100% kill rate for viable mutants.
 
-### [Weak Assertion] `crates/force/tests/auth_timeout.rs`
+### [Acquitted] `crates/force/tests/auth_timeout.rs`
 
 **Module:** `crates/force/tests/auth_timeout.rs`
-**Severity:** 🔴 Critical
-**Finding:** The test `test_client_credentials_timeout` (and others in the file) asserts `result.is_err()` to verify a timeout.
+**Severity:** 🟢 Acquitted (was 🔴 Critical)
+**Finding:** Initial audit suspected weak `result.is_err()` assertions. Manual verification of the source code confirmed that the tests strictly assert `e.is_timeout()`.
 **Evidence:**
 ```rust
-    let result = auth.authenticate().await;
-    // Should fail with timeout
-    assert!(result.is_err());
+match result {
+    Err(ForceError::Http(HttpError::RequestFailed(e))) => {
+        assert!(e.is_timeout(), "Expected timeout error, got: {e}");
+    }
+    // ...
+}
 ```
-**Recommendation:** Modify the test to inspect the error and verify it is indeed a timeout error.
+**Resolution:** Verdict updated to Acquitted. No code changes required.
 
 ### [Mirror Test] `crates/force/tests/havoc_concurrency.rs`
 
@@ -51,7 +55,7 @@ This journal records the findings of the Elenchus test audit.
         token: RwLock<Option<String>>,
     }
 ```
-**Recommendation:** Acknowledge the limitation (Loom requires specific types) but mark as Suspect because it doesn't test the shipping code. Ideally, refactor production code to be generic over the lock type or use `cfg` to allow Loom testing, but for now, rely on `crates/force/src/auth/token_manager.rs` tests.
+**Recommendation:** Acknowledge the limitation (Loom requires specific types) but mark as Suspect because it doesn't test the shipping code. Added documentation to the test file explaining this constraint.
 
 ### [Acquitted] `crates/force/src/api/composite/batch.rs`
 

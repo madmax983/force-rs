@@ -246,6 +246,30 @@ mod tests {
         let result = exponential_backoff(65, huge_duration);
         assert_eq!(result.as_millis(), u128::from(u64::MAX));
     }
+
+    #[test]
+    fn test_classify_request_all_methods() {
+        let methods = vec![
+            (Method::GET, RequestRetryClass::Read),
+            (Method::HEAD, RequestRetryClass::Read),
+            (Method::OPTIONS, RequestRetryClass::Read),
+            (Method::TRACE, RequestRetryClass::Read),
+            (Method::POST, RequestRetryClass::Mutation),
+            (Method::PUT, RequestRetryClass::Mutation),
+            (Method::DELETE, RequestRetryClass::Mutation),
+            (Method::PATCH, RequestRetryClass::Mutation),
+            (Method::CONNECT, RequestRetryClass::Mutation),
+        ];
+
+        for (method, expected) in methods {
+            assert_eq!(
+                classify_request(&method),
+                expected,
+                "Failed to classify method: {}",
+                method
+            );
+        }
+    }
 }
 
 #[cfg(test)]
