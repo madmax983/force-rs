@@ -49,20 +49,8 @@ impl<A: crate::auth::Authenticator> super::RestHandler<A> {
     where
         T: DeserializeOwned,
     {
-        // Construct query URL
-        let url = format!("{}/query", self.base_url().await?);
-
-        // Execute query
-        let request = self
-            .inner
-            .http_client
-            .get(&url)
-            .query(&[("q", soql)])
-            .build()
-            .map_err(crate::error::HttpError::from)?;
-
-        self.inner
-            .send_request_and_decode(request, "SOQL query failed")
+        // Use the common helper `execute_get` which handles URL resolution and decoding
+        self.execute_get("/query", Some(&[("q", soql)]), "SOQL query failed")
             .await
     }
 
