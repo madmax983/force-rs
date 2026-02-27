@@ -65,12 +65,7 @@ impl<A: crate::auth::Authenticator> BulkHandler<A> {
     /// // Returns: "https://na1.salesforce.com/services/data/v60.0/jobs/ingest"
     /// ```
     pub async fn base_url(&self) -> Result<String> {
-        let token = self.inner.token_manager.get_token_arc().await?;
-        Ok(format!(
-            "{}/services/data/{}/jobs/ingest",
-            token.instance_url(),
-            self.inner.config.api_version
-        ))
+        self.inner.resolve_url("jobs/ingest").await
     }
 }
 
