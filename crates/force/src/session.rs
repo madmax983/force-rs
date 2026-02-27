@@ -93,4 +93,47 @@ impl<A: crate::auth::authenticator::Authenticator> Session<A> {
             .map_err(crate::error::HttpError::from)
             .map_err(Into::into)
     }
+
+    /// Resolves a path to a full Salesforce API URL.
+    ///
+    /// Constructs: `{instance_url}/services/data/{api_version}/{path}`
+    pub(crate) async fn resolve_url(&self, path: &str) -> crate::error::Result<String> {
+        let token = self.token_manager.get_token_arc().await?;
+        // Handle empty path or path starting with slash
+        let clean_path = path.trim_start_matches('/');
+        if clean_path.is_empty() {
+            Ok(format!(
+                "{}/services/data/{}",
+                token.instance_url(),
+                self.config.api_version
+            ))
+        } else {
+            Ok(format!(
+                "{}/services/data/{}/{}",
+                token.instance_url(),
+                self.config.api_version,
+                clean_path
+            ))
+        }
+    }
+
+    /// Creates a GET request builder for the given URL.
+    pub(crate) fn get(&self, url: &str) -> reqwest::RequestBuilder {
+        self.http_client.get(url)
+    }
+
+    /// Creates a POST request builder for the given URL.
+    pub(crate) fn post(&self, url: &str) -> reqwest::RequestBuilder {
+        self.http_client.post(url)
+    }
+
+    /// Creates a PATCH request builder for the given URL.
+    pub(crate) fn patch(&self, url: &str) -> reqwest::RequestBuilder {
+        self.http_client.patch(url)
+    }
+
+    /// Creates a DELETE request builder for the given URL.
+    pub(crate) fn delete(&self, url: &str) -> reqwest::RequestBuilder {
+        self.http_client.delete(url)
+    }
 }

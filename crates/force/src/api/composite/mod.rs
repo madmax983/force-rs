@@ -76,11 +76,6 @@ impl<A: Authenticator> CompositeHandler<A> {
     ///
     /// This method requires token access to get the instance URL from authentication.
     pub async fn base_url(&self) -> crate::error::Result<String> {
-        let token = self.inner.token_manager.get_token_arc().await?;
-        Ok(format!(
-            "{}/services/data/{}",
-            token.instance_url(),
-            self.api_version()
-        ))
+        self.inner.resolve_url("").await
     }
 }

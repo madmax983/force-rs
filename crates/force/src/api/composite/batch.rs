@@ -291,9 +291,7 @@ impl<A: Authenticator> BatchBuilder<A> {
         }
 
         // Construct the composite batch URL
-        // It must be absolute for the HTTP client
-        let base_url = self.handler.base_url().await?;
-        let url = format!("{}/composite/batch", base_url);
+        let url = self.handler.inner.resolve_url("composite/batch").await?;
 
         let request_body = BatchRequest {
             batch_requests: self.requests,
@@ -303,7 +301,6 @@ impl<A: Authenticator> BatchBuilder<A> {
         let request = self
             .handler
             .inner
-            .http_client
             .post(&url)
             .json(&request_body)
             .build()
