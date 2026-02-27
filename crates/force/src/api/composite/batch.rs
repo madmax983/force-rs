@@ -533,13 +533,13 @@ mod tests {
             if i < 25 {
                 builder = res.unwrap();
             } else {
-                 assert!(res.is_err());
-                 if let Err(ForceError::InvalidInput(msg)) = res {
-                     assert!(msg.contains("Batch size limit of 25 requests exceeded"));
-                 } else {
-                     panic!("Expected InvalidInput error for batch size limit");
-                 }
-                 return; // Test passed
+                assert!(res.is_err());
+                if let Err(ForceError::InvalidInput(msg)) = res {
+                    assert!(msg.contains("Batch size limit of 25 requests exceeded"));
+                } else {
+                    panic!("Expected InvalidInput error for batch size limit");
+                }
+                return; // Test passed
             }
         }
     }
@@ -559,8 +559,8 @@ mod tests {
         // It will fail because of mock authenticator probably not handling 25 requests or just returning generic error,
         // but it shouldn't be the size limit error we added to execute (which is now redundant but kept)
         if let Err(ForceError::Serialization(e)) = &result {
-             // If we get here, check it's NOT the size limit message
-             assert!(
+            // If we get here, check it's NOT the size limit message
+            assert!(
                 !e.to_string().contains("Batch size exceeds limit"),
                 "Batch size limit triggered for 25 requests (should allow up to 25)"
             );
