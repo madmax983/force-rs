@@ -50,11 +50,8 @@ impl<A: crate::auth::Authenticator> super::RestHandler<A> {
         T: DeserializeOwned,
     {
         // Use the common helper `execute_get` which handles URL resolution and decoding
-        self.execute_get(
-            "/query",
-            Some(&[("q", soql)]),
-            "SOQL query failed",
-        ).await
+        self.execute_get("/query", Some(&[("q", soql)]), "SOQL query failed")
+            .await
     }
 
     /// Fetches the next page of query results using a `nextRecordsUrl`.
