@@ -12,7 +12,7 @@ pub mod validator;
 
 pub use api_version::{ApiVersion, ApiVersionSupportTier};
 pub use common::{ApiError, CreateResponse, DeleteResponse, UpdateResponse, UpsertResponse};
-pub use query::{QueryIterator, QueryLocator, QueryResult};
+pub use query::{QueryLocator, QueryResult};
 pub use salesforce_id::SalesforceId;
 pub use sobject::{Attributes, DynamicSObject};
 

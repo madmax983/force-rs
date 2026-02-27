@@ -264,15 +264,6 @@ for plan in explanation.plans {
 }
 ```
 
-### Experimental Modules (`experimental` module)
-
-The `force::experimental` module contains utilities that are being incubated:
-
-- **`QueryBatch`**: A high-level abstraction for processing large query results in batches using the Composite API.
-- **`FieldUsageScanner`**: A utility to scan SObjects and identify "zombie fields" (fields that are rarely populated).
-
-These are available by default but are located in the `experimental` module to indicate their stability level.
-
 ## Roadmap
 
 force-rs v0.1.0 provides production-ready REST and Bulk API support. Future releases will add:
