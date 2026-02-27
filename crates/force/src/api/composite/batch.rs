@@ -338,10 +338,24 @@ mod tests {
         };
 
         let json = serde_json::to_string(&req).must();
-        assert!(json.contains("\"haltOnError\":true"));
-        assert!(json.contains("\"method\":\"GET\""));
-        assert!(json.contains("\"url\":\"sobjects/Account/001\""));
-        assert!(json.contains("\"richInput\":{\"LastName\":\"Doe\"}"));
+        let value: serde_json::Value = serde_json::from_str(&json).must();
+
+        assert_eq!(value["haltOnError"], true);
+
+        let requests = value["batchRequests"]
+            .as_array()
+            .expect("batchRequests should be an array");
+        assert_eq!(requests.len(), 2);
+
+        let req1 = &requests[0];
+        assert_eq!(req1["method"], "GET");
+        assert_eq!(req1["url"], "sobjects/Account/001");
+        assert!(req1.get("richInput").is_none());
+
+        let req2 = &requests[1];
+        assert_eq!(req2["method"], "POST");
+        assert_eq!(req2["url"], "sobjects/Contact");
+        assert_eq!(req2["richInput"]["LastName"], "Doe");
     }
 
     #[test]
@@ -378,6 +392,31 @@ mod tests {
             .expect("failed to build client");
 
         client.composite().batch()
+    }
+
+    #[tokio::test]
+    async fn test_batch_query_encoding_special_chars() {
+        let builder = create_builder().await;
+
+        let query = SoqlQueryBuilder::new()
+            .select(&["Id"])
+            .from("Account")
+            .where_eq("Name", "100% + 50%");
+
+        let mut builder = builder.query(query);
+
+        let req = builder.requests.pop().expect("No request added");
+
+        // Expected SOQL: SELECT Id FROM Account WHERE Name = '100% + 50%'
+        // Encoded: query?q=SELECT+Id+FROM+Account+WHERE+Name+%3D+%27100%25+%2B+50%25%27
+        // Space -> +
+        // ' -> %27
+        // % -> %25
+        // + -> %2B
+
+        let expected_url = "query?q=SELECT+Id+FROM+Account+WHERE+Name+%3D+%27100%25+%2B+50%25%27";
+
+        assert_eq!(req.url, expected_url);
     }
 
     #[tokio::test]
@@ -492,25 +531,16 @@ mod tests {
         let req = builder.requests.pop().expect("No request added");
         assert_eq!(req.method, "GET");
 
-        // Verify encoding
-        // SoqlQueryBuilder produces: SELECT Id, Name FROM Account WHERE Name = 'Acme & Co.'
-        // Note: SoqlQueryBuilder escapes ' but not & unless needed for SOSL, but for SOQL literals & is fine inside quotes.
-        // Wait, does SoqlQueryBuilder escape &? No.
+        // Verify encoding against a hardcoded expected string.
+        // This ensures that we are not just mirroring the implementation's encoding logic.
+        // Expected SOQL: SELECT Id, Name FROM Account WHERE Name = 'Acme & Co.'
+        // Encoded: query?q=SELECT+Id%2C+Name+FROM+Account+WHERE+Name+%3D+%27Acme+%26+Co.%27
+        // Note: We expect application/x-www-form-urlencoded encoding (spaces are +)
 
-        let expected_soql = "SELECT Id, Name FROM Account WHERE Name = 'Acme & Co.'";
-
-        // We expect form-urlencoded encoding (spaces are +)
-        let mut expected_url = "query?q=".to_string();
-        expected_url.extend(url::form_urlencoded::byte_serialize(
-            expected_soql.as_bytes(),
-        ));
+        let expected_url =
+            "query?q=SELECT+Id%2C+Name+FROM+Account+WHERE+Name+%3D+%27Acme+%26+Co.%27";
 
         assert_eq!(req.url, expected_url);
-
-        // Ensure space is encoded as + (application/x-www-form-urlencoded default)
-        assert!(req.url.contains("SELECT+Id"));
-        // Ensure & is encoded as %26 inside the value
-        assert!(req.url.contains("%26"));
     }
 
     #[tokio::test]
