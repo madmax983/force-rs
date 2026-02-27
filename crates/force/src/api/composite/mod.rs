@@ -7,6 +7,8 @@
 //! for composite operations like `batch` and `graph`.
 
 pub mod batch;
+#[cfg(feature = "nova")]
+pub mod graph;
 
 use crate::auth::Authenticator;
 use crate::session::Session;
@@ -51,6 +53,16 @@ impl<A: Authenticator> CompositeHandler<A> {
     #[must_use]
     pub fn batch(&self) -> batch::BatchBuilder<A> {
         batch::BatchBuilder::new(self.clone())
+    }
+
+    /// Creates a new graph request builder.
+    ///
+    /// The Composite Graph API allows you to execute complex, dependent requests
+    /// (up to 500 nodes) in a single call.
+    #[cfg(feature = "nova")]
+    #[must_use]
+    pub fn graph(&self) -> graph::GraphBuilder<A> {
+        graph::GraphBuilder::new(self.clone())
     }
 
     /// Helper to get the API version from config.

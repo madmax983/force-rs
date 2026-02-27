@@ -231,8 +231,47 @@ force-rs uses feature flags to minimize dependencies and binary size:
 | `mock` | Wiremock utilities for testing |
 | `full` | All APIs except experimental (`pub_sub`, `streaming`, `soap`) |
 | `all` | Everything including experimental features |
+| `nova` | Enables the Query Plan API (`explain`) |
 
 **Recommendation:** Start with `default` features, then add `bulk` and `jwt` as needed.
+
+## Experimental Features
+
+The `force` crate includes experimental features that are not yet stable but are available for early adopters. These features may change or be removed in future releases.
+
+### Query Plan API (`nova` feature)
+
+The Query Plan API allows you to inspect the performance cost of a SOQL query before executing it. This is useful for identifying inefficient queries (e.g., table scans) in CI/CD pipelines.
+
+To use it, enable the `nova` feature in `Cargo.toml`:
+
+```toml
+[dependencies]
+force = { version = "0.1", features = ["nova"] }
+```
+
+Example usage:
+
+```rust
+let soql = "SELECT Id FROM Account WHERE Name LIKE 'A%'";
+let explanation = client.rest().explain(soql).await?;
+
+for plan in explanation.plans {
+    println!("Plan: {}, Cost: {}", plan.leading_operation_type, plan.relative_cost);
+    for note in plan.notes {
+        println!("  Note: {}", note.description);
+    }
+}
+```
+
+### Experimental Modules (`experimental` module)
+
+The `force::experimental` module contains utilities that are being incubated:
+
+- **`QueryBatch`**: A high-level abstraction for processing large query results in batches using the Composite API.
+- **`FieldUsageScanner`**: A utility to scan SObjects and identify "zombie fields" (fields that are rarely populated).
+
+These are available by default but are located in the `experimental` module to indicate their stability level.
 
 ## Roadmap
 

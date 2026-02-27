@@ -7,7 +7,7 @@ use crate::auth::authenticator::Authenticator;
 use crate::auth::token::AccessToken;
 use crate::error::Result;
 use std::sync::Arc;
-use tokio::sync::RwLock;
+use tokio::sync::{Mutex, RwLock};
 
 /// Internal state for token management.
 #[derive(Debug)]
@@ -24,6 +24,9 @@ pub struct TokenManager<A: Authenticator> {
 
     /// Thread-safe token state.
     state: Arc<RwLock<TokenState>>,
+
+    /// Mutex to serialize refresh operations without blocking readers.
+    refresh_lock: Mutex<()>,
 }
 
 impl<A: Authenticator> TokenManager<A> {
@@ -43,6 +46,7 @@ impl<A: Authenticator> TokenManager<A> {
         Self {
             authenticator,
             state: Arc::new(RwLock::new(TokenState { token: None })),
+            refresh_lock: Mutex::new(()),
         }
     }
 
@@ -50,36 +54,93 @@ impl<A: Authenticator> TokenManager<A> {
     ///
     /// This is an internal method to avoid cloning the token for internal use.
     pub(crate) async fn get_token_arc(&self) -> Result<Arc<AccessToken>> {
-        // Fast path: check if current token is valid
+        // Fast path: check if current token is valid (not soft expired)
         {
             let state = self.state.read().await;
-            if let Some(token) = &state.token
-                && !token.is_expired()
-            {
-                return Ok(token.clone());
+            if let Some(token) = &state.token {
+                if !token.is_soft_expired() {
+                    return Ok(token.clone());
+                }
             }
         } // Read lock dropped here
 
-        // Slow path: refresh or authenticate
-        let mut state = self.state.write().await;
-
-        // Double-check after acquiring write lock (another thread might have refreshed)
-        if let Some(token) = &state.token
-            && !token.is_expired()
-        {
-            return Ok(token.clone());
-        }
-
-        // Token is expired or doesn't exist, refresh it
-        let new_token = if state.token.is_some() {
-            self.authenticator.refresh().await?
-        } else {
-            self.authenticator.authenticate().await?
+        // Determine if we are in a "soft expired" state (valid but old)
+        // or "hard expired/missing" state (invalid).
+        let (is_hard_expired, current_token) = {
+            let state = self.state.read().await;
+            if let Some(token) = &state.token {
+                (token.is_hard_expired(), Some(token.clone()))
+            } else {
+                (true, None)
+            }
         };
 
-        let arc_token = Arc::new(new_token);
-        state.token = Some(arc_token.clone());
-        Ok(arc_token)
+        if is_hard_expired {
+            // Must block and refresh.
+            // Acquire refresh lock to ensure only one thread refreshes.
+            let _lock = self.refresh_lock.lock().await;
+
+            // Double-check state (another thread might have refreshed while we waited for lock)
+            {
+                let state = self.state.read().await;
+                if let Some(token) = &state.token {
+                    if !token.is_hard_expired() {
+                        return Ok(token.clone());
+                    }
+                }
+            }
+
+            // Perform refresh/auth
+            // We need to check if we have a token to refresh, or if we need initial auth.
+            let has_token = {
+                let state = self.state.read().await;
+                state.token.is_some()
+            };
+
+            let new_token = if has_token {
+                self.authenticator.refresh().await?
+            } else {
+                self.authenticator.authenticate().await?
+            };
+
+            let arc_token = Arc::new(new_token);
+            {
+                let mut state = self.state.write().await;
+                state.token = Some(arc_token.clone());
+            }
+            Ok(arc_token)
+        } else if let Some(valid_token) = current_token {
+            // Soft expired. We have a valid token (valid_token).
+            // Try to acquire refresh lock.
+            if let Ok(_lock) = self.refresh_lock.try_lock() {
+                // We are the refresher.
+                // Perform refresh.
+                let refresh_result = self.authenticator.refresh().await;
+
+                match refresh_result {
+                    Ok(new_token) => {
+                        let arc_token = Arc::new(new_token);
+                        let mut state = self.state.write().await;
+                        state.token = Some(arc_token.clone());
+                        Ok(arc_token)
+                    }
+                    Err(_) => {
+                        // Refresh failed. Return the old token which is still valid (soft expired).
+                        // We swallow the error here because the user can still proceed.
+                        Ok(valid_token)
+                    }
+                }
+            } else {
+                // Someone else is refreshing. Return current token immediately.
+                Ok(valid_token)
+            }
+        } else {
+            // This path should be unreachable:
+            // if current_token is None, is_hard_expired would be true.
+            Err(crate::error::ForceError::Authentication(
+                crate::error::AuthenticationError::InvalidToken,
+            ))
+        }
     }
 
     /// Returns the current access token, refreshing if necessary.

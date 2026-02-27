@@ -20,6 +20,16 @@ fn validate_id(id: &str) -> Result<()> {
     Ok(())
 }
 
+struct UrlEncodedWriter<'a>(&'a mut String);
+
+impl std::fmt::Write for UrlEncodedWriter<'_> {
+    fn write_str(&mut self, s: &str) -> std::fmt::Result {
+        self.0
+            .extend(url::form_urlencoded::byte_serialize(s.as_bytes()));
+        Ok(())
+    }
+}
+
 /// Builder for constructing a Composite Batch request.
 ///
 /// Use this builder to add up to 25 subrequests and execute them atomically.
@@ -157,12 +167,17 @@ impl<A: Authenticator> BatchBuilder<A> {
     /// This method automatically URL-encodes the query string to prevent injection vulnerabilities
     /// and ensures valid URL formatting.
     ///
-    /// Performance: Uses `byte_serialize` to stream encoded output directly into the URL buffer,
-    /// avoiding intermediate string allocations and `format!` overhead.
+    /// Performance: Uses streaming URL-encoding to write the query directly into the URL buffer,
+    /// avoiding intermediate string allocations.
     ///
     /// # Arguments
     ///
     /// * `query_builder` - The SOQL query builder
+    ///
+    /// # Panics
+    ///
+    /// Panics if the query builder is invalid (e.g. missing fields or SObject) or if
+    /// URL encoding fails (which should not happen).
     ///
     /// # Examples
     ///
@@ -178,15 +193,23 @@ impl<A: Authenticator> BatchBuilder<A> {
     ///     .await?;
     /// ```
     #[must_use]
+    #[allow(clippy::needless_pass_by_value)] // Ownership consumed to enforce builder pattern
     pub fn query(mut self, query_builder: SoqlQueryBuilder) -> Self {
-        let query_string = query_builder.build();
+        if let Err(e) = query_builder.validate() {
+            panic!("Invalid query builder: {}", e);
+        }
 
-        // 8 is for "query?q=" and a bit of slack
-        let mut url = String::with_capacity(query_string.len() + 8);
+        // 256 + 8 is a reasonable guess for typical queries
+        let mut url = String::with_capacity(256 + 8);
         url.push_str("query?q=");
-        url.extend(url::form_urlencoded::byte_serialize(
-            query_string.as_bytes(),
-        ));
+
+        {
+            let mut writer = UrlEncodedWriter(&mut url);
+            // write_query guarantees writing succeeds (or returns fmt::Error which we expect/unwrap)
+            if let Err(e) = query_builder.write_query(&mut writer) {
+                panic!("Formatting failed: {}", e);
+            }
+        }
 
         self.requests.push(BatchSubRequest {
             method: "GET".to_string(),
@@ -338,10 +361,24 @@ mod tests {
         };
 
         let json = serde_json::to_string(&req).must();
-        assert!(json.contains("\"haltOnError\":true"));
-        assert!(json.contains("\"method\":\"GET\""));
-        assert!(json.contains("\"url\":\"sobjects/Account/001\""));
-        assert!(json.contains("\"richInput\":{\"LastName\":\"Doe\"}"));
+        let value: serde_json::Value = serde_json::from_str(&json).must();
+
+        assert_eq!(value["haltOnError"], true);
+
+        let requests = value["batchRequests"]
+            .as_array()
+            .expect("batchRequests should be an array");
+        assert_eq!(requests.len(), 2);
+
+        let req1 = &requests[0];
+        assert_eq!(req1["method"], "GET");
+        assert_eq!(req1["url"], "sobjects/Account/001");
+        assert!(req1.get("richInput").is_none());
+
+        let req2 = &requests[1];
+        assert_eq!(req2["method"], "POST");
+        assert_eq!(req2["url"], "sobjects/Contact");
+        assert_eq!(req2["richInput"]["LastName"], "Doe");
     }
 
     #[test]
@@ -378,6 +415,31 @@ mod tests {
             .expect("failed to build client");
 
         client.composite().batch()
+    }
+
+    #[tokio::test]
+    async fn test_batch_query_encoding_special_chars() {
+        let builder = create_builder().await;
+
+        let query = SoqlQueryBuilder::new()
+            .select(&["Id"])
+            .from("Account")
+            .where_eq("Name", "100% + 50%");
+
+        let mut builder = builder.query(query);
+
+        let req = builder.requests.pop().expect("No request added");
+
+        // Expected SOQL: SELECT Id FROM Account WHERE Name = '100% + 50%'
+        // Encoded: query?q=SELECT+Id+FROM+Account+WHERE+Name+%3D+%27100%25+%2B+50%25%27
+        // Space -> +
+        // ' -> %27
+        // % -> %25
+        // + -> %2B
+
+        let expected_url = "query?q=SELECT+Id+FROM+Account+WHERE+Name+%3D+%27100%25+%2B+50%25%27";
+
+        assert_eq!(req.url, expected_url);
     }
 
     #[tokio::test]
@@ -492,25 +554,16 @@ mod tests {
         let req = builder.requests.pop().expect("No request added");
         assert_eq!(req.method, "GET");
 
-        // Verify encoding
-        // SoqlQueryBuilder produces: SELECT Id, Name FROM Account WHERE Name = 'Acme & Co.'
-        // Note: SoqlQueryBuilder escapes ' but not & unless needed for SOSL, but for SOQL literals & is fine inside quotes.
-        // Wait, does SoqlQueryBuilder escape &? No.
+        // Verify encoding against a hardcoded expected string.
+        // This ensures that we are not just mirroring the implementation's encoding logic.
+        // Expected SOQL: SELECT Id, Name FROM Account WHERE Name = 'Acme & Co.'
+        // Encoded: query?q=SELECT+Id%2C+Name+FROM+Account+WHERE+Name+%3D+%27Acme+%26+Co.%27
+        // Note: We expect application/x-www-form-urlencoded encoding (spaces are +)
 
-        let expected_soql = "SELECT Id, Name FROM Account WHERE Name = 'Acme & Co.'";
-
-        // We expect form-urlencoded encoding (spaces are +)
-        let mut expected_url = "query?q=".to_string();
-        expected_url.extend(url::form_urlencoded::byte_serialize(
-            expected_soql.as_bytes(),
-        ));
+        let expected_url =
+            "query?q=SELECT+Id%2C+Name+FROM+Account+WHERE+Name+%3D+%27Acme+%26+Co.%27";
 
         assert_eq!(req.url, expected_url);
-
-        // Ensure space is encoded as + (application/x-www-form-urlencoded default)
-        assert!(req.url.contains("SELECT+Id"));
-        // Ensure & is encoded as %26 inside the value
-        assert!(req.url.contains("%26"));
     }
 
     #[tokio::test]

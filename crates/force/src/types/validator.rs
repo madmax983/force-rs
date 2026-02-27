@@ -82,6 +82,14 @@ fn validate_field_name_internal(name: &str, allow_functions: bool) -> Result<(),
         ));
     }
 
+    // Check for invalid dot usage (path traversal / malformed paths)
+    if name.starts_with('.') || name.ends_with('.') || name.contains("..") {
+        return Err(ForceError::InvalidInput(format!(
+            "Field name contains invalid dot usage: {}",
+            name
+        )));
+    }
+
     for c in name.chars() {
         if !c.is_ascii_alphanumeric() && c != '_' && c != '.' {
             if allow_functions && (c == '(' || c == ')') {
@@ -156,6 +164,20 @@ mod tests {
         assert!(validate_field_name("Name--").is_err());
         assert!(validate_field_name("count(Id").is_err());
         assert!(validate_field_name("count)Id(").is_err());
+    }
+
+    #[test]
+    fn test_validate_field_name_edge_cases_dots() {
+        // Leading/trailing dots
+        assert!(validate_field_name(".Name").is_err());
+        assert!(validate_field_name("Name.").is_err());
+        // Consecutive dots
+        assert!(validate_field_name("Parent..Name").is_err());
+        assert!(validate_field_name("..").is_err());
+
+        // Valid dots
+        assert!(validate_field_name("Parent.Name").is_ok());
+        assert!(validate_field_name("Grandparent.Parent.Name").is_ok());
     }
 
     #[test]
