@@ -101,12 +101,20 @@ impl<A: crate::auth::authenticator::Authenticator> Session<A> {
         let token = self.token_manager.get_token_arc().await?;
         // Handle empty path or path starting with slash
         let clean_path = path.trim_start_matches('/');
-        Ok(format!(
-            "{}/services/data/{}/{}",
-            token.instance_url(),
-            self.config.api_version,
-            clean_path
-        ))
+        if clean_path.is_empty() {
+            Ok(format!(
+                "{}/services/data/{}",
+                token.instance_url(),
+                self.config.api_version
+            ))
+        } else {
+            Ok(format!(
+                "{}/services/data/{}/{}",
+                token.instance_url(),
+                self.config.api_version,
+                clean_path
+            ))
+        }
     }
 
     /// Creates a GET request builder for the given URL.
