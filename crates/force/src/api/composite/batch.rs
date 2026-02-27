@@ -72,11 +72,12 @@ impl<A: Authenticator> BatchBuilder<A> {
     ///
     /// # Errors
     ///
-    /// Returns an error if the `sobject` name or `id` contains invalid characters.
+    /// Returns an error if the `sobject` name or `id` contains invalid characters,
+    /// or if the batch size limit (25) is exceeded.
     pub fn get(self, sobject: &str, id: &str) -> Result<Self> {
         validator::validate_sobject_name(sobject)?;
         validate_id(id)?;
-        Ok(self.add_request("GET", format!("sobjects/{}/{}", sobject, id), None))
+        self.add_request("GET", format!("sobjects/{}/{}", sobject, id), None)
     }
 
     /// Adds a POST (Create) request to the batch.
@@ -88,10 +89,11 @@ impl<A: Authenticator> BatchBuilder<A> {
     ///
     /// # Errors
     ///
-    /// Returns an error if the `sobject` name contains invalid characters.
+    /// Returns an error if the `sobject` name contains invalid characters,
+    /// or if the batch size limit (25) is exceeded.
     pub fn post(self, sobject: &str, body: Value) -> Result<Self> {
         validator::validate_sobject_name(sobject)?;
-        Ok(self.add_request("POST", format!("sobjects/{}", sobject), Some(body)))
+        self.add_request("POST", format!("sobjects/{}", sobject), Some(body))
     }
 
     /// Adds a PATCH (Update) request to the batch.
@@ -104,11 +106,12 @@ impl<A: Authenticator> BatchBuilder<A> {
     ///
     /// # Errors
     ///
-    /// Returns an error if the `sobject` name or `id` contains invalid characters.
+    /// Returns an error if the `sobject` name or `id` contains invalid characters,
+    /// or if the batch size limit (25) is exceeded.
     pub fn patch(self, sobject: &str, id: &str, body: Value) -> Result<Self> {
         validator::validate_sobject_name(sobject)?;
         validate_id(id)?;
-        Ok(self.add_request("PATCH", format!("sobjects/{}/{}", sobject, id), Some(body)))
+        self.add_request("PATCH", format!("sobjects/{}/{}", sobject, id), Some(body))
     }
 
     /// Adds a DELETE request to the batch.
@@ -120,11 +123,12 @@ impl<A: Authenticator> BatchBuilder<A> {
     ///
     /// # Errors
     ///
-    /// Returns an error if the `sobject` name or `id` contains invalid characters.
+    /// Returns an error if the `sobject` name or `id` contains invalid characters,
+    /// or if the batch size limit (25) is exceeded.
     pub fn delete(self, sobject: &str, id: &str) -> Result<Self> {
         validator::validate_sobject_name(sobject)?;
         validate_id(id)?;
-        Ok(self.add_request("DELETE", format!("sobjects/{}/{}", sobject, id), None))
+        self.add_request("DELETE", format!("sobjects/{}/{}", sobject, id), None)
     }
 
     /// Adds a custom subrequest to the batch.
@@ -143,23 +147,32 @@ impl<A: Authenticator> BatchBuilder<A> {
     /// * `url` - Relative URL (e.g., "query?q=Select+Id+From+Account")
     /// * `body` - Optional JSON body
     ///
+    /// # Errors
+    ///
+    /// Returns an error if the batch size limit (25) is exceeded.
+    ///
     /// # Performance
     ///
     /// Accepts `impl Into<String>` to avoid unnecessary allocations when the caller
     /// already has an owned `String` (e.g. from `format!`).
-    #[must_use]
     pub fn add_request(
         mut self,
         method: impl Into<String>,
         url: impl Into<String>,
         body: Option<Value>,
-    ) -> Self {
+    ) -> Result<Self> {
+        if self.requests.len() >= 25 {
+            return Err(ForceError::InvalidInput(
+                "Batch size limit of 25 requests exceeded".to_string(),
+            ));
+        }
+
         self.requests.push(BatchSubRequest {
             method: method.into(),
             url: url.into(),
             rich_input: body,
         });
-        self
+        Ok(self)
     }
 
     /// Adds a SOQL query request to the batch.
@@ -173,6 +186,10 @@ impl<A: Authenticator> BatchBuilder<A> {
     /// # Arguments
     ///
     /// * `query_builder` - The SOQL query builder
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the batch size limit (25) is exceeded.
     ///
     /// # Panics
     ///
@@ -188,13 +205,18 @@ impl<A: Authenticator> BatchBuilder<A> {
     ///     .where_eq("Name", "Acme Corp");
     ///
     /// let batch = client.composite().batch()
-    ///     .query(query)
+    ///     .query(query)?
     ///     .execute()
     ///     .await?;
     /// ```
-    #[must_use]
     #[allow(clippy::needless_pass_by_value)] // Ownership consumed to enforce builder pattern
-    pub fn query(mut self, query_builder: SoqlQueryBuilder) -> Self {
+    pub fn query(mut self, query_builder: SoqlQueryBuilder) -> Result<Self> {
+        if self.requests.len() >= 25 {
+            return Err(ForceError::InvalidInput(
+                "Batch size limit of 25 requests exceeded".to_string(),
+            ));
+        }
+
         if let Err(e) = query_builder.validate() {
             panic!("Invalid query builder: {}", e);
         }
@@ -216,7 +238,7 @@ impl<A: Authenticator> BatchBuilder<A> {
             url,
             rich_input: None,
         });
-        self
+        Ok(self)
     }
 
     /// Returns the number of requests currently in the batch.
@@ -259,6 +281,8 @@ impl<A: Authenticator> BatchBuilder<A> {
             ));
         }
         if self.requests.len() > 25 {
+            // This is theoretically unreachable now due to add_request check
+            // but kept as defense in depth.
             return Err(ForceError::Serialization(
                 crate::error::SerializationError::InvalidFormat(
                     "Batch size exceeds limit of 25 requests".to_string(),
@@ -426,7 +450,7 @@ mod tests {
             .from("Account")
             .where_eq("Name", "100% + 50%");
 
-        let mut builder = builder.query(query);
+        let mut builder = builder.query(query).unwrap();
 
         let req = builder.requests.pop().expect("No request added");
 
@@ -502,20 +526,21 @@ mod tests {
         // Add 26 requests
         for i in 0..26 {
             // Use different IDs to avoid any potential deduplication (though not expected here)
-            builder = builder
-                .get("Account", &format!("001000000000{:03}AAA", i))
-                .unwrap();
-        }
+            // With the new Result return type, we have to unwrap each time
+            // We expect the last one (i=25) to fail
+            let res = builder.get("Account", &format!("001000000000{:03}AAA", i));
 
-        let result = builder.execute().await;
-        match result {
-            Err(ForceError::Serialization(e)) => {
-                assert!(e.to_string().contains("Batch size exceeds limit"));
+            if i < 25 {
+                builder = res.unwrap();
+            } else {
+                 assert!(res.is_err());
+                 if let Err(ForceError::InvalidInput(msg)) = res {
+                     assert!(msg.contains("Batch size limit of 25 requests exceeded"));
+                 } else {
+                     panic!("Expected InvalidInput error for batch size limit");
+                 }
+                 return; // Test passed
             }
-            _ => panic!(
-                "Expected Serialization error for batch size limit, got {:?}",
-                result
-            ),
         }
     }
 
@@ -531,8 +556,11 @@ mod tests {
 
         let result = builder.execute().await;
         // Should NOT be serialization error about size
+        // It will fail because of mock authenticator probably not handling 25 requests or just returning generic error,
+        // but it shouldn't be the size limit error we added to execute (which is now redundant but kept)
         if let Err(ForceError::Serialization(e)) = &result {
-            assert!(
+             // If we get here, check it's NOT the size limit message
+             assert!(
                 !e.to_string().contains("Batch size exceeds limit"),
                 "Batch size limit triggered for 25 requests (should allow up to 25)"
             );
@@ -548,7 +576,7 @@ mod tests {
             .from("Account")
             .where_eq("Name", "Acme & Co.");
 
-        let mut builder = builder.query(query);
+        let mut builder = builder.query(query).unwrap();
 
         // Check the request
         let req = builder.requests.pop().expect("No request added");
@@ -593,7 +621,7 @@ mod tests {
         let builder = create_builder().await;
 
         let unsafe_url = "query?q=SELECT Id FROM Account";
-        let mut builder = builder.add_request("GET", unsafe_url, None);
+        let mut builder = builder.add_request("GET", unsafe_url, None).unwrap();
 
         let req = builder.requests.pop().expect("No request added");
 
@@ -613,7 +641,7 @@ mod tests {
 
         let method = String::from("POST");
         let url = String::from("sobjects/Account");
-        let mut builder = builder.add_request(method, url, None);
+        let mut builder = builder.add_request(method, url, None).unwrap();
 
         let req = builder.requests.pop().expect("No request added");
 
