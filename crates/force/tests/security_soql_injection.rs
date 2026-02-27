@@ -43,3 +43,49 @@ fn test_soql_injection_complex_chars() {
     // Let's verify the string content directly
     assert!(query.contains(r"C:\\Windows\\\'System32\'"));
 }
+
+#[test]
+fn test_soql_injection_real_world_vectors() {
+    // List of common SQL injection payloads adapted for SOQL
+    let attack_vectors = vec![
+        "' OR '1'='1",
+        "admin' --",
+        "test' AND (SELECT count(Id) FROM User) > 0 --",
+        r"\' ); DROP TABLE Account; --",
+        "test' OR Name LIKE '%",
+    ];
+
+    for vector in attack_vectors {
+        let query = SoqlQueryBuilder::new()
+            .select(&["Id"])
+            .from("User")
+            .where_eq("Username", vector)
+            .build();
+
+        // 1. Assert the raw vector is NOT present (meaning it was escaped)
+        // We check for the vector surrounded by the context of the query structure to avoid false positives
+        // e.g., we expect `Username = '...vector...'`
+        // If injection succeeded, we might see `Username = '' OR '1'='1'`
+
+        // More simply: The value in the query MUST be the escaped version.
+        // We can verify that the raw vector string does not appear unescaped.
+
+        // For `' OR '1'='1`, the escaped version is `\' OR \'1\'=\'1`.
+        // If the raw version appears, we have a problem.
+        // Note: We need to be careful because the vector *content* is present, just escaped.
+        // So `query.contains(vector)` might be true depending on the vector characters.
+        // e.g. "admin' --" becomes "admin\' --". "admin' --" is NOT a substring of "admin\' --".
+
+        // However, strictly speaking, we want to ensure the *semantics* are preserved as a string literal.
+        // The best check is that the query ends with the properly closed string literal of the escaped value.
+
+        // Let's manually escape to compare
+        let escaped = vector.replace('\\', "\\\\").replace('\'', "\\'");
+        let expected_clause = format!("Username = '{escaped}'");
+
+        assert!(
+            query.contains(&expected_clause),
+            "Failed to escape vector: {vector}\nQuery: {query}\nExpected clause: {expected_clause}"
+        );
+    }
+}

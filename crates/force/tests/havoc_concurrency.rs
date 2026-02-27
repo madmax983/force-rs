@@ -1,4 +1,13 @@
 //! Havoc concurrency test for double-checked locking verification.
+//!
+//! # Elenchus Audit Note
+//!
+//! This test uses a mirror struct `TokenManager` instead of the production type.
+//! This is necessary because `loom` requires its own synchronization primitives
+//! (e.g., `loom::sync::RwLock`) to explore all possible thread interleavings.
+//! While this does not verify the production *implementation* (imports, struct layout),
+//! it mathematically verifies the correctness of the *double-checked locking algorithm*
+//! used in `crates/force/src/auth/token_manager.rs`.
 
 #[cfg(test)]
 mod tests {
