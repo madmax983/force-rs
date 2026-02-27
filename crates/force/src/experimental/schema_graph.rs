@@ -9,9 +9,11 @@
 //! ```no_run
 //! # use force::client::ForceClientBuilder;
 //! # use force::experimental::schema_graph::SchemaGraph;
+//! # use force::auth::ClientCredentials;
 //! # #[tokio::main]
 //! # async fn main() -> anyhow::Result<()> {
-//! # let client = ForceClientBuilder::new().build().await?;
+//! # let auth = ClientCredentials::new("id", "secret", "url");
+//! # let client = ForceClientBuilder::new().authenticate(auth).build().await?;
 //! let mut graph = SchemaGraph::new(&client);
 //! graph.scan("Account").await?;
 //! graph.scan("Contact").await?;
