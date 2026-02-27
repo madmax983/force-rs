@@ -97,6 +97,8 @@ async fn main() -> anyhow::Result<()> {
 }
 ```
 
+> **Note:** For Sandbox environments, use `ClientCredentials::new_sandbox("client-id", "client-secret")` instead of `new_production`.
+
 ## Advanced Examples
 
 ### Bulk Insert with Typestate Safety
@@ -241,6 +243,10 @@ The `force` crate includes experimental features that are not yet stable but are
 
 ### Query Plan API (`nova` feature)
 
+> **⚠️ REQUIRES FEATURE: `nova`**
+>
+> You must enable the `nova` feature in your `Cargo.toml` to use this API.
+
 The Query Plan API allows you to inspect the performance cost of a SOQL query before executing it. This is useful for identifying inefficient queries (e.g., table scans) in CI/CD pipelines.
 
 To use it, enable the `nova` feature in `Cargo.toml`:
@@ -253,6 +259,7 @@ force = { version = "0.1", features = ["nova"] }
 Example usage:
 
 ```rust
+// Requires the "nova" feature: force = { version = "0.1", features = ["nova"] }
 let soql = "SELECT Id FROM Account WHERE Name LIKE 'A%'";
 let explanation = client.rest().explain(soql).await?;
 

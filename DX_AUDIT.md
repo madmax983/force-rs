@@ -39,6 +39,12 @@ The audit findings confirm that the `force` crate provides a solid developer exp
   - `query_typed` does not exist; `query` is used correctly.
   - `bulk_query_typed` does not exist; `bulk_query` (or just `query` via trait/inherent) is used correctly.
 
+#### 6. Missing Feature Flag Friction (New)
+- **Status:** FAIL -> FIXED (in progress)
+- **Details:** The "Query Plan API" example in `README.md` fails to compile if the `nova` feature is not enabled.
+- **Observation:** The compiler error `no method named explain found for struct RestHandler` is technically correct but confusing for a user who just copy-pasted the code. The user might think the documentation is outdated or the method was removed.
+- **Fix:** Add a prominent banner or note in the `README.md` section for Query Plan API stating that it requires the `nova` feature, and ensure the code block comments reflect this.
+
 ## Conclusion
 
 The "Developer Experience" for the `force` crate is excellent. The examples are copy-pasteable and work out of the box. The error messages guide the user to the problem. The API surface is clean and avoids unnecessary complexity. The minor issue with Sandbox discoverability does not block usage but could be improved.
