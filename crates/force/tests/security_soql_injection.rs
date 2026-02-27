@@ -81,7 +81,7 @@ fn test_soql_injection_real_world_vectors() {
 
         // Let's manually escape to compare
         let escaped = vector.replace('\\', "\\\\").replace('\'', "\\'");
-        let expected_clause = format!("Username = '{}'", escaped);
+        let expected_clause = format!("Username = '{escaped}'");
 
         assert!(
             query.contains(&expected_clause),
