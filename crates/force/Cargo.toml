@@ -67,3 +67,7 @@ all = ["full"]
 [[example]]
 name = "query_plan"
 required-features = ["nova"]
+
+[[example]]
+name = "data_dictionary"
+required-features = ["nova"]
