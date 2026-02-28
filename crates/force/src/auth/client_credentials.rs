@@ -25,12 +25,11 @@
 //!
 //! ```ignore
 //! use force::auth::ClientCredentials;
-//! use force::config::Environment;
 //!
-//! let auth = ClientCredentials::new(
+//! // For Sandbox, use: ClientCredentials::new_sandbox("client-id", "client-secret")
+//! let auth = ClientCredentials::new_production(
 //!     "your_client_id",
 //!     "your_client_secret",
-//!     Environment::Production,
 //! );
 //!
 //! let token = auth.authenticate().await?;
