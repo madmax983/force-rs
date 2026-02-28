@@ -203,7 +203,8 @@ All examples use the OAuth 2.0 Client Credentials flow:
 use force::auth::ClientCredentials;
 use force::client::builder;
 
-let auth = ClientCredentials::new(client_id, client_secret);
+// For Sandbox, use: ClientCredentials::new_sandbox("client-id", "client-secret")
+let auth = ClientCredentials::new_production(client_id, client_secret);
 let client = builder()
     .authenticate(auth)
     .build()
