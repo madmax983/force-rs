@@ -439,6 +439,34 @@ mod tests {
     }
 
     #[test]
+    fn test_builder_where_ne() {
+        let query = SoqlQueryBuilder::new()
+            .select(&["Id"])
+            .from("Contact")
+            .where_ne("LastName", "O'Connor")
+            .build();
+
+        assert_eq!(
+            query,
+            "SELECT Id FROM Contact WHERE LastName != 'O\\'Connor'"
+        );
+    }
+
+    #[test]
+    fn test_where_condition_raw() {
+        let query = SoqlQueryBuilder::new()
+            .select(&["Id", "Amount"])
+            .from("Opportunity")
+            .where_condition("Amount > 1000")
+            .build();
+
+        assert_eq!(
+            query,
+            "SELECT Id, Amount FROM Opportunity WHERE Amount > 1000"
+        );
+    }
+
+    #[test]
     fn test_validate_sobject_name() {
         assert!(validate_sobject_name("Account").is_ok());
         assert!(validate_sobject_name("Custom__c").is_ok());
