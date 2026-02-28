@@ -103,9 +103,17 @@ impl<A: Authenticator> TokenManager<A> {
                 self.authenticator.authenticate().await?
             };
 
-            let arc_token = Arc::new(new_token);
+            let arc_token = Arc::new(new_token.clone());
             {
                 let mut state = self.state.write().await;
+
+                // Check if a concurrent operation already updated the token to a newer one
+                if let Some(current) = &state.token {
+                    if current.issued_at() > new_token.issued_at() {
+                        return Ok(current.clone());
+                    }
+                }
+
                 state.token = Some(arc_token.clone());
             }
             Ok(arc_token)
@@ -119,8 +127,16 @@ impl<A: Authenticator> TokenManager<A> {
 
                 match refresh_result {
                     Ok(new_token) => {
-                        let arc_token = Arc::new(new_token);
+                        let arc_token = Arc::new(new_token.clone());
                         let mut state = self.state.write().await;
+
+                        // Check if a concurrent operation already updated the token to a newer one
+                        if let Some(current) = &state.token {
+                            if current.issued_at() > new_token.issued_at() {
+                                return Ok(current.clone());
+                            }
+                        }
+
                         state.token = Some(arc_token.clone());
                         Ok(arc_token)
                     }
