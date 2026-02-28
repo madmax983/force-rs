@@ -335,17 +335,10 @@ impl<A: crate::auth::Authenticator> super::BulkHandler<A> {
             .json(&request)
             .build()
             .map_err(crate::error::HttpError::from)?;
-        let response = inner.execute_request(request).await?;
 
-        if !response.status().is_success() {
-            return Err(handle_error_response(response, "Create query job request failed").await);
-        }
-
-        let job_info = response
-            .json::<BulkQueryJobInfo>()
+        inner
+            .send_request_and_decode::<BulkQueryJobInfo>(request, "Create query job request failed")
             .await
-            .map_err(crate::error::HttpError::from)?;
-        Ok(job_info)
     }
 
     /// Retrieves information about a bulk query job.
@@ -378,21 +371,13 @@ impl<A: crate::auth::Authenticator> super::BulkHandler<A> {
             .get(&url)
             .build()
             .map_err(crate::error::HttpError::from)?;
-        let response = inner.execute_request(request).await?;
 
-        if !response.status().is_success() {
-            return Err(handle_error_response(
-                response,
+        inner
+            .send_request_and_decode::<BulkQueryJobInfo>(
+                request,
                 &format!("Get query job request failed for job {}", job_id),
             )
-            .await);
-        }
-
-        let job_info = response
-            .json::<BulkQueryJobInfo>()
             .await
-            .map_err(crate::error::HttpError::from)?;
-        Ok(job_info)
     }
 
     /// Aborts a running bulk query job.
@@ -431,21 +416,13 @@ impl<A: crate::auth::Authenticator> super::BulkHandler<A> {
             .json(&update_request)
             .build()
             .map_err(crate::error::HttpError::from)?;
-        let response = inner.execute_request(request).await?;
 
-        if !response.status().is_success() {
-            return Err(handle_error_response(
-                response,
+        inner
+            .send_request_and_decode::<BulkQueryJobInfo>(
+                request,
                 &format!("Abort query job request failed for job {}", job_id),
             )
-            .await);
-        }
-
-        let job_info = response
-            .json::<BulkQueryJobInfo>()
             .await
-            .map_err(crate::error::HttpError::from)?;
-        Ok(job_info)
     }
 
     /// Deletes a bulk query job.

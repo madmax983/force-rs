@@ -601,21 +601,10 @@ impl<A: Authenticator> BulkHandler<A> {
             .json(&request)
             .build()
             .map_err(crate::error::HttpError::from)?;
-        let response = self.inner.execute_request(request).await?;
 
-        if !response.status().is_success() {
-            return Err(crate::http::response_to_force_error(
-                response,
-                "Create job request failed",
-            )
-            .await);
-        }
-
-        let job_info = response
-            .json::<JobInfo>()
+        self.inner
+            .send_request_and_decode::<JobInfo>(request, "Create job request failed")
             .await
-            .map_err(crate::error::HttpError::from)?;
-        Ok(job_info)
     }
 
     /// Retrieves information about a bulk job.
@@ -648,21 +637,13 @@ impl<A: Authenticator> BulkHandler<A> {
             .get(&url)
             .build()
             .map_err(crate::error::HttpError::from)?;
-        let response = self.inner.execute_request(request).await?;
 
-        if !response.status().is_success() {
-            return Err(crate::http::response_to_force_error(
-                response,
+        self.inner
+            .send_request_and_decode::<JobInfo>(
+                request,
                 &format!("Get job request failed for job {}", job_id),
             )
-            .await);
-        }
-
-        let job_info = response
-            .json::<JobInfo>()
             .await
-            .map_err(crate::error::HttpError::from)?;
-        Ok(job_info)
     }
 
     /// Updates a bulk job's state.
@@ -704,21 +685,13 @@ impl<A: Authenticator> BulkHandler<A> {
             .json(&request)
             .build()
             .map_err(crate::error::HttpError::from)?;
-        let response = self.inner.execute_request(request).await?;
 
-        if !response.status().is_success() {
-            return Err(crate::http::response_to_force_error(
-                response,
+        self.inner
+            .send_request_and_decode::<JobInfo>(
+                request,
                 &format!("Update job request failed for job {}", job_id),
             )
-            .await);
-        }
-
-        let job_info = response
-            .json::<JobInfo>()
             .await
-            .map_err(crate::error::HttpError::from)?;
-        Ok(job_info)
     }
 
     /// Deletes a bulk job.
