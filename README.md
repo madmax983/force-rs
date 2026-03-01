@@ -7,7 +7,7 @@
 
 **A canonical Salesforce Platform API client for Rust** — built with production-grade safety, performance, and developer ergonomics.
 
-force-rs provides idiomatic Rust bindings to the Salesforce Platform APIs, enabling you to build high-performance integrations, data pipelines, and automation tools. With comprehensive REST and Bulk API 2.0 support, typestate-enforced workflows, and memory-efficient streaming, force-rs is designed for real-world enterprise workloads.
+force-rs provides idiomatic Rust bindings to the Salesforce Platform APIs, enabling you to build high-performance integrations, data pipelines, and automation tools. With comprehensive REST and Bulk API 2.0 support, compile-time safe workflows, and memory-efficient streaming, force-rs is designed for real-world enterprise workloads.
 
 ## Features
 
@@ -19,7 +19,7 @@ force-rs provides idiomatic Rust bindings to the Salesforce Platform APIs, enabl
 - **Relationship Support** - Query parent-child and lookup relationships seamlessly
 
 ### Bulk API 2.0
-- **Typestate Safety** - Compile-time guarantees for job lifecycle (Open → Upload → InProgress → Complete)
+- **Compile-Time Safety** - Strict guarantees for job lifecycle (Open → Upload → InProgress → Complete)
 - **Ingest Jobs** - Insert, update, upsert, and delete millions of records efficiently
 - **Query Jobs** - Execute bulk queries with streaming CSV results
 - **Memory Efficient** - Stream large datasets without loading entire payloads into RAM
@@ -101,9 +101,9 @@ async fn main() -> anyhow::Result<()> {
 
 ## Advanced Examples
 
-### Bulk Insert with Typestate Safety
+### Bulk Insert with Compile-Time Safety
 
-The Bulk API uses typestate patterns to enforce correct job lifecycle at compile time:
+The Bulk API uses Rust's type system to enforce the correct job lifecycle at compile time:
 
 ```rust
 // Requires the "bulk" feature: force = { version = "0.1", features = ["bulk"] }

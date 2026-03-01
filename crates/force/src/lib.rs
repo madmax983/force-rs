@@ -2,7 +2,7 @@
 //!
 //! Canonical Salesforce Platform API client for Rust.
 //!
-//! This crate provides a feature-gated, zero-cost abstraction for all Salesforce Platform APIs.
+//! This crate provides a feature-gated, idiomatic client for all Salesforce Platform APIs.
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
