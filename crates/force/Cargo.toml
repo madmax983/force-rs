@@ -71,3 +71,7 @@ required-features = ["nova"]
 [[example]]
 name = "data_dictionary"
 required-features = ["nova"]
+
+[[example]]
+name = "generate_struct"
+required-features = ["nova"]
