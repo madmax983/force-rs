@@ -165,6 +165,18 @@ impl SoqlQueryBuilder {
     /// Adds a raw WHERE condition.
     ///
     /// **Warning:** This method does not escape the input. Use with caution.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use force::api::rest::SoqlQueryBuilder;
+    /// let query = SoqlQueryBuilder::new()
+    ///     .select(&["Id"])
+    ///     .from("Account")
+    ///     .where_condition("CreatedDate > LAST_N_DAYS:30")
+    ///     .build();
+    /// assert_eq!(query, "SELECT Id FROM Account WHERE CreatedDate > LAST_N_DAYS:30");
+    /// ```
     #[must_use]
     pub fn where_condition(mut self, condition: impl Into<String>) -> Self {
         self.where_clauses.push(WhereClause::Raw(condition.into()));
@@ -176,6 +188,18 @@ impl SoqlQueryBuilder {
     /// # Panics
     ///
     /// Panics if the field name is invalid.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use force::api::rest::SoqlQueryBuilder;
+    /// let query = SoqlQueryBuilder::new()
+    ///     .select(&["Id"])
+    ///     .from("Contact")
+    ///     .where_eq("LastName", "Smith")
+    ///     .build();
+    /// assert_eq!(query, "SELECT Id FROM Contact WHERE LastName = 'Smith'");
+    /// ```
     #[must_use]
     pub fn where_eq(self, field: &str, value: &str) -> Self {
         self.add_condition(field, "=", value, "where_eq")
@@ -186,6 +210,18 @@ impl SoqlQueryBuilder {
     /// # Panics
     ///
     /// Panics if the field name is invalid.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use force::api::rest::SoqlQueryBuilder;
+    /// let query = SoqlQueryBuilder::new()
+    ///     .select(&["Id"])
+    ///     .from("Contact")
+    ///     .where_ne("LastName", "Smith")
+    ///     .build();
+    /// assert_eq!(query, "SELECT Id FROM Contact WHERE LastName != 'Smith'");
+    /// ```
     #[must_use]
     pub fn where_ne(self, field: &str, value: &str) -> Self {
         self.add_condition(field, "!=", value, "where_ne")
@@ -215,6 +251,18 @@ impl SoqlQueryBuilder {
     /// # Panics
     ///
     /// Panics if the field name is invalid.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use force::api::rest::SoqlQueryBuilder;
+    /// let query = SoqlQueryBuilder::new()
+    ///     .select(&["Id"])
+    ///     .from("Account")
+    ///     .where_in("Industry", &["Technology", "Finance"])
+    ///     .build();
+    /// assert_eq!(query, "SELECT Id FROM Account WHERE Industry IN ('Technology', 'Finance')");
+    /// ```
     #[must_use]
     pub fn where_in(mut self, field: &str, values: &[impl AsRef<str>]) -> Self {
         Self::validate_field(field, "where_in");
@@ -240,12 +288,36 @@ impl SoqlQueryBuilder {
     /// # Panics
     ///
     /// Panics if the field name is invalid.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use force::api::rest::SoqlQueryBuilder;
+    /// let query = SoqlQueryBuilder::new()
+    ///     .select(&["Id"])
+    ///     .from("Account")
+    ///     .where_like("Name", "Acme%")
+    ///     .build();
+    /// assert_eq!(query, "SELECT Id FROM Account WHERE Name LIKE 'Acme%'");
+    /// ```
     #[must_use]
     pub fn where_like(self, field: &str, value: &str) -> Self {
         self.add_condition(field, "LIKE", value, "where_like")
     }
 
     /// Sets the LIMIT clause.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use force::api::rest::SoqlQueryBuilder;
+    /// let query = SoqlQueryBuilder::new()
+    ///     .select(&["Id"])
+    ///     .from("Account")
+    ///     .limit(5)
+    ///     .build();
+    /// assert_eq!(query, "SELECT Id FROM Account LIMIT 5");
+    /// ```
     #[must_use]
     pub fn limit(mut self, limit: u32) -> Self {
         self.limit = Some(limit);
@@ -253,6 +325,19 @@ impl SoqlQueryBuilder {
     }
 
     /// Sets the OFFSET clause.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use force::api::rest::SoqlQueryBuilder;
+    /// let query = SoqlQueryBuilder::new()
+    ///     .select(&["Id"])
+    ///     .from("Account")
+    ///     .limit(10)
+    ///     .offset(20)
+    ///     .build();
+    /// assert_eq!(query, "SELECT Id FROM Account LIMIT 10 OFFSET 20");
+    /// ```
     #[must_use]
     pub fn offset(mut self, offset: u32) -> Self {
         self.offset = Some(offset);
@@ -264,6 +349,18 @@ impl SoqlQueryBuilder {
     /// # Panics
     ///
     /// Panics if the field name is invalid.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use force::api::rest::SoqlQueryBuilder;
+    /// let query = SoqlQueryBuilder::new()
+    ///     .select(&["Id"])
+    ///     .from("Account")
+    ///     .order_by("Name")
+    ///     .build();
+    /// assert_eq!(query, "SELECT Id FROM Account ORDER BY Name");
+    /// ```
     #[must_use]
     pub fn order_by(mut self, field: &str) -> Self {
         Self::validate_field(field, "order_by");
@@ -276,6 +373,18 @@ impl SoqlQueryBuilder {
     /// # Panics
     ///
     /// Panics if the field name is invalid.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use force::api::rest::SoqlQueryBuilder;
+    /// let query = SoqlQueryBuilder::new()
+    ///     .select(&["Id"])
+    ///     .from("Account")
+    ///     .order_by_desc("CreatedDate")
+    ///     .build();
+    /// assert_eq!(query, "SELECT Id FROM Account ORDER BY CreatedDate DESC");
+    /// ```
     #[must_use]
     pub fn order_by_desc(mut self, field: &str) -> Self {
         Self::validate_field(field, "order_by_desc");

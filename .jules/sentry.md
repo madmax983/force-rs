@@ -31,3 +31,7 @@
 ## [Wiremock Delays]
 **Learning:** `wiremock`'s `set_delay` is a powerful way to simulate timeouts without relying on flaky `sleep` or external networks.
 **Action:** Use `set_delay` for timeout testing instead of `tokio::time::sleep` in test logic.
+**Doc Tests for Public API**\n**Learning:** Added doc tests to  methods to improve coverage and provide usage examples.\n**Action:** Use doc tests for public API methods to ensure they compile and serve as documentation.
+**Doc Tests for Public API**
+**Learning:** Added doc tests to SoqlQueryBuilder methods to improve coverage and provide usage examples.
+**Action:** Use doc tests for public API methods to ensure they compile and serve as documentation.
