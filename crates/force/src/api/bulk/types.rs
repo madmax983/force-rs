@@ -21,7 +21,7 @@ pub enum JobOperation {
     HardDelete,
 }
 
-/// Job state enumeration using typestate pattern.
+/// Job state enumeration.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub enum JobState {

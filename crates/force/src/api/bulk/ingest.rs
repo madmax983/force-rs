@@ -1,11 +1,11 @@
 //! Ingest Job API for Salesforce Bulk API 2.0.
 //!
-//! This module provides a typestate-based API for managing bulk ingest jobs,
-//! ensuring compile-time safety for job lifecycle transitions.
+//! This module provides a compile-time safe API for managing bulk ingest jobs,
+//! ensuring safe job lifecycle transitions.
 //!
 //! # Job Lifecycle
 //!
-//! The typestate pattern enforces valid state transitions at compile time:
+//! Rust's type system enforces valid state transitions at compile time:
 //!
 //! ```text
 //! IngestJob<Open>
@@ -73,7 +73,7 @@ pub struct InProgress;
 #[derive(Debug)]
 pub struct JobComplete;
 
-/// Typestate-based ingest job handle.
+/// Compile-time safe ingest job handle.
 ///
 /// The type parameter `S` represents the current job state and enforces
 /// valid state transitions at compile time.
