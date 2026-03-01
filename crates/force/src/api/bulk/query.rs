@@ -178,14 +178,11 @@ impl<T, A: crate::auth::Authenticator> BulkQueryStream<T, A> {
         }
 
         // Fetch results from the API
-        let token = self.inner.token_manager.get_token_arc().await?;
-        let base_url = format!(
-            "{}/services/data/{}/jobs/query/{}/results",
-            token.instance_url(),
-            self.inner.config.api_version,
-            self.job_id
-        );
-        let mut request_builder = self.inner.http_client.get(&base_url);
+        let base_url = self
+            .inner
+            .resolve_url(&format!("jobs/query/{}/results", self.job_id))
+            .await?;
+        let mut request_builder = self.inner.get(&base_url);
         if let Some(locator) = &self.next_locator {
             request_builder = request_builder.query(&[("locator", locator)]);
         }
@@ -292,13 +289,7 @@ impl<A: crate::auth::Authenticator> super::BulkHandler<A> {
     ///
     /// Returns an error if token retrieval fails.
     pub async fn query_base_url(&self) -> Result<String> {
-        let inner = self.inner();
-        let token = inner.token_manager.get_token_arc().await?;
-        Ok(format!(
-            "{}/services/data/{}/jobs/query",
-            token.instance_url(),
-            inner.config.api_version
-        ))
+        self.inner().resolve_url("jobs/query").await
     }
 
     /// Creates a new bulk query job.
@@ -330,7 +321,6 @@ impl<A: crate::auth::Authenticator> super::BulkHandler<A> {
         let url = self.query_base_url().await?;
         let inner = self.inner();
         let request = inner
-            .http_client
             .post(&url)
             .json(&request)
             .build()
@@ -367,7 +357,6 @@ impl<A: crate::auth::Authenticator> super::BulkHandler<A> {
         let url = format!("{}/{}", self.query_base_url().await?, job_id);
         let inner = self.inner();
         let request = inner
-            .http_client
             .get(&url)
             .build()
             .map_err(crate::error::HttpError::from)?;
@@ -411,7 +400,6 @@ impl<A: crate::auth::Authenticator> super::BulkHandler<A> {
         };
 
         let request = inner
-            .http_client
             .patch(&url)
             .json(&update_request)
             .build()
@@ -449,7 +437,6 @@ impl<A: crate::auth::Authenticator> super::BulkHandler<A> {
         let url = format!("{}/{}", self.query_base_url().await?, job_id);
         let inner = self.inner();
         let request = inner
-            .http_client
             .delete(&url)
             .build()
             .map_err(crate::error::HttpError::from)?;
