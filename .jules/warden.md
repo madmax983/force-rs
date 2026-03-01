@@ -27,3 +27,6 @@
 ## 2026-02-26 - [DoS via Unbounded Allocation in Composite Batch]
 **Threat:** `BatchBuilder` allowed adding an unlimited number of requests via `add_request` and its convenience wrappers. An attacker could construct a batch with millions of requests, causing unbounded memory consumption before `execute()` is called, leading to an OOM crash.
 **Defense:** Updated `add_request`, `query`, and all convenience methods (`get`, `post`, `patch`, `delete`) to return `Result<Self>` and strictly enforce the Salesforce API limit of 25 subrequests. Attempts to add a 26th request now return `ForceError::InvalidInput`.
+## 2026-03-01 - [SSRF/Credential Injection in Query Pagination]
+**Threat:** The `query_more` method validated that absolute `nextRecordsUrl` values matched the scheme, host, and port of the authenticated `instance_url`. However, it did not restrict embedded credentials (`username` and `password`). An attacker could provide a malicious pagination URL like `https://attacker:password@instance.salesforce.com/...` which would pass the validation but could potentially leak information or cause unexpected authentication behavior.
+**Defense:** Fortified `resolve_next_records_url` in `crates/force/src/api/rest/query.rs` to explicitly reject any absolute URLs that contain a username or password.
