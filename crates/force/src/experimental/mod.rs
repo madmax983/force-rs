@@ -19,3 +19,7 @@ pub mod schema_graph;
 
 #[cfg(feature = "nova")]
 pub mod data_dictionary;
+
+#[cfg(feature = "nova")]
+#[allow(missing_docs)]
+pub mod type_generator;
