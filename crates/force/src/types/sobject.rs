@@ -114,6 +114,9 @@ impl DynamicSObject {
 
     /// Gets a field value as a specific type.
     ///
+    /// Performance: Deserializes directly from the borrowed `&Value` using
+    /// `T::deserialize(value)` to avoid an expensive `.clone()` on the JSON value.
+    ///
     /// # Errors
     ///
     /// Returns an error if the field cannot be deserialized to type T.
@@ -122,7 +125,7 @@ impl DynamicSObject {
         name: &str,
     ) -> Result<Option<T>, serde_json::Error> {
         match self.fields.get(name) {
-            Some(value) => serde_json::from_value(value.clone()).map(Some),
+            Some(value) => T::deserialize(value).map(Some),
             None => Ok(None),
         }
     }
