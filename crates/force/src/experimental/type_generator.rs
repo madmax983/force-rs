@@ -16,7 +16,10 @@ impl StructGenerator {
         let mut out = String::new();
         out.push_str(&format!("/// {}\n", describe.label));
         out.push_str("#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]\n");
-        out.push_str(&format!("pub struct {} {{\n", Self::pascal_case(&describe.name)));
+        out.push_str(&format!(
+            "pub struct {} {{\n",
+            Self::pascal_case(&describe.name)
+        ));
 
         for field in &describe.fields {
             out.push_str(&format!("    /// {}\n", field.label));
@@ -27,7 +30,11 @@ impl StructGenerator {
             } else {
                 rust_type.to_string()
             };
-            out.push_str(&format!("    pub {}: {},\n", Self::snake_case(&field.name), final_type));
+            out.push_str(&format!(
+                "    pub {}: {},\n",
+                Self::snake_case(&field.name),
+                final_type
+            ));
         }
 
         out.push_str("}\n");
@@ -56,7 +63,7 @@ impl StructGenerator {
         for i in 0..chars.len() {
             let c = chars[i];
             if c.is_ascii_uppercase() {
-                if i > 0 && !chars[i - 1].is_ascii_uppercase() && chars[i-1] != '_' {
+                if i > 0 && !chars[i - 1].is_ascii_uppercase() && chars[i - 1] != '_' {
                     result.push('_');
                 }
                 result.push(c.to_ascii_lowercase());

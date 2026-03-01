@@ -12,10 +12,10 @@ use std::env;
 async fn main() -> anyhow::Result<()> {
     use force::experimental::type_generator::StructGenerator;
 
-    let client_id = env::var("SALESFORCE_CLIENT_ID")
-        .unwrap_or_else(|_| "your-client-id".to_string());
-    let client_secret = env::var("SALESFORCE_CLIENT_SECRET")
-        .unwrap_or_else(|_| "your-client-secret".to_string());
+    let client_id =
+        env::var("SALESFORCE_CLIENT_ID").unwrap_or_else(|_| "your-client-id".to_string());
+    let client_secret =
+        env::var("SALESFORCE_CLIENT_SECRET").unwrap_or_else(|_| "your-client-secret".to_string());
     let sobject_name = env::args().nth(1).unwrap_or_else(|| "Account".to_string());
 
     println!("Authenticating with Salesforce...");
@@ -29,13 +29,17 @@ async fn main() -> anyhow::Result<()> {
         Ok(c) => {
             // Test the connection
             if let Err(e) = c.rest().describe(&sobject_name).await {
-                println!("Failed to retrieve describe metadata: {e}. Are your credentials correct?");
+                println!(
+                    "Failed to retrieve describe metadata: {e}. Are your credentials correct?"
+                );
                 return fallback_demonstration();
             }
             c
-        },
+        }
         Err(e) => {
-            println!("Failed to authenticate: {e}. Please set SALESFORCE_CLIENT_ID and SALESFORCE_CLIENT_SECRET to valid credentials.");
+            println!(
+                "Failed to authenticate: {e}. Please set SALESFORCE_CLIENT_ID and SALESFORCE_CLIENT_SECRET to valid credentials."
+            );
             return fallback_demonstration();
         }
     };
