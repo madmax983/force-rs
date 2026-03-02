@@ -337,6 +337,15 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
         )
         .await
     }
+
+    /// Retrieves the query execution plan for a SOQL query.
+    ///
+    /// This is a stub that is present when the `nova` feature is not enabled.
+    #[cfg(not(feature = "nova"))]
+    #[deprecated(note = "The 'nova' feature must be enabled in Cargo.toml to use the Query Plan API")]
+    pub async fn explain(&self, _soql: &str) {
+        unimplemented!("Enable the 'nova' feature in Cargo.toml to use the Query Plan API")
+    }
 }
 #[cfg(test)]
 mod tests {

@@ -65,6 +65,15 @@ impl<A: Authenticator> CompositeHandler<A> {
         graph::GraphBuilder::new(self.clone())
     }
 
+    /// Creates a new graph request builder.
+    ///
+    /// This is a stub that is present when the `nova` feature is not enabled.
+    #[cfg(not(feature = "nova"))]
+    #[deprecated(note = "The 'nova' feature must be enabled in Cargo.toml to use the Composite Graph API")]
+    pub fn graph(&self) {
+        unimplemented!("Enable the 'nova' feature in Cargo.toml to use the Composite Graph API")
+    }
+
     /// Helper to get the API version from config.
     pub(crate) fn api_version(&self) -> &str {
         &self.inner.config.api_version
