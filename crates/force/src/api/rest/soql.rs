@@ -162,9 +162,11 @@ impl SoqlQueryBuilder {
         Self::unwrap_or_panic(self.try_from(sobject), "from")
     }
 
-    /// Adds a raw WHERE condition.
+    /// Adds a raw WHERE condition without escaping.
     ///
-    /// **Warning:** This method does not escape the input. Use with caution.
+    /// **Warning:** This method does not escape the input. It is susceptible to SOQL injection
+    /// if used with untrusted user input. Prefer using parameterized/escaped alternatives
+    /// like `where_eq` when possible.
     ///
     /// # Examples
     ///
@@ -173,12 +175,12 @@ impl SoqlQueryBuilder {
     /// let query = SoqlQueryBuilder::new()
     ///     .select(&["Id"])
     ///     .from("Account")
-    ///     .where_condition("CreatedDate > LAST_N_DAYS:30")
+    ///     .where_condition_unchecked("CreatedDate > LAST_N_DAYS:30")
     ///     .build();
     /// assert_eq!(query, "SELECT Id FROM Account WHERE CreatedDate > LAST_N_DAYS:30");
     /// ```
     #[must_use]
-    pub fn where_condition(mut self, condition: impl Into<String>) -> Self {
+    pub fn where_condition_unchecked(mut self, condition: impl Into<String>) -> Self {
         self.where_clauses.push(WhereClause::Raw(condition.into()));
         self
     }
@@ -566,7 +568,7 @@ mod tests {
         let query = SoqlQueryBuilder::new()
             .select(&["Id", "Amount"])
             .from("Opportunity")
-            .where_condition("Amount > 1000")
+            .where_condition_unchecked("Amount > 1000")
             .build();
 
         assert_eq!(
