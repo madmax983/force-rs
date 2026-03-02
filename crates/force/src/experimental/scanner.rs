@@ -4,9 +4,9 @@
 //! It helps identify "zombie fields" (fields that are rarely or never populated).
 
 use crate::api::rest::describe::FieldType;
+use crate::auth::Authenticator;
 use crate::client::ForceClient;
 use crate::error::Result;
-use crate::types::Authenticator;
 use serde::Deserialize;
 use serde_json::Value;
 

@@ -26,9 +26,9 @@
 //! ```
 
 use crate::api::rest::describe::{FieldType, SObjectDescribe};
+use crate::auth::Authenticator;
 use crate::client::ForceClient;
 use crate::error::Result;
-use crate::types::Authenticator;
 use std::collections::{HashMap, HashSet};
 
 /// A node in the schema graph representing an SObject.

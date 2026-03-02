@@ -3,10 +3,10 @@
 //! This module provides a utility to query records and perform batch operations on them.
 //! It handles pagination and batch execution automatically.
 
+use crate::auth::Authenticator;
 #[cfg(feature = "composite")]
 use crate::client::ForceClient;
 use crate::error::Result;
-use crate::types::Authenticator;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 
