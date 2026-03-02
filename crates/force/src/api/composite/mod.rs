@@ -69,7 +69,9 @@ impl<A: Authenticator> CompositeHandler<A> {
     ///
     /// This is a stub that is present when the `nova` feature is not enabled.
     #[cfg(not(feature = "nova"))]
-    #[deprecated(note = "The 'nova' feature must be enabled in Cargo.toml to use the Composite Graph API")]
+    #[deprecated(
+        note = "The 'nova' feature must be enabled in Cargo.toml to use the Composite Graph API"
+    )]
     pub fn graph(&self) {
         unimplemented!("Enable the 'nova' feature in Cargo.toml to use the Composite Graph API")
     }

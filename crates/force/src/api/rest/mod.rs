@@ -342,7 +342,9 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
     ///
     /// This is a stub that is present when the `nova` feature is not enabled.
     #[cfg(not(feature = "nova"))]
-    #[deprecated(note = "The 'nova' feature must be enabled in Cargo.toml to use the Query Plan API")]
+    #[deprecated(
+        note = "The 'nova' feature must be enabled in Cargo.toml to use the Query Plan API"
+    )]
     pub async fn explain(&self, _soql: &str) {
         unimplemented!("Enable the 'nova' feature in Cargo.toml to use the Query Plan API")
     }
