@@ -6,10 +6,10 @@
 //!
 //! This serves as a powerful "Exporter" to document schema directly from the API.
 
+use crate::auth::Authenticator;
 use crate::client::ForceClient;
 use crate::error::Result;
 use crate::experimental::scanner::FieldUsageScanner;
-use crate::types::Authenticator;
 use std::collections::HashMap;
 
 /// Generator for SObject data dictionaries in Markdown format.
