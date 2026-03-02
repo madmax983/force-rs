@@ -13,7 +13,7 @@ impl StructGenerator {
     /// Salesforce API field names, and map the Salesforce types to appropriate
     /// Rust types.
     pub fn generate(describe: &SObjectDescribe) -> String {
-        let mut out = String::new();
+        let mut out = String::with_capacity(describe.fields.len() * 128);
         out.push_str(&format!("/// {}\n", describe.label));
         out.push_str("#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]\n");
         out.push_str(&format!(
@@ -41,8 +41,11 @@ impl StructGenerator {
         out
     }
 
+    /// Converts a string to PascalCase.
+    ///
+    /// ⚡ Bolt: Uses `String::with_capacity` to prevent reallocation.
     fn pascal_case(s: &str) -> String {
-        let mut result = String::new();
+        let mut result = String::with_capacity(s.len());
         let mut capitalize_next = true;
         for c in s.chars() {
             if c == '_' {
@@ -57,22 +60,30 @@ impl StructGenerator {
         result
     }
 
+    /// Converts a string to snake_case.
+    ///
+    /// ⚡ Bolt: Uses `String::with_capacity` to prevent reallocation and iterates
+    /// over `chars()` to remove intermediate `Vec<char>` allocation.
     fn snake_case(s: &str) -> String {
-        let mut result = String::new();
-        let chars: Vec<char> = s.chars().collect();
-        for i in 0..chars.len() {
-            let c = chars[i];
+        let mut result = String::with_capacity(s.len() + 2);
+        let mut prev_char: Option<char> = None;
+
+        for c in s.chars() {
             if c.is_ascii_uppercase() {
-                if i > 0 && !chars[i - 1].is_ascii_uppercase() && chars[i - 1] != '_' {
-                    result.push('_');
+                if let Some(p) = prev_char {
+                    if !p.is_ascii_uppercase() && p != '_' {
+                        result.push('_');
+                    }
                 }
                 result.push(c.to_ascii_lowercase());
             } else {
                 result.push(c);
             }
+            prev_char = Some(c);
         }
+
         if result == "type" {
-            result = "type_".to_string();
+            result.push('_');
         }
         result
     }
