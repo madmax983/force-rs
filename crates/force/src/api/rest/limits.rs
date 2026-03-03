@@ -454,7 +454,7 @@ mod tests {
 #[cfg(all(test, feature = "mock"))]
 mod integration_tests {
     use crate::client::builder;
-    use crate::config::ClientConfigBuilder;
+    use crate::config::ClientConfig;
     use crate::test_support::{MockAuthenticator, Must, MustMsg};
     use wiremock::matchers::{bearer_token, header, method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -593,7 +593,10 @@ mod integration_tests {
             .mount(&mock_server)
             .await;
 
-        let config = ClientConfigBuilder::new().api_version("v59.0").build();
+        let config = ClientConfig {
+            api_version: "v59.0".into(),
+            ..Default::default()
+        };
         let client = builder()
             .authenticate(auth)
             .config(config)

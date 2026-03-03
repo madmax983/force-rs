@@ -806,7 +806,7 @@ mod tests {
 mod integration_tests {
     use super::*;
     use crate::client::builder;
-    use crate::config::ClientConfigBuilder;
+    use crate::config::ClientConfig;
     use crate::test_support::{MockAuthenticator, MustMsg};
     use wiremock::matchers::{bearer_token, method, path, query_param};
     use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -1038,7 +1038,10 @@ mod integration_tests {
             .mount(&mock_server)
             .await;
 
-        let config = ClientConfigBuilder::new().api_version("v59.0").build();
+        let config = ClientConfig {
+            api_version: "v59.0".into(),
+            ..Default::default()
+        };
         let client = builder()
             .authenticate(auth)
             .config(config)

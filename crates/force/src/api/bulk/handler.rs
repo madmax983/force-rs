@@ -72,7 +72,7 @@ impl<A: crate::auth::Authenticator> BulkHandler<A> {
 #[cfg(test)]
 mod tests {
     use crate::client::{ForceClient, builder};
-    use crate::config::ClientConfigBuilder;
+    use crate::config::ClientConfig;
     use crate::test_support::{MockAuthenticator, Must, MustMsg};
     use wiremock::MockServer;
 
@@ -126,7 +126,10 @@ mod tests {
     async fn test_base_url_with_custom_api_version() {
         let mock_server = MockServer::start().await;
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
-        let config = ClientConfigBuilder::new().api_version("v59.0").build();
+        let config = ClientConfig {
+            api_version: "v59.0".into(),
+            ..Default::default()
+        };
         let client = builder()
             .authenticate(auth)
             .config(config)
