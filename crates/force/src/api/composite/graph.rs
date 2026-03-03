@@ -14,6 +14,31 @@ use crate::types::validator;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+/// Helper to validate graph reference IDs.
+/// Reference IDs must be strictly alphanumeric/underscores.
+fn validate_reference_id(id: &str) -> Result<()> {
+    if id.is_empty() {
+        return Err(ForceError::InvalidInput("Reference ID cannot be empty".to_string()));
+    }
+    if !id.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+        return Err(ForceError::InvalidInput(format!("Reference ID contains invalid characters: {}", id)));
+    }
+    Ok(())
+}
+
+/// Helper to validate graph IDs.
+/// IDs can be Salesforce IDs or references (e.g. "@{ref.id}"),
+/// but they strictly cannot contain path traversal characters.
+fn validate_graph_id(id: &str) -> Result<()> {
+    if id.is_empty() {
+        return Err(ForceError::InvalidInput("ID cannot be empty".to_string()));
+    }
+    if id.contains('/') || id.contains("..") || id.contains('\\') || id.contains('?') {
+        return Err(ForceError::InvalidInput(format!("ID contains invalid path traversal characters: {}", id)));
+    }
+    Ok(())
+}
+
 /// Builder for constructing a Composite Graph request.
 ///
 /// Use this builder to add one or more graphs and execute them atomically.
@@ -132,6 +157,8 @@ impl Graph {
     /// * `reference_id` - Unique reference ID for this request
     pub fn get(self, sobject: &str, id: &str, reference_id: &str) -> Result<Self> {
         validator::validate_sobject_name(sobject)?;
+        validate_graph_id(id)?;
+        validate_reference_id(reference_id)?;
         Ok(self.add_request(GraphRequest::new(
             "GET",
             format!("sobjects/{}/{}", sobject, id),
@@ -148,6 +175,7 @@ impl Graph {
     /// * `reference_id` - Unique reference ID for this request
     pub fn post(self, sobject: &str, body: Value, reference_id: &str) -> Result<Self> {
         validator::validate_sobject_name(sobject)?;
+        validate_reference_id(reference_id)?;
         Ok(self.add_request(
             GraphRequest::new("POST", format!("sobjects/{}", sobject), reference_id).body(body),
         ))
@@ -163,6 +191,8 @@ impl Graph {
     /// * `reference_id` - Unique reference ID for this request
     pub fn patch(self, sobject: &str, id: &str, body: Value, reference_id: &str) -> Result<Self> {
         validator::validate_sobject_name(sobject)?;
+        validate_graph_id(id)?;
+        validate_reference_id(reference_id)?;
         Ok(self.add_request(
             GraphRequest::new(
                 "PATCH",
@@ -182,6 +212,8 @@ impl Graph {
     /// * `reference_id` - Unique reference ID for this request
     pub fn delete(self, sobject: &str, id: &str, reference_id: &str) -> Result<Self> {
         validator::validate_sobject_name(sobject)?;
+        validate_graph_id(id)?;
+        validate_reference_id(reference_id)?;
         Ok(self.add_request(GraphRequest::new(
             "DELETE",
             format!("sobjects/{}/{}", sobject, id),
@@ -391,5 +423,31 @@ mod tests {
             }
             _ => panic!("Expected Serialization error, got {:?}", result),
         }
+    }
+
+    #[test]
+    fn test_havoc_path_traversal() {
+        let graph = Graph::new("graph1");
+
+        // This should fail validation but currently doesn't!
+        let result = graph.get("Account", "../../../../../etc/passwd", "ref1");
+
+        assert!(
+            result.is_err(),
+            "👺 Havoc: Path traversal successfully passed into ID parameter!"
+        );
+    }
+
+    #[test]
+    fn test_havoc_invalid_reference_id() {
+        let graph = Graph::new("graph1");
+
+        // This should fail validation but currently doesn't!
+        let result = graph.get("Account", "001xx000003DHP0AAO", "invalid ref id! @#$");
+
+        assert!(
+            result.is_err(),
+            "👺 Havoc: Invalid characters successfully passed into reference_id!"
+        );
     }
 }
