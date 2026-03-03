@@ -30,12 +30,15 @@ C4Component
     Component(session, "Session", "crates/force/session.rs", "Shared State (Config, Http, Tokens)")
     Component(auth, "Auth & Tokens", "crates/force/auth", "Authentication & Token Storage")
     Component(http, "HTTP Layer", "crates/force/http", "Resilience & Middleware")
+    Component(types, "Domain Types", "crates/force/types", "Core domain primitives")
 
     Rel(client, api, "Exposes")
     Rel(client, session, "Uses (Shared State)")
     Rel(api, session, "Uses (Shared State)")
     Rel(session, auth, "Uses (TokenManager)")
     Rel(session, http, "Uses (HttpExecutor)")
+    Rel(auth, types, "Uses")
+    Rel(api, types, "Uses")
   }
 ```
 

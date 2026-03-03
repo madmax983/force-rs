@@ -100,3 +100,12 @@ match result {
 - Removed the redundant `201` match arm in `upsert_with_retry_class`.
 - Added `test_upsert_success_other_status` to test the `.is_success()` match arm with a 200 OK.
 - Upgraded all `result.is_err()` assertions across tests to explicit `unwrap_err()` checks validating the specific expected `message` and `error_code`.
+### [Acquitted] `crates/force/src/api/rest/query.rs`
+
+**Module:** `crates/force/src/api/rest/query.rs`
+**Severity:** 🟢 Acquitted (was 🟡 Suspect)
+**Finding:** Manual audit and mutation testing (`cargo mutants`) revealed that the conditional `||` chain in `resolve_next_records_url` used for security checks against `next_records_url` wasn't exhaustively tested. Specifically, mutations modifying `||` to `&&` survived.
+**Evidence:**
+- Mutations `replace || with &&` at lines 123 and 126 in `resolve_next_records_url` were MISSED by previous test suites.
+- The pre-existing tests (`test_query_more_security_check` and `test_query_more_security_check_credentials`) did not cover all logical variants to effectively test scheme, host, port, username, and password mismatches independently.
+**Resolution:** Added `test_query_more_security_check_scheme_mismatch`, `test_query_more_security_check_port_mismatch`, and `test_query_more_security_check_username_mismatch` to exhaustively trigger each condition. Ran `cargo mutants` to confirm no logic mutants survived in the security check.

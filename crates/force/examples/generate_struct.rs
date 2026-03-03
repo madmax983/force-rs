@@ -21,6 +21,7 @@ async fn main() -> anyhow::Result<()> {
     println!("Authenticating with Salesforce...");
 
     // Authenticate with OAuth 2.0 client credentials
+    // For Sandbox, use: ClientCredentials::new_sandbox("client-id", "client-secret")
     let auth = ClientCredentials::new_production(&client_id, &client_secret);
 
     // We expect this to fail gracefully if the credentials are dummy, but in a real org
