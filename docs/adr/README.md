@@ -42,18 +42,15 @@ ADRs follow this structure:
 | [006](006-handler-pattern.md) | Handler Pattern for API Operations | Accepted | 2026-02-07 |
 | [007](007-rest-api-design.md) | REST API Design Decisions | Accepted | 2026-02-07 |
 | [008](008-bulk-api-design.md) | Bulk API 2.0 Design Decisions | Accepted | 2026-02-08 |
-| [009](009-decouple-storage-from-core.md) | Decouple Storage from Core | Proposed | 2026-02-17 |
+| [009](009-decouple-storage-from-core.md) | Decouple Storage from Core | Superseded | 2026-02-17 |
+| [010](010-internal-shared-state.md) | Internal Shared State Pattern | Accepted | 2026-02-17 |
+| [011](011-remove-pub-sub-support.md) | Remove Pub/Sub Support | Accepted | 2026-02-17 |
+| [012](012-http-layer-refactoring.md) | HTTP Layer Refactoring & Observability | Accepted | 2026-02-17 |
+| [013](013-rename-inner-to-session.md) | Rename Inner to Session | Accepted | 2026-02-18 |
+| [014](014-query-plan-support.md) | Query Plan Support (Nova) | Accepted | 2026-02-18 |
+| [015](015-merge-storage-into-auth.md) | Merge Storage Logic into Auth | Accepted | 2026-02-18 |
+| [016](016-remove-deprecated-auth-reexports.md) | Remove Deprecated Auth Re-exports | Accepted | 2026-03-02 |
 
-### Future ADRs
-
-Planned ADRs for upcoming decisions:
-- **ADR-010**: SOQL Query Builder Design
-- **ADR-011**: Bulk API Job Management
-- **ADR-012**: Pub/Sub gRPC Integration
-- **ADR-013**: Testing Strategy and Mock Framework
-- **ADR-014**: Logging and Observability
-- **ADR-015**: Connection Pooling Configuration
-- **ADR-016**: API Versioning Strategy
 
 ## Decision Process
 
@@ -88,6 +85,12 @@ graph TD
     ADR003 --> ADR007
 
     ADR002 --> ADR009[ADR-009: Decouple Storage]
+    ADR009 --> ADR015[ADR-015: Merge Storage Logic into Auth]
+    ADR010[ADR-010: Internal Shared State Pattern] --> ADR013[ADR-013: Rename Inner to Session]
+    ADR001 --> ADR011[ADR-011: Remove Pub/Sub Support]
+    ADR006 --> ADR012[ADR-012: HTTP Layer Refactoring & Observability]
+    ADR004 --> ADR014[ADR-014: Query Plan Support (Nova)]
+    ADR001 --> ADR016[ADR-016: Remove Deprecated Auth Re-exports]
 
     style ADR001 fill:#4a9eff
     style ADR002 fill:#ffd43b
@@ -97,7 +100,14 @@ graph TD
     style ADR006 fill:#f472b6
     style ADR007 fill:#fb923c
     style ADR008 fill:#fb923c
-    style ADR009 fill:#a78bfa
+    style ADR009 fill:#9ca3af
+    style ADR010 fill:#4a9eff
+    style ADR011 fill:#ff6b6b
+    style ADR012 fill:#f472b6
+    style ADR013 fill:#4a9eff
+    style ADR014 fill:#51cf66
+    style ADR015 fill:#a78bfa
+    style ADR016 fill:#ff6b6b
 ```
 
 ## Key Decisions Summary
@@ -145,7 +155,42 @@ graph TD
 ### ADR-009: Decouple Storage from Core
 - **Decision**: Move persistence logic to a dedicated crate/boundary
 - **Rationale**: Resolve circular dependencies and improve build times
-- **Impact**: Modular architecture but increased complexity
+- **Impact**: Superseded by ADR-015
+
+### ADR-010: Internal Shared State Pattern
+- **Decision**: Adopt the `Inner` struct pattern (`Arc<Inner<A>>`) for sharing state across handlers.
+- **Rationale**: Ensures cheap cloning, thread safety, and unified state (like connection pooling).
+- **Impact**: Slight indirection but massively improves memory usage and ergonomics.
+
+### ADR-011: Remove Pub/Sub Support
+- **Decision**: Remove experimental and unused Pub/Sub API implementation.
+- **Rationale**: Keep codebase clean from zombie code and focus on core features.
+- **Impact**: Smaller binary and codebase size, reduced maintenance overhead.
+
+### ADR-012: HTTP Layer Refactoring & Observability
+- **Decision**: Decompose HTTP logic into `executor`, `retry`, `telemetry`, and `error` sub-modules.
+- **Rationale**: Improve maintainability, separate concerns, and enable a hybrid observability model.
+- **Impact**: Easier to test HTTP layer logic but increases module complexity.
+
+### ADR-013: Rename Inner to Session
+- **Decision**: Rename the shared state struct `Inner` to `Session`.
+- **Rationale**: Improves semantic clarity and correctly reflects its role in the API lifecycle.
+- **Impact**: Minor refactoring of internal usages, better documentation.
+
+### ADR-014: Query Plan Support (Nova)
+- **Decision**: Add SOQL Query Plan API support behind the `nova` feature flag.
+- **Rationale**: Allow developers to inspect SOQL query costs without bloating the default binary.
+- **Impact**: Provides performance insights for SOQL queries.
+
+### ADR-015: Merge Storage Logic into Auth
+- **Decision**: Co-locate token storage logic inside `crates/force/src/auth` instead of a dedicated `storage` crate.
+- **Rationale**: Formalizes actual structure and reduces module sprawl while still breaking circular dependencies.
+- **Impact**: Supersedes ADR-009, making storage tightly coupled with auth.
+
+### ADR-016: Remove Deprecated Auth Re-exports
+- **Decision**: Remove deprecated authentication re-exports from `types.rs` and update internal usages.
+- **Rationale**: Prevent blurring architectural boundaries between domain types and authentication logic.
+- **Impact**: Cleaner boundaries, breaking change for consumers relying on `force::types::Authenticator`.
 
 ## Contributing ADRs
 
