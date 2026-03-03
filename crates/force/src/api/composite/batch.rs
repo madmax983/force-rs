@@ -191,10 +191,10 @@ impl<A: Authenticator> BatchBuilder<A> {
     ///
     /// Returns an error if the batch size limit (25) is exceeded.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics if the query builder is invalid (e.g. missing fields or SObject) or if
-    /// URL encoding fails (which should not happen).
+    /// Returns an error if the batch size limit (25) is exceeded, if the query
+    /// builder is invalid (e.g. missing fields or SObject), or if formatting fails.
     ///
     /// # Examples
     ///
@@ -218,7 +218,10 @@ impl<A: Authenticator> BatchBuilder<A> {
         }
 
         if let Err(e) = query_builder.validate() {
-            panic!("Invalid query builder: {}", e);
+            return Err(ForceError::InvalidInput(format!(
+                "Invalid query builder: {}",
+                e
+            )));
         }
 
         // 256 + 8 is a reasonable guess for typical queries
@@ -227,9 +230,11 @@ impl<A: Authenticator> BatchBuilder<A> {
 
         {
             let mut writer = UrlEncodedWriter(&mut url);
-            // write_query guarantees writing succeeds (or returns fmt::Error which we expect/unwrap)
             if let Err(e) = query_builder.write_query(&mut writer) {
-                panic!("Formatting failed: {}", e);
+                return Err(ForceError::InvalidInput(format!(
+                    "Formatting failed: {}",
+                    e
+                )));
             }
         }
 
@@ -562,6 +567,23 @@ mod tests {
                 "Batch size limit triggered for 25 requests (should allow up to 25)"
             );
         }
+    }
+
+    #[tokio::test]
+    async fn test_batch_query_invalid_builder() {
+        let builder = create_builder().await;
+
+        // Create an invalid builder (missing FROM clause)
+        let query = SoqlQueryBuilder::new().select(&["Id"]);
+
+        let res = builder.query(query);
+
+        assert!(res.is_err());
+        assert!(
+            res.unwrap_err()
+                .to_string()
+                .contains("query requires a FROM clause")
+        );
     }
 
     #[tokio::test]
