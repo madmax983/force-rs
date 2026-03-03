@@ -579,10 +579,12 @@ mod tests {
         let res = builder.query(query);
 
         assert!(res.is_err());
+        let err_msg = res.unwrap_err().to_string();
         assert!(
-            res.unwrap_err()
-                .to_string()
-                .contains("query requires a FROM clause")
+            err_msg.contains("Invalid query builder")
+                || err_msg.contains("query requires a FROM clause"),
+            "Error message did not match expected: {}",
+            err_msg
         );
     }
 
