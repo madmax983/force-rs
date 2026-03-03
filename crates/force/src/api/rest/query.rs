@@ -688,6 +688,103 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_query_more_security_check_scheme_mismatch() {
+        let mock_server = MockServer::start().await;
+        // Instance URL is the mock server (http)
+        let auth = MockAuthenticator::new("test_token", &mock_server.uri());
+        let client = builder().authenticate(auth).build().await.must();
+
+        let base_url = mock_server.uri();
+        let parsed_base = url::Url::parse(&base_url).must();
+
+        // Attempt to query_more with a malicious URL containing a different scheme (https instead of http)
+        let malicious_url = format!(
+            "https://{}:{}/services/data/v60.0/query/leak_token",
+            parsed_base.host_str().must(),
+            parsed_base.port_or_known_default().must()
+        );
+
+        let result: Result<QueryResult<TestAccount>, _> =
+            client.rest().query_more(&malicious_url).await;
+
+        match result {
+            Err(ForceError::InvalidInput(msg)) => {
+                assert!(msg.contains("Security Error"));
+                assert!(msg.contains("does not match instance origin"));
+            }
+            _ => panic!(
+                "Expected ForceError::InvalidInput with security warning, got {:?}",
+                result
+            ),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_query_more_security_check_username_mismatch() {
+        let mock_server = MockServer::start().await;
+        // Instance URL is the mock server
+        let auth = MockAuthenticator::new("test_token", &mock_server.uri());
+        let client = builder().authenticate(auth).build().await.must();
+
+        let base_url = mock_server.uri();
+        let parsed_base = url::Url::parse(&base_url).must();
+
+        // Attempt to query_more with a malicious URL containing a username
+        let malicious_url = format!(
+            "{}://attacker@{}:{}/services/data/v60.0/query/leak_token",
+            parsed_base.scheme(),
+            parsed_base.host_str().must(),
+            parsed_base.port_or_known_default().must()
+        );
+
+        let result: Result<QueryResult<TestAccount>, _> =
+            client.rest().query_more(&malicious_url).await;
+
+        match result {
+            Err(ForceError::InvalidInput(msg)) => {
+                assert!(msg.contains("Security Error"));
+                assert!(msg.contains("does not match instance origin"));
+            }
+            _ => panic!(
+                "Expected ForceError::InvalidInput with security warning, got {:?}",
+                result
+            ),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_query_more_security_check_port_mismatch() {
+        let mock_server = MockServer::start().await;
+        // Instance URL is the mock server
+        let auth = MockAuthenticator::new("test_token", &mock_server.uri());
+        let client = builder().authenticate(auth).build().await.must();
+
+        let base_url = mock_server.uri();
+        let parsed_base = url::Url::parse(&base_url).must();
+
+        // Attempt to query_more with a malicious URL containing a different port
+        let malicious_url = format!(
+            "{}://{}:9999/services/data/v60.0/query/leak_token",
+            parsed_base.scheme(),
+            parsed_base.host_str().must()
+        );
+
+        let result: Result<QueryResult<TestAccount>, _> =
+            client.rest().query_more(&malicious_url).await;
+
+        match result {
+            Err(ForceError::InvalidInput(msg)) => {
+                assert!(msg.contains("Security Error"));
+                assert!(msg.contains("does not match instance origin"));
+            }
+            _ => panic!(
+                "Expected ForceError::InvalidInput with security warning, got {:?}",
+                result
+            ),
+        }
+    }
+
+    #[tokio::test]
     async fn test_query_more_security_check_credentials() {
         let mock_server = MockServer::start().await;
         // Instance URL is the mock server
