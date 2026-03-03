@@ -62,8 +62,9 @@ pub struct PlanNote {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::expect_used)]
+    #![allow(clippy::unwrap_used)]
     use super::*;
-    use crate::test_support::Must;
 
     #[test]
     fn test_deserialize_explain_response() {
@@ -87,7 +88,7 @@ mod tests {
             ]
         });
 
-        let response: ExplainResponse = serde_json::from_value(json).must();
+        let response: ExplainResponse = serde_json::from_value(json).unwrap();
 
         assert_eq!(response.plans.len(), 1);
         let plan = &response.plans[0];
@@ -120,7 +121,7 @@ mod tests {
             ]
         });
 
-        let response: ExplainResponse = serde_json::from_value(json).must();
+        let response: ExplainResponse = serde_json::from_value(json).unwrap();
         let plan = &response.plans[0];
 
         assert!(plan.fields.is_empty());
@@ -131,13 +132,13 @@ mod tests {
     #[tokio::test]
     async fn test_explain_api_call() {
         use crate::client::builder;
-        use crate::test_support::{MockAuthenticator, Must};
+        use crate::test_support::MockAuthenticator;
         use wiremock::matchers::{method, path, query_param};
         use wiremock::{Mock, MockServer, ResponseTemplate};
 
         let mock_server = MockServer::start().await;
         let auth = MockAuthenticator::new("token", &mock_server.uri());
-        let client = builder().authenticate(auth).build().await.must();
+        let client = builder().authenticate(auth).build().await.unwrap();
 
         let soql = "SELECT Id FROM Account";
 
@@ -162,7 +163,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let response = client.rest().explain(soql).await.must();
+        let response = client.rest().explain(soql).await.unwrap();
 
         assert_eq!(response.plans.len(), 1);
         assert_eq!(response.plans[0].leading_operation_type, "TableScan");

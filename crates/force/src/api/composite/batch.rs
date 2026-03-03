@@ -355,11 +355,10 @@ pub struct BatchSubResponse {
 
 #[cfg(test)]
 mod tests {
-    #![allow(clippy::unwrap_used)]
     #![allow(clippy::expect_used)]
+    #![allow(clippy::unwrap_used)]
 
     use super::*;
-    use crate::test_support::Must;
 
     // Unit tests for serialization logic
 
@@ -381,8 +380,8 @@ mod tests {
             ],
         };
 
-        let json = serde_json::to_string(&req).must();
-        let value: serde_json::Value = serde_json::from_str(&json).must();
+        let json = serde_json::to_string(&req).unwrap();
+        let value: serde_json::Value = serde_json::from_str(&json).unwrap();
 
         assert_eq!(value["haltOnError"], true);
 
@@ -418,7 +417,7 @@ mod tests {
             ]
         }"#;
 
-        let resp: BatchResponse = serde_json::from_str(json).must();
+        let resp: BatchResponse = serde_json::from_str(json).unwrap();
         assert!(!resp.has_errors);
         assert_eq!(resp.results.len(), 2);
         assert_eq!(resp.results[0].status_code, 200);

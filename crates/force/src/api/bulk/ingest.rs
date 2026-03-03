@@ -981,10 +981,12 @@ impl<A: Authenticator> BulkHandler<A> {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::expect_used)]
+    #![allow(clippy::unwrap_used)]
     use super::*;
     use crate::api::bulk::types::{ContentType, JobOperation};
     use crate::client::{ForceClient, builder};
-    use crate::test_support::{MockAuthenticator, Must, MustMsg};
+    use crate::test_support::MockAuthenticator;
     use wiremock::matchers::{bearer_token, body_bytes, header, method, path, path_regex};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -994,7 +996,7 @@ mod tests {
             .authenticate(auth)
             .build()
             .await
-            .must_msg("failed to create test client")
+            .expect("failed to create test client")
     }
 
     // Existing tests...
@@ -1024,7 +1026,7 @@ mod tests {
         let job = IngestJobBuilder::new("Account", JobOperation::Insert)
             .build(&handler)
             .await
-            .must();
+            .unwrap();
 
         let _ = job;
     }
@@ -1066,7 +1068,7 @@ mod tests {
             column_delimiter: None,
         };
 
-        let job = handler.create_job(request).await.must();
+        let job = handler.create_job(request).await.unwrap();
         assert_eq!(job.id, "750xx0000000001AAA");
         assert_eq!(job.operation, JobOperation::Insert);
         assert_eq!(job.object, "Account");
@@ -1105,7 +1107,7 @@ mod tests {
             column_delimiter: None,
         };
 
-        let job = handler.create_job(request).await.must();
+        let job = handler.create_job(request).await.unwrap();
         assert_eq!(job.operation, JobOperation::Upsert);
         assert_eq!(
             job.external_id_field_name,
@@ -1164,7 +1166,7 @@ mod tests {
         let client = create_test_client(mock_server.uri()).await;
         let handler = client.bulk();
 
-        let job = handler.get_job("750xx0000000001AAA").await.must();
+        let job = handler.get_job("750xx0000000001AAA").await.unwrap();
         assert_eq!(job.id, "750xx0000000001AAA");
         assert_eq!(job.state, JobState::JobComplete);
         assert_eq!(job.number_records_processed, Some(100));
@@ -1219,7 +1221,7 @@ mod tests {
         let job = handler
             .update_job("750xx0000000001AAA", request)
             .await
-            .must();
+            .unwrap();
         assert_eq!(job.state, JobState::UploadComplete);
     }
 
@@ -1364,7 +1366,7 @@ mod tests {
             },
         ];
 
-        let job_info = handler.bulk_insert("Account", &records).await.must();
+        let job_info = handler.bulk_insert("Account", &records).await.unwrap();
         assert_eq!(job_info.state, JobState::JobComplete);
         assert_eq!(job_info.number_records_processed, Some(2));
         assert_eq!(job_info.number_records_failed, Some(0));
@@ -1445,7 +1447,7 @@ mod tests {
             },
         ];
 
-        let job_info = handler.bulk_insert("Account", &records).await.must();
+        let job_info = handler.bulk_insert("Account", &records).await.unwrap();
         assert_eq!(job_info.state, JobState::JobComplete);
         assert_eq!(job_info.number_records_failed, Some(2));
     }
@@ -1529,7 +1531,7 @@ mod tests {
             },
         ];
 
-        let job_info = handler.bulk_update("Account", &records).await.must();
+        let job_info = handler.bulk_update("Account", &records).await.unwrap();
         assert_eq!(job_info.operation, JobOperation::Update);
         assert_eq!(job_info.state, JobState::JobComplete);
     }
@@ -1598,7 +1600,7 @@ mod tests {
             "001xx0000000003AAA".to_string(),
         ];
 
-        let job_info = handler.bulk_delete("Account", &ids).await.must();
+        let job_info = handler.bulk_delete("Account", &ids).await.unwrap();
         assert_eq!(job_info.operation, JobOperation::Delete);
         assert_eq!(job_info.state, JobState::JobComplete);
         assert_eq!(job_info.number_records_processed, Some(5));
@@ -1663,7 +1665,7 @@ mod tests {
 
         let ids = vec!["001xx0000000001AAA".to_string(), "INVALID_ID".to_string()];
 
-        let job_info = handler.bulk_delete("Account", &ids).await.must();
+        let job_info = handler.bulk_delete("Account", &ids).await.unwrap();
         assert_eq!(job_info.number_records_failed, Some(1));
     }
 
@@ -1779,10 +1781,10 @@ mod tests {
         let job = IngestJobBuilder::new("Account", JobOperation::Insert)
             .build(&handler)
             .await
-            .must();
+            .unwrap();
 
         let csv_data = "Name,Industry\nAcme Corp,Technology\n";
-        let _job = job.upload(csv_data.as_bytes()).await.must();
+        let _job = job.upload(csv_data.as_bytes()).await.unwrap();
     }
 
     #[cfg(feature = "bulk")]
@@ -1823,11 +1825,11 @@ mod tests {
         let job = IngestJobBuilder::new("Account", JobOperation::Insert)
             .build(&handler)
             .await
-            .must();
+            .unwrap();
 
         // Pass Bytes directly - this verifies the API accepts `impl Into<Body>`
         // and doesn't require &[u8] or Vec<u8> specifically.
         let data = bytes::Bytes::from_static(b"Zero Copy Data");
-        let _job = job.upload(data).await.must();
+        let _job = job.upload(data).await.unwrap();
     }
 }

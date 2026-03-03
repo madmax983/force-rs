@@ -294,8 +294,10 @@ impl<T> Iterator for QueryIterator<T> {
 }
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::expect_used)]
+    #![allow(clippy::unwrap_used)]
     use super::*;
-    use crate::test_support::Must;
+
     use serde_json::json;
 
     // RED PHASE - Write failing tests first
@@ -362,7 +364,7 @@ mod tests {
 
         let mapped: Result<QueryResult<i32>, ()> = result.try_map(|x| Ok(x * 2));
         assert!(mapped.is_ok());
-        assert_eq!(mapped.must().records, vec![2, 4, 6]);
+        assert_eq!(mapped.unwrap().records, vec![2, 4, 6]);
     }
 
     #[test]
@@ -378,7 +380,7 @@ mod tests {
     fn test_query_result_serialize() {
         let result: QueryResult<i32> = QueryResult::new(3, true, vec![1, 2, 3]);
 
-        let json = serde_json::to_string(&result).must();
+        let json = serde_json::to_string(&result).unwrap();
         assert!(json.contains("\"totalSize\":3"));
         assert!(json.contains("\"done\":true"));
         assert!(json.contains("\"records\":[1,2,3]"));
@@ -392,7 +394,7 @@ mod tests {
             "records": [1, 2, 3]
         });
 
-        let result: QueryResult<i32> = serde_json::from_value(json).must();
+        let result: QueryResult<i32> = serde_json::from_value(json).unwrap();
         assert_eq!(result.total_size, 5);
         assert!(result.is_done());
         assert_eq!(result.records, vec![1, 2, 3]);
@@ -403,7 +405,7 @@ mod tests {
         let result: QueryResult<i32> =
             QueryResult::with_next_page(10, vec![1, 2], "/next".to_string());
 
-        let json = serde_json::to_string(&result).must();
+        let json = serde_json::to_string(&result).unwrap();
         assert!(json.contains("\"nextRecordsUrl\":\"/next\""));
         assert!(json.contains("\"done\":false"));
     }
@@ -440,7 +442,7 @@ mod tests {
     fn test_query_locator_serialize() {
         let locator = QueryLocator::from_url("/next");
 
-        let json = serde_json::to_string(&locator).must();
+        let json = serde_json::to_string(&locator).unwrap();
         assert!(json.contains("\"/next\""));
     }
 
@@ -448,7 +450,7 @@ mod tests {
     fn test_query_locator_deserialize() {
         let json = "\"/services/data/v60.0/query/01gxx\"";
 
-        let locator: QueryLocator = serde_json::from_str(json).must();
+        let locator: QueryLocator = serde_json::from_str(json).unwrap();
         assert!(locator.is_continuation());
     }
 

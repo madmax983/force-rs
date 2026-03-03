@@ -136,59 +136,66 @@ pub struct UpdateJobRequest {
 }
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::expect_used)]
+    #![allow(clippy::unwrap_used)]
     use super::*;
-    use crate::test_support::Must;
 
     #[test]
     fn test_job_operation_serialization() {
         assert_eq!(
-            serde_json::to_string(&JobOperation::Insert).must(),
+            serde_json::to_string(&JobOperation::Insert).unwrap(),
             r#""insert""#
         );
         assert_eq!(
-            serde_json::to_string(&JobOperation::Update).must(),
+            serde_json::to_string(&JobOperation::Update).unwrap(),
             r#""update""#
         );
         assert_eq!(
-            serde_json::to_string(&JobOperation::Upsert).must(),
+            serde_json::to_string(&JobOperation::Upsert).unwrap(),
             r#""upsert""#
         );
         assert_eq!(
-            serde_json::to_string(&JobOperation::Delete).must(),
+            serde_json::to_string(&JobOperation::Delete).unwrap(),
             r#""delete""#
         );
         assert_eq!(
-            serde_json::to_string(&JobOperation::HardDelete).must(),
+            serde_json::to_string(&JobOperation::HardDelete).unwrap(),
             r#""hardDelete""#
         );
     }
 
     #[test]
     fn test_job_state_serialization() {
-        assert_eq!(serde_json::to_string(&JobState::Open).must(), r#""Open""#);
+        assert_eq!(serde_json::to_string(&JobState::Open).unwrap(), r#""Open""#);
         assert_eq!(
-            serde_json::to_string(&JobState::UploadComplete).must(),
+            serde_json::to_string(&JobState::UploadComplete).unwrap(),
             r#""UploadComplete""#
         );
         assert_eq!(
-            serde_json::to_string(&JobState::InProgress).must(),
+            serde_json::to_string(&JobState::InProgress).unwrap(),
             r#""InProgress""#
         );
         assert_eq!(
-            serde_json::to_string(&JobState::JobComplete).must(),
+            serde_json::to_string(&JobState::JobComplete).unwrap(),
             r#""JobComplete""#
         );
     }
 
     #[test]
     fn test_content_type_serialization() {
-        assert_eq!(serde_json::to_string(&ContentType::Csv).must(), r#""CSV""#);
+        assert_eq!(
+            serde_json::to_string(&ContentType::Csv).unwrap(),
+            r#""CSV""#
+        );
     }
 
     #[test]
     fn test_line_ending_serialization() {
-        assert_eq!(serde_json::to_string(&LineEnding::Lf).must(), r#""LF""#);
-        assert_eq!(serde_json::to_string(&LineEnding::Crlf).must(), r#""CRLF""#);
+        assert_eq!(serde_json::to_string(&LineEnding::Lf).unwrap(), r#""LF""#);
+        assert_eq!(
+            serde_json::to_string(&LineEnding::Crlf).unwrap(),
+            r#""CRLF""#
+        );
     }
 
     #[test]
@@ -202,7 +209,7 @@ mod tests {
             column_delimiter: None,
         };
 
-        let json = serde_json::to_string(&request).must();
+        let json = serde_json::to_string(&request).unwrap();
         assert!(json.contains(r#""object":"Account""#));
         assert!(json.contains(r#""operation":"insert""#));
         assert!(!json.contains("contentType"));
@@ -219,7 +226,7 @@ mod tests {
             column_delimiter: Some(",".to_string()),
         };
 
-        let json = serde_json::to_string(&request).must();
+        let json = serde_json::to_string(&request).unwrap();
         assert!(json.contains(r#""object":"Contact""#));
         assert!(json.contains(r#""operation":"upsert""#));
         assert!(json.contains(r#""contentType":"CSV""#));
@@ -238,7 +245,7 @@ mod tests {
             "contentType": "CSV"
         }"#;
 
-        let info: JobInfo = serde_json::from_str(json).must();
+        let info: JobInfo = serde_json::from_str(json).unwrap();
         assert_eq!(info.id, "750xx0000000001AAA");
         assert_eq!(info.operation, JobOperation::Insert);
         assert_eq!(info.object, "Account");
@@ -260,7 +267,7 @@ mod tests {
             "totalProcessingTime": 45000
         }"#;
 
-        let info: JobInfo = serde_json::from_str(json).must();
+        let info: JobInfo = serde_json::from_str(json).unwrap();
         assert_eq!(info.state, JobState::JobComplete);
         assert_eq!(info.number_records_processed, Some(1000));
         assert_eq!(info.number_records_failed, Some(5));
@@ -273,7 +280,7 @@ mod tests {
             state: JobState::UploadComplete,
         };
 
-        let json = serde_json::to_string(&request).must();
+        let json = serde_json::to_string(&request).unwrap();
         assert!(json.contains(r#""state":"UploadComplete""#));
     }
 }

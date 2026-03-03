@@ -159,9 +159,11 @@ fn is_scanable(field_type: &FieldType) -> bool {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::expect_used)]
+    #![allow(clippy::unwrap_used)]
     use super::*;
     use crate::client::builder;
-    use crate::test_support::{MockAuthenticator, Must};
+    use crate::test_support::MockAuthenticator;
     use serde_json::json;
     use wiremock::matchers::{method, path, query_param};
     use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -170,13 +172,13 @@ mod tests {
     async fn test_scan_success() {
         let mock_server = MockServer::start().await;
         let auth = MockAuthenticator::new("token", &mock_server.uri());
-        let client = builder().authenticate(auth).build().await.must();
+        let client = builder().authenticate(auth).build().await.unwrap();
 
         setup_mock_describe(&mock_server).await;
         setup_mock_query(&mock_server).await;
 
         let scanner = FieldUsageScanner::new(&client);
-        let usage = scanner.scan("Account").await.must();
+        let usage = scanner.scan("Account").await.unwrap();
 
         assert_eq!(usage.len(), 2);
 
@@ -299,7 +301,7 @@ mod tests {
     async fn test_scan_with_unsupported_fields() {
         let mock_server = MockServer::start().await;
         let auth = MockAuthenticator::new("token", &mock_server.uri());
-        let client = builder().authenticate(auth).build().await.must();
+        let client = builder().authenticate(auth).build().await.unwrap();
 
         let id_field = json!({
             "name": "Id", "type": "id", "label": "Account ID", "aggregatable": true,
@@ -369,7 +371,7 @@ mod tests {
             .await;
 
         let scanner = FieldUsageScanner::new(&client);
-        let usage = scanner.scan("Account").await.must();
+        let usage = scanner.scan("Account").await.unwrap();
 
         assert_eq!(usage.len(), 1);
         assert_eq!(usage[0].name, "Id");
@@ -379,7 +381,7 @@ mod tests {
     async fn test_scan_empty_table() {
         let mock_server = MockServer::start().await;
         let auth = MockAuthenticator::new("token", &mock_server.uri());
-        let client = builder().authenticate(auth).build().await.must();
+        let client = builder().authenticate(auth).build().await.unwrap();
 
         // Standard setup for describe (just Id)
         setup_mock_describe_simple(&mock_server).await;
@@ -402,7 +404,7 @@ mod tests {
             .await;
 
         let scanner = FieldUsageScanner::new(&client);
-        let usage = scanner.scan("Account").await.must();
+        let usage = scanner.scan("Account").await.unwrap();
 
         assert_eq!(usage.len(), 1);
         assert_eq!(usage[0].populated_count, 0);
@@ -469,7 +471,7 @@ mod tests {
     async fn test_scan_batching() {
         let mock_server = MockServer::start().await;
         let auth = MockAuthenticator::new("token", &mock_server.uri());
-        let client = builder().authenticate(auth).build().await.must();
+        let client = builder().authenticate(auth).build().await.unwrap();
 
         // Generate 25 fields
         let mut fields = Vec::new();
@@ -543,7 +545,7 @@ mod tests {
             .await;
 
         let scanner = FieldUsageScanner::new(&client);
-        let usage = scanner.scan("Account").await.must();
+        let usage = scanner.scan("Account").await.unwrap();
 
         assert_eq!(usage.len(), 25);
     }
@@ -552,7 +554,7 @@ mod tests {
     async fn test_scan_api_errors() {
         let mock_server = MockServer::start().await;
         let auth = MockAuthenticator::new("token", &mock_server.uri());
-        let client = builder().authenticate(auth).build().await.must();
+        let client = builder().authenticate(auth).build().await.unwrap();
 
         // 1. Describe failure
         Mock::given(method("GET"))

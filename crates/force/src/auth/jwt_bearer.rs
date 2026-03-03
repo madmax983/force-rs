@@ -344,10 +344,11 @@ struct OAuthErrorResponse {
 
 #[cfg(all(test, feature = "jwt"))]
 mod tests {
+    #![allow(clippy::expect_used)]
+    #![allow(clippy::unwrap_used)]
     use super::*;
     #[cfg(feature = "mock")]
     use crate::auth::Authenticator;
-    use crate::test_support::Must;
 
     // Test RSA key pair for testing (DO NOT use in production)
     const TEST_PRIVATE_KEY: &str = r"-----BEGIN PRIVATE KEY-----
@@ -448,7 +449,7 @@ QcWLHR6ul3bFRWNhXoThNBQ=
             .username("user@example.com")
             .private_key(TEST_PRIVATE_KEY)
             .build()
-            .must();
+            .unwrap();
 
         let debug_str = format!("{flow:?}");
         assert!(debug_str.contains("test_client"));
@@ -465,9 +466,9 @@ QcWLHR6ul3bFRWNhXoThNBQ=
             .private_key(TEST_PRIVATE_KEY)
             .audience("https://test.salesforce.com")
             .build()
-            .must();
+            .unwrap();
 
-        let jwt = flow.generate_jwt().must();
+        let jwt = flow.generate_jwt().unwrap();
         assert!(!jwt.is_empty());
 
         // JWT should have 3 parts separated by dots
@@ -503,9 +504,9 @@ QcWLHR6ul3bFRWNhXoThNBQ=
             .private_key(TEST_PRIVATE_KEY)
             .token_url(format!("{}/services/oauth2/token", mock_server.uri()))
             .build()
-            .must();
+            .unwrap();
 
-        let token = flow.authenticate().await.must();
+        let token = flow.authenticate().await.unwrap();
         assert_eq!(token.as_str(), "jwt_bearer_token");
         assert_eq!(token.instance_url(), "https://test.salesforce.com");
     }
@@ -535,7 +536,7 @@ QcWLHR6ul3bFRWNhXoThNBQ=
             .private_key(TEST_PRIVATE_KEY)
             .token_url(format!("{}/services/oauth2/token", mock_server.uri()))
             .build()
-            .must();
+            .unwrap();
 
         let result = flow.authenticate().await;
         assert!(result.is_err());
@@ -579,13 +580,13 @@ QcWLHR6ul3bFRWNhXoThNBQ=
             .private_key(TEST_PRIVATE_KEY)
             .token_url(format!("{}/services/oauth2/token", mock_server.uri()))
             .build()
-            .must();
+            .unwrap();
 
         // First authenticate
-        let _token1 = flow.authenticate().await.must();
+        let _token1 = flow.authenticate().await.unwrap();
 
         // Then refresh (should call authenticate again)
-        let token2 = flow.refresh().await.must();
+        let token2 = flow.refresh().await.unwrap();
         assert_eq!(token2.as_str(), "refreshed_jwt_token");
     }
 
@@ -597,7 +598,7 @@ QcWLHR6ul3bFRWNhXoThNBQ=
             .private_key(TEST_PRIVATE_KEY)
             .sandbox()
             .build()
-            .must();
+            .unwrap();
 
         assert_eq!(flow.audience, "https://test.salesforce.com");
         assert_eq!(
@@ -614,7 +615,7 @@ QcWLHR6ul3bFRWNhXoThNBQ=
             .private_key(TEST_PRIVATE_KEY)
             .production()
             .build()
-            .must();
+            .unwrap();
 
         assert_eq!(flow.audience, "https://login.salesforce.com");
         assert_eq!(

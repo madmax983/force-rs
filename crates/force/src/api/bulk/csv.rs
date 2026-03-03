@@ -249,8 +249,10 @@ where
 }
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::expect_used)]
+    #![allow(clippy::unwrap_used)]
     use super::*;
-    use crate::test_support::Must;
+
     use serde::{Deserialize, Serialize};
 
     #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -280,7 +282,7 @@ mod tests {
 
         // The csv crate doesn't write headers for empty datasets
         // This is acceptable behavior - if you have no records, you get no output
-        let csv_str = String::from_utf8(output).must();
+        let csv_str = String::from_utf8(output).unwrap();
         assert!(csv_str.is_empty());
     }
 
@@ -294,9 +296,9 @@ mod tests {
         }];
         let mut output = Vec::new();
 
-        serialize_to_csv(&records, &mut output).must();
+        serialize_to_csv(&records, &mut output).unwrap();
 
-        let csv_str = String::from_utf8(output).must();
+        let csv_str = String::from_utf8(output).unwrap();
         assert!(csv_str.contains("id,name,value"));
         assert!(csv_str.contains("001,Test,42"));
     }
@@ -323,9 +325,9 @@ mod tests {
         ];
         let mut output = Vec::new();
 
-        serialize_to_csv(&records, &mut output).must();
+        serialize_to_csv(&records, &mut output).unwrap();
 
-        let csv_str = String::from_utf8(output).must();
+        let csv_str = String::from_utf8(output).unwrap();
         assert!(csv_str.contains("001,First,10"));
         assert!(csv_str.contains("002,Second,20"));
         assert!(csv_str.contains("003,Third,30"));
@@ -353,9 +355,9 @@ mod tests {
         ];
         let mut output = Vec::new();
 
-        serialize_to_csv(&records, &mut output).must();
+        serialize_to_csv(&records, &mut output).unwrap();
 
-        let csv_str = String::from_utf8(output).must();
+        let csv_str = String::from_utf8(output).unwrap();
         // CSV should properly escape quotes, commas, and newlines
         assert!(csv_str.contains("\"Name with \"\"quotes\"\"\""));
         assert!(csv_str.contains("\"Name, with comma\""));
@@ -380,9 +382,9 @@ mod tests {
         ];
         let mut output = Vec::new();
 
-        serialize_to_csv(&records, &mut output).must();
+        serialize_to_csv(&records, &mut output).unwrap();
 
-        let csv_str = String::from_utf8(output).must();
+        let csv_str = String::from_utf8(output).unwrap();
         assert!(csv_str.contains("Has description"));
         // None should serialize as empty field
         assert_eq!(csv_str.lines().count(), 3); // header + 2 records
@@ -399,9 +401,9 @@ mod tests {
         }];
         let mut output = Vec::new();
 
-        serialize_to_csv(&records, &mut output).must();
+        serialize_to_csv(&records, &mut output).unwrap();
 
-        let csv_str = String::from_utf8(output).must();
+        let csv_str = String::from_utf8(output).unwrap();
         // Should use "Description" from rename attribute, not "description"
         assert!(csv_str.contains("Description"));
         assert!(!csv_str.contains("description,"));
@@ -414,7 +416,7 @@ mod tests {
         let result: Result<Vec<TestRecord>> = deserialize_from_csv(csv_data.as_bytes());
 
         assert!(result.is_ok());
-        let records = result.must();
+        let records = result.unwrap();
         assert_eq!(records.len(), 0);
     }
 
@@ -422,7 +424,7 @@ mod tests {
     #[test]
     fn test_deserialize_single_record() {
         let csv_data = "id,name,value\n001,Test,42\n";
-        let records: Vec<TestRecord> = deserialize_from_csv(csv_data.as_bytes()).must();
+        let records: Vec<TestRecord> = deserialize_from_csv(csv_data.as_bytes()).unwrap();
 
         assert_eq!(records.len(), 1);
         assert_eq!(records[0].id, "001");
@@ -434,7 +436,7 @@ mod tests {
     #[test]
     fn test_deserialize_multiple_records() {
         let csv_data = "id,name,value\n001,First,10\n002,Second,20\n003,Third,30\n";
-        let records: Vec<TestRecord> = deserialize_from_csv(csv_data.as_bytes()).must();
+        let records: Vec<TestRecord> = deserialize_from_csv(csv_data.as_bytes()).unwrap();
 
         assert_eq!(records.len(), 3);
         assert_eq!(records[0].name, "First");
@@ -447,7 +449,7 @@ mod tests {
     fn test_deserialize_with_quoted_fields() {
         let csv_data =
             "id,name,value\n001,\"Name with \"\"quotes\"\"\",1\n002,\"Name, with comma\",2\n";
-        let records: Vec<TestRecord> = deserialize_from_csv(csv_data.as_bytes()).must();
+        let records: Vec<TestRecord> = deserialize_from_csv(csv_data.as_bytes()).unwrap();
 
         assert_eq!(records.len(), 2);
         assert_eq!(records[0].name, "Name with \"quotes\"");
@@ -459,7 +461,7 @@ mod tests {
     fn test_deserialize_with_optional_fields() {
         let csv_data =
             "id,name,Description,active\n001,First,Has description,true\n002,Second,,false\n";
-        let records: Vec<ComplexRecord> = deserialize_from_csv(csv_data.as_bytes()).must();
+        let records: Vec<ComplexRecord> = deserialize_from_csv(csv_data.as_bytes()).unwrap();
 
         assert_eq!(records.len(), 2);
         assert_eq!(records[0].description, Some("Has description".to_string()));
@@ -542,7 +544,7 @@ mod tests {
         assert!(result.is_ok());
 
         // Verify we got all records in the output
-        let csv_str = String::from_utf8(output).must();
+        let csv_str = String::from_utf8(output).unwrap();
         assert_eq!(csv_str.lines().count(), 1001); // header + 1000 records
     }
 
@@ -564,8 +566,8 @@ mod tests {
                 let records = vec![record.clone()];
                 let mut output = Vec::new();
 
-                serialize_to_csv(&records, &mut output).must();
-                let deserialized: Vec<TestRecord> = deserialize_from_csv(output.as_slice()).must();
+                serialize_to_csv(&records, &mut output).unwrap();
+                let deserialized: Vec<TestRecord> = deserialize_from_csv(output.as_slice()).unwrap();
 
                 prop_assert_eq!(deserialized.len(), 1);
                 prop_assert_eq!(&deserialized[0], &record);
@@ -576,8 +578,8 @@ mod tests {
             fn prop_roundtrip_multiple_records(records in prop::collection::vec(arbitrary_test_record(), 0..50)) {
                 let mut output = Vec::new();
 
-                serialize_to_csv(&records, &mut output).must();
-                let deserialized: Vec<TestRecord> = deserialize_from_csv(output.as_slice()).must();
+                serialize_to_csv(&records, &mut output).unwrap();
+                let deserialized: Vec<TestRecord> = deserialize_from_csv(output.as_slice()).unwrap();
 
                 prop_assert_eq!(deserialized.len(), records.len());
                 prop_assert_eq!(deserialized, records);
@@ -590,7 +592,7 @@ mod tests {
                 batch_size in 1usize..20usize
             ) {
                 let mut output = Vec::new();
-                serialize_to_csv(&records, &mut output).must();
+                serialize_to_csv(&records, &mut output).unwrap();
 
                 let mut collected = Vec::new();
                 process_csv_batches(
@@ -600,7 +602,7 @@ mod tests {
                         collected.extend(batch);
                         Ok(())
                     }
-                ).must();
+                ).unwrap();
 
                 prop_assert_eq!(collected.len(), records.len());
                 prop_assert_eq!(collected, records);
@@ -613,7 +615,7 @@ mod tests {
                 batch_size in 1usize..10usize
             ) {
                 let mut output = Vec::new();
-                serialize_to_csv(&records, &mut output).must();
+                serialize_to_csv(&records, &mut output).unwrap();
 
                 let mut batch_sizes = Vec::new();
                 process_csv_batches(
@@ -623,7 +625,7 @@ mod tests {
                         batch_sizes.push(batch.len());
                         Ok(())
                     }
-                ).must();
+                ).unwrap();
 
                 // All batches except possibly the last should be full size
                 for &size in &batch_sizes[..batch_sizes.len().saturating_sub(1)] {

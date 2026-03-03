@@ -131,8 +131,10 @@ where
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::expect_used)]
+    #![allow(clippy::unwrap_used)]
     use crate::client::builder;
-    use crate::test_support::{MockAuthenticator, Must};
+    use crate::test_support::MockAuthenticator;
     use futures::StreamExt;
     use serde::{Deserialize, Serialize};
     use serde_json::json;
@@ -166,19 +168,19 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = builder().authenticate(auth).build().await.must();
+        let client = builder().authenticate(auth).build().await.unwrap();
         // NOTE: This relies on RestHandler having query_stream method, which will be added in mod.rs
         let mut stream = client
             .rest()
             .query_stream::<TestAccount>("SELECT Id, Name FROM Account");
 
-        let r1 = stream.next().await.must().must();
+        let r1 = stream.next().await.unwrap().unwrap();
         assert_eq!(r1.name, "A");
 
-        let r2 = stream.next().await.must().must();
+        let r2 = stream.next().await.unwrap().unwrap();
         assert_eq!(r2.name, "B");
 
-        assert!(stream.next().await.must().is_none());
+        assert!(stream.next().await.unwrap().is_none());
     }
 
     #[tokio::test]
@@ -213,15 +215,15 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = builder().authenticate(auth).build().await.must();
+        let client = builder().authenticate(auth).build().await.unwrap();
         let stream = client
             .rest()
             .query_stream::<TestAccount>("SELECT Id, Name FROM Account");
 
         let results: Vec<_> = stream.into_stream().collect().await;
         assert_eq!(results.len(), 4);
-        assert_eq!(results[0].as_ref().must().name, "A");
-        assert_eq!(results[3].as_ref().must().name, "D");
+        assert_eq!(results[0].as_ref().unwrap().name, "A");
+        assert_eq!(results[3].as_ref().unwrap().name, "D");
     }
 
     #[tokio::test]
@@ -239,12 +241,12 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = builder().authenticate(auth).build().await.must();
+        let client = builder().authenticate(auth).build().await.unwrap();
         let mut stream = client
             .rest()
             .query_stream::<TestAccount>("SELECT Id, Name FROM Account");
 
-        assert!(stream.next().await.must().is_none());
+        assert!(stream.next().await.unwrap().is_none());
     }
 
     #[tokio::test]
@@ -258,7 +260,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = builder().authenticate(auth).build().await.must();
+        let client = builder().authenticate(auth).build().await.unwrap();
         let mut stream = client
             .rest()
             .query_stream::<TestAccount>("SELECT Id, Name FROM Account");
@@ -292,13 +294,13 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = builder().authenticate(auth).build().await.must();
+        let client = builder().authenticate(auth).build().await.unwrap();
         let mut stream = client
             .rest()
             .query_stream::<TestAccount>("SELECT Id, Name FROM Account");
 
         // Should get first record
-        let r1 = stream.next().await.must().must();
+        let r1 = stream.next().await.unwrap().unwrap();
         assert_eq!(r1.name, "A");
 
         // Should fail on second fetch
@@ -349,19 +351,19 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = builder().authenticate(auth).build().await.must();
+        let client = builder().authenticate(auth).build().await.unwrap();
         let mut stream = client
             .rest()
             .query_stream::<TestAccount>("SELECT Id, Name FROM Account");
 
         // Should get first record
-        let r1 = stream.next().await.must().must();
+        let r1 = stream.next().await.unwrap().unwrap();
         assert_eq!(r1.name, "A");
 
         // Should automatically skip empty page and get second record
-        let r2 = stream.next().await.must().must();
+        let r2 = stream.next().await.unwrap().unwrap();
         assert_eq!(r2.name, "B");
 
-        assert!(stream.next().await.must().is_none());
+        assert!(stream.next().await.unwrap().is_none());
     }
 }

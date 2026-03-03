@@ -211,8 +211,9 @@ pub enum ApiVersionError {
 }
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::expect_used)]
+    #![allow(clippy::unwrap_used)]
     use super::*;
-    use crate::test_support::Must;
 
     // RED PHASE - Write failing tests first
 
@@ -236,7 +237,7 @@ mod tests {
 
     #[test]
     fn test_parse_valid_version() {
-        let version: ApiVersion = "v60.0".parse().must();
+        let version: ApiVersion = "v60.0".parse().unwrap();
         assert_eq!(version.major(), 60);
     }
 
@@ -343,7 +344,7 @@ mod tests {
     #[test]
     fn test_from_str_to_str_roundtrip() {
         let original = "v60.0";
-        let version: ApiVersion = original.parse().must();
+        let version: ApiVersion = original.parse().unwrap();
         assert_eq!(version.as_str(), original);
     }
 
@@ -353,7 +354,7 @@ mod tests {
         assert_eq!(version.as_str(), "v999.0");
         assert_eq!(version.major(), 999);
 
-        let parsed: ApiVersion = "v999.0".parse().must();
+        let parsed: ApiVersion = "v999.0".parse().unwrap();
         assert_eq!(parsed, version);
     }
 
@@ -362,7 +363,7 @@ mod tests {
         let version = ApiVersion::new(1);
         assert_eq!(version.as_str(), "v1.0");
 
-        let parsed: ApiVersion = "v1.0".parse().must();
+        let parsed: ApiVersion = "v1.0".parse().unwrap();
         assert_eq!(parsed, version);
     }
 
@@ -398,7 +399,7 @@ mod tests {
             fn prop_parse_display_roundtrip(major in 1u16..1000u16) {
                 let version = ApiVersion::new(major);
                 let displayed = format!("{}", version);
-                let parsed: ApiVersion = displayed.parse().must();
+                let parsed: ApiVersion = displayed.parse().unwrap();
 
                 prop_assert_eq!(parsed, version);
                 prop_assert_eq!(parsed.major(), major);
@@ -421,7 +422,7 @@ mod tests {
                 let parsed = version_str.parse::<ApiVersion>();
 
                 prop_assert!(parsed.is_ok());
-                prop_assert_eq!(parsed.must().major(), major);
+                prop_assert_eq!(parsed.unwrap().major(), major);
             }
 
             // Property 4: Missing 'v' prefix always fails

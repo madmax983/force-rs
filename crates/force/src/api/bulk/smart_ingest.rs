@@ -258,14 +258,15 @@ impl<'a, A: crate::auth::Authenticator> SmartIngest<'a, A> {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::expect_used)]
     use super::SmartIngest;
     use crate::api::bulk::types::{JobOperation, JobState};
     use crate::auth::{AccessToken, Authenticator, TokenResponse};
     use crate::client::{ForceClient, builder};
     use crate::error::Result;
-    use crate::test_support::MustMsg;
+
     use async_trait::async_trait;
     use serde::Serialize;
     use wiremock::matchers::{body_string, header, method, path};
@@ -311,7 +312,7 @@ mod tests {
             .authenticate(auth)
             .build()
             .await
-            .must_msg("failed to create test client")
+            .expect("failed to create test client")
     }
 
     #[derive(Serialize, Clone)]

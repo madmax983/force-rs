@@ -1,3 +1,4 @@
+#![allow(clippy::expect_used)]
 //! Regression test for `SmartIngest` batch size panic.
 //!
 //! Ensures that setting a huge batch size (e.g., `usize::MAX`) does not cause
@@ -17,20 +18,6 @@ mod tests {
     use std::fmt::Debug;
     use wiremock::matchers::{method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
-
-    // Helper trait for unwrapping Result/Option in tests
-    trait MustMsg<T> {
-        fn must_msg(self, message: &str) -> T;
-    }
-
-    impl<T, E: Debug> MustMsg<T> for Result<T, E> {
-        fn must_msg(self, message: &str) -> T {
-            match self {
-                Ok(value) => value,
-                Err(error) => panic!("{message}: {error:?}"),
-            }
-        }
-    }
 
     #[derive(Serialize, Clone, Debug)]
     struct TestRecord {
@@ -78,7 +65,7 @@ mod tests {
             .authenticate(auth)
             .build()
             .await
-            .must_msg("failed to create test client")
+            .expect("failed to create test client")
     }
 
     #[tokio::test]

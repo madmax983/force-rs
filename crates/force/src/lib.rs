@@ -47,6 +47,8 @@ pub const fn version() -> &'static str {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::expect_used)]
+    #![allow(clippy::unwrap_used)]
     use super::*;
 
     #[test]

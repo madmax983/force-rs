@@ -340,9 +340,11 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
 }
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::expect_used)]
+    #![allow(clippy::unwrap_used)]
     use crate::client::{ForceClient, builder};
-    use crate::config::ClientConfigBuilder;
-    use crate::test_support::{MockAuthenticator, Must, MustMsg};
+    use crate::config::ClientConfig;
+    use crate::test_support::MockAuthenticator;
 
     async fn create_test_client() -> ForceClient<MockAuthenticator> {
         let auth = MockAuthenticator::new("test_token", "https://test.salesforce.com");
@@ -350,7 +352,7 @@ mod tests {
             .authenticate(auth)
             .build()
             .await
-            .must_msg("failed to create test client")
+            .expect("failed to create test client")
     }
 
     #[tokio::test]
@@ -367,8 +369,8 @@ mod tests {
         let handler2 = handler1.clone();
 
         // Both should produce the same base URL
-        let url1: String = handler1.base_url().await.must();
-        let url2: String = handler2.base_url().await.must();
+        let url1: String = handler1.base_url().await.unwrap();
+        let url2: String = handler2.base_url().await.unwrap();
         assert_eq!(url1, url2);
     }
 
@@ -377,7 +379,7 @@ mod tests {
         let client: ForceClient<MockAuthenticator> = create_test_client().await;
         let handler = client.rest();
 
-        let base_url: String = handler.base_url().await.must();
+        let base_url: String = handler.base_url().await.unwrap();
         assert!(base_url.starts_with("https://test.salesforce.com"));
         assert!(base_url.contains("/services/data/"));
         assert!(base_url.ends_with("v60.0")); // Default API version
@@ -386,16 +388,19 @@ mod tests {
     #[tokio::test]
     async fn test_base_url_with_custom_api_version() {
         let auth = MockAuthenticator::new("test_token", "https://custom.salesforce.com");
-        let config = ClientConfigBuilder::new().api_version("v59.0").build();
+        let config = ClientConfig {
+            api_version: "v59.0".to_string(),
+            ..Default::default()
+        };
         let client = builder()
             .authenticate(auth)
             .config(config)
             .build()
             .await
-            .must();
+            .unwrap();
 
         let handler = client.rest();
-        let base_url = handler.base_url().await.must();
+        let base_url = handler.base_url().await.unwrap();
 
         assert_eq!(
             base_url,
@@ -406,10 +411,10 @@ mod tests {
     #[tokio::test]
     async fn test_base_url_with_different_instance() {
         let auth = MockAuthenticator::new("token", "https://na139.salesforce.com");
-        let client = builder().authenticate(auth).build().await.must();
+        let client = builder().authenticate(auth).build().await.unwrap();
 
         let handler = client.rest();
-        let base_url = handler.base_url().await.must();
+        let base_url = handler.base_url().await.unwrap();
 
         assert!(base_url.starts_with("https://na139.salesforce.com"));
     }
@@ -417,16 +422,19 @@ mod tests {
     #[tokio::test]
     async fn test_rest_handler_shares_client_config() {
         let auth = MockAuthenticator::new("token", "https://shared.salesforce.com");
-        let config = ClientConfigBuilder::new().api_version("v58.0").build();
+        let config = ClientConfig {
+            api_version: "v58.0".to_string(),
+            ..Default::default()
+        };
         let client = builder()
             .authenticate(auth)
             .config(config)
             .build()
             .await
-            .must();
+            .unwrap();
 
         let handler = client.rest();
-        let base_url = handler.base_url().await.must();
+        let base_url = handler.base_url().await.unwrap();
 
         // Verify the handler uses the same config as the client
         assert!(base_url.contains("shared.salesforce.com"));
@@ -441,8 +449,8 @@ mod tests {
         let handler2 = client.rest();
 
         // Both should have the same base URL
-        let url1: String = handler1.base_url().await.must();
-        let url2: String = handler2.base_url().await.must();
+        let url1: String = handler1.base_url().await.unwrap();
+        let url2: String = handler2.base_url().await.unwrap();
         assert_eq!(url1, url2);
     }
 

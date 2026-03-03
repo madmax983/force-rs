@@ -113,6 +113,8 @@ impl<A: crate::auth::authenticator::Authenticator> ForceClient<A> {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::expect_used)]
+    #![allow(clippy::unwrap_used)]
     use super::*;
 
     #[test]

@@ -197,8 +197,9 @@ impl LimitInfo {
 }
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::expect_used)]
+    #![allow(clippy::unwrap_used)]
     use super::*;
-    use crate::test_support::Must;
 
     // RED PHASE - Write failing tests first
 
@@ -252,7 +253,7 @@ mod tests {
     #[test]
     fn test_limit_info_serialize() {
         let limit = LimitInfo::new(15000, 14850, Some(150));
-        let json = serde_json::to_string(&limit).must();
+        let json = serde_json::to_string(&limit).unwrap();
 
         assert!(json.contains("\"Max\":15000"));
         assert!(json.contains("\"Remaining\":14850"));
@@ -267,7 +268,7 @@ mod tests {
             "Used": 150
         }"#;
 
-        let limit: LimitInfo = serde_json::from_str(json).must();
+        let limit: LimitInfo = serde_json::from_str(json).unwrap();
         assert_eq!(limit.max, 15000);
         assert_eq!(limit.remaining, 14850);
         assert_eq!(limit.used, Some(150));
@@ -280,7 +281,7 @@ mod tests {
             "Remaining": 1999000
         }"#;
 
-        let limit: LimitInfo = serde_json::from_str(json).must();
+        let limit: LimitInfo = serde_json::from_str(json).unwrap();
         assert_eq!(limit.max, 2_000_000);
         assert_eq!(limit.remaining, 1_999_000);
         assert_eq!(limit.used, None);
@@ -376,7 +377,7 @@ mod tests {
             }
         }"#;
 
-        let limits: OrgLimits = serde_json::from_str(json).must();
+        let limits: OrgLimits = serde_json::from_str(json).unwrap();
         assert_eq!(limits.daily_api_requests.max, 15000);
         assert_eq!(limits.daily_api_requests.remaining, 14850);
         assert_eq!(limits.daily_api_requests.used, Some(150));
@@ -411,7 +412,7 @@ mod tests {
             "FutureLimit": {"Max": 999, "Remaining": 888}
         }"#;
 
-        let limits: OrgLimits = serde_json::from_str(json).must();
+        let limits: OrgLimits = serde_json::from_str(json).unwrap();
         assert!(limits.additional_limits.contains_key("FutureLimit"));
         assert_eq!(limits.additional_limits["FutureLimit"].max, 999);
     }
@@ -443,8 +444,8 @@ mod tests {
             additional_limits: HashMap::new(),
         };
 
-        let json = serde_json::to_string(&original).must();
-        let deserialized: OrgLimits = serde_json::from_str(&json).must();
+        let json = serde_json::to_string(&original).unwrap();
+        let deserialized: OrgLimits = serde_json::from_str(&json).unwrap();
 
         assert_eq!(original, deserialized);
     }
@@ -453,9 +454,11 @@ mod tests {
 // Integration tests with wiremock
 #[cfg(all(test, feature = "mock"))]
 mod integration_tests {
+    #![allow(clippy::expect_used)]
+    #![allow(clippy::unwrap_used)]
     use crate::client::builder;
-    use crate::config::ClientConfigBuilder;
-    use crate::test_support::{MockAuthenticator, Must, MustMsg};
+    use crate::config::ClientConfig;
+    use crate::test_support::MockAuthenticator;
     use wiremock::matchers::{bearer_token, header, method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -566,13 +569,9 @@ mod integration_tests {
             .authenticate(auth)
             .build()
             .await
-            .must_msg("Failed to build client");
+            .expect("Failed to build client");
 
-        let limits = client
-            .rest()
-            .limits()
-            .await
-            .must_msg("Failed to get limits");
+        let limits = client.rest().limits().await.expect("Failed to get limits");
 
         assert_eq!(limits.daily_api_requests.max, 15000);
         assert_eq!(limits.daily_api_requests.remaining, 14850);
@@ -593,19 +592,18 @@ mod integration_tests {
             .mount(&mock_server)
             .await;
 
-        let config = ClientConfigBuilder::new().api_version("v59.0").build();
+        let config = ClientConfig {
+            api_version: "v59.0".to_string(),
+            ..Default::default()
+        };
         let client = builder()
             .authenticate(auth)
             .config(config)
             .build()
             .await
-            .must_msg("Failed to build client");
+            .expect("Failed to build client");
 
-        let limits = client
-            .rest()
-            .limits()
-            .await
-            .must_msg("Failed to get limits");
+        let limits = client.rest().limits().await.expect("Failed to get limits");
         assert_eq!(limits.daily_api_requests.max, 15000);
     }
 
@@ -624,7 +622,7 @@ mod integration_tests {
             .authenticate(auth)
             .build()
             .await
-            .must_msg("Failed to build client");
+            .expect("Failed to build client");
 
         let result = client.rest().limits().await;
         assert!(result.is_err());
@@ -645,7 +643,7 @@ mod integration_tests {
             .authenticate(auth)
             .build()
             .await
-            .must_msg("Failed to build client");
+            .expect("Failed to build client");
 
         let result = client.rest().limits().await;
         assert!(result.is_err());
@@ -668,13 +666,9 @@ mod integration_tests {
             .authenticate(auth)
             .build()
             .await
-            .must_msg("Failed to build client");
+            .expect("Failed to build client");
 
-        client
-            .rest()
-            .limits()
-            .await
-            .must_msg("Failed to get limits");
+        client.rest().limits().await.expect("Failed to get limits");
         // Mock will verify the headers were correct
     }
 
@@ -721,13 +715,9 @@ mod integration_tests {
             .authenticate(auth)
             .build()
             .await
-            .must_msg("Failed to build client");
+            .expect("Failed to build client");
 
-        let limits = client
-            .rest()
-            .limits()
-            .await
-            .must_msg("Failed to get limits");
+        let limits = client.rest().limits().await.expect("Failed to get limits");
         assert!(limits.daily_api_requests.is_at_limit());
         assert!((limits.daily_api_requests.percentage_used() - 100.0).abs() < f64::EPSILON);
     }
@@ -738,7 +728,7 @@ mod integration_tests {
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
 
         let mut response = sample_limits_response();
-        response.as_object_mut().must().insert(
+        response.as_object_mut().unwrap().insert(
             "FutureNewLimit".to_string(),
             serde_json::json!({"Max": 5000, "Remaining": 4500}),
         );
@@ -753,13 +743,9 @@ mod integration_tests {
             .authenticate(auth)
             .build()
             .await
-            .must_msg("Failed to build client");
+            .expect("Failed to build client");
 
-        let limits = client
-            .rest()
-            .limits()
-            .await
-            .must_msg("Failed to get limits");
+        let limits = client.rest().limits().await.expect("Failed to get limits");
         assert!(limits.additional_limits.contains_key("FutureNewLimit"));
         assert_eq!(limits.additional_limits["FutureNewLimit"].max, 5000);
     }
@@ -807,13 +793,9 @@ mod integration_tests {
             .authenticate(auth)
             .build()
             .await
-            .must_msg("Failed to build client");
+            .expect("Failed to build client");
 
-        let limits = client
-            .rest()
-            .limits()
-            .await
-            .must_msg("Failed to get limits");
+        let limits = client.rest().limits().await.expect("Failed to get limits");
         assert!(limits.daily_api_requests.is_above_threshold(80.0));
         assert!((limits.daily_api_requests.percentage_used() - 90.0).abs() < f64::EPSILON);
     }
@@ -834,15 +816,11 @@ mod integration_tests {
             .authenticate(auth)
             .build()
             .await
-            .must_msg("Failed to build client");
+            .expect("Failed to build client");
 
         // Make multiple calls to verify endpoint can be called repeatedly
         for _ in 0..3 {
-            let limits = client
-                .rest()
-                .limits()
-                .await
-                .must_msg("Failed to get limits");
+            let limits = client.rest().limits().await.expect("Failed to get limits");
             assert_eq!(limits.daily_api_requests.max, 15000);
         }
     }
@@ -863,14 +841,14 @@ mod integration_tests {
             .authenticate(auth)
             .build()
             .await
-            .must_msg("Failed to build client");
+            .expect("Failed to build client");
 
         let handler1 = client.rest();
         let handler2 = handler1.clone();
 
         // Both handlers should work
-        let limits1 = handler1.limits().await.must_msg("Failed with handler1");
-        let limits2 = handler2.limits().await.must_msg("Failed with handler2");
+        let limits1 = handler1.limits().await.expect("Failed with handler1");
+        let limits2 = handler2.limits().await.expect("Failed with handler2");
 
         assert_eq!(
             limits1.daily_api_requests.max,

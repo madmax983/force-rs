@@ -56,7 +56,7 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
     /// });
     ///
     /// let response = client.rest().create("Account", &account_data).await?;
-    /// println!("Created account with ID: {}", response.id.must());
+    /// println!("Created account with ID: {}", response.id.unwrap());
     /// ```
     pub async fn create(&self, sobject: &str, data: &serde_json::Value) -> Result<CreateResponse> {
         validate_sobject_name(sobject)?;
@@ -82,7 +82,7 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
     /// # Examples
     ///
     /// ```ignore
-    /// let account_id = SalesforceId::new("001xx000003DHP0AAO").must();
+    /// let account_id = SalesforceId::new("001xx000003DHP0AAO").unwrap();
     /// let account = client.rest().get("Account", &account_id).await?;
     /// println!("Account name: {}", account["Name"]);
     /// ```
@@ -118,7 +118,7 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
     ///     "Industry": "Finance"
     /// });
     ///
-    /// let account_id = SalesforceId::new("001xx000003DHP0AAO").must();
+    /// let account_id = SalesforceId::new("001xx000003DHP0AAO").unwrap();
     /// client.rest().update("Account", &account_id, &updates).await?;
     /// ```
     pub async fn update(
@@ -151,7 +151,7 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
     /// # Examples
     ///
     /// ```ignore
-    /// let account_id = SalesforceId::new("001xx000003DHP0AAO").must();
+    /// let account_id = SalesforceId::new("001xx000003DHP0AAO").unwrap();
     /// client.rest().delete("Account", &account_id).await?;
     /// ```
     pub async fn delete(&self, sobject: &str, id: &SalesforceId) -> Result<DeleteResponse> {
@@ -301,9 +301,11 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
 }
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::expect_used)]
+    #![allow(clippy::unwrap_used)]
     use super::*;
     use crate::client::builder;
-    use crate::test_support::{MockAuthenticator, Must};
+    use crate::test_support::MockAuthenticator;
 
     use serde_json::json;
     use wiremock::matchers::{body_json, header, method, path};
@@ -317,7 +319,7 @@ mod tests {
     async fn test_create_success() {
         let mock_server = MockServer::start().await;
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
-        let client = builder().authenticate(auth).build().await.must();
+        let client = builder().authenticate(auth).build().await.unwrap();
 
         Mock::given(method("POST"))
             .and(path("/services/data/v60.0/sobjects/Account"))
@@ -336,10 +338,10 @@ mod tests {
         let response = rest
             .create("Account", &json!({"Name": "Test Account"}))
             .await
-            .must();
+            .unwrap();
 
         assert!(response.is_success());
-        assert_eq!(response.id.must().as_str(), "001xx000003DHP0AAO");
+        assert_eq!(response.id.unwrap().as_str(), "001xx000003DHP0AAO");
         assert!(response.errors.is_empty());
     }
 
@@ -347,7 +349,7 @@ mod tests {
     async fn test_create_missing_required_field() {
         let mock_server = MockServer::start().await;
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
-        let client = builder().authenticate(auth).build().await.must();
+        let client = builder().authenticate(auth).build().await.unwrap();
 
         Mock::given(method("POST"))
             .and(path("/services/data/v60.0/sobjects/Account"))
@@ -370,7 +372,7 @@ mod tests {
     async fn test_create_invalid_field() {
         let mock_server = MockServer::start().await;
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
-        let client = builder().authenticate(auth).build().await.must();
+        let client = builder().authenticate(auth).build().await.unwrap();
 
         Mock::given(method("POST"))
             .and(path("/services/data/v60.0/sobjects/Account"))
@@ -397,7 +399,7 @@ mod tests {
     async fn test_get_success() {
         let mock_server = MockServer::start().await;
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
-        let client = builder().authenticate(auth).build().await.must();
+        let client = builder().authenticate(auth).build().await.unwrap();
 
         Mock::given(method("GET"))
             .and(path("/services/data/v60.0/sobjects/Contact/003xx000004TmiQAAS"))
@@ -414,8 +416,8 @@ mod tests {
             .await;
 
         let rest = client.rest();
-        let id = SalesforceId::new("003xx000004TmiQAAS").must();
-        let record = rest.get("Contact", &id).await.must();
+        let id = SalesforceId::new("003xx000004TmiQAAS").unwrap();
+        let record = rest.get("Contact", &id).await.unwrap();
 
         assert_eq!(record["Id"], "003xx000004TmiQAAS");
         assert_eq!(record["FirstName"], "John");
@@ -426,7 +428,7 @@ mod tests {
     async fn test_get_not_found() {
         let mock_server = MockServer::start().await;
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
-        let client = builder().authenticate(auth).build().await.must();
+        let client = builder().authenticate(auth).build().await.unwrap();
 
         Mock::given(method("GET"))
             .and(path(
@@ -441,7 +443,7 @@ mod tests {
             .await;
 
         let rest = client.rest();
-        let id = SalesforceId::new("003000000000001").must();
+        let id = SalesforceId::new("003000000000001").unwrap();
         let result = rest.get("Contact", &id).await;
 
         assert!(result.is_err());
@@ -453,7 +455,7 @@ mod tests {
     async fn test_update_success() {
         let mock_server = MockServer::start().await;
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
-        let client = builder().authenticate(auth).build().await.must();
+        let client = builder().authenticate(auth).build().await.unwrap();
 
         Mock::given(method("PATCH"))
             .and(path(
@@ -467,11 +469,11 @@ mod tests {
             .await;
 
         let rest = client.rest();
-        let id = SalesforceId::new("001xx000003DHP0AAO").must();
+        let id = SalesforceId::new("001xx000003DHP0AAO").unwrap();
         let response = rest
             .update("Account", &id, &json!({"Phone": "555-0100"}))
             .await
-            .must();
+            .unwrap();
 
         assert!(response.is_success());
         assert!(response.errors.is_empty());
@@ -481,7 +483,7 @@ mod tests {
     async fn test_update_not_found() {
         let mock_server = MockServer::start().await;
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
-        let client = builder().authenticate(auth).build().await.must();
+        let client = builder().authenticate(auth).build().await.unwrap();
 
         Mock::given(method("PATCH"))
             .and(path(
@@ -496,7 +498,7 @@ mod tests {
             .await;
 
         let rest = client.rest();
-        let id = SalesforceId::new("001000000000002").must();
+        let id = SalesforceId::new("001000000000002").unwrap();
         let result = rest
             .update("Account", &id, &json!({"Phone": "555-0100"}))
             .await;
@@ -508,7 +510,7 @@ mod tests {
     async fn test_update_invalid_field() {
         let mock_server = MockServer::start().await;
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
-        let client = builder().authenticate(auth).build().await.must();
+        let client = builder().authenticate(auth).build().await.unwrap();
 
         Mock::given(method("PATCH"))
             .and(path(
@@ -524,7 +526,7 @@ mod tests {
             .await;
 
         let rest = client.rest();
-        let id = SalesforceId::new("001xx000003DHP0AAO").must();
+        let id = SalesforceId::new("001xx000003DHP0AAO").unwrap();
         let result = rest
             .update("Account", &id, &json!({"BadField": "value"}))
             .await;
@@ -538,7 +540,7 @@ mod tests {
     async fn test_delete_success() {
         let mock_server = MockServer::start().await;
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
-        let client = builder().authenticate(auth).build().await.must();
+        let client = builder().authenticate(auth).build().await.unwrap();
 
         Mock::given(method("DELETE"))
             .and(path(
@@ -551,8 +553,8 @@ mod tests {
             .await;
 
         let rest = client.rest();
-        let id = SalesforceId::new("001xx000003DHP0AAO").must();
-        let response = rest.delete("Account", &id).await.must();
+        let id = SalesforceId::new("001xx000003DHP0AAO").unwrap();
+        let response = rest.delete("Account", &id).await.unwrap();
 
         assert!(response.is_success());
         assert!(response.errors.is_empty());
@@ -562,7 +564,7 @@ mod tests {
     async fn test_delete_not_found() {
         let mock_server = MockServer::start().await;
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
-        let client = builder().authenticate(auth).build().await.must();
+        let client = builder().authenticate(auth).build().await.unwrap();
 
         Mock::given(method("DELETE"))
             .and(path(
@@ -577,7 +579,7 @@ mod tests {
             .await;
 
         let rest = client.rest();
-        let id = SalesforceId::new("001000000000003").must();
+        let id = SalesforceId::new("001000000000003").unwrap();
         let result = rest.delete("Account", &id).await;
 
         assert!(result.is_err());
@@ -589,7 +591,7 @@ mod tests {
     async fn test_upsert_create() {
         let mock_server = MockServer::start().await;
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
-        let client = builder().authenticate(auth).build().await.must();
+        let client = builder().authenticate(auth).build().await.unwrap();
 
         Mock::given(method("PATCH"))
             .and(path(
@@ -616,7 +618,7 @@ mod tests {
                 &json!({"Name": "Acme Corp"}),
             )
             .await
-            .must();
+            .unwrap();
 
         assert!(response.is_success());
         assert!(response.is_created());
@@ -627,7 +629,7 @@ mod tests {
     async fn test_upsert_does_not_retry_on_503_by_default() {
         let mock_server = MockServer::start().await;
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
-        let client = builder().authenticate(auth).build().await.must();
+        let client = builder().authenticate(auth).build().await.unwrap();
 
         Mock::given(method("PATCH"))
             .and(path(
@@ -655,7 +657,7 @@ mod tests {
     async fn test_upsert_idempotent_retries_on_503() {
         let mock_server = MockServer::start().await;
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
-        let client = builder().authenticate(auth).build().await.must();
+        let client = builder().authenticate(auth).build().await.unwrap();
 
         Mock::given(method("PATCH"))
             .and(path(
@@ -689,7 +691,7 @@ mod tests {
                 &json!({"Name": "Acme Corp"}),
             )
             .await
-            .must();
+            .unwrap();
 
         assert!(response.created);
         assert_eq!(response.id.as_str(), "001xx000003DHP0AAO");
@@ -699,7 +701,7 @@ mod tests {
     async fn test_upsert_update() {
         let mock_server = MockServer::start().await;
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
-        let client = builder().authenticate(auth).build().await.must();
+        let client = builder().authenticate(auth).build().await.unwrap();
 
         Mock::given(method("PATCH"))
             .and(path(
@@ -732,7 +734,7 @@ mod tests {
     async fn test_upsert_invalid_external_id_field() {
         let mock_server = MockServer::start().await;
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
-        let client = builder().authenticate(auth).build().await.must();
+        let client = builder().authenticate(auth).build().await.unwrap();
 
         Mock::given(method("PATCH"))
             .and(path(

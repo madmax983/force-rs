@@ -23,7 +23,7 @@ use std::collections::HashMap;
 /// for record_set in &results.search_records {
 ///     println!("Object: {}", record_set.attributes.type_);
 ///     for record in &record_set.records {
-///         println!("  ID: {}", record.get("Id").must());
+///         println!("  ID: {}", record.get("Id").unwrap());
 ///     }
 /// }
 /// ```
@@ -354,8 +354,9 @@ fn validate_field_syntax(field: &str) {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::expect_used)]
+    #![allow(clippy::unwrap_used)]
     use super::*;
-    use crate::test_support::Must;
 
     // RED PHASE - Write failing tests first
 
@@ -378,7 +379,7 @@ mod tests {
             ]
         }"#;
 
-        let result: SearchResult = serde_json::from_str(json).must();
+        let result: SearchResult = serde_json::from_str(json).unwrap();
         assert_eq!(result.search_records.len(), 1);
         assert_eq!(result.search_records[0].attributes.type_, "Account");
         assert_eq!(result.search_records[0].records.len(), 1);
@@ -409,7 +410,7 @@ mod tests {
             ]
         }"#;
 
-        let result: SearchResult = serde_json::from_str(json).must();
+        let result: SearchResult = serde_json::from_str(json).unwrap();
         assert_eq!(result.search_records.len(), 2);
         assert_eq!(result.search_records[0].attributes.type_, "Account");
         assert_eq!(result.search_records[1].attributes.type_, "Contact");
@@ -421,7 +422,7 @@ mod tests {
             "searchRecords": []
         }"#;
 
-        let result: SearchResult = serde_json::from_str(json).must();
+        let result: SearchResult = serde_json::from_str(json).unwrap();
         assert_eq!(result.search_records.len(), 0);
     }
 
@@ -785,10 +786,12 @@ mod tests {
 // Integration tests with wiremock
 #[cfg(all(test, feature = "mock"))]
 mod integration_tests {
+    #![allow(clippy::expect_used)]
+    #![allow(clippy::unwrap_used)]
     use super::*;
     use crate::client::builder;
-    use crate::config::ClientConfigBuilder;
-    use crate::test_support::{MockAuthenticator, MustMsg};
+    use crate::config::ClientConfig;
+    use crate::test_support::MockAuthenticator;
     use wiremock::matchers::{bearer_token, method, path, query_param};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -849,9 +852,9 @@ mod integration_tests {
             .authenticate(auth)
             .build()
             .await
-            .must_msg("Failed to build client");
+            .expect("Failed to build client");
 
-        let results = client.rest().search(sosl).await.must_msg("Search failed");
+        let results = client.rest().search(sosl).await.expect("Search failed");
 
         assert_eq!(results.search_records.len(), 2);
         assert_eq!(results.search_records[0].attributes.type_, "Account");
@@ -883,9 +886,9 @@ mod integration_tests {
             .authenticate(auth)
             .build()
             .await
-            .must_msg("Failed to build client");
+            .expect("Failed to build client");
 
-        let results = client.rest().search(&query).await.must_msg("Search failed");
+        let results = client.rest().search(&query).await.expect("Search failed");
         assert_eq!(results.search_records.len(), 2);
     }
 
@@ -908,13 +911,13 @@ mod integration_tests {
             .authenticate(auth)
             .build()
             .await
-            .must_msg("Failed to build client");
+            .expect("Failed to build client");
 
         let results = client
             .rest()
             .search("FIND {NonExistent} RETURNING Account(Id)")
             .await
-            .must_msg("Search failed");
+            .expect("Search failed");
 
         assert_eq!(results.search_records.len(), 0);
     }
@@ -934,7 +937,7 @@ mod integration_tests {
             .authenticate(auth)
             .build()
             .await
-            .must_msg("Failed to build client");
+            .expect("Failed to build client");
 
         let result = client
             .rest()
@@ -961,7 +964,7 @@ mod integration_tests {
             .authenticate(auth)
             .build()
             .await
-            .must_msg("Failed to build client");
+            .expect("Failed to build client");
 
         let result = client.rest().search("INVALID SOSL").await;
         assert!(result.is_err());
@@ -996,13 +999,13 @@ mod integration_tests {
             .authenticate(auth)
             .build()
             .await
-            .must_msg("Failed to build client");
+            .expect("Failed to build client");
 
         let results = client
             .rest()
             .search("FIND {Test} RETURNING Account(Id, Name)")
             .await
-            .must_msg("Search failed");
+            .expect("Search failed");
 
         assert_eq!(results.search_records.len(), 1);
         assert_eq!(results.search_records[0].attributes.type_, "Account");
@@ -1019,19 +1022,22 @@ mod integration_tests {
             .mount(&mock_server)
             .await;
 
-        let config = ClientConfigBuilder::new().api_version("v59.0").build();
+        let config = ClientConfig {
+            api_version: "v59.0".to_string(),
+            ..Default::default()
+        };
         let client = builder()
             .authenticate(auth)
             .config(config)
             .build()
             .await
-            .must_msg("Failed to build client");
+            .expect("Failed to build client");
 
         let results = client
             .rest()
             .search("FIND {Acme} RETURNING Account(Id)")
             .await
-            .must_msg("Search failed");
+            .expect("Search failed");
 
         assert_eq!(results.search_records.len(), 2);
     }
@@ -1061,9 +1067,9 @@ mod integration_tests {
             .authenticate(auth)
             .build()
             .await
-            .must_msg("Failed to build client");
+            .expect("Failed to build client");
 
-        client.rest().search(&query).await.must_msg("Search failed");
+        client.rest().search(&query).await.expect("Search failed");
     }
 
     #[tokio::test]
@@ -1087,9 +1093,9 @@ mod integration_tests {
             .authenticate(auth)
             .build()
             .await
-            .must_msg("Failed to build client");
+            .expect("Failed to build client");
 
-        client.rest().search(&query).await.must_msg("Search failed");
+        client.rest().search(&query).await.expect("Search failed");
     }
 
     #[tokio::test]
@@ -1119,9 +1125,9 @@ mod integration_tests {
             .authenticate(auth)
             .build()
             .await
-            .must_msg("Failed to build client");
+            .expect("Failed to build client");
 
-        client.rest().search(&query).await.must_msg("Search failed");
+        client.rest().search(&query).await.expect("Search failed");
     }
 
     #[tokio::test]
@@ -1140,14 +1146,14 @@ mod integration_tests {
             .authenticate(auth)
             .build()
             .await
-            .must_msg("Failed to build client");
+            .expect("Failed to build client");
 
         for _ in 0..3 {
             let results = client
                 .rest()
                 .search("FIND {Test} RETURNING Account(Id)")
                 .await
-                .must_msg("Search failed");
+                .expect("Search failed");
             assert_eq!(results.search_records.len(), 2);
         }
     }
@@ -1168,7 +1174,7 @@ mod integration_tests {
             .authenticate(auth)
             .build()
             .await
-            .must_msg("Failed to build client");
+            .expect("Failed to build client");
 
         let handler1 = client.rest();
         let handler2 = handler1.clone();
@@ -1176,11 +1182,11 @@ mod integration_tests {
         let results1 = handler1
             .search("FIND {Test} RETURNING Account(Id)")
             .await
-            .must_msg("Handler1 search failed");
+            .expect("Handler1 search failed");
         let results2 = handler2
             .search("FIND {Test} RETURNING Account(Id)")
             .await
-            .must_msg("Handler2 search failed");
+            .expect("Handler2 search failed");
 
         assert_eq!(results1.search_records.len(), results2.search_records.len());
     }

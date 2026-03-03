@@ -71,9 +71,11 @@ impl<A: crate::auth::Authenticator> BulkHandler<A> {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::expect_used)]
+    #![allow(clippy::unwrap_used)]
     use crate::client::{ForceClient, builder};
-    use crate::config::ClientConfigBuilder;
-    use crate::test_support::{MockAuthenticator, Must, MustMsg};
+    use crate::config::ClientConfig;
+    use crate::test_support::MockAuthenticator;
     use wiremock::MockServer;
 
     async fn create_test_client(mock_server_url: String) -> ForceClient<MockAuthenticator> {
@@ -82,7 +84,7 @@ mod tests {
             .authenticate(auth)
             .build()
             .await
-            .must_msg("failed to create test client")
+            .expect("failed to create test client")
     }
 
     #[cfg(feature = "bulk")]
@@ -103,8 +105,8 @@ mod tests {
         let handler2 = handler1.clone();
 
         // Both should produce the same base URL
-        let url1 = handler1.base_url().await.must();
-        let url2 = handler2.base_url().await.must();
+        let url1 = handler1.base_url().await.unwrap();
+        let url2 = handler2.base_url().await.unwrap();
         assert_eq!(url1, url2);
     }
 
@@ -115,7 +117,7 @@ mod tests {
         let client = create_test_client(mock_server.uri()).await;
         let handler = client.bulk();
 
-        let base_url = handler.base_url().await.must();
+        let base_url = handler.base_url().await.unwrap();
         assert!(base_url.contains(&mock_server.uri()));
         assert!(base_url.contains("/services/data/"));
         assert!(base_url.ends_with("v60.0/jobs/ingest")); // Default API version
@@ -126,16 +128,19 @@ mod tests {
     async fn test_base_url_with_custom_api_version() {
         let mock_server = MockServer::start().await;
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
-        let config = ClientConfigBuilder::new().api_version("v59.0").build();
+        let config = ClientConfig {
+            api_version: "v59.0".to_string(),
+            ..Default::default()
+        };
         let client = builder()
             .authenticate(auth)
             .config(config)
             .build()
             .await
-            .must();
+            .unwrap();
 
         let handler = client.bulk();
-        let base_url = handler.base_url().await.must();
+        let base_url = handler.base_url().await.unwrap();
 
         assert!(base_url.ends_with("v59.0/jobs/ingest"));
     }

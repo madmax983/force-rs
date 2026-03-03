@@ -120,10 +120,12 @@ impl<A: Authenticator> AuthenticatedBuilder<A> {
 }
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::expect_used)]
+    #![allow(clippy::unwrap_used)]
     use super::*;
     use crate::auth::token::AccessToken;
     use crate::config::{ClientConfig, Environment};
-    use crate::test_support::Must;
+
     use async_trait::async_trait;
 
     // Mock authenticator for testing
@@ -173,7 +175,7 @@ mod tests {
             .authenticate(MockAuth)
             .build()
             .await
-            .must();
+            .unwrap();
 
         // Verify client is configured with defaults
         let config = client.config();
@@ -197,7 +199,7 @@ mod tests {
             .authenticate(MockAuth)
             .build()
             .await
-            .must();
+            .unwrap();
 
         assert_eq!(client.config().api_version, "v60.0");
         assert_eq!(client.config().environment, Environment::Sandbox);
@@ -217,7 +219,7 @@ mod tests {
             .config(config)
             .build()
             .await
-            .must();
+            .unwrap();
 
         assert_eq!(client.config().api_version, "v61.0");
     }

@@ -288,16 +288,18 @@ pub struct GraphSubResponse {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::expect_used)]
+    #![allow(clippy::unwrap_used)]
     use super::*;
     use crate::client::builder as client_builder;
-    use crate::test_support::{MockAuthenticator, Must};
+    use crate::test_support::MockAuthenticator;
     use serde_json::json;
     use wiremock::matchers::{method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
     async fn create_builder() -> GraphBuilder<MockAuthenticator> {
         let auth = MockAuthenticator::new("token", "https://test.salesforce.com");
-        let client = client_builder().authenticate(auth).build().await.must();
+        let client = client_builder().authenticate(auth).build().await.unwrap();
 
         client.composite().graph()
     }
@@ -307,7 +309,7 @@ mod tests {
         let mut graph = Graph::new("graph1");
         graph = graph
             .post("Account", json!({"Name": "RefAccount"}), "refAccount")
-            .must();
+            .unwrap();
         graph = graph
             .post(
                 "Contact",
@@ -317,13 +319,13 @@ mod tests {
                 }),
                 "refContact",
             )
-            .must();
+            .unwrap();
 
         let req = GraphRequestBody {
             graphs: vec![graph],
         };
 
-        let json = serde_json::to_string(&req).must();
+        let json = serde_json::to_string(&req).unwrap();
         assert!(json.contains("\"graphId\":\"graph1\""));
         assert!(json.contains("\"referenceId\":\"refAccount\""));
         assert!(json.contains("\"referenceId\":\"refContact\""));
@@ -334,12 +336,12 @@ mod tests {
     async fn test_graph_execute_success() {
         let mock_server = MockServer::start().await;
         let auth = MockAuthenticator::new("token", &mock_server.uri());
-        let client = client_builder().authenticate(auth).build().await.must();
+        let client = client_builder().authenticate(auth).build().await.unwrap();
 
         let mut graph = Graph::new("graph1");
         graph = graph
             .post("Account", json!({"Name": "Test"}), "acc1")
-            .must();
+            .unwrap();
 
         let builder = client.composite().graph().add_graph(graph);
 
@@ -370,7 +372,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let response = builder.execute().await.must();
+        let response = builder.execute().await.unwrap();
         assert_eq!(response.graphs.len(), 1);
         assert!(response.graphs[0].is_successful);
         assert_eq!(response.graphs[0].graph_id, "graph1");

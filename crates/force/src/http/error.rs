@@ -65,6 +65,8 @@ pub(crate) async fn response_to_force_error(
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::expect_used)]
+    #![allow(clippy::unwrap_used)]
     use super::*;
 
     #[test]

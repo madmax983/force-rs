@@ -1,3 +1,4 @@
+#![allow(clippy::expect_used)]
 //! Integration test for `SmartIngest` multi-batch behavior.
 //! Ensures that optimizations to buffer allocation don't break multi-batch uploads.
 
@@ -15,20 +16,6 @@ mod tests {
     use std::fmt::Debug;
     use wiremock::matchers::{body_string, method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
-
-    // Helper trait for unwrapping Result/Option in tests
-    trait MustMsg<T> {
-        fn must_msg(self, message: &str) -> T;
-    }
-
-    impl<T, E: Debug> MustMsg<T> for Result<T, E> {
-        fn must_msg(self, message: &str) -> T {
-            match self {
-                Ok(value) => value,
-                Err(error) => panic!("{message}: {error:?}"),
-            }
-        }
-    }
 
     #[derive(Serialize, Clone, Debug)]
     struct TestRecord {
@@ -76,7 +63,7 @@ mod tests {
             .authenticate(auth)
             .build()
             .await
-            .must_msg("failed to create test client")
+            .expect("failed to create test client")
     }
 
     #[tokio::test]

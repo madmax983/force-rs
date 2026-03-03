@@ -131,6 +131,8 @@ fn validate_field_name_internal(name: &str, allow_functions: bool) -> Result<(),
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::expect_used)]
+    #![allow(clippy::unwrap_used)]
     use super::*;
 
     #[test]

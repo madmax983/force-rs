@@ -1,59 +1,9 @@
 //! Test-only helper utilities for ergonomic assertions without `unwrap`/`expect`.
 
-use core::fmt::Debug;
-
 use async_trait::async_trait;
 
 use crate::auth::{AccessToken, Authenticator, TokenResponse};
 use crate::error::Result as ForceResult;
-
-/// Extension trait for unwrapping `Result`/`Option` in tests without `unwrap()`.
-pub trait Must<T> {
-    /// Extracts the inner value or panics with a default diagnostic message.
-    fn must(self) -> T;
-}
-
-impl<T, E: Debug> Must<T> for std::result::Result<T, E> {
-    fn must(self) -> T {
-        match self {
-            Ok(value) => value,
-            Err(error) => panic!("unexpected Err: {error:?}"),
-        }
-    }
-}
-
-impl<T> Must<T> for Option<T> {
-    fn must(self) -> T {
-        match self {
-            Some(value) => value,
-            None => panic!("unexpected None"),
-        }
-    }
-}
-
-/// Extension trait for unwrapping with custom panic messages.
-pub trait MustMsg<T> {
-    /// Extracts the inner value or panics with `message`.
-    fn must_msg(self, message: &str) -> T;
-}
-
-impl<T, E: Debug> MustMsg<T> for std::result::Result<T, E> {
-    fn must_msg(self, message: &str) -> T {
-        match self {
-            Ok(value) => value,
-            Err(error) => panic!("{message}: {error:?}"),
-        }
-    }
-}
-
-impl<T> MustMsg<T> for Option<T> {
-    fn must_msg(self, message: &str) -> T {
-        match self {
-            Some(value) => value,
-            None => panic!("{message}"),
-        }
-    }
-}
 
 /// Mock authenticator for testing.
 #[derive(Debug, Clone)]

@@ -151,9 +151,11 @@ impl<'a, A: Authenticator> SchemaGraph<'a, A> {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::expect_used)]
+    #![allow(clippy::unwrap_used)]
     use super::*;
     use crate::client::builder;
-    use crate::test_support::{MockAuthenticator, Must};
+    use crate::test_support::MockAuthenticator;
     use serde_json::json;
     use wiremock::matchers::{method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -268,14 +270,14 @@ mod tests {
     async fn test_schema_graph_generation() {
         let mock_server = MockServer::start().await;
         let auth = MockAuthenticator::new("token", &mock_server.uri());
-        let client = builder().authenticate(auth).build().await.must();
+        let client = builder().authenticate(auth).build().await.unwrap();
 
         setup_mock_describe_account(&mock_server).await;
         setup_mock_describe_contact(&mock_server).await;
 
         let mut graph = SchemaGraph::new(&client);
-        graph.scan("Account").await.must();
-        graph.scan("Contact").await.must();
+        graph.scan("Account").await.unwrap();
+        graph.scan("Contact").await.unwrap();
 
         let mermaid = graph.to_mermaid();
 

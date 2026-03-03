@@ -647,10 +647,12 @@ impl<A: crate::auth::Authenticator> super::BulkHandler<A> {
 }
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::expect_used)]
+    #![allow(clippy::unwrap_used)]
     use super::*;
     use crate::api::bulk::types::JobState;
     use crate::client::{ForceClient, builder};
-    use crate::test_support::{MockAuthenticator, Must, MustMsg};
+    use crate::test_support::MockAuthenticator;
     use wiremock::matchers::{
         bearer_token, body_string_contains, header, method, path, query_param,
         query_param_is_missing,
@@ -663,7 +665,7 @@ mod tests {
             .authenticate(auth)
             .build()
             .await
-            .must_msg("failed to create test client")
+            .expect("failed to create test client")
     }
 
     // Existing tests...
@@ -679,7 +681,7 @@ mod tests {
     #[test]
     fn test_bulk_query_request_serialization() {
         let request = BulkQueryRequest::new("SELECT Id, Name FROM Contact");
-        let json = serde_json::to_string(&request).must();
+        let json = serde_json::to_string(&request).unwrap();
         assert!(json.contains(r#""query":"SELECT Id, Name FROM Contact""#));
         assert!(json.contains(r#""operation":"query""#));
     }
@@ -690,7 +692,7 @@ mod tests {
         let client = create_test_client(mock_server.uri()).await;
         let handler = client.bulk();
 
-        let base_url = handler.query_base_url().await.must();
+        let base_url = handler.query_base_url().await.unwrap();
         assert!(base_url.contains(&mock_server.uri()));
         assert!(base_url.contains("/services/data/"));
         assert!(base_url.ends_with("v60.0/jobs/query"));
@@ -719,7 +721,7 @@ mod tests {
         let handler = client.bulk();
 
         let request = BulkQueryRequest::new("SELECT Id FROM Account");
-        let job = handler.create_query_job(request).await.must();
+        let job = handler.create_query_job(request).await.unwrap();
 
         assert_eq!(job.id, "750xx0000000001AAA");
         assert_eq!(job.operation, "query");
@@ -750,7 +752,7 @@ mod tests {
 
         let request =
             BulkQueryRequest::new("SELECT Id, Name, (SELECT FirstName FROM Contacts) FROM Account");
-        let job = handler.create_query_job(request).await.must();
+        let job = handler.create_query_job(request).await.unwrap();
 
         assert_eq!(job.id, "750xx0000000002AAA");
     }
@@ -797,7 +799,7 @@ mod tests {
         let client = create_test_client(mock_server.uri()).await;
         let handler = client.bulk();
 
-        let job = handler.get_query_job("750xx0000000001AAA").await.must();
+        let job = handler.get_query_job("750xx0000000001AAA").await.unwrap();
 
         assert_eq!(job.id, "750xx0000000001AAA");
         assert_eq!(job.state, JobState::InProgress);
@@ -825,7 +827,7 @@ mod tests {
         let client = create_test_client(mock_server.uri()).await;
         let handler = client.bulk();
 
-        let job = handler.get_query_job("750xx0000000001AAA").await.must();
+        let job = handler.get_query_job("750xx0000000001AAA").await.unwrap();
 
         assert_eq!(job.state, JobState::JobComplete);
         assert_eq!(job.number_records_processed, Some(1500));
@@ -871,7 +873,7 @@ mod tests {
         let client = create_test_client(mock_server.uri()).await;
         let handler = client.bulk();
 
-        let job = handler.abort_query_job("750xx0000000001AAA").await.must();
+        let job = handler.abort_query_job("750xx0000000001AAA").await.unwrap();
 
         assert_eq!(job.state, JobState::Aborted);
     }
@@ -941,7 +943,7 @@ mod tests {
         let stream = handler
             .query_results::<serde_json::Value>("750xx0000000001AAA")
             .await
-            .must();
+            .unwrap();
 
         assert_eq!(stream.job_id, "750xx0000000001AAA");
         assert!(!stream.exhausted);
@@ -969,10 +971,10 @@ mod tests {
         let mut stream = handler
             .query_results::<serde_json::Value>("750xx0000000001AAA")
             .await
-            .must();
+            .unwrap();
 
         // This will fail in RED phase because next() is not implemented
-        let record = stream.next().await.must();
+        let record = stream.next().await.unwrap();
         assert!(record.is_some());
     }
 
@@ -994,9 +996,9 @@ mod tests {
         let mut stream = handler
             .query_results::<serde_json::Value>("750xx0000000001AAA")
             .await
-            .must();
+            .unwrap();
 
-        let record = stream.next().await.must();
+        let record = stream.next().await.unwrap();
         assert!(record.is_none());
     }
 
@@ -1023,11 +1025,11 @@ mod tests {
         let mut stream = handler
             .query_results::<serde_json::Value>("750xx0000000001AAA")
             .await
-            .must();
+            .unwrap();
 
-        assert!(stream.next().await.must().is_some());
-        assert!(stream.next().await.must().is_some());
-        assert!(stream.next().await.must().is_none());
+        assert!(stream.next().await.unwrap().is_some());
+        assert!(stream.next().await.unwrap().is_some());
+        assert!(stream.next().await.unwrap().is_none());
     }
 
     #[tokio::test]
@@ -1068,11 +1070,11 @@ mod tests {
         let mut stream = handler
             .query_results::<serde_json::Value>("750xx0000000001AAA")
             .await
-            .must();
+            .unwrap();
 
-        assert!(stream.next().await.must().is_some());
-        assert!(stream.next().await.must().is_some());
-        assert!(stream.next().await.must().is_none());
+        assert!(stream.next().await.unwrap().is_some());
+        assert!(stream.next().await.unwrap().is_some());
+        assert!(stream.next().await.unwrap().is_none());
     }
 
     #[tokio::test]
@@ -1088,7 +1090,7 @@ mod tests {
             "apiVersion": "60.0"
         }"#;
 
-        let info: BulkQueryJobInfo = serde_json::from_str(json).must();
+        let info: BulkQueryJobInfo = serde_json::from_str(json).unwrap();
         assert_eq!(info.id, "750xx0000000001AAA");
         assert_eq!(info.operation, "query");
         assert_eq!(info.state, JobState::JobComplete);
@@ -1121,7 +1123,7 @@ mod tests {
         let stream = handler
             .query_results::<serde_json::Value>("750xx0000000001AAA")
             .await
-            .must();
+            .unwrap();
 
         let results: Vec<_> = stream.into_stream().collect::<Vec<_>>().await;
 
@@ -1187,10 +1189,10 @@ mod tests {
         let handler = client.bulk();
 
         let soql = "SELECT Id, Name FROM Account WHERE Industry = 'Technology'";
-        let mut results = handler.bulk_query::<Account>(soql).await.must();
+        let mut results = handler.bulk_query::<Account>(soql).await.unwrap();
 
         let mut count = 0;
-        while let Some(record) = results.next().await.must() {
+        while let Some(record) = results.next().await.unwrap() {
             count += 1;
             assert!(!record.id.is_empty());
             assert!(!record.name.is_empty());
@@ -1248,9 +1250,9 @@ mod tests {
         let handler = client.bulk();
 
         let soql = "SELECT Id FROM Account WHERE Name = 'NonExistent'";
-        let mut results = handler.bulk_query::<Account>(soql).await.must();
+        let mut results = handler.bulk_query::<Account>(soql).await.unwrap();
 
-        let record = results.next().await.must();
+        let record = results.next().await.unwrap();
         assert!(record.is_none());
     }
 
@@ -1368,8 +1370,8 @@ mod tests {
         let mut results = handler
             .bulk_query_with_policy::<Account>("SELECT Id FROM Account LIMIT 1", policy)
             .await
-            .must();
-        let record = results.next().await.must().must();
+            .unwrap();
+        let record = results.next().await.unwrap().unwrap();
         assert_eq!(record.id, "001xx0000000001AAA");
     }
 

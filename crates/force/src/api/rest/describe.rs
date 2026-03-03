@@ -523,8 +523,9 @@ pub struct FilteredLookupInfo {
 }
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::expect_used)]
+    #![allow(clippy::unwrap_used)]
     use super::*;
-    use crate::test_support::Must;
 
     // RED PHASE - Write failing tests first
 
@@ -549,7 +550,7 @@ mod tests {
             }
         }"#;
 
-        let sobject: GlobalSObjectDescribe = serde_json::from_str(json).must();
+        let sobject: GlobalSObjectDescribe = serde_json::from_str(json).unwrap();
         assert_eq!(sobject.name, "Account");
         assert_eq!(sobject.label, "Account");
         assert_eq!(sobject.key_prefix, Some("001".to_string()));
@@ -582,7 +583,7 @@ mod tests {
             ]
         }"#;
 
-        let global: GlobalDescribe = serde_json::from_str(json).must();
+        let global: GlobalDescribe = serde_json::from_str(json).unwrap();
         assert_eq!(global.encoding, "UTF-8");
         assert_eq!(global.max_batch_size, 200);
         assert_eq!(global.sobjects.len(), 1);
@@ -601,7 +602,7 @@ mod tests {
         ];
 
         for (json, expected) in types {
-            let field_type: FieldType = serde_json::from_str(json).must();
+            let field_type: FieldType = serde_json::from_str(json).unwrap();
             assert_eq!(field_type, expected);
         }
     }
@@ -615,7 +616,7 @@ mod tests {
             "value": "Hot"
         }"#;
 
-        let value: PicklistValue = serde_json::from_str(json).must();
+        let value: PicklistValue = serde_json::from_str(json).unwrap();
         assert!(value.active);
         assert!(!value.default_value);
         assert_eq!(value.label, "Hot");
@@ -633,7 +634,7 @@ mod tests {
             "restrictedDelete": false
         }"#;
 
-        let rel: ChildRelationship = serde_json::from_str(json).must();
+        let rel: ChildRelationship = serde_json::from_str(json).unwrap();
         assert!(!rel.cascade_delete);
         assert_eq!(rel.child_sobject, "Contact");
         assert_eq!(rel.field, "AccountId");
@@ -651,7 +652,7 @@ mod tests {
             "recordTypeId": "012000000000000AAA"
         }"#;
 
-        let rt: RecordTypeInfo = serde_json::from_str(json).must();
+        let rt: RecordTypeInfo = serde_json::from_str(json).unwrap();
         assert!(rt.active);
         assert!(rt.default_record_type_mapping);
         assert!(rt.master);
@@ -736,7 +737,7 @@ mod tests {
             "recordTypeInfos": []
         }"#;
 
-        let describe: SObjectDescribe = serde_json::from_str(json).must();
+        let describe: SObjectDescribe = serde_json::from_str(json).unwrap();
 
         assert_eq!(describe.name, "Account");
         assert_eq!(describe.label, "Account");
@@ -799,7 +800,7 @@ mod tests {
             "writeRequiresMasterRead": false
         }"#;
 
-        let field: FieldDescribe = serde_json::from_str(json).must();
+        let field: FieldDescribe = serde_json::from_str(json).unwrap();
 
         assert_eq!(field.name, "Id");
         assert!(field.calculated_formula.is_none());
