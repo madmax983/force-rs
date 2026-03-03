@@ -174,6 +174,7 @@ mod example {
         let client_secret = required_env("SF_CLIENT_SECRET")?;
 
         println!("Authenticating with Salesforce...");
+        // For Sandbox, use: ClientCredentials::new_sandbox("client-id", "client-secret")
         let auth = ClientCredentials::new_production(client_id, client_secret);
         let client = ForceClientBuilder::new().authenticate(auth).build().await?;
         println!("Authentication successful\n");
