@@ -18,10 +18,15 @@ use serde_json::Value;
 /// Reference IDs must be strictly alphanumeric/underscores.
 fn validate_reference_id(id: &str) -> Result<()> {
     if id.is_empty() {
-        return Err(ForceError::InvalidInput("Reference ID cannot be empty".to_string()));
+        return Err(ForceError::InvalidInput(
+            "Reference ID cannot be empty".to_string(),
+        ));
     }
     if !id.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
-        return Err(ForceError::InvalidInput(format!("Reference ID contains invalid characters: {}", id)));
+        return Err(ForceError::InvalidInput(format!(
+            "Reference ID contains invalid characters: {}",
+            id
+        )));
     }
     Ok(())
 }
@@ -34,7 +39,10 @@ fn validate_graph_id(id: &str) -> Result<()> {
         return Err(ForceError::InvalidInput("ID cannot be empty".to_string()));
     }
     if id.contains('/') || id.contains("..") || id.contains('\\') || id.contains('?') {
-        return Err(ForceError::InvalidInput(format!("ID contains invalid path traversal characters: {}", id)));
+        return Err(ForceError::InvalidInput(format!(
+            "ID contains invalid path traversal characters: {}",
+            id
+        )));
     }
     Ok(())
 }
