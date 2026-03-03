@@ -89,15 +89,23 @@ impl<'a, A: Authenticator> FieldUsageScanner<'a, A> {
         sobject: &str,
         fields: &[&crate::api::rest::describe::FieldDescribe],
     ) -> Result<Vec<FieldUsage>> {
+        use std::fmt::Write;
+
         // Build query: SELECT COUNT(Id) total, COUNT(Field1) f0, COUNT(Field2) f1...
-        let mut selects = Vec::new();
-        selects.push("COUNT(Id) total".to_string());
+        // Performance: Pre-allocate capacity to avoid 20+ intermediate String allocations per batch.
+        // Assuming ~20 bytes per field selection + base query size.
+        let mut query = String::with_capacity(128 + (fields.len() * 25));
+
+        query.push_str("SELECT COUNT(Id) total");
 
         for (i, field) in fields.iter().enumerate() {
-            selects.push(format!("COUNT({}) f{}", field.name, i));
+            #[allow(clippy::expect_used)]
+            write!(query, ", COUNT({}) f{}", field.name, i)
+                .expect("writing to String is infallible");
         }
 
-        let query = format!("SELECT {} FROM {}", selects.join(", "), sobject);
+        #[allow(clippy::expect_used)]
+        write!(query, " FROM {}", sobject).expect("writing to String is infallible");
 
         // Execute query
         let response = self.client.rest().query::<Value>(&query).await?;
