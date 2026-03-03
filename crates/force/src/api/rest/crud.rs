@@ -274,13 +274,6 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
             .await?;
 
         match response.status().as_u16() {
-            201 => {
-                // 201 Created means a new record was created
-                response
-                    .json::<UpsertResponse>()
-                    .await
-                    .map_err(|e| crate::error::HttpError::from(e).into())
-            }
             204 => {
                 // 204 No Content means an existing record was updated
                 // But we don't have the ID from the response, this is a known limitation
@@ -289,7 +282,7 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
                 ))
             }
             _ if response.status().is_success() => {
-                // Other success codes - try to parse as upsert response
+                // Success codes (like 201 Created or 200 OK) - try to parse as upsert response
                 response
                     .json::<UpsertResponse>()
                     .await
@@ -300,6 +293,7 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
     }
 }
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use crate::client::builder;
@@ -363,7 +357,8 @@ mod tests {
         let rest = client.rest();
         let result = rest.create("Account", &json!({})).await;
 
-        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("Required fields are missing"));
     }
 
     #[tokio::test]
@@ -388,7 +383,8 @@ mod tests {
             .create("Account", &json!({"InvalidField": "value"}))
             .await;
 
-        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("No such column 'InvalidField'"));
     }
 
     // === GET TESTS ===
@@ -444,7 +440,11 @@ mod tests {
         let id = SalesforceId::new("003000000000001").must();
         let result = rest.get("Contact", &id).await;
 
-        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("Provided external ID field does not exist or is not accessible")
+        );
     }
 
     // === UPDATE TESTS ===
@@ -501,7 +501,8 @@ mod tests {
             .update("Account", &id, &json!({"Phone": "555-0100"}))
             .await;
 
-        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("Entity is deleted"));
     }
 
     #[tokio::test]
@@ -529,7 +530,8 @@ mod tests {
             .update("Account", &id, &json!({"BadField": "value"}))
             .await;
 
-        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("No such column 'BadField'"));
     }
 
     // === DELETE TESTS ===
@@ -580,7 +582,8 @@ mod tests {
         let id = SalesforceId::new("001000000000003").must();
         let result = rest.delete("Account", &id).await;
 
-        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("Entity is deleted"));
     }
 
     // === UPSERT TESTS ===
@@ -624,6 +627,43 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_upsert_success_other_status() {
+        let mock_server = MockServer::start().await;
+        let auth = MockAuthenticator::new("test_token", &mock_server.uri());
+        let client = builder().authenticate(auth).build().await.must();
+
+        // Testing the `_ if response.status().is_success()` match arm directly
+        Mock::given(method("PATCH"))
+            .and(path(
+                "/services/data/v60.0/sobjects/Account/ExternalId__c/ACME-002",
+            ))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "id": "001xx000003DHP0AAO",
+                "success": true,
+                "created": false,
+                "errors": []
+            })))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let rest = client.rest();
+        let response = rest
+            .upsert(
+                "Account",
+                "ExternalId__c",
+                "ACME-002",
+                &json!({"Name": "Acme Corp 2"}),
+            )
+            .await
+            .must();
+
+        assert!(response.is_success());
+        assert!(!response.is_created());
+        assert_eq!(response.id.as_str(), "001xx000003DHP0AAO");
+    }
+
+    #[tokio::test]
     async fn test_upsert_does_not_retry_on_503_by_default() {
         let mock_server = MockServer::start().await;
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
@@ -648,7 +688,8 @@ mod tests {
             )
             .await;
 
-        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("temporary outage"));
     }
 
     #[tokio::test]
@@ -751,6 +792,10 @@ mod tests {
             .upsert("Account", "BadField__c", "VALUE", &json!({"Name": "Test"}))
             .await;
 
-        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("Provided external ID field does not exist or is not accessible")
+        );
     }
 }
