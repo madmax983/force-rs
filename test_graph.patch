@@ -1,0 +1,32 @@
+--- crates/force/src/api/composite/graph.rs
++++ crates/force/src/api/composite/graph.rs
+@@ -393,3 +393,31 @@
+         }
+     }
++
++    #[test]
++    fn test_graph_validation_sobject_invalid() {
++        let graph = Graph::new("graph1");
++        let result = graph.get("Invalid;Name", "001000000000000", "ref");
++        assert!(result.is_err());
++        assert!(
++            result
++                .unwrap_err()
++                .to_string()
++                .contains("SObject name contains invalid characters")
++        );
++    }
++
++    #[test]
++    fn test_graph_validation_sobject_empty() {
++        let graph = Graph::new("graph1");
++        let result = graph.get("", "001000000000000", "ref");
++        assert!(result.is_err());
++        assert!(
++            result
++                .unwrap_err()
++                .to_string()
++                .contains("SObject name cannot be empty")
++        );
++    }
+ }

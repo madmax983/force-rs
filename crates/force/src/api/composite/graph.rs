@@ -392,4 +392,32 @@ mod tests {
             _ => panic!("Expected Serialization error, got {:?}", result),
         }
     }
+
+    #[test]
+    fn test_graph_validation_sobject_invalid() {
+        let graph = Graph::new("graph1");
+        let result = graph.get("Invalid;Name", "001000000000000", "ref");
+        assert!(
+            if let Err(e) = result {
+                e.to_string()
+            } else {
+                panic!("Expected Err")
+            }
+            .contains("SObject name contains invalid characters")
+        );
+    }
+
+    #[test]
+    fn test_graph_validation_sobject_empty() {
+        let graph = Graph::new("graph1");
+        let result = graph.get("", "001000000000000", "ref");
+        assert!(
+            if let Err(e) = result {
+                e.to_string()
+            } else {
+                panic!("Expected Err")
+            }
+            .contains("SObject name cannot be empty")
+        );
+    }
 }
