@@ -83,12 +83,11 @@ impl<A: crate::auth::Authenticator> super::RestHandler<A> {
     where
         T: DeserializeOwned,
     {
-        // Get token to access instance URL
-        let token = self.inner.token_manager.get_token_arc().await?;
-        let instance_url = token.instance_url();
+        // Get instance URL directly from session
+        let instance_url = self.inner.instance_url().await?;
 
         // Construct and validate full URL
-        let url = resolve_next_records_url(instance_url, next_records_url)?;
+        let url = resolve_next_records_url(&instance_url, next_records_url)?;
 
         // Execute query
         let request = self

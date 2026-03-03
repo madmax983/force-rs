@@ -45,6 +45,11 @@ impl<A: crate::auth::authenticator::Authenticator> Session<A> {
             })
             .await
     }
+    /// Returns the instance URL from the current authentication token.
+    pub(crate) async fn instance_url(&self) -> crate::error::Result<String> {
+        let token = self.token_manager.get_token_arc().await?;
+        Ok(token.instance_url().to_string())
+    }
 
     /// Executes a request with an explicit retry class override.
     pub(crate) async fn execute_request_with_retry_class(
