@@ -189,12 +189,9 @@ impl<A: Authenticator> BatchBuilder<A> {
     ///
     /// # Errors
     ///
-    /// Returns an error if the batch size limit (25) is exceeded.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the query builder is invalid (e.g. missing fields or SObject) or if
-    /// URL encoding fails (which should not happen).
+    /// Returns an error if the batch size limit (25) is exceeded, or if the
+    /// query builder is invalid (e.g. missing fields or SObject), or if URL
+    /// encoding fails.
     ///
     /// # Examples
     ///
@@ -218,7 +215,10 @@ impl<A: Authenticator> BatchBuilder<A> {
         }
 
         if let Err(e) = query_builder.validate() {
-            panic!("Invalid query builder: {}", e);
+            return Err(ForceError::InvalidInput(format!(
+                "Invalid query builder: {}",
+                e
+            )));
         }
 
         // 256 + 8 is a reasonable guess for typical queries
@@ -229,7 +229,10 @@ impl<A: Authenticator> BatchBuilder<A> {
             let mut writer = UrlEncodedWriter(&mut url);
             // write_query guarantees writing succeeds (or returns fmt::Error which we expect/unwrap)
             if let Err(e) = query_builder.write_query(&mut writer) {
-                panic!("Formatting failed: {}", e);
+                return Err(ForceError::InvalidInput(format!(
+                    "Formatting failed: {}",
+                    e
+                )));
             }
         }
 
