@@ -165,7 +165,9 @@ impl LimitInfo {
         if self.max == 0 {
             return 0.0;
         }
-        let used = self.used.unwrap_or(self.max - self.remaining);
+        let used = self
+            .used
+            .unwrap_or_else(|| self.max.saturating_sub(self.remaining));
         (used as f64 / self.max as f64) * 100.0
     }
 
@@ -247,6 +249,12 @@ mod tests {
         assert!(limit.is_above_threshold(89.0));
         assert!(!limit.is_above_threshold(90.0));
         assert!(!limit.is_above_threshold(95.0));
+    }
+
+    #[test]
+    fn test_no_panic_on_overflow() {
+        let limit = LimitInfo::new(i64::MIN, i64::MAX, None);
+        let _ = limit.percentage_used();
     }
 
     #[test]

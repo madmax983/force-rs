@@ -30,3 +30,7 @@
 ## 2026-03-01 - [SSRF/Credential Injection in Query Pagination]
 **Threat:** The `query_more` method validated that absolute `nextRecordsUrl` values matched the scheme, host, and port of the authenticated `instance_url`. However, it did not restrict embedded credentials (`username` and `password`). An attacker could provide a malicious pagination URL like `https://attacker:password@instance.salesforce.com/...` which would pass the validation but could potentially leak information or cause unexpected authentication behavior.
 **Defense:** Fortified `resolve_next_records_url` in `crates/force/src/api/rest/query.rs` to explicitly reject any absolute URLs that contain a username or password.
+
+**2024-05-19 - Fix integer overflow DoS vector in LimitInfo percentage_used calculation**
+**Threat:** The `percentage_used` method calculated the used limit by subtracting the `remaining` limit from `max`. If a malicious or malformed response returned unexpected combinations of maximum and remaining limits (e.g., `i64::MIN` and `i64::MAX`), it would cause a subtraction overflow panic. An attacker who could manipulate Salesforce limit responses (e.g. through a proxy or MITM if SSL verification was disabled) or simply an anomaly from Salesforce could reliably trigger this DoS.
+**Defense:** Replaced the unsafe unchecked subtraction `self.max - self.remaining` with `self.max.saturating_sub(self.remaining)`, which prevents the overflow and provides bounded behavior without crashing the process.
