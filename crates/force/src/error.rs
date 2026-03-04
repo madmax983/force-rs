@@ -113,14 +113,63 @@ pub enum HttpError {
 }
 
 /// Salesforce API-specific errors.
-#[derive(Debug, thiserror::Error)]
+///
+/// Error information from a failed Salesforce API operation.
+///
+/// When an operation fails, Salesforce returns detailed error information
+/// including a message, error code, and the fields that caused the error.
+///
+/// # Examples
+///
+/// ```
+/// use force::error::ApiError;
+///
+/// let error = ApiError {
+///     message: "Required fields are missing: [Name]".to_string(),
+///     error_code: "REQUIRED_FIELD_MISSING".to_string(),
+///     fields: vec!["Name".to_string()],
+/// };
+/// assert_eq!(error.error_code, "REQUIRED_FIELD_MISSING");
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, thiserror::Error)]
+#[serde(rename_all = "camelCase")]
 pub struct ApiError {
-    /// Error code from Salesforce.
-    pub error_code: String,
     /// Human-readable error message.
     pub message: String,
+
+    /// Error code from Salesforce.
+    #[serde(alias = "statusCode", alias = "errorCode")]
+    pub error_code: String,
+
     /// Additional error fields from the API response.
+    #[serde(default)]
     pub fields: Vec<String>,
+}
+
+impl ApiError {
+    /// Creates a new API error.
+    #[must_use]
+    pub fn new(message: impl Into<String>, error_code: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+            error_code: error_code.into(),
+            fields: Vec::new(),
+        }
+    }
+
+    /// Creates a new API error with associated fields.
+    #[must_use]
+    pub fn with_fields(
+        message: impl Into<String>,
+        error_code: impl Into<String>,
+        fields: Vec<String>,
+    ) -> Self {
+        Self {
+            message: message.into(),
+            error_code: error_code.into(),
+            fields,
+        }
+    }
 }
 
 impl fmt::Display for ApiError {
