@@ -155,4 +155,21 @@ mod tests {
             panic!("Expected StatusError");
         }
     }
+
+    #[test]
+    fn test_parse_api_error_without_error_code() {
+        let body = r#"[{"message":"Field does not exist","fields":["Name"]}]"#;
+        let error = parse_api_error(400, body);
+
+        if let HttpError::StatusError {
+            status_code,
+            message,
+        } = error
+        {
+            assert_eq!(status_code, 400);
+            assert_eq!(message, "[UNKNOWN] Field does not exist");
+        } else {
+            panic!("Expected StatusError");
+        }
+    }
 }
