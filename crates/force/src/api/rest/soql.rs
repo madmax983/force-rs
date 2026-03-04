@@ -56,23 +56,12 @@ pub(crate) fn escape_soql_cow(input: &str) -> Cow<'_, str> {
 #[derive(Debug, Clone)]
 enum WhereClause {
     Raw(String),
-    In { field: String, values: Vec<String> },
 }
 
 impl std::fmt::Display for WhereClause {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Raw(s) => write!(f, "{}", s),
-            Self::In { field, values } => {
-                write!(f, "{} IN (", field)?;
-                for (j, v) in values.iter().enumerate() {
-                    if j > 0 {
-                        write!(f, ", ")?;
-                    }
-                    write!(f, "'{}'", v)?;
-                }
-                write!(f, ")")
-            }
         }
     }
 }
@@ -265,8 +254,13 @@ impl SoqlQueryBuilder {
     ///     .build();
     /// assert_eq!(query, "SELECT Id FROM Account WHERE Industry IN ('Technology', 'Finance')");
     /// ```
+    ///
+    /// **Performance:** Avoids intermediate `Vec<String>` heap allocations by pre-calculating capacity
+    /// and writing the escaped SOQL string directly into a single formatted string buffer.
     #[must_use]
     pub fn where_in(mut self, field: &str, values: &[impl AsRef<str>]) -> Self {
+        use std::fmt::Write;
+
         Self::validate_field(field, "where_in");
         if values.is_empty() {
             self.where_clauses
@@ -274,12 +268,24 @@ impl SoqlQueryBuilder {
             return self;
         }
 
-        let escaped_values: Vec<String> = values.iter().map(|v| escape_soql(v.as_ref())).collect();
+        // Base capacity for "FIELD IN ()" + estimated 10 chars per value + quotes/commas
+        let capacity = field.len() + 6 + (values.len() * 14);
+        let mut buffer = String::with_capacity(capacity);
 
-        self.where_clauses.push(WhereClause::In {
-            field: field.to_string(),
-            values: escaped_values,
-        });
+        #[allow(clippy::expect_used)]
+        write!(buffer, "{} IN (", field).expect("writing to String is infallible");
+
+        for (i, value) in values.iter().enumerate() {
+            if i > 0 {
+                buffer.push_str(", ");
+            }
+            let escaped = escape_soql_cow(value.as_ref());
+            #[allow(clippy::expect_used)]
+            write!(buffer, "'{}'", escaped).expect("writing to String is infallible");
+        }
+        buffer.push(')');
+
+        self.where_clauses.push(WhereClause::Raw(buffer));
         self
     }
 
