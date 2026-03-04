@@ -10,8 +10,9 @@ pub mod salesforce_id;
 pub mod sobject;
 pub mod validator;
 
+pub use crate::error::ApiError;
 pub use api_version::{ApiVersion, ApiVersionSupportTier};
-pub use common::{ApiError, CreateResponse, DeleteResponse, UpdateResponse, UpsertResponse};
+pub use common::{CreateResponse, DeleteResponse, UpdateResponse, UpsertResponse};
 pub use query::{QueryIterator, QueryLocator, QueryResult};
 pub use salesforce_id::SalesforceId;
 pub use sobject::{Attributes, DynamicSObject};

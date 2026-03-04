@@ -3,6 +3,7 @@
 //! This module contains response types used across different Salesforce APIs,
 //! including CRUD operation responses and error structures.
 
+use crate::error::ApiError;
 use crate::types::SalesforceId;
 use serde::{Deserialize, Serialize};
 
@@ -309,63 +310,6 @@ impl UpsertResponse {
     }
 }
 
-/// Error information from a failed Salesforce API operation.
-///
-/// When an operation fails, Salesforce returns detailed error information
-/// including a message, error code, and the fields that caused the error.
-///
-/// # Examples
-///
-/// ```
-/// use force::types::ApiError;
-///
-/// let error = ApiError {
-///     message: "Required fields are missing: [Name]".to_string(),
-///     error_code: "REQUIRED_FIELD_MISSING".to_string(),
-///     fields: vec!["Name".to_string()],
-/// };
-/// assert_eq!(error.error_code, "REQUIRED_FIELD_MISSING");
-/// ```
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ApiError {
-    /// Human-readable error message.
-    pub message: String,
-
-    /// Salesforce error code (e.g., "REQUIRED_FIELD_MISSING").
-    #[serde(rename = "statusCode")]
-    pub error_code: String,
-
-    /// Fields that caused the error (if applicable).
-    #[serde(default)]
-    pub fields: Vec<String>,
-}
-
-impl ApiError {
-    /// Creates a new API error.
-    #[must_use]
-    pub fn new(message: impl Into<String>, error_code: impl Into<String>) -> Self {
-        Self {
-            message: message.into(),
-            error_code: error_code.into(),
-            fields: Vec::new(),
-        }
-    }
-
-    /// Creates a new API error with associated fields.
-    #[must_use]
-    pub fn with_fields(
-        message: impl Into<String>,
-        error_code: impl Into<String>,
-        fields: Vec<String>,
-    ) -> Self {
-        Self {
-            message: message.into(),
-            error_code: error_code.into(),
-            fields,
-        }
-    }
-}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -521,7 +465,7 @@ mod tests {
         );
 
         let json = serde_json::to_string(&error).must();
-        assert!(json.contains("\"statusCode\":\"REQUIRED_FIELD_MISSING\""));
+        assert!(json.contains("\"errorCode\":\"REQUIRED_FIELD_MISSING\""));
         assert!(json.contains("\"message\":\"Required fields missing\""));
         assert!(json.contains("\"fields\""));
     }

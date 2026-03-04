@@ -31,3 +31,7 @@
 **[Removed Deprecated Auth Re-exports]
 **Tangle:** The `types.rs` module contained deprecated re-exports for `AccessToken`, `Authenticator`, and `TokenResponse` which had been moved to the `auth` module, blurring module boundaries.
 **Blueprint:** Removed the re-exports from `types.rs` and updated all internal usages to import directly from `crate::auth::Authenticator`.
+
+**2024-05-28 - [ApiError Struct Duplication]**
+**Tangle:** There were two identical `ApiError` structs: one in `crates/force/src/error.rs` (used as a `thiserror` variant) and one in `crates/force/src/types/common.rs` (used for deserializing JSON responses from Salesforce). This violated DRY and caused domain confusion, as they effectively represented the exact same concept but required different serialization logic (e.g. `errorCode` vs `statusCode` depending on REST vs Composite APIs).
+**Blueprint:** Merged `crate::types::common::ApiError` into `crate::error::ApiError`. Added `Serialize, Deserialize, Clone, PartialEq, Eq` to the unified struct, and mapped both `statusCode` and `errorCode` JSON fields via `#[serde(alias)]`. Removed the duplicate struct and updated the `types` module to re-export `crate::error::ApiError` so the public API contract is not broken.
