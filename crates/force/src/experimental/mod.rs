@@ -23,3 +23,6 @@ pub mod data_dictionary;
 #[cfg(feature = "nova")]
 #[allow(missing_docs)]
 pub mod type_generator;
+
+#[cfg(feature = "nova")]
+pub mod schema_diff;

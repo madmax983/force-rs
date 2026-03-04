@@ -1,0 +1,251 @@
+//! Salesforce Schema Diff Utility.
+//!
+//! This module provides the `SchemaDiff` utility to compare two `SObjectDescribe`
+//! payloads. It identifies added fields, removed fields, and fields that have
+//! changed types. This is useful for tracking schema evolution over time.
+//!
+//! # Example
+//!
+//! ```no_run
+//! # use force::client::ForceClientBuilder;
+//! # use force::experimental::schema_diff::SchemaDiff;
+//! # use force::auth::ClientCredentials;
+//! # #[tokio::main]
+//! # async fn main() -> anyhow::Result<()> {
+//! # let auth = ClientCredentials::new("id", "secret", "url");
+//! # let client = ForceClientBuilder::new().authenticate(auth).build().await?;
+//! // Assume we have two versions of a describe payload
+//! let describe_v1 = client.rest().describe("Account").await?;
+//! // ... time passes, schema changes ...
+//! let describe_v2 = client.rest().describe("Account").await?;
+//!
+//! let diff = SchemaDiff::compare(&describe_v1, &describe_v2);
+//!
+//! println!("Added fields: {:?}", diff.added_fields.len());
+//! println!("Removed fields: {:?}", diff.removed_fields.len());
+//! println!("Changed fields: {:?}", diff.changed_fields.len());
+//! # Ok(())
+//! # }
+//! ```
+
+use crate::api::rest::describe::{FieldDescribe, FieldType, SObjectDescribe};
+use std::collections::HashMap;
+
+/// Represents a change in a field's definition.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FieldChange {
+    /// The name of the field.
+    pub name: String,
+    /// The old type of the field.
+    pub old_type: FieldType,
+    /// The new type of the field.
+    pub new_type: FieldType,
+}
+
+/// The result of comparing two schema definitions.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct SchemaDiffResult {
+    /// Fields that were added in the new schema.
+    pub added_fields: Vec<FieldDescribe>,
+    /// Fields that were removed in the new schema.
+    pub removed_fields: Vec<FieldDescribe>,
+    /// Fields whose types have changed.
+    pub changed_fields: Vec<FieldChange>,
+}
+
+impl SchemaDiffResult {
+    /// Returns true if there are no differences between the schemas.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.added_fields.is_empty()
+            && self.removed_fields.is_empty()
+            && self.changed_fields.is_empty()
+    }
+}
+
+/// Utility for comparing SObject schemas.
+#[derive(Debug)]
+pub struct SchemaDiff;
+
+impl SchemaDiff {
+    /// Compares two `SObjectDescribe` payloads and returns a `SchemaDiffResult`.
+    ///
+    /// # Arguments
+    ///
+    /// * `old_schema` - The original SObject describe payload.
+    /// * `new_schema` - The updated SObject describe payload.
+    ///
+    /// # Returns
+    ///
+    /// A `SchemaDiffResult` containing added, removed, and changed fields.
+    #[must_use]
+    pub fn compare(old_schema: &SObjectDescribe, new_schema: &SObjectDescribe) -> SchemaDiffResult {
+        let mut result = SchemaDiffResult::default();
+
+        let old_fields: HashMap<&str, &FieldDescribe> = old_schema
+            .fields
+            .iter()
+            .map(|f| (f.name.as_str(), f))
+            .collect();
+
+        let new_fields: HashMap<&str, &FieldDescribe> = new_schema
+            .fields
+            .iter()
+            .map(|f| (f.name.as_str(), f))
+            .collect();
+
+        // Find added and changed fields
+        for (name, new_field) in &new_fields {
+            if let Some(old_field) = old_fields.get(name) {
+                if old_field.type_ != new_field.type_ {
+                    result.changed_fields.push(FieldChange {
+                        name: (*name).to_string(),
+                        old_type: old_field.type_.clone(),
+                        new_type: new_field.type_.clone(),
+                    });
+                }
+            } else {
+                result.added_fields.push((*new_field).clone());
+            }
+        }
+
+        // Find removed fields
+        for (name, old_field) in old_fields {
+            if !new_fields.contains_key(name) {
+                result.removed_fields.push((*old_field).clone());
+            }
+        }
+
+        // Sort to ensure deterministic output
+        result.added_fields.sort_by(|a, b| a.name.cmp(&b.name));
+        result.removed_fields.sort_by(|a, b| a.name.cmp(&b.name));
+        result.changed_fields.sort_by(|a, b| a.name.cmp(&b.name));
+
+        result
+    }
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_support::Must;
+    use serde_json::json;
+
+    fn create_mock_describe(fields_json: &serde_json::Value) -> SObjectDescribe {
+        let describe_json = json!({
+            "name": "Account",
+            "label": "Account",
+            "custom": false,
+            "queryable": true,
+            "activateable": false, "createable": true, "customSetting": false, "deletable": true,
+            "deprecatedAndHidden": false, "feedEnabled": true, "hasSubtypes": false,
+            "isSubtype": false, "keyPrefix": "001", "labelPlural": "Accounts", "layoutable": true,
+            "mergeable": true, "mruEnabled": true, "replicateable": true, "retrieveable": true,
+            "searchable": true, "triggerable": true, "undeletable": true, "updateable": true,
+            "urls": {}, "childRelationships": [], "recordTypeInfos": [],
+            "fields": fields_json.clone()
+        });
+        serde_json::from_value(describe_json).must()
+    }
+
+    fn mock_field(name: &str, field_type: &str) -> serde_json::Value {
+        json!({
+            "name": name,
+            "type": field_type,
+            "label": format!("{} Label", name),
+            "referenceTo": [],
+            "aggregatable": true, "autoNumber": false, "byteLength": 18, "calculated": false,
+            "cascadeDelete": false, "caseSensitive": false, "createable": false, "custom": false,
+            "defaultedOnCreate": true, "dependentPicklist": false, "deprecatedAndHidden": false,
+            "digits": 0, "displayLocationInDecimal": false, "encrypted": false, "externalId": false,
+            "filterable": true, "groupable": true, "highScaleNumber": false, "htmlFormatted": false,
+            "idLookup": true, "length": 18, "nameField": false, "namePointing": false, "nillable": false,
+            "permissionable": false, "polymorphicForeignKey": false, "precision": 0, "queryByDistance": false,
+            "restrictedDelete": false, "restrictedPicklist": false, "scale": 0, "soapType": "tns:ID",
+            "sortable": true, "unique": false, "updateable": false, "writeRequiresMasterRead": false
+        })
+    }
+
+    #[test]
+    fn test_schema_diff_no_changes() {
+        let old_schema = create_mock_describe(&json!([
+            mock_field("Id", "id"),
+            mock_field("Name", "string")
+        ]));
+
+        let new_schema = create_mock_describe(&json!([
+            mock_field("Id", "id"),
+            mock_field("Name", "string")
+        ]));
+
+        let diff = SchemaDiff::compare(&old_schema, &new_schema);
+
+        assert!(diff.is_empty());
+        assert_eq!(diff.added_fields.len(), 0);
+        assert_eq!(diff.removed_fields.len(), 0);
+        assert_eq!(diff.changed_fields.len(), 0);
+    }
+
+    #[test]
+    fn test_schema_diff_added_fields() {
+        let old_schema = create_mock_describe(&json!([mock_field("Id", "id")]));
+
+        let new_schema = create_mock_describe(&json!([
+            mock_field("Id", "id"),
+            mock_field("Name", "string"),
+            mock_field("Website", "url")
+        ]));
+
+        let diff = SchemaDiff::compare(&old_schema, &new_schema);
+
+        assert!(!diff.is_empty());
+        assert_eq!(diff.added_fields.len(), 2);
+        assert_eq!(diff.removed_fields.len(), 0);
+        assert_eq!(diff.changed_fields.len(), 0);
+
+        assert_eq!(diff.added_fields[0].name, "Name");
+        assert_eq!(diff.added_fields[1].name, "Website");
+    }
+
+    #[test]
+    fn test_schema_diff_removed_fields() {
+        let old_schema = create_mock_describe(&json!([
+            mock_field("Id", "id"),
+            mock_field("Name", "string"),
+            mock_field("Website", "url")
+        ]));
+
+        let new_schema = create_mock_describe(&json!([mock_field("Id", "id")]));
+
+        let diff = SchemaDiff::compare(&old_schema, &new_schema);
+
+        assert!(!diff.is_empty());
+        assert_eq!(diff.added_fields.len(), 0);
+        assert_eq!(diff.removed_fields.len(), 2);
+        assert_eq!(diff.changed_fields.len(), 0);
+
+        assert_eq!(diff.removed_fields[0].name, "Name");
+        assert_eq!(diff.removed_fields[1].name, "Website");
+    }
+
+    #[test]
+    fn test_schema_diff_changed_fields() {
+        let old_schema =
+            create_mock_describe(&json!([mock_field("Id", "id"), mock_field("Age", "int")]));
+
+        let new_schema = create_mock_describe(&json!([
+            mock_field("Id", "id"),
+            mock_field("Age", "double")
+        ]));
+
+        let diff = SchemaDiff::compare(&old_schema, &new_schema);
+
+        assert!(!diff.is_empty());
+        assert_eq!(diff.added_fields.len(), 0);
+        assert_eq!(diff.removed_fields.len(), 0);
+        assert_eq!(diff.changed_fields.len(), 1);
+
+        assert_eq!(diff.changed_fields[0].name, "Age");
+        assert_eq!(diff.changed_fields[0].old_type, FieldType::Int);
+        assert_eq!(diff.changed_fields[0].new_type, FieldType::Double);
+    }
+}
