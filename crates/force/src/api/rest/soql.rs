@@ -53,30 +53,6 @@ pub(crate) fn escape_soql_cow(input: &str) -> Cow<'_, str> {
     }
 }
 
-#[derive(Debug, Clone)]
-enum WhereClause {
-    Raw(String),
-    In { field: String, values: Vec<String> },
-}
-
-impl std::fmt::Display for WhereClause {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Raw(s) => write!(f, "{}", s),
-            Self::In { field, values } => {
-                write!(f, "{} IN (", field)?;
-                for (j, v) in values.iter().enumerate() {
-                    if j > 0 {
-                        write!(f, ", ")?;
-                    }
-                    write!(f, "'{}'", v)?;
-                }
-                write!(f, ")")
-            }
-        }
-    }
-}
-
 /// Builder for constructing safe SOQL queries.
 ///
 /// Helps prevent SOQL injection by validating object and field names,
@@ -100,7 +76,7 @@ impl std::fmt::Display for WhereClause {
 pub struct SoqlQueryBuilder {
     fields: Vec<String>,
     sobject: Option<String>,
-    where_clauses: Vec<WhereClause>,
+    where_clauses: Vec<String>,
     limit: Option<u32>,
     offset: Option<u32>,
     order_by: Option<String>,
@@ -181,7 +157,7 @@ impl SoqlQueryBuilder {
     /// ```
     #[must_use]
     pub fn where_condition_unchecked(mut self, condition: impl Into<String>) -> Self {
-        self.where_clauses.push(WhereClause::Raw(condition.into()));
+        self.where_clauses.push(condition.into());
         self
     }
 
@@ -234,10 +210,8 @@ impl SoqlQueryBuilder {
         Self::validate_field(field, context);
         // Optimization: Use escape_soql_cow to avoid allocation if escape not needed
         let escaped_value = escape_soql_cow(value);
-        self.where_clauses.push(WhereClause::Raw(format!(
-            "{} {} '{}'",
-            field, op, escaped_value
-        )));
+        self.where_clauses
+            .push(format!("{} {} '{}'", field, op, escaped_value));
         self
     }
 
@@ -267,19 +241,29 @@ impl SoqlQueryBuilder {
     /// ```
     #[must_use]
     pub fn where_in(mut self, field: &str, values: &[impl AsRef<str>]) -> Self {
+        use std::fmt::Write;
         Self::validate_field(field, "where_in");
         if values.is_empty() {
-            self.where_clauses
-                .push(WhereClause::Raw(format!("{} IN ()", field)));
+            self.where_clauses.push(format!("{} IN ()", field));
             return self;
         }
 
-        let escaped_values: Vec<String> = values.iter().map(|v| escape_soql(v.as_ref())).collect();
+        let mut clause = String::with_capacity(field.len() + 10 + values.len() * 10);
+        #[allow(clippy::expect_used)]
+        write!(&mut clause, "{} IN (", field).expect("String formatting never fails");
 
-        self.where_clauses.push(WhereClause::In {
-            field: field.to_string(),
-            values: escaped_values,
-        });
+        for (i, v) in values.iter().enumerate() {
+            if i > 0 {
+                clause.push_str(", ");
+            }
+            clause.push('\'');
+            let escaped = escape_soql_cow(v.as_ref());
+            clause.push_str(&escaped);
+            clause.push('\'');
+        }
+        clause.push(')');
+
+        self.where_clauses.push(clause);
         self
     }
 
@@ -474,7 +458,7 @@ impl SoqlQueryBuilder {
             if i > 0 {
                 query.write_str(" AND ")?;
             }
-            write!(query, "{}", clause)?;
+            query.write_str(clause)?;
         }
         Ok(())
     }
