@@ -141,4 +141,14 @@ impl<A: crate::auth::authenticator::Authenticator> Session<A> {
     pub(crate) fn delete(&self, url: &str) -> reqwest::RequestBuilder {
         self.http_client.delete(url)
     }
+
+    /// Creates a PUT request builder for the given URL.
+    pub(crate) fn put(&self, url: &str) -> reqwest::RequestBuilder {
+        self.http_client.put(url)
+    }
+
+    /// Creates a request builder for the given HTTP method and URL.
+    pub(crate) fn request(&self, method: reqwest::Method, url: &str) -> reqwest::RequestBuilder {
+        self.http_client.request(method, url)
+    }
 }
