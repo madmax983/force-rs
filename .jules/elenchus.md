@@ -88,6 +88,18 @@ match result {
 - Maintain the practice of using hardcoded "golden" strings for serialization and encoding tests.
 - Continue to prefer structural assertions over string matching for JSON.
 
+### [Strengthened] `crates/force/src/api/rest/crud.rs`
+
+**Module:** `crates/force/src/api/rest/crud.rs`
+**Severity:** 🟡 Suspect
+**Finding:** The `upsert` implementation contained a redundant `201` match arm that functionally shadowed a fallback `_ if response.status().is_success()` arm, leading to false confidence and surviving mutants. Furthermore, tests testing failure cases asserted only `assert!(result.is_err())`, missing the actual errors and potentially silencing entirely different failure reasons.
+**Evidence:**
+- `cargo mutants` reported that deleting the `201` arm or mutating the `.is_success()` check to `true` or `false` went uncaught by the test suite.
+- Tests had weak `assert!(result.is_err())` validations, which are not assertions but prayers.
+**Recommendation:**
+- Removed the redundant `201` match arm in `upsert_with_retry_class`.
+- Added `test_upsert_success_other_status` to test the `.is_success()` match arm with a 200 OK.
+- Upgraded all `result.is_err()` assertions across tests to explicit `unwrap_err()` checks validating the specific expected `message` and `error_code`.
 ### [Acquitted] `crates/force/src/api/rest/query.rs`
 
 **Module:** `crates/force/src/api/rest/query.rs`
