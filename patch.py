@@ -1,41 +1,58 @@
 import re
 
-with open("crates/force/src/api/bulk/ingest.rs", "r") as f:
+with open("crates/force/src/http/tests.rs", "r") as f:
     content = f.read()
 
-# Replace first occurrence
-old1 = """        let token = self.inner.token_manager.get_token_arc().await?;
-        let mut url = format!(
-            "{}/services/data/{}/jobs/ingest/{}",
-            token.instance_url(),
-            self.inner.config.api_version,
-            self.job_id
-        );"""
+content = re.sub(
+    r'assert!\(result\.is_ok\(\)\);\s+let response = result\.must\(\);',
+    'let response = result.expect("Expected successful request, but got error");',
+    content
+)
 
-new1 = """        let mut url = self.inner.resolve_url(&format!("/jobs/ingest/{}", self.job_id)).await?;"""
+content = re.sub(
+    r'assert!\(result\.is_ok\(\)\);\s+assert_eq!\(refresh_count\.load\(Ordering::SeqCst\), 1\);',
+    'result.expect("Expected successful token refresh");\n        assert_eq!(refresh_count.load(Ordering::SeqCst), 1);',
+    content
+)
 
-if old1 in content:
-    content = content.replace(old1, new1)
-    print("Replaced first occurrence")
-else:
-    print("Could not find first occurrence")
+content = re.sub(
+    r'assert!\(result\.is_ok\(\)\);\s+// Should have waited ~10ms \+ ~20ms = ~30ms for backoff\s+assert!\(elapsed\.as_millis\(\) >= 25\);',
+    'result.expect("Expected successful retry");\n        // Should have waited ~10ms + ~20ms = ~30ms for backoff\n        assert!(elapsed.as_millis() >= 25);',
+    content
+)
+
+content = re.sub(
+    r'assert!\(result\.is_ok\(\)\);\s+\}',
+    'result.expect("Expected successful retry with explicit policy");\n    }',
+    content
+)
+
+content = re.sub(
+    r'assert!\(result\.is_ok\(\)\);\s+assert_eq!\(retries\.load\(Ordering::SeqCst\), 1\);',
+    'result.expect("Expected successful request");\n        assert_eq!(retries.load(Ordering::SeqCst), 1);',
+    content
+)
+
+content = re.sub(
+    r'let result: Result<TestResponse, ForceError> = executor\n            \.execute_json\(request, &token, \|\| async \{ panic!\("Should not refresh"\) \}\)\n            \.await;\n\n        // Assert\n        assert!\(result\.is_ok\(\)\);\n        let response = result\.must\(\);',
+    'let result: Result<TestResponse, ForceError> = executor\n            .execute_json(request, &token, || async { panic!("Should not refresh") })\n            .await;\n\n        // Assert\n        let response = result.expect("Expected successful request, but got error");',
+    content
+)
 
 
-# Replace second occurrence
-old2 = """        let token = inner.token_manager.get_token_arc().await?;
-        let url = format!(
-            "{}/services/data/{}/jobs/ingest",
-            token.instance_url(),
-            inner.config.api_version
-        );"""
+content = re.sub(
+    r'assert!\(result\.is_ok\(\)\);\s+// Should have waited at least 50ms \(timeout\) \+ 10ms \(backoff\)\s+assert!\(elapsed\.as_millis\(\) >= 60\);',
+    'result.expect("Expected successful request");\n        // Should have waited at least 50ms (timeout) + 10ms (backoff)\n        assert!(elapsed.as_millis() >= 60);',
+    content
+)
 
-new2 = """        let url = inner.resolve_url("/jobs/ingest").await?;"""
 
-if old2 in content:
-    content = content.replace(old2, new2)
-    print("Replaced second occurrence")
-else:
-    print("Could not find second occurrence")
+content = re.sub(
+    r'assert!\(result\.is_ok\(\)\);\s+let response = result\.must\(\);',
+    'let response = result.expect("Expected successful mutation retry");',
+    content
+)
 
-with open("crates/force/src/api/bulk/ingest.rs", "w") as f:
+
+with open("crates/force/src/http/tests.rs", "w") as f:
     f.write(content)

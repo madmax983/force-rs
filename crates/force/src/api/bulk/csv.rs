@@ -275,8 +275,7 @@ mod tests {
         let records: Vec<TestRecord> = vec![];
         let mut output = Vec::new();
 
-        let result = serialize_to_csv(&records, &mut output);
-        assert!(result.is_ok());
+        serialize_to_csv(&records, &mut output).must();
 
         // The csv crate doesn't write headers for empty datasets
         // This is acceptable behavior - if you have no records, you get no output
@@ -411,10 +410,7 @@ mod tests {
     #[test]
     fn test_deserialize_empty_csv() {
         let csv_data = "id,name,value\n";
-        let result: Result<Vec<TestRecord>> = deserialize_from_csv(csv_data.as_bytes());
-
-        assert!(result.is_ok());
-        let records = result.must();
+        let records: Vec<TestRecord> = deserialize_from_csv(csv_data.as_bytes()).must();
         assert_eq!(records.len(), 0);
     }
 
@@ -474,14 +470,13 @@ mod tests {
         let mut batch_count = 0;
         let mut total_records = 0;
 
-        let result = process_csv_batches(csv_data.as_bytes(), 2, |batch: Vec<TestRecord>| {
+        process_csv_batches(csv_data.as_bytes(), 2, |batch: Vec<TestRecord>| {
             batch_count += 1;
             total_records += batch.len();
             assert!(batch.len() <= 2);
             Ok(())
-        });
-
-        assert!(result.is_ok());
+        })
+        .must();
         assert_eq!(total_records, 5);
         assert_eq!(batch_count, 3); // 2 + 2 + 1
     }
@@ -493,13 +488,12 @@ mod tests {
 
         let mut batch_count = 0;
 
-        let result = process_csv_batches(csv_data.as_bytes(), 100, |batch: Vec<TestRecord>| {
+        process_csv_batches(csv_data.as_bytes(), 100, |batch: Vec<TestRecord>| {
             batch_count += 1;
             assert_eq!(batch.len(), 2);
             Ok(())
-        });
-
-        assert!(result.is_ok());
+        })
+        .must();
         assert_eq!(batch_count, 1);
     }
 
@@ -537,9 +531,7 @@ mod tests {
             .collect();
 
         let mut output = Vec::new();
-        let result = serialize_to_csv(&records, &mut output);
-
-        assert!(result.is_ok());
+        serialize_to_csv(&records, &mut output).must();
 
         // Verify we got all records in the output
         let csv_str = String::from_utf8(output).must();

@@ -64,7 +64,6 @@ mod integration_tests {
             .await;
 
         // Assert
-        assert!(result.is_ok());
         let response = result.must();
         assert_eq!(response.status(), 200);
     }
@@ -657,7 +656,6 @@ mod integration_tests {
             )
             .await;
 
-        assert!(result.is_ok());
         let response = result.must();
         assert_eq!(response.status(), 200);
     }

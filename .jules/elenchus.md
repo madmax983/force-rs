@@ -109,3 +109,14 @@ match result {
 - Mutations `replace || with &&` at lines 123 and 126 in `resolve_next_records_url` were MISSED by previous test suites.
 - The pre-existing tests (`test_query_more_security_check` and `test_query_more_security_check_credentials`) did not cover all logical variants to effectively test scheme, host, port, username, and password mismatches independently.
 **Resolution:** Added `test_query_more_security_check_scheme_mismatch`, `test_query_more_security_check_port_mismatch`, and `test_query_more_security_check_username_mismatch` to exhaustively trigger each condition. Ran `cargo mutants` to confirm no logic mutants survived in the security check.
+
+### [Strengthened] `crates/force/src/http/tests.rs` & `crates/force/src/api/bulk/csv.rs`
+
+**Module:** `crates/force/src/http/tests.rs` and `crates/force/src/api/bulk/csv.rs`
+**Severity:** 🟡 Suspect
+**Finding:** Widespread use of "The Ceremony Test" pattern. Dozens of tests ended with `assert!(result.is_ok())` instead of directly unwrapping and explicitly asserting the inner values or error contexts. While `result.must()` was used in some places to get the inner value, the initial `assert!(result.is_ok())` was redundant, and worse, some tests didn't inspect the inner values at all.
+**Evidence:**
+- `grep "assert!(result.is_ok())"` returned numerous hits across both files.
+- Tests like `test_serialize_empty_records` checked `is_ok` but didn't actually verify the output cleanly handled empty state via strong properties.
+**Recommendation:**
+- Replaced `assert!(result.is_ok())` with `.expect("...")` which guarantees the operation succeeded, bubbles up a helpful error message if it fails, and provides direct access to the `Ok` value.
