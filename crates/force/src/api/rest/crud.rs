@@ -263,7 +263,6 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
         );
         let request = self
             .inner
-            .http_client
             .patch(&url)
             .json(data)
             .build()

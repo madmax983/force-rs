@@ -106,7 +106,6 @@ impl<A: Authenticator> GraphBuilder<A> {
         let request = self
             .handler
             .inner
-            .http_client
             .post(&url)
             .json(&request_body)
             .build()

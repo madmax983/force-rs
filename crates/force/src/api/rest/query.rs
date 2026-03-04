@@ -92,7 +92,6 @@ impl<A: crate::auth::Authenticator> super::RestHandler<A> {
         // Execute query
         let request = self
             .inner
-            .http_client
             .get(&url)
             .build()
             .map_err(crate::error::HttpError::from)?;

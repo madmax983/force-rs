@@ -238,7 +238,6 @@ impl<'a, A: crate::auth::Authenticator> SmartIngest<'a, A> {
         let request = self
             .handler
             .inner
-            .http_client
             .put(&url)
             .headers(headers)
             .body(csv_data)

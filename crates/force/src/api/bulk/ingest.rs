@@ -103,7 +103,7 @@ impl<S: Send + Sync, A: Authenticator> IngestJob<S, A> {
             url.push_str(suffix);
         }
 
-        let mut builder = self.inner.http_client.request(method, &url);
+        let mut builder = self.inner.request(method, &url);
 
         if let Some(b) = body {
             builder = builder.body(b);
@@ -501,22 +501,15 @@ impl IngestJobBuilder {
         // Call create_job directly
         let url = inner.resolve_url("/jobs/ingest").await?;
 
-        let response = inner
-            .http_client
+        let request = inner
             .post(&url)
             .json(&request)
             .build()
             .map_err(crate::error::HttpError::from)?;
-        let response = inner.execute_request(response).await?;
 
-        if !response.status().is_success() {
-            return Err(handle_error_response(response, "Create job request failed").await);
-        }
-
-        let job_info = response
-            .json::<JobInfo>()
-            .await
-            .map_err(crate::error::HttpError::from)?;
+        let job_info = inner
+            .send_request_and_decode::<JobInfo>(request, "Create job request failed")
+            .await?;
 
         Ok(IngestJob::new(job_info.id, inner))
     }
@@ -588,7 +581,6 @@ impl<A: Authenticator> BulkHandler<A> {
         let url = self.base_url().await?;
         let request = self
             .inner
-            .http_client
             .post(&url)
             .json(&request)
             .build()
@@ -625,7 +617,6 @@ impl<A: Authenticator> BulkHandler<A> {
         let url = format!("{}/{}", self.base_url().await?, job_id);
         let request = self
             .inner
-            .http_client
             .get(&url)
             .build()
             .map_err(crate::error::HttpError::from)?;
@@ -672,7 +663,6 @@ impl<A: Authenticator> BulkHandler<A> {
         let url = format!("{}/{}", self.base_url().await?, job_id);
         let request = self
             .inner
-            .http_client
             .patch(&url)
             .json(&request)
             .build()
@@ -711,7 +701,6 @@ impl<A: Authenticator> BulkHandler<A> {
         let url = format!("{}/{}", self.base_url().await?, job_id);
         let request = self
             .inner
-            .http_client
             .delete(&url)
             .build()
             .map_err(crate::error::HttpError::from)?;
