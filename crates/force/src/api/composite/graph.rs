@@ -96,8 +96,7 @@ impl<A: Authenticator> GraphBuilder<A> {
         }
 
         // Construct the composite graph URL
-        let base_url = self.handler.base_url().await?;
-        let url = format!("{}/composite/graph", base_url);
+        let url = self.handler.inner.resolve_url("composite/graph").await?;
 
         let request_body = GraphRequestBody {
             graphs: self.graphs,
