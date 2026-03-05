@@ -223,7 +223,6 @@ impl<A: crate::auth::Authenticator> crate::api::rest::RestHandler<A> {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
