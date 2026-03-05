@@ -85,3 +85,14 @@ pub trait Authenticator: Debug + Send + Sync {
     /// ```
     async fn refresh(&self) -> Result<AccessToken>;
 }
+
+#[async_trait]
+impl<T: ?Sized + Authenticator> Authenticator for Box<T> {
+    async fn authenticate(&self) -> Result<AccessToken> {
+        (**self).authenticate().await
+    }
+
+    async fn refresh(&self) -> Result<AccessToken> {
+        (**self).refresh().await
+    }
+}
