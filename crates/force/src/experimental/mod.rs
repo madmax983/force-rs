@@ -26,3 +26,6 @@ pub mod type_generator;
 
 #[cfg(feature = "nova")]
 pub mod schema_diff;
+
+#[cfg(feature = "nova")]
+pub mod query_graph;
