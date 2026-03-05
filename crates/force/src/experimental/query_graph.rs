@@ -40,13 +40,23 @@ impl QueryGraph {
 
         // Very basic parsing
         // We use a case-insensitive search that preserves byte indices of the original string.
-        let select_idx = soql.char_indices().find(|(i, _)| {
-            soql[*i..].starts_with("SELECT ") || soql[*i..].starts_with("select ") || soql[*i..].starts_with("Select ")
-        }).map(|(i, _)| i);
+        let select_idx = soql
+            .char_indices()
+            .find(|(i, _)| {
+                soql[*i..].starts_with("SELECT ")
+                    || soql[*i..].starts_with("select ")
+                    || soql[*i..].starts_with("Select ")
+            })
+            .map(|(i, _)| i);
 
-        let from_idx = soql.char_indices().find(|(i, _)| {
-            soql[*i..].starts_with(" FROM ") || soql[*i..].starts_with(" from ") || soql[*i..].starts_with(" From ")
-        }).map(|(i, _)| i);
+        let from_idx = soql
+            .char_indices()
+            .find(|(i, _)| {
+                soql[*i..].starts_with(" FROM ")
+                    || soql[*i..].starts_with(" from ")
+                    || soql[*i..].starts_with(" From ")
+            })
+            .map(|(i, _)| i);
 
         if let (Some(s_idx), Some(f_idx)) = (select_idx, from_idx) {
             if s_idx < f_idx {
