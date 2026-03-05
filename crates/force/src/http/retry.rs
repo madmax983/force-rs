@@ -110,6 +110,24 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_retry_policy_initialization() {
+        let policy = RetryPolicy::new(3, 1);
+        assert_eq!(policy.read_max_retries, 3);
+        assert_eq!(policy.mutation_max_retries, 1);
+        // Should default to read_max_retries
+        assert_eq!(policy.idempotent_mutation_max_retries, 3);
+    }
+
+    #[test]
+    fn test_retry_policy_with_idempotent_mutation_retries() {
+        let policy = RetryPolicy::new(3, 1).with_idempotent_mutation_retries(5);
+        assert_eq!(policy.read_max_retries, 3);
+        assert_eq!(policy.mutation_max_retries, 1);
+        // Should be overridden
+        assert_eq!(policy.idempotent_mutation_max_retries, 5);
+    }
+
+    #[test]
     fn test_exponential_backoff() {
         let base = Duration::from_millis(500);
         assert_eq!(exponential_backoff(0, base).as_millis(), 500);
