@@ -197,6 +197,33 @@ impl LimitInfo {
         self.percentage_used() > threshold
     }
 }
+impl<A: crate::auth::Authenticator> crate::api::rest::RestHandler<A> {
+    /// Retrieves organization limits.
+    ///
+    /// Returns information about the organization's usage and limits for various
+    /// resources including API requests, storage, workflow emails, and more.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Authentication fails
+    /// - The HTTP request fails
+    /// - The response cannot be deserialized
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// let limits = client.rest().limits().await?;
+    /// let api_limit = &limits.daily_api_requests;
+    /// println!("API calls: {}/{}", api_limit.used.unwrap_or(0), api_limit.max);
+    /// ```
+    pub async fn limits(&self) -> crate::error::Result<OrgLimits> {
+        self.execute_get("/limits", None, "Limits API request failed")
+            .await
+    }
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;

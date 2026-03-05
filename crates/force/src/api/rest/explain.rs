@@ -60,6 +60,35 @@ pub struct PlanNote {
     pub table_enum_or_id: String,
 }
 
+impl<A: crate::auth::Authenticator> crate::api::rest::RestHandler<A> {
+    /// Retrieves the query execution plan for a SOQL query.
+    ///
+    /// The Query Plan API (`/query/?explain=`) allows developers to check the
+    /// performance cost of a query before executing it. This is useful for
+    /// identifying table scans and inefficient filters.
+    ///
+    /// # Arguments
+    ///
+    /// * `soql` - The SOQL query string to analyze.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Authentication fails
+    /// - The HTTP request fails
+    /// - The response cannot be deserialized
+    #[cfg(feature = "nova")]
+    pub async fn explain(&self, soql: &str) -> crate::error::Result<ExplainResponse> {
+        self.execute_get(
+            "/query",
+            Some(&[("explain", soql)]),
+            "Query Plan API request failed",
+        )
+        .await
+    }
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;

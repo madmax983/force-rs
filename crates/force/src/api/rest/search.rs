@@ -371,6 +371,56 @@ fn validate_field_syntax(field: &str) {
     assert!(!escaped, "field cannot end with a backslash: {}", field);
 }
 
+impl<A: crate::auth::Authenticator> crate::api::rest::RestHandler<A> {
+    /// Executes a SOSL (Salesforce Object Search Language) search.
+    ///
+    /// SOSL allows you to search across multiple objects and fields simultaneously.
+    ///
+    /// # Arguments
+    ///
+    /// * `sosl` - The SOSL search query (e.g., "FIND {Acme} IN ALL FIELDS RETURNING Account(Name)")
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Authentication fails
+    /// - The HTTP request fails
+    /// - The SOSL query is malformed
+    /// - The response cannot be deserialized
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// use force::api::rest::search::SearchQueryBuilder;
+    ///
+    /// // Using builder
+    /// let query = SearchQueryBuilder::new()
+    ///     .find("Acme")
+    ///     .in_all_fields()
+    ///     .returning("Account", &["Id", "Name"])
+    ///     .returning("Contact", &["Id", "Name"])
+    ///     .limit(10)
+    ///     .build();
+    ///
+    /// let results = client.rest().search(&query).await?;
+    ///
+    /// for record_set in &results.search_records {
+    ///     println!("Found {} {} records",
+    ///         record_set.records.len(),
+    ///         record_set.attributes.type_);
+    /// }
+    /// ```
+    pub async fn search(&self, sosl: &str) -> crate::error::Result<SearchResult> {
+        self.execute_get(
+            "/search",
+            Some(&[("q", sosl)]),
+            "SOSL search request failed",
+        )
+        .await
+    }
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;

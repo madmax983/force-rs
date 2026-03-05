@@ -521,6 +521,76 @@ pub struct FilteredLookupInfo {
     /// Whether the filter is optional.
     pub optional_filter: bool,
 }
+impl<A: crate::auth::Authenticator> crate::api::rest::RestHandler<A> {
+    /// Retrieves global describe information.
+    ///
+    /// Returns metadata for all available SObjects in the organization.
+    /// This is a lightweight operation that provides basic information
+    /// about each object without field-level details.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Authentication fails
+    /// - The HTTP request fails
+    /// - The response cannot be deserialized
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// let global = client.rest().describe_global().await?;
+    ///
+    /// for sobject in &global.sobjects {
+    ///     if sobject.custom {
+    ///         println!("Custom object: {} ({})", sobject.name, sobject.label);
+    ///     }
+    /// }
+    /// ```
+    pub async fn describe_global(&self) -> crate::error::Result<GlobalDescribe> {
+        self.execute_get("/sobjects", None, "Global describe request failed")
+            .await
+    }
+
+    /// Retrieves detailed metadata for a specific SObject.
+    ///
+    /// Returns comprehensive information including all fields, relationships,
+    /// record types, and other metadata for the specified object.
+    ///
+    /// # Arguments
+    ///
+    /// * `sobject_name` - The API name of the SObject (e.g., "Account", "Contact")
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Authentication fails
+    /// - The HTTP request fails
+    /// - The SObject does not exist
+    /// - The response cannot be deserialized
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// let describe = client.rest().describe("Account").await?;
+    ///
+    /// println!("Object: {} ({})", describe.name, describe.label);
+    /// println!("Fields:");
+    /// for field in &describe.fields {
+    ///     println!("  {} - {:?} ({})", field.name, field.type_, field.label);
+    /// }
+    /// ```
+    pub async fn describe(&self, sobject_name: &str) -> crate::error::Result<SObjectDescribe> {
+        let path = format!("/sobjects/{}/describe", sobject_name);
+        self.execute_get(
+            &path,
+            None,
+            &format!("Describe request for {} failed", sobject_name),
+        )
+        .await
+    }
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
