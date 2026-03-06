@@ -8,7 +8,7 @@
 
 pub mod batch;
 #[cfg(feature = "nova")]
-pub mod graph;
+pub(crate) mod graph;
 
 use crate::auth::Authenticator;
 use crate::session::Session;

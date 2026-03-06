@@ -44,6 +44,7 @@ pub struct FieldChange {
 
 /// The result of comparing two schema definitions.
 #[derive(Debug, Clone, PartialEq, Default)]
+#[allow(clippy::struct_field_names)]
 pub struct SchemaDiffResult {
     /// Fields that were added in the new schema.
     pub added_fields: Vec<FieldDescribe>,

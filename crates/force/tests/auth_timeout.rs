@@ -6,8 +6,8 @@
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::expect_used)]
 
+use force::auth::Authenticator;
 use force::auth::ClientCredentials;
-use force::auth::authenticator::Authenticator;
 use force::error::{ForceError, HttpError};
 use std::time::Duration;
 use wiremock::matchers::{method, path};

@@ -17,7 +17,7 @@ use std::borrow::Cow;
 /// # Examples
 ///
 /// ```
-/// use force::api::rest::soql::escape_soql;
+/// use force::api::rest::escape_soql;
 ///
 /// assert_eq!(escape_soql("O'Reilly"), r"O\'Reilly");
 /// assert_eq!(escape_soql(r"C:\Docs"), r"C:\\Docs");
@@ -31,7 +31,7 @@ pub fn escape_soql(input: &str) -> String {
 ///
 /// Returns `Cow::Borrowed` if no escaping is required, avoiding allocation.
 /// Returns `Cow::Owned` if escaping is needed.
-pub(crate) fn escape_soql_cow(input: &str) -> Cow<'_, str> {
+pub fn escape_soql_cow(input: &str) -> Cow<'_, str> {
     let first_special = input.find(['\'', '\\', '"']);
 
     match first_special {

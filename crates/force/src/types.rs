@@ -3,12 +3,12 @@
 //! This module contains fundamental types used throughout the Salesforce API,
 //! including IDs, API versions, and other domain primitives.
 
-pub mod api_version;
-pub mod common;
-pub mod query;
-pub mod salesforce_id;
-pub mod sobject;
-pub mod validator;
+pub(crate) mod api_version;
+pub(crate) mod common;
+pub(crate) mod query;
+pub(crate) mod salesforce_id;
+pub(crate) mod sobject;
+pub(crate) mod validator;
 
 pub use crate::error::ApiError;
 pub use api_version::{ApiVersion, ApiVersionSupportTier};
