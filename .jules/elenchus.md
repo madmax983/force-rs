@@ -15,6 +15,7 @@ This journal records the findings of the Elenchus test audit.
 | **Acquitted** | `crates/force/src/experimental/scanner.rs` | 🟢 Acquitted | Initial audit found missing tests for filtering, batching, and zero-division. Added comprehensive tests and verified with mutation testing (12 mutants caught). |
 | **Acquitted** | `crates/force/src/experimental/query_batch.rs` | 🟢 Acquitted | Initial audit found missing coverage for `halt_on_error`, empty results, and partial failures. Added `test_query_batch_halt_on_error`, `test_query_batch_empty_results`, and `test_query_batch_mixed_results`. |
 | **Acquitted** | `crates/force/src/api/composite/batch.rs` | 🟢 Acquitted | Initial audit found tautological encoding tests and fragile JSON assertions. Refactored to use hardcoded "golden" strings and structural JSON validation. |
+| **Strengthened** | `crates/force/src/experimental/type_generator.rs` | 🔴 Critical | Replace `.contains()` checks with exact match (`assert_eq!`) against a golden string. Enhance case-conversion tests with comprehensive cases. Added missing coverage for `map_type`. |
 
 ## Detailed Findings
 
@@ -120,3 +121,11 @@ match result {
 - Tests like `test_serialize_empty_records` checked `is_ok` but didn't actually verify the output cleanly handled empty state via strong properties.
 **Recommendation:**
 - Replaced `assert!(result.is_ok())` with `.expect("...")` which guarantees the operation succeeded, bubbles up a helpful error message if it fails, and provides direct access to the `Ok` value.
+
+### [Strengthened] `crates/force/src/experimental/type_generator.rs`
+
+**Module:** `crates/force/src/experimental/type_generator.rs`
+**Severity:** 🔴 Critical
+**Finding:** The `test_generate_struct` function uses `.contains()` to verify its output. This is fragile because it permits extra text and does not verify the exact structure of the output. The string conversion tests (`test_snake_case`, `test_pascal_case`) lacked examples covering multiple capitalization formats and punctuation. The `map_type` function was missing tests entirely.
+**Evidence:** 16 mutants survived due to weak tests or complete absence of testing.
+**Recommendation:** Replace `.contains()` checks with exact match (`assert_eq!`) against a golden string. Enhance case-conversion tests with comprehensive cases. Added missing coverage for `map_type`.
