@@ -11,7 +11,7 @@ use async_trait::async_trait;
 use force::api::bulk::BulkPollPolicy;
 use force::auth::{AccessToken, Authenticator, TokenResponse};
 use force::client::{ForceClient, builder};
-use force::config::ClientConfigBuilder;
+use force::config::ClientConfig;
 use force::error::HttpError;
 use force::error::Result;
 use serde::Deserialize;
@@ -108,9 +108,10 @@ async fn create_live_client(config: &LiveConfig) -> Result<ForceClient<EnvAuthen
         instance_url: config.instance_url.clone(),
     };
 
-    let client_config = ClientConfigBuilder::new()
-        .api_version(config.api_version.clone())
-        .build();
+    let client_config = ClientConfig {
+        api_version: config.api_version.clone(),
+        ..Default::default()
+    };
 
     builder()
         .config(client_config)
