@@ -261,6 +261,7 @@ force = { version = "0.1", features = ["nova"] }
 Example usage:
 
 ```rust
+// Requires the "nova" feature: force = { version = "0.1", features = ["nova"] }
 use force::client::ForceClientBuilder;
 use force::auth::ClientCredentials;
 
@@ -273,7 +274,6 @@ async fn main() -> anyhow::Result<()> {
     );
     let client = ForceClientBuilder::new().authenticate(auth).build().await?;
 
-    // Requires the "nova" feature: force = { version = "0.1", features = ["nova"] }
     let soql = "SELECT Id FROM Account WHERE Name LIKE 'A%'";
     let explanation = client.rest().explain(soql).await?;
 
