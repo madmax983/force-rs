@@ -6,7 +6,7 @@
 pub(crate) mod handler;
 pub mod ingest;
 pub(crate) mod policy;
-pub(crate) mod query;
+pub mod query;
 pub mod types;
 
 #[cfg(feature = "bulk")]

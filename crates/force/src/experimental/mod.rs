@@ -15,7 +15,7 @@ pub(crate) mod scanner;
 pub mod query_batch;
 
 #[cfg(feature = "nova")]
-pub(crate) mod schema_graph;
+pub mod schema_graph;
 
 #[cfg(feature = "nova")]
 pub mod data_dictionary;
@@ -25,4 +25,4 @@ pub mod data_dictionary;
 pub mod type_generator;
 
 #[cfg(feature = "nova")]
-pub(crate) mod schema_diff;
+pub mod schema_diff;
