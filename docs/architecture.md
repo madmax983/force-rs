@@ -48,6 +48,10 @@ The core library uses a `Session` struct pattern for shared state and thread saf
 
 ```mermaid
 classDiagram
+  class Core
+  class Storage
+  Core --> Storage : Uses (Trait Bound)
+
   class ForceClient {
     +rest() RestHandler
     +bulk() BulkHandler
