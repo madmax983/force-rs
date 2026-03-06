@@ -53,19 +53,6 @@ pub fn escape_soql_cow(input: &str) -> Cow<'_, str> {
     }
 }
 
-#[derive(Debug, Clone)]
-enum WhereClause {
-    Raw(String),
-}
-
-impl std::fmt::Display for WhereClause {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Raw(s) => write!(f, "{}", s),
-        }
-    }
-}
-
 /// Builder for constructing safe SOQL queries.
 ///
 /// Helps prevent SOQL injection by validating object and field names,
@@ -89,7 +76,7 @@ impl std::fmt::Display for WhereClause {
 pub struct SoqlQueryBuilder {
     fields: Vec<String>,
     sobject: Option<String>,
-    where_clauses: Vec<WhereClause>,
+    where_clauses: Vec<String>,
     limit: Option<u32>,
     offset: Option<u32>,
     order_by: Option<String>,
@@ -170,7 +157,7 @@ impl SoqlQueryBuilder {
     /// ```
     #[must_use]
     pub fn where_condition_unchecked(mut self, condition: impl Into<String>) -> Self {
-        self.where_clauses.push(WhereClause::Raw(condition.into()));
+        self.where_clauses.push(condition.into());
         self
     }
 
@@ -223,10 +210,8 @@ impl SoqlQueryBuilder {
         Self::validate_field(field, context);
         // Optimization: Use escape_soql_cow to avoid allocation if escape not needed
         let escaped_value = escape_soql_cow(value);
-        self.where_clauses.push(WhereClause::Raw(format!(
-            "{} {} '{}'",
-            field, op, escaped_value
-        )));
+        self.where_clauses
+            .push(format!("{} {} '{}'", field, op, escaped_value));
         self
     }
 
@@ -263,8 +248,7 @@ impl SoqlQueryBuilder {
 
         Self::validate_field(field, "where_in");
         if values.is_empty() {
-            self.where_clauses
-                .push(WhereClause::Raw(format!("{} IN ()", field)));
+            self.where_clauses.push(format!("{} IN ()", field));
             return self;
         }
 
@@ -285,7 +269,7 @@ impl SoqlQueryBuilder {
         }
         buffer.push(')');
 
-        self.where_clauses.push(WhereClause::Raw(buffer));
+        self.where_clauses.push(buffer);
         self
     }
 
@@ -480,7 +464,7 @@ impl SoqlQueryBuilder {
             if i > 0 {
                 query.write_str(" AND ")?;
             }
-            write!(query, "{}", clause)?;
+            query.write_str(clause)?;
         }
         Ok(())
     }
