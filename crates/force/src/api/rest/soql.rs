@@ -658,6 +658,25 @@ mod tests {
         }
     }
 
+    // Test unwrap_or_panic logic by calling `build` on invalid states directly.
+    #[test]
+    #[should_panic(expected = "Invalid input in build: invalid input: Select fields cannot be empty")]
+    fn test_build_panics_on_missing_fields() {
+        let _ = SoqlQueryBuilder::new().from("Account").build();
+    }
+
+    #[test]
+    #[should_panic(expected = "Invalid input in build: invalid input: FROM clause (SObject) is required")]
+    fn test_build_panics_on_missing_sobject() {
+        let _ = SoqlQueryBuilder::new().select(&["Id"]).build();
+    }
+
+    #[test]
+    #[should_panic(expected = "Invalid input in from: invalid input: SObject name contains invalid characters: Invalid Object")]
+    fn test_from_panics_on_invalid_sobject() {
+        let _ = SoqlQueryBuilder::new().from("Invalid Object");
+    }
+
     #[test]
     fn test_build_errors() {
         // Missing fields
