@@ -107,7 +107,7 @@ impl TelemetryHooks {
     }
 }
 
-pub(crate) struct TelemetryContext {
+pub struct TelemetryContext {
     method: Option<String>,
     path: Option<String>,
     pub(crate) request_class: &'static str,

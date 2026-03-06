@@ -5,9 +5,9 @@
 
 use async_trait::async_trait;
 use chrono::Utc;
-use force::auth::authenticator::Authenticator;
-use force::auth::token::{AccessToken, TokenResponse};
-use force::auth::token_manager::TokenManager;
+use force::auth::Authenticator;
+use force::auth::TokenManager;
+use force::auth::{AccessToken, TokenResponse};
 use force::error::Result;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};

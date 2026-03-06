@@ -24,7 +24,7 @@ struct SalesforceError {
     fields: Vec<String>,
 }
 
-pub(crate) fn parse_api_error(status_code: u16, body: &str) -> HttpError {
+pub fn parse_api_error(status_code: u16, body: &str) -> HttpError {
     // Try to parse as Salesforce error array
     if let Ok(errors) = serde_json::from_str::<Vec<SalesforceError>>(body) {
         if let Some(first_error) = errors.first() {
@@ -49,7 +49,7 @@ pub(crate) fn parse_api_error(status_code: u16, body: &str) -> HttpError {
 /// Converts an HTTP error response into a `ForceError` using Salesforce-aware parsing.
 ///
 /// If the response body is empty or unreadable, falls back to `fallback_message`.
-pub(crate) async fn response_to_force_error(
+pub async fn response_to_force_error(
     response: Response,
     fallback_message: &str,
 ) -> crate::error::ForceError {
