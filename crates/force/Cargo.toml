@@ -75,3 +75,7 @@ required-features = ["nova"]
 [[example]]
 name = "generate_struct"
 required-features = ["nova"]
+
+[[example]]
+name = "soql_mass_op"
+required-features = ["nova", "composite"]
