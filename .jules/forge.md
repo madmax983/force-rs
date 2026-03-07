@@ -10,3 +10,7 @@
 **[Extract HTTP client wrappers]**
 **Learning:** Re-implementing HTTP request and URL formatting logic manually in `crates/force/src/api/bulk/query.rs` reduces maintainability and ignores centralized helpers like `Session::resolve_url` and `Session::get/post/patch/delete`.
 **Action:** Always prefer using the provided HTTP methods directly on the `Session` struct rather than manually accessing `.http_client` and writing custom format blocks for URLs.
+
+**[Guard Clauses over if-let nesting]**
+**Learning:** `if let` blocks can easily lead to deep nesting ("Pyramid of Doom") especially when performing multi-step validations or conditional extraction.
+**Action:** Prefer `let Some(..) = ... else { return ... };` guard clauses which flatten the code, making the happy-path execution flow cleaner. Applied this successfully in `QueryStream::fetch_next_page` to flatten conditional URL fetching.
