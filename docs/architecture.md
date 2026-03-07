@@ -28,7 +28,7 @@ C4Component
     Component(client, "Client Facade", "crates/force/client", "Public API Surface")
     Component(api, "API Handlers", "crates/force/api", "REST, Bulk, Composite logic")
     Component(session, "Session", "crates/force/session.rs", "Shared State (Config, Http, Tokens)")
-    Component(auth, "Auth & Tokens", "crates/force/auth", "Authentication & Token Storage")
+    Component(auth, "Auth & Tokens", "crates/force/auth", "Authentication logic & Core Auth Types")
     Component(http, "HTTP Layer", "crates/force/http", "Resilience & Middleware")
     Component(types, "Domain Types", "crates/force/types", "Core domain primitives")
 
@@ -63,6 +63,14 @@ classDiagram
     +authenticate()
     +refresh()
   }
+  class AccessToken {
+    +value String
+    +issued_at DateTime
+  }
+  class TokenResponse {
+    +access_token String
+    +instance_url String
+  }
   class RestHandler
 
   ForceClient *-- Session : Shared State (Arc)
@@ -70,6 +78,8 @@ classDiagram
   Session --> TokenManager : Owns
   Session --> HttpExecutor : Owns
   TokenManager --> Authenticator : Uses (Strategy)
+  TokenManager --> AccessToken : Owns
+  Authenticator --> TokenResponse : Produces
 ```
 
 ## Sequence Diagram: Token Storage

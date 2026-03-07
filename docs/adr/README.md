@@ -43,6 +43,7 @@ ADRs follow this structure:
 | [007](007-rest-api-design.md) | REST API Design Decisions | Accepted | 2026-02-07 |
 | [008](008-bulk-api-design.md) | Bulk API 2.0 Design Decisions | Accepted | 2026-02-08 |
 | [009](009-decouple-storage-from-core.md) | Decouple Storage from Core | Proposed | 2026-02-17 |
+| [016](016-isolate-auth-types.md) | Isolate Auth Types | Accepted | 2026-03-02 |
 
 ### Future ADRs
 
@@ -53,7 +54,6 @@ Planned ADRs for upcoming decisions:
 - **ADR-013**: Testing Strategy and Mock Framework
 - **ADR-014**: Logging and Observability
 - **ADR-015**: Connection Pooling Configuration
-- **ADR-016**: API Versioning Strategy
 
 ## Decision Process
 
@@ -88,6 +88,7 @@ graph TD
     ADR003 --> ADR007
 
     ADR002 --> ADR009[ADR-009: Decouple Storage]
+    ADR002 --> ADR016[ADR-016: Isolate Auth Types]
 
     style ADR001 fill:#4a9eff
     style ADR002 fill:#ffd43b
