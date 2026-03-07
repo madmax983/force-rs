@@ -136,6 +136,14 @@ fn resolve_next_records_url(
         }
         Ok(next_records_url.to_string())
     } else {
+        // Enforce that relative paths must begin with a forward slash.
+        // If they don't (e.g., @attacker.com/query), they can alter the parsed host when appended.
+        if !next_records_url.starts_with('/') {
+            return Err(ForceError::InvalidInput(format!(
+                "Security Error: relative nextRecordsUrl must begin with a forward slash, got: {}",
+                next_records_url
+            )));
+        }
         Ok(format!("{}{}", instance_url, next_records_url))
     }
 }
