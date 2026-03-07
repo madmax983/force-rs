@@ -73,14 +73,15 @@ async fn test_jwt_bearer_timeout() {
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/dummy_key.pem");
     let private_key = fs::read_to_string(key_path).expect("Failed to read dummy key");
 
-    let auth = JwtBearerFlow::builder()
-        .client_id("client_id")
-        .username("user@example.com")
-        .private_key(private_key)
-        .token_url(format!("{}/services/oauth2/token", mock_server.uri()))
-        .http_client(http_client)
-        .build()
-        .unwrap();
+    let auth = JwtBearerFlow::new(
+        "client_id",
+        "user@example.com",
+        &private_key,
+        "https://login.salesforce.com",
+        format!("{}/services/oauth2/token", mock_server.uri()),
+    )
+    .unwrap()
+    .with_client(http_client);
 
     let result = auth.authenticate().await;
 
