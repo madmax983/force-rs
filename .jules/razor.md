@@ -12,3 +12,8 @@
 **Bloat:** `ClientConfigBuilder` in `crates/force/src/config.rs`.
 **Cut:** Removed the builder struct and implementation. Refactored consumers to use direct struct instantiation with `..Default::default()`.
 **Saved:** ~50 lines of code. Removed unnecessary "Factory Factory" pattern in favor of simpler struct update syntax.
+
+## [Reduction]
+**Bloat:** `JwtBearerBuilder` in `crates/force/src/auth/jwt_bearer.rs`.
+**Cut:** Removed the builder struct and implementation. Replaced it with concrete constructor methods `new()`, `new_production()`, and `new_sandbox()` directly on `JwtBearerFlow`.
+**Saved:** ~90 lines of code. Removed an unnecessary "Factory Factory" pattern in favor of simpler direct instantiation, aligning it with the pattern used in `ClientCredentials`.

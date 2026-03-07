@@ -85,10 +85,90 @@ pub struct JwtBearerFlow {
 
 #[cfg(feature = "jwt")]
 impl JwtBearerFlow {
-    /// Creates a new builder for configuring the JWT bearer flow.
+    /// Creates a new `JwtBearerFlow` authenticator.
+    ///
+    /// # Arguments
+    ///
+    /// * `client_id` - OAuth client ID
+    /// * `username` - Salesforce username
+    /// * `private_key_pem` - RSA private key in PEM format
+    /// * `audience` - OAuth audience (typically the login URL)
+    /// * `token_url` - Token endpoint URL
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the private key is invalid.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the default HTTP client cannot be initialized.
+    pub fn new(
+        client_id: impl Into<String>,
+        username: impl Into<String>,
+        private_key_pem: impl Into<String>,
+        audience: impl Into<String>,
+        token_url: impl Into<String>,
+    ) -> Result<Self> {
+        let private_key_pem_str = private_key_pem.into();
+        let private_key =
+            EncodingKey::from_rsa_pem(private_key_pem_str.as_bytes()).map_err(|e| {
+                ForceError::Authentication(AuthenticationError::InvalidJwtConfig(format!(
+                    "Invalid RSA private key: {e}"
+                )))
+            })?;
+
+        #[allow(clippy::expect_used)]
+        // Client initialization failure is fatal and unrecoverable here
+        let http_client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(30))
+            .build()
+            .expect("Failed to create secure HTTP client");
+
+        Ok(Self {
+            client_id: client_id.into(),
+            username: username.into(),
+            private_key,
+            audience: audience.into(),
+            token_url: token_url.into(),
+            http_client,
+        })
+    }
+
+    /// Sets a custom HTTP client.
     #[must_use]
-    pub fn builder() -> JwtBearerBuilder {
-        JwtBearerBuilder::default()
+    pub fn with_client(mut self, client: reqwest::Client) -> Self {
+        self.http_client = client;
+        self
+    }
+
+    /// Creates a new `JwtBearerFlow` authenticator for Production.
+    pub fn new_production(
+        client_id: impl Into<String>,
+        username: impl Into<String>,
+        private_key_pem: impl Into<String>,
+    ) -> Result<Self> {
+        Self::new(
+            client_id,
+            username,
+            private_key_pem,
+            "https://login.salesforce.com",
+            "https://login.salesforce.com/services/oauth2/token",
+        )
+    }
+
+    /// Creates a new `JwtBearerFlow` authenticator for Sandbox.
+    pub fn new_sandbox(
+        client_id: impl Into<String>,
+        username: impl Into<String>,
+        private_key_pem: impl Into<String>,
+    ) -> Result<Self> {
+        Self::new(
+            client_id,
+            username,
+            private_key_pem,
+            "https://test.salesforce.com",
+            "https://test.salesforce.com/services/oauth2/token",
+        )
     }
 
     /// Generates a signed JWT for OAuth authentication.
@@ -192,148 +272,6 @@ impl Authenticator for JwtBearerFlow {
     }
 }
 
-/// Builder for creating `JwtBearerFlow` instances.
-#[cfg(feature = "jwt")]
-#[derive(Default)]
-pub struct JwtBearerBuilder {
-    client_id: Option<String>,
-    username: Option<String>,
-    private_key_pem: Option<String>,
-    audience: Option<String>,
-    token_url: Option<String>,
-    http_client: Option<reqwest::Client>,
-}
-
-#[cfg(feature = "jwt")]
-impl JwtBearerBuilder {
-    /// Sets the OAuth client ID.
-    #[must_use]
-    pub fn client_id(mut self, client_id: impl Into<String>) -> Self {
-        self.client_id = Some(client_id.into());
-        self
-    }
-
-    /// Sets the Salesforce username.
-    #[must_use]
-    pub fn username(mut self, username: impl Into<String>) -> Self {
-        self.username = Some(username.into());
-        self
-    }
-
-    /// Sets the RSA private key in PEM format.
-    #[must_use]
-    pub fn private_key(mut self, pem: impl Into<String>) -> Self {
-        self.private_key_pem = Some(pem.into());
-        self
-    }
-
-    /// Sets the OAuth audience (typically the login URL).
-    ///
-    /// Defaults to `https://login.salesforce.com` for production.
-    #[must_use]
-    pub fn audience(mut self, audience: impl Into<String>) -> Self {
-        self.audience = Some(audience.into());
-        self
-    }
-
-    /// Sets the token endpoint URL.
-    ///
-    /// Defaults to `https://login.salesforce.com/services/oauth2/token`.
-    #[must_use]
-    pub fn token_url(mut self, url: impl Into<String>) -> Self {
-        self.token_url = Some(url.into());
-        self
-    }
-
-    /// Sets a custom HTTP client.
-    #[must_use]
-    pub fn http_client(mut self, client: reqwest::Client) -> Self {
-        self.http_client = Some(client);
-        self
-    }
-
-    /// Configures the flow for the Salesforce Sandbox environment.
-    ///
-    /// Sets the audience to `https://test.salesforce.com` and the token URL to
-    /// `https://test.salesforce.com/services/oauth2/token`.
-    #[must_use]
-    pub fn sandbox(mut self) -> Self {
-        self.audience = Some("https://test.salesforce.com".to_string());
-        self.token_url = Some("https://test.salesforce.com/services/oauth2/token".to_string());
-        self
-    }
-
-    /// Configures the flow for the Salesforce Production environment.
-    ///
-    /// Sets the audience to `https://login.salesforce.com` and the token URL to
-    /// `https://login.salesforce.com/services/oauth2/token`.
-    #[must_use]
-    pub fn production(mut self) -> Self {
-        self.audience = Some("https://login.salesforce.com".to_string());
-        self.token_url = Some("https://login.salesforce.com/services/oauth2/token".to_string());
-        self
-    }
-
-    /// Builds the `JwtBearerFlow` instance.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if required fields are missing or the private key is invalid.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the default HTTP client cannot be initialized (e.g., due to missing TLS backend).
-    pub fn build(self) -> Result<JwtBearerFlow> {
-        let client_id = self.client_id.ok_or_else(|| {
-            ForceError::Config(crate::error::ConfigError::MissingValue(
-                "client_id".to_string(),
-            ))
-        })?;
-
-        let username = self.username.ok_or_else(|| {
-            ForceError::Config(crate::error::ConfigError::MissingValue(
-                "username".to_string(),
-            ))
-        })?;
-
-        let private_key_pem = self.private_key_pem.ok_or_else(|| {
-            ForceError::Config(crate::error::ConfigError::MissingValue(
-                "private_key".to_string(),
-            ))
-        })?;
-
-        let private_key = EncodingKey::from_rsa_pem(private_key_pem.as_bytes()).map_err(|e| {
-            ForceError::Authentication(AuthenticationError::InvalidJwtConfig(format!(
-                "Invalid RSA private key: {e}"
-            )))
-        })?;
-
-        let audience = self
-            .audience
-            .unwrap_or_else(|| "https://login.salesforce.com".to_string());
-        let token_url = self
-            .token_url
-            .unwrap_or_else(|| "https://login.salesforce.com/services/oauth2/token".to_string());
-        let http_client = self.http_client.unwrap_or_else(|| {
-            #[allow(clippy::expect_used)]
-            // Client initialization failure is fatal and unrecoverable here
-            reqwest::Client::builder()
-                .timeout(std::time::Duration::from_secs(30))
-                .build()
-                .expect("Failed to create secure HTTP client")
-        });
-
-        Ok(JwtBearerFlow {
-            client_id,
-            username,
-            private_key,
-            audience,
-            token_url,
-            http_client,
-        })
-    }
-}
-
 /// OAuth error response.
 #[cfg(feature = "jwt")]
 #[derive(Debug, Deserialize)]
@@ -380,57 +318,14 @@ QcWLHR6ul3bFRWNhXoThNBQ=
 -----END PRIVATE KEY-----";
 
     #[test]
-    fn test_jwt_bearer_builder_missing_client_id() {
-        let result = JwtBearerFlow::builder()
-            .username("user@example.com")
-            .private_key(TEST_PRIVATE_KEY)
-            .build();
-
-        assert!(result.is_err());
-        if let Err(ForceError::Config(crate::error::ConfigError::MissingValue(field))) = result {
-            assert_eq!(field, "client_id");
-        } else {
-            panic!("Expected ConfigError::MissingValue");
-        }
-    }
-
-    #[test]
-    fn test_jwt_bearer_builder_missing_username() {
-        let result = JwtBearerFlow::builder()
-            .client_id("test_client")
-            .private_key(TEST_PRIVATE_KEY)
-            .build();
-
-        assert!(result.is_err());
-        if let Err(ForceError::Config(crate::error::ConfigError::MissingValue(field))) = result {
-            assert_eq!(field, "username");
-        } else {
-            panic!("Expected ConfigError::MissingValue");
-        }
-    }
-
-    #[test]
-    fn test_jwt_bearer_builder_missing_private_key() {
-        let result = JwtBearerFlow::builder()
-            .client_id("test_client")
-            .username("user@example.com")
-            .build();
-
-        assert!(result.is_err());
-        if let Err(ForceError::Config(crate::error::ConfigError::MissingValue(field))) = result {
-            assert_eq!(field, "private_key");
-        } else {
-            panic!("Expected ConfigError::MissingValue");
-        }
-    }
-
-    #[test]
-    fn test_jwt_bearer_builder_invalid_private_key() {
-        let result = JwtBearerFlow::builder()
-            .client_id("test_client")
-            .username("user@example.com")
-            .private_key("invalid key")
-            .build();
+    fn test_jwt_bearer_invalid_private_key() {
+        let result = JwtBearerFlow::new(
+            "test_client",
+            "user@example.com",
+            "invalid key",
+            "https://login.salesforce.com",
+            "https://login.salesforce.com/services/oauth2/token",
+        );
 
         assert!(result.is_err());
         if let Err(ForceError::Authentication(AuthenticationError::InvalidJwtConfig(msg))) = result
@@ -440,15 +335,16 @@ QcWLHR6ul3bFRWNhXoThNBQ=
             panic!("Expected InvalidJwtConfig error");
         }
     }
-
     #[test]
     fn test_jwt_bearer_debug_redacts_private_key() {
-        let flow = JwtBearerFlow::builder()
-            .client_id("test_client")
-            .username("user@example.com")
-            .private_key(TEST_PRIVATE_KEY)
-            .build()
-            .must();
+        let flow = JwtBearerFlow::new(
+            "test_client",
+            "user@example.com",
+            TEST_PRIVATE_KEY,
+            "https://login.salesforce.com",
+            "https://login.salesforce.com/services/oauth2/token",
+        )
+        .must();
 
         let debug_str = format!("{flow:?}");
         assert!(debug_str.contains("test_client"));
@@ -456,16 +352,16 @@ QcWLHR6ul3bFRWNhXoThNBQ=
         assert!(!debug_str.contains("BEGIN RSA PRIVATE KEY"));
         assert!(debug_str.contains("[REDACTED]"));
     }
-
     #[test]
     fn test_generate_jwt() {
-        let flow = JwtBearerFlow::builder()
-            .client_id("test_client_id")
-            .username("test@example.com")
-            .private_key(TEST_PRIVATE_KEY)
-            .audience("https://test.salesforce.com")
-            .build()
-            .must();
+        let flow = JwtBearerFlow::new(
+            "test_client_id",
+            "test@example.com",
+            TEST_PRIVATE_KEY,
+            "https://test.salesforce.com",
+            "https://test.salesforce.com/services/oauth2/token",
+        )
+        .must();
 
         let jwt = flow.generate_jwt().must();
         assert!(!jwt.is_empty());
@@ -473,7 +369,6 @@ QcWLHR6ul3bFRWNhXoThNBQ=
         // JWT should have 3 parts separated by dots
         assert_eq!(jwt.split('.').count(), 3);
     }
-
     #[cfg(feature = "mock")]
     #[tokio::test]
     async fn test_jwt_bearer_authenticate_success() {
@@ -497,13 +392,14 @@ QcWLHR6ul3bFRWNhXoThNBQ=
             .mount(&mock_server)
             .await;
 
-        let flow = JwtBearerFlow::builder()
-            .client_id("test_client")
-            .username("test@example.com")
-            .private_key(TEST_PRIVATE_KEY)
-            .token_url(format!("{}/services/oauth2/token", mock_server.uri()))
-            .build()
-            .must();
+        let flow = JwtBearerFlow::new(
+            "test_client",
+            "test@example.com",
+            TEST_PRIVATE_KEY,
+            "https://login.salesforce.com",
+            format!("{}/services/oauth2/token", mock_server.uri()),
+        )
+        .must();
 
         let token = flow.authenticate().await.must();
         assert_eq!(token.as_str(), "jwt_bearer_token");
@@ -529,13 +425,14 @@ QcWLHR6ul3bFRWNhXoThNBQ=
             .mount(&mock_server)
             .await;
 
-        let flow = JwtBearerFlow::builder()
-            .client_id("test_client")
-            .username("test@example.com")
-            .private_key(TEST_PRIVATE_KEY)
-            .token_url(format!("{}/services/oauth2/token", mock_server.uri()))
-            .build()
-            .must();
+        let flow = JwtBearerFlow::new(
+            "test_client",
+            "test@example.com",
+            TEST_PRIVATE_KEY,
+            "https://login.salesforce.com",
+            format!("{}/services/oauth2/token", mock_server.uri()),
+        )
+        .must();
 
         let result = flow.authenticate().await;
         assert!(result.is_err());
@@ -573,13 +470,14 @@ QcWLHR6ul3bFRWNhXoThNBQ=
             .mount(&mock_server)
             .await;
 
-        let flow = JwtBearerFlow::builder()
-            .client_id("test_client")
-            .username("test@example.com")
-            .private_key(TEST_PRIVATE_KEY)
-            .token_url(format!("{}/services/oauth2/token", mock_server.uri()))
-            .build()
-            .must();
+        let flow = JwtBearerFlow::new(
+            "test_client",
+            "test@example.com",
+            TEST_PRIVATE_KEY,
+            "https://login.salesforce.com",
+            format!("{}/services/oauth2/token", mock_server.uri()),
+        )
+        .must();
 
         // First authenticate
         let _token1 = flow.authenticate().await.must();
@@ -590,14 +488,9 @@ QcWLHR6ul3bFRWNhXoThNBQ=
     }
 
     #[test]
-    fn test_jwt_bearer_builder_sandbox() {
-        let flow = JwtBearerFlow::builder()
-            .client_id("test_client")
-            .username("user@example.com")
-            .private_key(TEST_PRIVATE_KEY)
-            .sandbox()
-            .build()
-            .must();
+    fn test_jwt_bearer_new_sandbox() {
+        let flow =
+            JwtBearerFlow::new_sandbox("test_client", "user@example.com", TEST_PRIVATE_KEY).must();
 
         assert_eq!(flow.audience, "https://test.salesforce.com");
         assert_eq!(
@@ -605,16 +498,11 @@ QcWLHR6ul3bFRWNhXoThNBQ=
             "https://test.salesforce.com/services/oauth2/token"
         );
     }
-
     #[test]
-    fn test_jwt_bearer_builder_production() {
-        let flow = JwtBearerFlow::builder()
-            .client_id("test_client")
-            .username("user@example.com")
-            .private_key(TEST_PRIVATE_KEY)
-            .production()
-            .build()
-            .must();
+    fn test_jwt_bearer_new_production() {
+        let flow =
+            JwtBearerFlow::new_production("test_client", "user@example.com", TEST_PRIVATE_KEY)
+                .must();
 
         assert_eq!(flow.audience, "https://login.salesforce.com");
         assert_eq!(
