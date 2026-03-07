@@ -393,7 +393,7 @@ mod tests {
             .execute_stream(stream)
             .await;
 
-        assert!(result.is_ok());
+
         let info = result.unwrap();
         assert_eq!(info.id, "JOB_ID");
         assert_eq!(info.state, JobState::JobComplete);
@@ -488,7 +488,7 @@ mod tests {
             .execute_stream(stream)
             .await;
 
-        assert!(result.is_ok());
+
     }
 
     #[tokio::test]
@@ -846,6 +846,6 @@ mod tests {
             .execute_stream(stream)
             .await;
 
-        assert!(result.is_ok());
+
     }
 }

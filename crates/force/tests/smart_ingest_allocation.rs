@@ -180,6 +180,6 @@ mod tests {
             .execute_stream(stream)
             .await;
 
-        assert!(result.is_ok());
+        let _result = result.unwrap();
     }
 }

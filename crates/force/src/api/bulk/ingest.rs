@@ -1215,7 +1215,7 @@ mod tests {
         let handler = client.bulk();
 
         let result = handler.delete_job("750xx0000000001AAA").await;
-        assert!(result.is_ok());
+        let _result = result.map_err(|e| e.to_string()).expect("result should be ok");
     }
 
     #[cfg(feature = "bulk")]

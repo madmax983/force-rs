@@ -131,13 +131,14 @@ fn validate_field_name_internal(name: &str, allow_functions: bool) -> Result<(),
 
 #[cfg(test)]
 mod tests {
+    use crate::test_support::Must;
     use super::*;
 
     #[test]
     fn test_validate_sobject_name_valid() {
-        assert!(validate_sobject_name("Account").is_ok());
-        assert!(validate_sobject_name("Custom_Object__c").is_ok());
-        assert!(validate_sobject_name("Snippet").is_ok());
+        validate_sobject_name("Account").must();
+        validate_sobject_name("Custom_Object__c").must();
+        validate_sobject_name("Snippet").must();
     }
 
     #[test]
@@ -150,11 +151,11 @@ mod tests {
 
     #[test]
     fn test_validate_field_name_valid() {
-        assert!(validate_field_name("Name").is_ok());
-        assert!(validate_field_name("Custom_Field__c").is_ok());
-        assert!(validate_field_name("Parent.Name").is_ok());
-        assert!(validate_field_name("count(Id)").is_ok());
-        assert!(validate_field_name("toLabel(StageName)").is_ok());
+        validate_field_name("Name").must();
+        validate_field_name("Custom_Field__c").must();
+        validate_field_name("Parent.Name").must();
+        validate_field_name("count(Id)").must();
+        validate_field_name("toLabel(StageName)").must();
     }
 
     #[test]
@@ -176,14 +177,14 @@ mod tests {
         assert!(validate_field_name("..").is_err());
 
         // Valid dots
-        assert!(validate_field_name("Parent.Name").is_ok());
-        assert!(validate_field_name("Grandparent.Parent.Name").is_ok());
+        validate_field_name("Parent.Name").must();
+        validate_field_name("Grandparent.Parent.Name").must();
     }
 
     #[test]
     fn test_validate_external_id_field_valid() {
-        assert!(validate_external_id_field("ExternalId__c").is_ok());
-        assert!(validate_external_id_field("Id").is_ok());
+        validate_external_id_field("ExternalId__c").must();
+        validate_external_id_field("Id").must();
     }
 
     #[test]

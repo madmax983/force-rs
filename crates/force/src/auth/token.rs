@@ -425,9 +425,7 @@ mod tests {
     fn test_parse_issued_at_negative() {
         // Test pre-1970 timestamp
         let timestamp = "-1000"; // 1969-12-31 23:59:59 UTC
-        let result = parse_issued_at(timestamp);
-        assert!(result.is_ok());
-        let dt = result.must();
+        let dt = parse_issued_at(timestamp).must();
         // Since parse_issued_at discards milliseconds and uses 0 for nanos,
         // -1000ms / 1000 = -1s.
         // DateTime::from_timestamp(-1, 0) is 1969-12-31 23:59:59.

@@ -361,8 +361,7 @@ mod tests {
         let result: QueryResult<i32> = QueryResult::new(3, true, vec![1, 2, 3]);
 
         let mapped: Result<QueryResult<i32>, ()> = result.try_map(|x| Ok(x * 2));
-        assert!(mapped.is_ok());
-        assert_eq!(mapped.must().records, vec![2, 4, 6]);
+        assert_eq!(mapped.map_err(|_| "mapped error").expect("mapped should be ok").records, vec![2, 4, 6]);
     }
 
     #[test]

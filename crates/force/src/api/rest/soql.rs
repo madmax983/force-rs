@@ -502,8 +502,9 @@ impl SoqlQueryBuilder {
 
 #[cfg(test)]
 mod tests {
-    #![allow(clippy::unwrap_used)]
-    #![allow(clippy::expect_used)]
+    use crate::test_support::Must;
+    #[allow(clippy::unwrap_used)]
+    #[allow(clippy::expect_used)]
 
     use super::*;
 
@@ -569,19 +570,19 @@ mod tests {
 
     #[test]
     fn test_validate_sobject_name() {
-        assert!(validate_sobject_name("Account").is_ok());
-        assert!(validate_sobject_name("Custom__c").is_ok());
+        validate_sobject_name("Account").must();
+        validate_sobject_name("Custom__c").must();
         assert!(validate_sobject_name("Account; DROP").is_err());
         assert!(validate_sobject_name("Account Name").is_err()); // No spaces
     }
 
     #[test]
     fn test_validate_field_name() {
-        assert!(validate_field_name("Name").is_ok());
-        assert!(validate_field_name("Custom__c").is_ok());
-        assert!(validate_field_name("Parent.Name").is_ok());
-        assert!(validate_field_name("count(Id)").is_ok());
-        assert!(validate_field_name("toLabel(StageName)").is_ok());
+        validate_field_name("Name").must();
+        validate_field_name("Custom__c").must();
+        validate_field_name("Parent.Name").must();
+        validate_field_name("count(Id)").must();
+        validate_field_name("toLabel(StageName)").must();
 
         assert!(validate_field_name("Name; DROP").is_err());
         assert!(validate_field_name("Name--").is_err());
@@ -765,10 +766,10 @@ mod tests {
     fn test_write_query_streaming() {
         let builder = SoqlQueryBuilder::new().select(&["Id"]).from("Account");
 
-        builder.validate().unwrap();
+        builder.validate().map_err(|e| e.to_string()).expect("should validate");
 
         let mut buffer = String::new();
-        builder.write_query(&mut buffer).unwrap();
+        builder.write_query(&mut buffer).map_err(|e| e.to_string()).expect("should write");
 
         assert_eq!(buffer, "SELECT Id FROM Account");
     }

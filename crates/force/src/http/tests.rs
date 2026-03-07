@@ -120,7 +120,7 @@ mod integration_tests {
             .await;
 
         // Assert
-        assert!(result.is_ok());
+        let _result = result.must();
         assert_eq!(refresh_count.load(Ordering::SeqCst), 1);
     }
 
@@ -282,7 +282,7 @@ mod integration_tests {
         let elapsed = start.elapsed();
 
         // Assert
-        assert!(result.is_ok());
+        let _result = result.must();
         // Should have waited ~10ms + ~20ms = ~30ms for backoff
         assert!(elapsed.as_millis() >= 25);
     }
@@ -352,7 +352,7 @@ mod integration_tests {
             })
             .await;
 
-        assert!(result.is_ok());
+        let _result = result.must();
     }
 
     #[tokio::test]
@@ -405,7 +405,7 @@ mod integration_tests {
             })
             .await;
 
-        assert!(result.is_ok());
+        let _result = result.must();
         assert_eq!(retries.load(Ordering::SeqCst), 1);
         let Ok(completions) = completions.lock() else {
             panic!("completion lock poisoned");
@@ -490,7 +490,6 @@ mod integration_tests {
             .await;
 
         // Assert
-        assert!(result.is_ok());
         let response = result.must();
         assert_eq!(response.id, "001xx000003DGbm");
         assert_eq!(response.name, "Test Account");
@@ -611,7 +610,7 @@ mod integration_tests {
         let elapsed = start.elapsed();
 
         // Assert
-        assert!(result.is_ok());
+        let _result = result.must();
         // Should have waited at least 50ms (timeout) + 10ms (backoff)
         assert!(elapsed.as_millis() >= 60);
     }

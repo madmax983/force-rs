@@ -420,7 +420,7 @@ mod tests {
                 let version_str = format!("v{}.0", major);
                 let parsed = version_str.parse::<ApiVersion>();
 
-                prop_assert!(parsed.is_ok());
+                let _parsed = parsed.as_ref().map_err(|e| e.to_string()).expect("parsed should be ok");
                 prop_assert_eq!(parsed.must().major(), major);
             }
 

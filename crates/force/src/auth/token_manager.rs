@@ -424,8 +424,7 @@ mod tests {
 
         // Wait for all tasks to complete
         for handle in handles {
-            let result = handle.await.must();
-            assert!(result.is_ok());
+            let _result = handle.await.must().must();
         }
 
         // Should only authenticate once despite concurrent requests

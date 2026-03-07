@@ -1,1 +1,0 @@
-sed -i '48i \    /// Returns the instance URL from the current authentication token.\n    pub(crate) async fn instance_url(&self) -> crate::error::Result<String> {\n        let token = self.token_manager.get_token_arc().await?;\n        Ok(token.instance_url().to_string())\n    }\n' crates/force/src/session.rs

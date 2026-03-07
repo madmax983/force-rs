@@ -192,17 +192,15 @@ mod tests {
 
     #[test]
     fn test_new_15_char_valid() {
-        let id = SalesforceId::new("001000000000001");
-        assert!(id.is_ok());
-        assert_eq!(id.must().as_str(), "001000000000001");
+        let id = SalesforceId::new("001000000000001").must();
+        assert_eq!(id.as_str(), "001000000000001");
     }
 
     #[test]
     fn test_new_18_char_valid() {
         // Using a real Salesforce ID with valid checksum
-        let id = SalesforceId::new("001000000000001AAA");
-        assert!(id.is_ok());
-        assert_eq!(id.must().as_str(), "001000000000001AAA");
+        let id = SalesforceId::new("001000000000001AAA").must();
+        assert_eq!(id.as_str(), "001000000000001AAA");
     }
 
     #[test]
@@ -394,7 +392,7 @@ mod tests {
 
                 // Should be parseable as valid ID
                 let reparsed = SalesforceId::new(id_18.as_str());
-                prop_assert!(reparsed.is_ok());
+                let _reparsed = reparsed.as_ref().map_err(|e| e.to_string()).expect("reparsed should be ok");
             }
 
             // Property 4: Invalid lengths always reject

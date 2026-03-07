@@ -105,5 +105,5 @@ async fn test_upsert_path_injection() {
 
     // We expect Ok() because the client SHOULD encode it.
     // If it fails (Err), it means it hit the 400 mock or didn't match anything.
-    assert!(result.is_ok(), "Upsert failed. Result: {result:?}");
+    let _result = result.unwrap();
 }

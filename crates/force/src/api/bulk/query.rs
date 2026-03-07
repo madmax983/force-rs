@@ -875,7 +875,7 @@ mod tests {
         let handler = client.bulk();
 
         let result = handler.delete_query_job("750xx0000000001AAA").await;
-        assert!(result.is_ok());
+        let _result = result.map_err(|e| e.to_string()).expect("result should be ok");
     }
 
     #[tokio::test]
@@ -1090,8 +1090,8 @@ mod tests {
         let results: Vec<_> = stream.into_stream().collect::<Vec<_>>().await;
 
         assert_eq!(results.len(), 2);
-        assert!(results[0].is_ok());
-        assert!(results[1].is_ok());
+        let _r0 = results[0].as_ref().map_err(|e| e.to_string()).expect("results[0] should be Ok");
+        let _r1 = results[1].as_ref().map_err(|e| e.to_string()).expect("results[1] should be Ok");
     }
 
     #[cfg(feature = "bulk")]
