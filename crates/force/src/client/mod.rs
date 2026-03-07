@@ -111,10 +111,23 @@ impl<A: crate::auth::authenticator::Authenticator> ForceClient<A> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::MockAuthenticator;
+    use crate::test_support::Must;
 
     #[test]
     fn test_builder_creates_noauth_state() {
         let _builder = builder();
         // Compile-time check: builder starts in NoAuth state
+    }
+
+    #[tokio::test]
+    async fn test_force_client_clone() {
+        let auth = MockAuthenticator::new("test_token", "https://test.salesforce.com");
+        let client = builder().authenticate(auth).build().await.must();
+
+        let cloned_client = client.clone();
+
+        // Assert that the cloned client points to the same underlying Arc
+        assert!(Arc::ptr_eq(client.inner(), cloned_client.inner()));
     }
 }

@@ -90,3 +90,72 @@ impl Authenticator for MockAuthenticator {
         self.authenticate().await
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_must_result_ok() {
+        let result: Result<i32, &str> = Ok(42);
+        assert_eq!(result.must(), 42);
+    }
+
+    #[test]
+    #[should_panic(expected = "unexpected Err: \"error message\"")]
+    fn test_must_result_err() {
+        let result: Result<i32, &str> = Err("error message");
+        let _ = result.must();
+    }
+
+    #[test]
+    fn test_must_option_some() {
+        let option: Option<i32> = Some(42);
+        assert_eq!(option.must(), 42);
+    }
+
+    #[test]
+    #[should_panic(expected = "unexpected None")]
+    fn test_must_option_none() {
+        let option: Option<i32> = None;
+        let _ = option.must();
+    }
+
+    #[test]
+    fn test_must_msg_result_ok() {
+        let result: Result<i32, &str> = Ok(42);
+        assert_eq!(result.must_msg("Custom panic message"), 42);
+    }
+
+    #[test]
+    #[should_panic(expected = "Custom panic message: \"error message\"")]
+    fn test_must_msg_result_err() {
+        let result: Result<i32, &str> = Err("error message");
+        let _ = result.must_msg("Custom panic message");
+    }
+
+    #[test]
+    fn test_must_msg_option_some() {
+        let option: Option<i32> = Some(42);
+        assert_eq!(option.must_msg("Custom panic message"), 42);
+    }
+
+    #[test]
+    #[should_panic(expected = "Custom panic message")]
+    fn test_must_msg_option_none() {
+        let option: Option<i32> = None;
+        let _ = option.must_msg("Custom panic message");
+    }
+
+    #[tokio::test]
+    async fn test_mock_authenticator() {
+        let auth = MockAuthenticator::new("my_token", "https://mock.salesforce.com");
+        let token = auth.authenticate().await.must();
+        assert_eq!(token.as_str(), "my_token");
+        assert_eq!(token.instance_url(), "https://mock.salesforce.com");
+
+        let refresh_token = auth.refresh().await.must();
+        assert_eq!(refresh_token.as_str(), "my_token");
+        assert_eq!(refresh_token.instance_url(), "https://mock.salesforce.com");
+    }
+}
