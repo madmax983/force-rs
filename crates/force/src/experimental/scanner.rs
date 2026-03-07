@@ -129,7 +129,7 @@ impl<'a, A: Authenticator> FieldUsageScanner<'a, A> {
         let record = &response.records[0];
         let total = record.get("total").and_then(|v| v.as_u64()).unwrap_or(0);
 
-        let mut batch_results = Vec::new();
+        let mut batch_results = Vec::with_capacity(fields.len());
 
         for (i, field) in fields.iter().enumerate() {
             let alias = format!("f{}", i);
@@ -480,7 +480,7 @@ mod tests {
         let client = builder().authenticate(auth).build().await.must();
 
         // Generate 25 fields
-        let mut fields = Vec::new();
+        let mut fields = Vec::with_capacity(25);
         for i in 0..25 {
             fields.push(json!({
                 "name": format!("Field{}", i), "type": "string", "label": format!("Field {}", i),
