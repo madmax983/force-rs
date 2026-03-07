@@ -101,7 +101,11 @@ impl<'a, A: Authenticator> SoqlMassOp<'a, A> {
         batch_op
             .run::<DynamicSObject, _>(|record| {
                 // Ensure we have an Id field. If not, we skip the record.
-                let id = record.get_field_as::<String>("Id").ok().flatten().unwrap_or_default();
+                let id = record
+                    .get_field_as::<String>("Id")
+                    .ok()
+                    .flatten()
+                    .unwrap_or_default();
 
                 if id.is_empty() {
                     None
@@ -138,7 +142,11 @@ impl<'a, A: Authenticator> SoqlMassOp<'a, A> {
 
         batch_op
             .run::<DynamicSObject, _>(|record| {
-                let id = record.get_field_as::<String>("Id").ok().flatten().unwrap_or_default();
+                let id = record
+                    .get_field_as::<String>("Id")
+                    .ok()
+                    .flatten()
+                    .unwrap_or_default();
 
                 if id.is_empty() {
                     None
