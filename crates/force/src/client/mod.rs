@@ -117,7 +117,7 @@ mod tests {
     #[test]
     fn test_builder_creates_noauth_state() {
         let _builder = builder();
-        // Compile-time check: builder starts in NoAuth state
+        // Check that the builder is initialized properly.
     }
 
     #[tokio::test]
