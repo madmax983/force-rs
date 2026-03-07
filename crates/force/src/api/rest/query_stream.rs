@@ -108,13 +108,13 @@ where
             return Ok(None);
         }
 
-        if let Some(ref url) = self.next_url {
-            let result = self.client.query_more::<T>(url).await?;
-            Ok(Some(result))
-        } else {
+        let Some(ref url) = self.next_url else {
             // Done is false but no URL? Treat as done to avoid infinite loop.
-            Ok(None)
-        }
+            return Ok(None);
+        };
+
+        let result = self.client.query_more::<T>(url).await?;
+        Ok(Some(result))
     }
 
     /// Converts this query stream into a `futures::Stream`.
