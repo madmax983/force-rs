@@ -193,7 +193,7 @@ impl<T, A: crate::auth::Authenticator> BulkQueryStream<T, A> {
         let response = self.inner.execute_request(response).await?;
 
         if !response.status().is_success() {
-            return Err(handle_error_response(
+            return Err(crate::http::response_to_force_error(
                 response,
                 &format!("Failed to fetch query results for job {}", self.job_id),
             )
@@ -269,14 +269,6 @@ impl<T, A: crate::auth::Authenticator> BulkQueryStream<T, A> {
             }
         })
     }
-}
-
-/// Helper function to handle error responses from bulk query API.
-async fn handle_error_response(
-    response: reqwest::Response,
-    context: &str,
-) -> crate::error::ForceError {
-    crate::http::response_to_force_error(response, context).await
 }
 
 /// Extension methods for `BulkHandler` to support bulk queries.
@@ -443,7 +435,7 @@ impl<A: crate::auth::Authenticator> super::BulkHandler<A> {
         let response = inner.execute_request(request).await?;
 
         if !response.status().is_success() {
-            return Err(handle_error_response(
+            return Err(crate::http::response_to_force_error(
                 response,
                 &format!("Delete query job request failed for job {}", job_id),
             )
