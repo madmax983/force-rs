@@ -17,13 +17,11 @@
 //! # Examples
 //!
 //! ```ignore
-//! use force::api::bulk::ingest::IngestJobBuilder;
+//! use force::api::bulk::ingest::IngestJob;
 //! use force::api::bulk::types::JobOperation;
 //!
 //! // Create and upload data
-//! let job = IngestJobBuilder::new("Account", JobOperation::Insert)
-//!     .build(&client)
-//!     .await?;
+//! let job = IngestJob::create(&client.bulk(), "Account", JobOperation::Insert, None).await?;
 //!
 //! let csv_data = "Name,Industry\nAcme Corp,Technology\n";
 //! let job = job.upload(csv_data.as_bytes()).await?;
@@ -125,8 +123,35 @@ impl<S: Send + Sync, A: Authenticator> IngestJob<S, A> {
 }
 
 impl<A: Authenticator> IngestJob<Open, A> {
-    /// Creates a new ingest job in Open state.
-    #[must_use]
+    /// Creates a new ingest job in Open state directly.
+    ///
+    /// # Errors
+    /// Returns an error if job creation fails.
+    pub async fn create(
+        handler: &crate::api::bulk::BulkHandler<A>,
+        object: impl Into<String>,
+        operation: JobOperation,
+        external_id_field_name: Option<String>,
+    ) -> Result<Self> {
+        let object = object.into();
+        validate_sobject_name(&object)?;
+        if let Some(field) = &external_id_field_name {
+            validate_external_id_field(field)?;
+        }
+
+        let request = CreateJobRequest {
+            object,
+            operation,
+            content_type: None,
+            external_id_field_name,
+            line_ending: None,
+            column_delimiter: None,
+        };
+
+        let job_info = handler.create_job(request).await?;
+        Ok(Self::new(job_info.id, Arc::clone(&handler.inner)))
+    }
+
     pub(crate) fn new(job_id: String, inner: Arc<crate::session::Session<A>>) -> Self {
         Self {
             job_id,
@@ -421,100 +446,6 @@ impl<A: Authenticator> IngestJob<JobComplete, A> {
     }
 }
 
-/// Builder for creating ingest jobs.
-pub struct IngestJobBuilder {
-    object: String,
-    operation: JobOperation,
-    external_id_field_name: Option<String>,
-}
-
-impl IngestJobBuilder {
-    /// Creates a new ingest job builder.
-    ///
-    /// # Arguments
-    ///
-    /// * `object` - The SObject type (e.g., "Account")
-    /// * `operation` - The operation to perform
-    #[must_use]
-    pub fn new(object: impl Into<String>, operation: JobOperation) -> Self {
-        Self {
-            object: object.into(),
-            operation,
-            external_id_field_name: None,
-        }
-    }
-
-    /// Sets the external ID field for upsert operations.
-    #[must_use]
-    pub fn external_id_field(mut self, field_name: impl Into<String>) -> Self {
-        self.external_id_field_name = Some(field_name.into());
-        self
-    }
-
-    /// Builds and creates the job.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if job creation fails.
-    pub async fn build<A: Authenticator>(
-        self,
-        handler: &crate::api::bulk::BulkHandler<A>,
-    ) -> Result<IngestJob<Open, A>> {
-        let request = CreateJobRequest {
-            object: self.object,
-            operation: self.operation,
-            content_type: None,
-            external_id_field_name: self.external_id_field_name,
-            line_ending: None,
-            column_delimiter: None,
-        };
-
-        let job_info = handler.create_job(request).await?;
-        Ok(IngestJob::new(job_info.id, Arc::clone(&handler.inner)))
-    }
-
-    /// Builds and creates the job using a raw Inner reference.
-    ///
-    /// This is used internally by convenience methods that already have an Inner reference.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if job creation fails.
-    pub(crate) async fn build_with_inner<A: Authenticator>(
-        self,
-        inner: Arc<crate::session::Session<A>>,
-    ) -> Result<IngestJob<Open, A>> {
-        validate_sobject_name(&self.object)?;
-        if let Some(field) = &self.external_id_field_name {
-            validate_external_id_field(field)?;
-        }
-
-        let request = CreateJobRequest {
-            object: self.object,
-            operation: self.operation,
-            content_type: None,
-            external_id_field_name: self.external_id_field_name,
-            line_ending: None,
-            column_delimiter: None,
-        };
-
-        // Call create_job directly
-        let url = inner.resolve_url("/jobs/ingest").await?;
-
-        let request = inner
-            .post(&url)
-            .json(&request)
-            .build()
-            .map_err(crate::error::HttpError::from)?;
-
-        let job_info = inner
-            .send_request_and_decode::<JobInfo>(request, "Create job request failed")
-            .await?;
-
-        Ok(IngestJob::new(job_info.id, inner))
-    }
-}
-
 /// Extension methods for `BulkHandler` to support ingest jobs.
 impl<A: Authenticator> BulkHandler<A> {
     /// Creates a builder for a smart ingest job.
@@ -765,9 +696,7 @@ impl<A: Authenticator> BulkHandler<A> {
         csv::serialize_to_csv(records, &mut csv_data)?;
 
         // Create job
-        let job = IngestJobBuilder::new(object, JobOperation::Insert)
-            .build_with_inner(Arc::clone(&self.inner))
-            .await?;
+        let job = IngestJob::create(self, object, JobOperation::Insert, None).await?;
 
         // Upload, close, and poll
         let job = job.upload(csv_data).await?;
@@ -841,9 +770,7 @@ impl<A: Authenticator> BulkHandler<A> {
         csv::serialize_to_csv(records, &mut csv_data)?;
 
         // Create job
-        let job = IngestJobBuilder::new(object, JobOperation::Update)
-            .build_with_inner(Arc::clone(&self.inner))
-            .await?;
+        let job = IngestJob::create(self, object, JobOperation::Update, None).await?;
 
         // Upload, close, and poll
         let job = job.upload(csv_data).await?;
@@ -912,9 +839,7 @@ impl<A: Authenticator> BulkHandler<A> {
         csv::serialize_to_csv(&delete_records, &mut csv_data)?;
 
         // Create job
-        let job = IngestJobBuilder::new(object, JobOperation::Delete)
-            .build_with_inner(Arc::clone(&self.inner))
-            .await?;
+        let job = IngestJob::create(self, object, JobOperation::Delete, None).await?;
 
         // Upload, close, and poll
         let job = job.upload(csv_data).await?;
@@ -975,8 +900,7 @@ mod tests {
         let client = create_test_client(mock_server.uri()).await;
         let handler = client.bulk();
 
-        let job = IngestJobBuilder::new("Account", JobOperation::Insert)
-            .build(&handler)
+        let job = IngestJob::create(&handler, "Account", JobOperation::Insert, None)
             .await
             .must();
 
@@ -1730,8 +1654,7 @@ mod tests {
         let client = create_test_client(mock_server.uri()).await;
         let handler = client.bulk();
 
-        let job = IngestJobBuilder::new("Account", JobOperation::Insert)
-            .build(&handler)
+        let job = IngestJob::create(&handler, "Account", JobOperation::Insert, None)
             .await
             .must();
 
@@ -1774,8 +1697,7 @@ mod tests {
         let client = create_test_client(mock_server.uri()).await;
         let handler = client.bulk();
 
-        let job = IngestJobBuilder::new("Account", JobOperation::Insert)
-            .build(&handler)
+        let job = IngestJob::create(&handler, "Account", JobOperation::Insert, None)
             .await
             .must();
 
