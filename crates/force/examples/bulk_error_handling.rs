@@ -4,7 +4,7 @@
 mod example {
     use anyhow::Context;
     use force::api::bulk::csv::{deserialize_from_csv, serialize_to_csv};
-    use force::api::bulk::ingest::IngestJobBuilder;
+    use force::api::bulk::ingest::IngestJob;
     use force::api::bulk::types::JobOperation;
     use force::auth::ClientCredentials;
     use force::client::{ForceClient, ForceClientBuilder};
@@ -70,8 +70,7 @@ mod example {
         let mut csv = Vec::new();
         serialize_to_csv(&accounts, &mut csv)?;
 
-        let job = IngestJobBuilder::new("Account", JobOperation::Insert)
-            .build(&client.bulk())
+        let job = IngestJob::create(&client.bulk(), "Account", JobOperation::Insert, None)
             .await?
             .upload(csv)
             .await?
