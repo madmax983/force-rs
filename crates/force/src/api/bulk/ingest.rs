@@ -50,13 +50,6 @@ use crate::types::validator::{validate_external_id_field, validate_sobject_name}
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-async fn handle_error_response(
-    response: reqwest::Response,
-    fallback_message: &str,
-) -> crate::error::ForceError {
-    crate::http::response_to_force_error(response, fallback_message).await
-}
-
 /// Marker type for job in Open state.
 #[derive(Debug)]
 pub struct Open;
@@ -117,7 +110,7 @@ impl<S: Send + Sync, A: Authenticator> IngestJob<S, A> {
         let response = self.inner.execute_request(request).await?;
 
         if !response.status().is_success() {
-            return Err(handle_error_response(response, error_context).await);
+            return Err(crate::http::response_to_force_error(response, error_context).await);
         }
 
         Ok(response)

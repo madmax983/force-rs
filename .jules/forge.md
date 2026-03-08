@@ -14,3 +14,6 @@
 **[Guard Clauses over if-let nesting]**
 **Learning:** `if let` blocks can easily lead to deep nesting ("Pyramid of Doom") especially when performing multi-step validations or conditional extraction.
 **Action:** Prefer `let Some(..) = ... else { return ... };` guard clauses which flatten the code, making the happy-path execution flow cleaner. Applied this successfully in `QueryStream::fetch_next_page` to flatten conditional URL fetching.
+**[Remove Error Handling Boilerplate]**
+**Learning:** Re-implementing a thin wrapper like `handle_error_response` around a central HTTP utility (`crate::http::response_to_force_error`) adds unnecessary boilerplate and indirection across different modules (e.g., REST CRUD, Bulk Ingest, Bulk Query).
+**Action:** Always prefer calling central HTTP utility functions directly (e.g., `crate::http::response_to_force_error(response, context).await`) instead of creating localized wrappers unless domain-specific mapping is required.
