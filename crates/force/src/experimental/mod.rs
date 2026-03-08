@@ -15,6 +15,9 @@ pub(crate) mod scanner;
 pub mod query_batch;
 
 #[cfg(feature = "nova")]
+pub mod query_graph;
+
+#[cfg(feature = "nova")]
 pub mod schema_graph;
 
 #[cfg(feature = "nova")]
