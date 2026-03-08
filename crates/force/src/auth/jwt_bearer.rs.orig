@@ -42,15 +42,15 @@ use std::time::{SystemTime, UNIX_EPOCH};
 /// JWT claims for Salesforce OAuth JWT bearer assertion.
 #[cfg(feature = "jwt")]
 #[derive(Debug, Serialize, Deserialize)]
-struct JwtClaims<'a> {
+struct JwtClaims {
     /// Issuer (OAuth client ID).
-    iss: &'a str,
+    iss: String,
 
     /// Subject (Salesforce username).
-    sub: &'a str,
+    sub: String,
 
     /// Audience (token endpoint).
-    aud: &'a str,
+    aud: String,
 
     /// Expiration time (Unix timestamp).
     exp: u64,
@@ -183,9 +183,9 @@ impl JwtBearerFlow {
             .as_secs();
 
         let claims = JwtClaims {
-            iss: &self.client_id,
-            sub: &self.username,
-            aud: &self.audience,
+            iss: self.client_id.clone(),
+            sub: self.username.clone(),
+            aud: self.audience.clone(),
             exp: now + 300, // JWT valid for 5 minutes
         };
 
