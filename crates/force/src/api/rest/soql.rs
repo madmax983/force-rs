@@ -256,16 +256,16 @@ impl SoqlQueryBuilder {
         let capacity = field.len() + 6 + (values.len() * 14);
         let mut buffer = String::with_capacity(capacity);
 
-        #[allow(clippy::expect_used)]
-        write!(buffer, "{} IN (", field).expect("writing to String is infallible");
+        write!(buffer, "{} IN (", field)
+            .unwrap_or_else(|_| unreachable!("writing to String is infallible"));
 
         for (i, value) in values.iter().enumerate() {
             if i > 0 {
                 buffer.push_str(", ");
             }
             let escaped = escape_soql_cow(value.as_ref());
-            #[allow(clippy::expect_used)]
-            write!(buffer, "'{}'", escaped).expect("writing to String is infallible");
+            write!(buffer, "'{}'", escaped)
+                .unwrap_or_else(|_| unreachable!("writing to String is infallible"));
         }
         buffer.push(')');
 

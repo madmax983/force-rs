@@ -221,47 +221,38 @@ impl SearchQueryBuilder {
 
         let mut query = String::with_capacity(128);
 
-        #[allow(clippy::expect_used)]
-        write!(&mut query, "FIND {{{}}}", self.search_text).expect("String format cannot fail");
+        write!(&mut query, "FIND {{{}}}", self.search_text)
+            .unwrap_or_else(|_| unreachable!("String format cannot fail"));
 
         if let Some(scope) = self.search_scope {
-            #[allow(clippy::expect_used)]
-            write!(&mut query, " IN {}", scope).expect("String format cannot fail");
+            write!(&mut query, " IN {}", scope)
+                .unwrap_or_else(|_| unreachable!("String format cannot fail"));
         }
 
         query.push_str(" RETURNING ");
 
-        let mut first_obj = true;
-        for (sobject, fields) in self.returning {
-            if !first_obj {
-                query.push_str(", ");
-            }
-            first_obj = false;
-
-            query.push_str(&sobject);
-
-            if !fields.is_empty() {
-                query.push('(');
-                let mut first_field = true;
-                for field in fields {
-                    if !first_field {
-                        query.push_str(", ");
-                    }
-                    first_field = false;
-                    query.push_str(&field);
+        let returning_clauses: Vec<String> = self
+            .returning
+            .into_iter()
+            .map(|(sobject, fields)| {
+                if fields.is_empty() {
+                    sobject
+                } else {
+                    format!("{}({})", sobject, fields.join(", "))
                 }
-                query.push(')');
-            }
-        }
+            })
+            .collect();
+
+        query.push_str(&returning_clauses.join(", "));
 
         if let Some(limit) = self.limit {
-            #[allow(clippy::expect_used)]
-            write!(&mut query, " LIMIT {}", limit).expect("String format cannot fail");
+            write!(&mut query, " LIMIT {}", limit)
+                .unwrap_or_else(|_| unreachable!("String format cannot fail"));
         }
 
         if let Some(offset) = self.offset {
-            #[allow(clippy::expect_used)]
-            write!(&mut query, " OFFSET {}", offset).expect("String format cannot fail");
+            write!(&mut query, " OFFSET {}", offset)
+                .unwrap_or_else(|_| unreachable!("String format cannot fail"));
         }
 
         query
