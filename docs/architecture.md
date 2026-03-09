@@ -63,6 +63,16 @@ classDiagram
     +authenticate()
     +refresh()
   }
+  class JwtBearerFlow {
+    -client_id: String
+    -username: String
+    -audience: String
+  }
+  class JwtClaims {
+    -iss: &str
+    -sub: &str
+    -aud: &str
+  }
   class RestHandler
 
   ForceClient *-- Session : Shared State (Arc)
@@ -70,6 +80,8 @@ classDiagram
   Session --> TokenManager : Owns
   Session --> HttpExecutor : Owns
   TokenManager --> Authenticator : Uses (Strategy)
+  Authenticator <|-- JwtBearerFlow : Implements
+  JwtBearerFlow ..> JwtClaims : Borrows String Data
 ```
 
 ## Sequence Diagram: Token Storage
