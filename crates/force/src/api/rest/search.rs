@@ -231,28 +231,19 @@ impl SearchQueryBuilder {
 
         query.push_str(" RETURNING ");
 
-        let mut first_obj = true;
-        for (sobject, fields) in self.returning {
-            if !first_obj {
-                query.push_str(", ");
-            }
-            first_obj = false;
-
-            query.push_str(&sobject);
-
-            if !fields.is_empty() {
-                query.push('(');
-                let mut first_field = true;
-                for field in fields {
-                    if !first_field {
-                        query.push_str(", ");
-                    }
-                    first_field = false;
-                    query.push_str(&field);
+        let returning_clauses: Vec<String> = self
+            .returning
+            .into_iter()
+            .map(|(sobject, fields)| {
+                if fields.is_empty() {
+                    sobject
+                } else {
+                    format!("{}({})", sobject, fields.join(", "))
                 }
-                query.push(')');
-            }
-        }
+            })
+            .collect();
+
+        query.push_str(&returning_clauses.join(", "));
 
         if let Some(limit) = self.limit {
             #[allow(clippy::expect_used)]
