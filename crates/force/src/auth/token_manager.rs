@@ -14,6 +14,9 @@ use tokio::sync::{Mutex, RwLock};
 struct TokenState {
     /// The current access token (if any).
     token: Option<Arc<AccessToken>>,
+
+    /// The sequence generation. Helps prevent old authentications from overwriting `clear()`.
+    generation: u64,
 }
 
 /// Thread-safe token manager with automatic refresh.
@@ -45,7 +48,10 @@ impl<A: Authenticator> TokenManager<A> {
     pub fn new(authenticator: A) -> Self {
         Self {
             authenticator,
-            state: Arc::new(RwLock::new(TokenState { token: None })),
+            state: Arc::new(RwLock::new(TokenState {
+                token: None,
+                generation: 0,
+            })),
             refresh_lock: Mutex::new(()),
         }
     }
@@ -77,12 +83,19 @@ impl<A: Authenticator> TokenManager<A> {
 
         if is_hard_expired {
             // Must block and refresh.
+            // Record the generation before we yield/block.
+            let start_generation = {
+                let state = self.state.read().await;
+                state.generation
+            };
+
             // Acquire refresh lock to ensure only one thread refreshes.
             let _lock = self.refresh_lock.lock().await;
 
             // Double-check state (another thread might have refreshed while we waited for lock)
             {
                 let state = self.state.read().await;
+                // If generation changed due to clear(), we still want to proceed, but if token is valid, use it.
                 if let Some(token) = &state.token {
                     if !token.is_hard_expired() {
                         return Ok(token.clone());
@@ -107,6 +120,20 @@ impl<A: Authenticator> TokenManager<A> {
             {
                 let mut state = self.state.write().await;
 
+                // If generation changed while we were fetching the token, it means clear() was called.
+                // We must NOT resurrect the token! We will discard our token and return an error (or just use it?).
+                // Wait, if clear() was called, the user wanted to log out. We should respect that and
+                // not set the token, but we already have one. We can just return it without saving it,
+                // or we can save it. Wait, the point of clear() is to remove access. If we return the token,
+                // we're still giving access. Let's discard the token and return an error or try again.
+                // Actually, if clear() was called, we should just NOT save it, but we already minted it.
+                // It's safer to discard and return an error. Let's return a specific error or InvalidToken.
+                if state.generation != start_generation {
+                    return Err(crate::error::ForceError::Authentication(
+                        crate::error::AuthenticationError::InvalidToken, // Represents "session cleared"
+                    ));
+                }
+
                 // Check if a concurrent operation already updated the token to a newer one
                 if let Some(current) = &state.token {
                     if current.issued_at() > new_token.issued_at() {
@@ -119,32 +146,50 @@ impl<A: Authenticator> TokenManager<A> {
             Ok(arc_token)
         } else if let Some(valid_token) = current_token {
             // Soft expired. We have a valid token (valid_token).
+
+            // Record generation before try_lock (or just before yielding to `refresh().await`)
+            let start_generation = {
+                let state = self.state.read().await;
+                state.generation
+            };
+
             // Try to acquire refresh lock.
             if let Ok(_lock) = self.refresh_lock.try_lock() {
                 // We are the refresher.
                 // Perform refresh.
                 let refresh_result = self.authenticator.refresh().await;
 
-                match refresh_result {
-                    Ok(new_token) => {
-                        let arc_token = Arc::new(new_token.clone());
-                        let mut state = self.state.write().await;
+                if let Ok(new_token) = refresh_result {
+                    let arc_token = Arc::new(new_token.clone());
+                    let mut state = self.state.write().await;
 
-                        // Check if a concurrent operation already updated the token to a newer one
-                        if let Some(current) = &state.token {
-                            if current.issued_at() > new_token.issued_at() {
-                                return Ok(current.clone());
-                            }
+                    // Check if clear() happened. If so, discard token and return InvalidToken.
+                    if state.generation != start_generation {
+                        return Err(crate::error::ForceError::Authentication(
+                            crate::error::AuthenticationError::InvalidToken,
+                        ));
+                    }
+
+                    // Check if a concurrent operation already updated the token to a newer one
+                    if let Some(current) = &state.token {
+                        if current.issued_at() > new_token.issued_at() {
+                            return Ok(current.clone());
                         }
+                    }
 
-                        state.token = Some(arc_token.clone());
-                        Ok(arc_token)
+                    state.token = Some(arc_token.clone());
+                    Ok(arc_token)
+                } else {
+                    // Refresh failed. Return the old token which is still valid (soft expired).
+                    // We swallow the error here because the user can still proceed.
+                    // However, if clear() happened during refresh, old valid_token shouldn't be used either!
+                    let state = self.state.read().await;
+                    if state.generation != start_generation {
+                        return Err(crate::error::ForceError::Authentication(
+                            crate::error::AuthenticationError::InvalidToken,
+                        ));
                     }
-                    Err(_) => {
-                        // Refresh failed. Return the old token which is still valid (soft expired).
-                        // We swallow the error here because the user can still proceed.
-                        Ok(valid_token)
-                    }
+                    Ok(valid_token)
                 }
             } else {
                 // Someone else is refreshing. Return current token immediately.
@@ -197,11 +242,23 @@ impl<A: Authenticator> TokenManager<A> {
     /// let new_token = manager.force_refresh().await?;
     /// ```
     pub async fn force_refresh(&self) -> Result<AccessToken> {
+        // Capture generation before waiting
+        let start_generation = {
+            let state = self.state.read().await;
+            state.generation
+        };
+
         let new_token = self.authenticator.refresh().await?;
         let arc_token = Arc::new(new_token.clone());
 
         {
             let mut state = self.state.write().await;
+
+            if state.generation != start_generation {
+                return Err(crate::error::ForceError::Authentication(
+                    crate::error::AuthenticationError::InvalidToken,
+                ));
+            }
 
             // Check if current token is newer than the one we just got.
             // This protects against race conditions where a concurrent `get_token` call
@@ -224,6 +281,7 @@ impl<A: Authenticator> TokenManager<A> {
     pub async fn clear(&self) {
         let mut state = self.state.write().await;
         state.token = None;
+        state.generation = state.generation.wrapping_add(1);
     }
 }
 
