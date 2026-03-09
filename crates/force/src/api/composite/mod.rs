@@ -12,7 +12,10 @@ pub(crate) mod graph;
 
 pub use batch::{BatchBuilder, BatchResponse, BatchSubResponse};
 #[cfg(feature = "nova")]
-pub use graph::{Graph, GraphBuilder, GraphErrorResponse, GraphRequest, GraphResponse, GraphResult, GraphSubResponse};
+pub use graph::{
+    Graph, GraphBuilder, GraphErrorResponse, GraphRequest, GraphResponse, GraphResult,
+    GraphSubResponse,
+};
 
 use crate::auth::Authenticator;
 use crate::session::Session;

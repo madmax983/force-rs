@@ -15,7 +15,7 @@
 //! ```no_run
 //! # use force::client::ForceClientBuilder;
 //! # use force::api::rest::SoqlQueryBuilder;
-//! # use force::experimental::soql_mass_op::SoqlMassOp;
+//! # use force::experimental::SoqlMassOp;
 //! # use force::auth::ClientCredentials;
 //! # use serde_json::json;
 //! # #[tokio::main]
