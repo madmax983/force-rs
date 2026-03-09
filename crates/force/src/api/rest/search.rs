@@ -221,12 +221,12 @@ impl SearchQueryBuilder {
 
         let mut query = String::with_capacity(128);
 
-        #[allow(clippy::expect_used)]
-        write!(&mut query, "FIND {{{}}}", self.search_text).expect("String format cannot fail");
+        write!(&mut query, "FIND {{{}}}", self.search_text)
+            .unwrap_or_else(|_| unreachable!("String format cannot fail"));
 
         if let Some(scope) = self.search_scope {
-            #[allow(clippy::expect_used)]
-            write!(&mut query, " IN {}", scope).expect("String format cannot fail");
+            write!(&mut query, " IN {}", scope)
+                .unwrap_or_else(|_| unreachable!("String format cannot fail"));
         }
 
         query.push_str(" RETURNING ");
@@ -246,13 +246,13 @@ impl SearchQueryBuilder {
         query.push_str(&returning_clauses.join(", "));
 
         if let Some(limit) = self.limit {
-            #[allow(clippy::expect_used)]
-            write!(&mut query, " LIMIT {}", limit).expect("String format cannot fail");
+            write!(&mut query, " LIMIT {}", limit)
+                .unwrap_or_else(|_| unreachable!("String format cannot fail"));
         }
 
         if let Some(offset) = self.offset {
-            #[allow(clippy::expect_used)]
-            write!(&mut query, " OFFSET {}", offset).expect("String format cannot fail");
+            write!(&mut query, " OFFSET {}", offset)
+                .unwrap_or_else(|_| unreachable!("String format cannot fail"));
         }
 
         query

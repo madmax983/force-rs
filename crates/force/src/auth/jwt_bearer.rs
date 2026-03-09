@@ -117,12 +117,11 @@ impl JwtBearerFlow {
                 )))
             })?;
 
-        #[allow(clippy::expect_used)]
         // Client initialization failure is fatal and unrecoverable here
         let http_client = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(30))
             .build()
-            .expect("Failed to create secure HTTP client");
+            .unwrap_or_else(|e| panic!("Failed to create secure HTTP client: {}", e));
 
         Ok(Self {
             client_id: client_id.into(),
