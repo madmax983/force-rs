@@ -17,3 +17,7 @@
 **[Remove Error Handling Boilerplate]**
 **Learning:** Re-implementing a thin wrapper like `handle_error_response` around a central HTTP utility (`crate::http::response_to_force_error`) adds unnecessary boilerplate and indirection across different modules (e.g., REST CRUD, Bulk Ingest, Bulk Query).
 **Action:** Always prefer calling central HTTP utility functions directly (e.g., `crate::http::response_to_force_error(response, context).await`) instead of creating localized wrappers unless domain-specific mapping is required.
+
+**[Iterator Chains over nested for loops]**
+**Learning:** Re-implementing a `map` and `join` logic via a nested `for` loop with manual state tracking (like `first_obj`, `first_field` boolean flags) makes the code unnecessarily complex, harder to read, and error prone.
+**Action:** Always prefer using idiomatic `.into_iter().map(...).collect()` pipelines combined with `.join(...)` when constructing comma-separated lists from collections.
