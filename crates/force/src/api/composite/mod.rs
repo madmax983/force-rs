@@ -6,9 +6,13 @@
 //! This module provides the `CompositeHandler` which serves as the entry point
 //! for composite operations like `batch` and `graph`.
 
-pub mod batch;
+pub(crate) mod batch;
 #[cfg(feature = "nova")]
 pub(crate) mod graph;
+
+pub use batch::{BatchBuilder, BatchResponse, BatchSubResponse};
+#[cfg(feature = "nova")]
+pub use graph::{Graph, GraphBuilder, GraphErrorResponse, GraphRequest, GraphResponse, GraphResult, GraphSubResponse};
 
 use crate::auth::Authenticator;
 use crate::session::Session;

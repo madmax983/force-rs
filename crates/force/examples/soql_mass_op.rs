@@ -8,7 +8,7 @@
 use force::api::rest::SoqlQueryBuilder;
 use force::auth::ClientCredentials;
 use force::client::ForceClientBuilder;
-use force::experimental::soql_mass_op::SoqlMassOp;
+use force::experimental::SoqlMassOp;
 use serde_json::json;
 use std::env;
 

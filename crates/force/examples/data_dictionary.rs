@@ -5,7 +5,7 @@
 
 use force::auth::ClientCredentials;
 use force::client::ForceClientBuilder;
-use force::experimental::data_dictionary::DataDictionary;
+use force::experimental::DataDictionary;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
