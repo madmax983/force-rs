@@ -99,13 +99,12 @@ impl<'a, A: Authenticator> FieldUsageScanner<'a, A> {
         query.push_str("SELECT COUNT(Id) total");
 
         for (i, field) in fields.iter().enumerate() {
-            #[allow(clippy::expect_used)]
             write!(query, ", COUNT({}) f{}", field.name, i)
-                .expect("writing to String is infallible");
+                .unwrap_or_else(|_| unreachable!("writing to String is infallible"));
         }
 
-        #[allow(clippy::expect_used)]
-        write!(query, " FROM {}", sobject).expect("writing to String is infallible");
+        write!(query, " FROM {}", sobject)
+            .unwrap_or_else(|_| unreachable!("writing to String is infallible"));
 
         // Execute query
         let response = self.client.rest().query::<Value>(&query).await?;
