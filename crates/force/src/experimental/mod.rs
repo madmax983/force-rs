@@ -18,6 +18,9 @@ pub mod query_batch;
 pub mod schema_graph;
 
 #[cfg(feature = "nova")]
+pub mod query_graph;
+
+#[cfg(feature = "nova")]
 pub mod data_dictionary;
 
 #[cfg(feature = "nova")]
