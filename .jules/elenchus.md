@@ -129,3 +129,11 @@ match result {
 **Finding:** The `test_generate_struct` function uses `.contains()` to verify its output. This is fragile because it permits extra text and does not verify the exact structure of the output. The string conversion tests (`test_snake_case`, `test_pascal_case`) lacked examples covering multiple capitalization formats and punctuation. The `map_type` function was missing tests entirely.
 **Evidence:** 16 mutants survived due to weak tests or complete absence of testing.
 **Recommendation:** Replace `.contains()` checks with exact match (`assert_eq!`) against a golden string. Enhance case-conversion tests with comprehensive cases. Added missing coverage for `map_type`.
+
+### [Strengthened] `crates/force/src/auth/jwt_bearer.rs`
+
+**Module:** `crates/force/src/auth/jwt_bearer.rs`
+**Severity:** 🔴 Critical
+**Finding:** Test `test_generate_jwt` was missing assertions to verify the generated JWT claims. Test `test_jwt_bearer_authenticate_oauth_error` simulated only a specific OAuth error but missed HTTP errors (`!response.status().is_success()`), causing 3 mutants to survive.
+**Evidence:** `cargo mutants` reported mutations surviving `+` to `-` or `*` in the JWT generation time calculation. The `authenticate` function did not fail the mock tests when the `!` operator was deleted from the status check.
+**Recommendation:** Refactored `test_generate_jwt` to explicitly base64 decode and parse the JWT claim to assert that the `exp` duration (now + 300) is properly set. Added a mock test `test_jwt_bearer_authenticate_http_error` to explicitly simulate a generic 500 server error and check that `authenticate` returns a `ForceError::Http(HttpError::StatusError)` properly.
