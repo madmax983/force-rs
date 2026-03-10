@@ -59,7 +59,7 @@ impl RequestRetryClass {
 /// Calculates exponential backoff duration for retry attempt.
 ///
 /// Uses formula: base_delay * 2^attempt, capped at 30 seconds (or base_delay if larger).
-pub(crate) fn exponential_backoff(attempt: u32, base: Duration) -> Duration {
+pub fn exponential_backoff(attempt: u32, base: Duration) -> Duration {
     let base_ms = base.as_millis();
     // Cap should at least be the base duration, otherwise we retry faster than the base
     let max_cap = std::cmp::max(base_ms, u128::from(MAX_BACKOFF_MS));
@@ -84,7 +84,7 @@ pub(crate) fn exponential_backoff(attempt: u32, base: Duration) -> Duration {
     Duration::from_millis(safe_backoff)
 }
 
-pub(crate) fn classify_request(method: &Method) -> RequestRetryClass {
+pub fn classify_request(method: &Method) -> RequestRetryClass {
     if matches!(
         *method,
         Method::GET | Method::HEAD | Method::OPTIONS | Method::TRACE
@@ -98,7 +98,7 @@ pub(crate) fn classify_request(method: &Method) -> RequestRetryClass {
 /// Parses the Retry-After header from a 429 response.
 ///
 /// Returns the number of seconds to wait, or None if header is missing/invalid.
-pub(crate) fn parse_retry_after(headers: &reqwest::header::HeaderMap) -> Option<u64> {
+pub fn parse_retry_after(headers: &reqwest::header::HeaderMap) -> Option<u64> {
     headers
         .get("Retry-After")
         .and_then(|h| h.to_str().ok())
@@ -108,6 +108,24 @@ pub(crate) fn parse_retry_after(headers: &reqwest::header::HeaderMap) -> Option<
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_retry_policy_initialization() {
+        let policy = RetryPolicy::new(3, 1);
+        assert_eq!(policy.read_max_retries, 3);
+        assert_eq!(policy.mutation_max_retries, 1);
+        // Should default to read_max_retries
+        assert_eq!(policy.idempotent_mutation_max_retries, 3);
+    }
+
+    #[test]
+    fn test_retry_policy_with_idempotent_mutation_retries() {
+        let policy = RetryPolicy::new(3, 1).with_idempotent_mutation_retries(5);
+        assert_eq!(policy.read_max_retries, 3);
+        assert_eq!(policy.mutation_max_retries, 1);
+        // Should be overridden
+        assert_eq!(policy.idempotent_mutation_max_retries, 5);
+    }
 
     #[test]
     fn test_exponential_backoff() {

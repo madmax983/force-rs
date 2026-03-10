@@ -20,7 +20,7 @@ mod integration_tests {
         name: String,
     }
 
-    #[derive(serde::Deserialize)]
+    #[derive(serde::Deserialize, Debug)]
     struct IdOnlyResponse {
         id: String,
     }
@@ -64,7 +64,6 @@ mod integration_tests {
             .await;
 
         // Assert
-        assert!(result.is_ok());
         let response = result.must();
         assert_eq!(response.status(), 200);
     }
@@ -121,7 +120,7 @@ mod integration_tests {
             .await;
 
         // Assert
-        assert!(result.is_ok());
+        let _ = result.must();
         assert_eq!(refresh_count.load(Ordering::SeqCst), 1);
     }
 
@@ -153,14 +152,13 @@ mod integration_tests {
             .await;
 
         // Assert
-        assert!(result.is_err());
-        if let Err(ForceError::Http(crate::error::HttpError::RateLimitExceeded {
-            retry_after_seconds,
-        })) = result
-        {
-            assert_eq!(retry_after_seconds, 120);
-        } else {
-            panic!("Expected RateLimitExceeded error, got: {:?}", result);
+        match result {
+            Err(ForceError::Http(crate::error::HttpError::RateLimitExceeded {
+                retry_after_seconds,
+            })) => {
+                assert_eq!(retry_after_seconds, 120);
+            }
+            _ => panic!("Expected RateLimitExceeded error, got: {:?}", result),
         }
     }
 
@@ -188,17 +186,16 @@ mod integration_tests {
             .await;
 
         // Assert
-        assert!(result.is_err());
-        if let Err(ForceError::Http(crate::error::HttpError::RateLimitExceeded {
-            retry_after_seconds,
-        })) = result
-        {
-            assert_eq!(retry_after_seconds, 60);
-        } else {
-            panic!(
+        match result {
+            Err(ForceError::Http(crate::error::HttpError::RateLimitExceeded {
+                retry_after_seconds,
+            })) => {
+                assert_eq!(retry_after_seconds, 60);
+            }
+            _ => panic!(
                 "Expected RateLimitExceeded error with default 60s, got: {:?}",
                 result
-            );
+            ),
         }
     }
 
@@ -230,17 +227,16 @@ mod integration_tests {
             .await;
 
         // Assert
-        assert!(result.is_err());
-        if let Err(ForceError::Http(crate::error::HttpError::RateLimitExceeded {
-            retry_after_seconds,
-        })) = result
-        {
-            assert_eq!(retry_after_seconds, 60);
-        } else {
-            panic!(
+        match result {
+            Err(ForceError::Http(crate::error::HttpError::RateLimitExceeded {
+                retry_after_seconds,
+            })) => {
+                assert_eq!(retry_after_seconds, 60);
+            }
+            _ => panic!(
                 "Expected RateLimitExceeded error with default 60s, got: {:?}",
                 result
-            );
+            ),
         }
     }
 
@@ -283,7 +279,7 @@ mod integration_tests {
         let elapsed = start.elapsed();
 
         // Assert
-        assert!(result.is_ok());
+        let _ = result.must();
         // Should have waited ~10ms + ~20ms = ~30ms for backoff
         assert!(elapsed.as_millis() >= 25);
     }
@@ -310,13 +306,11 @@ mod integration_tests {
             })
             .await;
 
-        assert!(result.is_err());
-        if let Err(ForceError::Http(crate::error::HttpError::StatusError { status_code, .. })) =
-            result
-        {
-            assert_eq!(status_code, 503);
-        } else {
-            panic!("Expected 503 status error for non-retried mutation");
+        match result {
+            Err(ForceError::Http(crate::error::HttpError::StatusError { status_code, .. })) => {
+                assert_eq!(status_code, 503);
+            }
+            _ => panic!("Expected 503 status error for non-retried mutation"),
         }
     }
 
@@ -353,7 +347,7 @@ mod integration_tests {
             })
             .await;
 
-        assert!(result.is_ok());
+        let _ = result.must();
     }
 
     #[tokio::test]
@@ -406,7 +400,7 @@ mod integration_tests {
             })
             .await;
 
-        assert!(result.is_ok());
+        let _ = result.must();
         assert_eq!(retries.load(Ordering::SeqCst), 1);
         let Ok(completions) = completions.lock() else {
             panic!("completion lock poisoned");
@@ -450,17 +444,16 @@ mod integration_tests {
             .await;
 
         // Assert
-        assert!(result.is_err());
-        if let Err(ForceError::Http(crate::error::HttpError::StatusError {
-            status_code,
-            message,
-        })) = result
-        {
-            assert_eq!(status_code, 400);
-            assert!(message.contains("INVALID_FIELD"));
-            assert!(message.contains("Field 'InvalidField' does not exist"));
-        } else {
-            panic!("Expected StatusError, got: {:?}", result);
+        match result {
+            Err(ForceError::Http(crate::error::HttpError::StatusError {
+                status_code,
+                message,
+            })) => {
+                assert_eq!(status_code, 400);
+                assert!(message.contains("INVALID_FIELD"));
+                assert!(message.contains("Field 'InvalidField' does not exist"));
+            }
+            _ => panic!("Expected StatusError, got: {:?}", result),
         }
     }
 
@@ -491,7 +484,6 @@ mod integration_tests {
             .await;
 
         // Assert
-        assert!(result.is_ok());
         let response = result.must();
         assert_eq!(response.id, "001xx000003DGbm");
         assert_eq!(response.name, "Test Account");
@@ -519,7 +511,7 @@ mod integration_tests {
             .await;
 
         // Assert
-        assert!(result.is_err());
+
         // Should get an HTTP error when parsing JSON fails
         assert!(matches!(result, Err(ForceError::Http(_))));
     }
@@ -558,16 +550,15 @@ mod integration_tests {
             .await;
 
         // Assert
-        assert!(result.is_err());
-        if let Err(ForceError::Http(crate::error::HttpError::StatusError {
-            status_code,
-            message,
-        })) = result
-        {
-            assert_eq!(status_code, 401);
-            assert!(message.contains("after token refresh"));
-        } else {
-            panic!("Expected StatusError with 401, got: {:?}", result);
+        match result {
+            Err(ForceError::Http(crate::error::HttpError::StatusError {
+                status_code,
+                message,
+            })) => {
+                assert_eq!(status_code, 401);
+                assert!(message.contains("after token refresh"));
+            }
+            _ => panic!("Expected StatusError with 401, got: {:?}", result),
         }
     }
 
@@ -612,7 +603,7 @@ mod integration_tests {
         let elapsed = start.elapsed();
 
         // Assert
-        assert!(result.is_ok());
+        let _ = result.must();
         // Should have waited at least 50ms (timeout) + 10ms (backoff)
         assert!(elapsed.as_millis() >= 60);
     }
@@ -657,7 +648,6 @@ mod integration_tests {
             )
             .await;
 
-        assert!(result.is_ok());
         let response = result.must();
         assert_eq!(response.status(), 200);
     }

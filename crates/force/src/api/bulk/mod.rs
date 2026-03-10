@@ -3,9 +3,9 @@
 //! This module provides the `BulkHandler` which serves as the foundation for all
 //! Bulk API 2.0 operations including ingest jobs and bulk queries.
 
-pub mod handler;
+pub(crate) mod handler;
 pub mod ingest;
-pub mod policy;
+pub(crate) mod policy;
 pub mod query;
 pub mod types;
 

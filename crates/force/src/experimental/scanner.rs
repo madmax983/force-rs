@@ -99,13 +99,12 @@ impl<'a, A: Authenticator> FieldUsageScanner<'a, A> {
         query.push_str("SELECT COUNT(Id) total");
 
         for (i, field) in fields.iter().enumerate() {
-            #[allow(clippy::expect_used)]
             write!(query, ", COUNT({}) f{}", field.name, i)
-                .expect("writing to String is infallible");
+                .unwrap_or_else(|_| unreachable!("writing to String is infallible"));
         }
 
-        #[allow(clippy::expect_used)]
-        write!(query, " FROM {}", sobject).expect("writing to String is infallible");
+        write!(query, " FROM {}", sobject)
+            .unwrap_or_else(|_| unreachable!("writing to String is infallible"));
 
         // Execute query
         let response = self.client.rest().query::<Value>(&query).await?;
@@ -129,7 +128,7 @@ impl<'a, A: Authenticator> FieldUsageScanner<'a, A> {
         let record = &response.records[0];
         let total = record.get("total").and_then(|v| v.as_u64()).unwrap_or(0);
 
-        let mut batch_results = Vec::new();
+        let mut batch_results = Vec::with_capacity(fields.len());
 
         for (i, field) in fields.iter().enumerate() {
             let alias = format!("f{}", i);
@@ -480,7 +479,7 @@ mod tests {
         let client = builder().authenticate(auth).build().await.must();
 
         // Generate 25 fields
-        let mut fields = Vec::new();
+        let mut fields = Vec::with_capacity(25);
         for i in 0..25 {
             fields.push(json!({
                 "name": format!("Field{}", i), "type": "string", "label": format!("Field {}", i),

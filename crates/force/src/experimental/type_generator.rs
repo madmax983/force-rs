@@ -109,12 +109,45 @@ mod tests {
         assert_eq!(StructGenerator::snake_case("AccountId"), "account_id");
         assert_eq!(StructGenerator::snake_case("IsActive"), "is_active");
         assert_eq!(StructGenerator::snake_case("type"), "type_");
+        assert_eq!(StructGenerator::snake_case("ID"), "id");
+        assert_eq!(StructGenerator::snake_case("camelCase"), "camel_case");
+        assert_eq!(
+            StructGenerator::snake_case("Custom_Field__c"),
+            "custom_field__c"
+        );
+        assert_eq!(StructGenerator::snake_case("URL"), "url");
+        assert_eq!(StructGenerator::snake_case("someURLField"), "some_urlfield");
+        assert_eq!(
+            StructGenerator::snake_case("Already_Snake_Case"),
+            "already_snake_case"
+        );
+    }
+
+    #[test]
+    fn test_map_type() {
+        assert_eq!(StructGenerator::map_type(&FieldType::Boolean), "bool");
+        assert_eq!(StructGenerator::map_type(&FieldType::Int), "i64");
+        assert_eq!(StructGenerator::map_type(&FieldType::Double), "f64");
+        assert_eq!(StructGenerator::map_type(&FieldType::Currency), "f64");
+        assert_eq!(StructGenerator::map_type(&FieldType::Percent), "f64");
+        assert_eq!(StructGenerator::map_type(&FieldType::String), "String");
+        assert_eq!(StructGenerator::map_type(&FieldType::Picklist), "String");
     }
 
     #[test]
     fn test_pascal_case() {
         assert_eq!(StructGenerator::pascal_case("account"), "Account");
         assert_eq!(StructGenerator::pascal_case("account_id"), "AccountId");
+        assert_eq!(StructGenerator::pascal_case("ID"), "ID");
+        assert_eq!(
+            StructGenerator::pascal_case("custom_field__c"),
+            "CustomFieldC"
+        );
+        assert_eq!(StructGenerator::pascal_case("camelCase"), "CamelCase");
+        assert_eq!(
+            StructGenerator::pascal_case("AlreadyPascalCase"),
+            "AlreadyPascalCase"
+        );
     }
 
     #[test]
@@ -285,11 +318,21 @@ mod tests {
 
         let result = StructGenerator::generate(&describe);
 
-        assert!(result.contains("/// Account Object"));
-        assert!(result.contains("pub struct Account {"));
-        assert!(result.contains("pub id: String,"));
-        assert!(result.contains("pub name: Option<String>,"));
-        assert!(result.contains("pub is_active: bool,"));
-        assert!(result.contains("#[serde(rename = \"Id\")]"));
+        let expected = r#"/// Account Object
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+pub struct Account {
+    /// Account ID
+    #[serde(rename = "Id")]
+    pub id: String,
+    /// Account Name
+    #[serde(rename = "Name")]
+    pub name: Option<String>,
+    /// Active
+    #[serde(rename = "IsActive")]
+    pub is_active: bool,
+}
+"#;
+
+        assert_eq!(result, expected);
     }
 }

@@ -62,4 +62,37 @@ proptest! {
             let _ = result;
         });
     }
+
+    #[test]
+    fn test_soql_builder_where_in_panic(values in prop::collection::vec(".*", 1..100)) {
+        // Attempt to find inputs that panic the formatting logic in SoqlQueryBuilder
+        let mut builder = force::api::rest::SoqlQueryBuilder::new().select(&["Id"]).from("Account");
+        builder = builder.where_in("Name", &values);
+        let query = builder.build();
+        assert!(query.starts_with("SELECT Id FROM Account WHERE Name IN ("));
+    }
+
+    #[test]
+    fn test_escape_soql_cow_byte_mismatch_panic(s in ".*['\\\\\"].*") {
+        // Find bugs in escape_soql_cow char vs byte indexing
+        let escaped = force::api::rest::escape_soql(&s);
+        let _ = escaped;
+    }
+
+}
+
+#[test]
+fn test_batch_builder_len_limit() {
+    let rt = get_runtime();
+    rt.block_on(async {
+        let mut builder = create_batch_builder().await;
+
+        for _ in 0..25 {
+            builder = builder.get("Account", "001000000000001AAA").unwrap();
+        }
+
+        // 26th request should fail
+        let res = builder.get("Account", "001000000000001AAA");
+        assert!(res.is_err());
+    });
 }

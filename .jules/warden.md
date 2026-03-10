@@ -13,8 +13,8 @@
 **Defense:** Implemented strict allowlist validation for `sobject` and `external_id_field`. Added URL encoding for `external_id_value` using a custom `AsciiSet` that preserves safe Salesforce characters but encodes separators.
 
 ## 2026-02-20 - [Input Validation in Bulk API]
-**Threat:** The `BulkHandler::create_job` and `IngestJobBuilder` accepted arbitrary strings for `object` and `external_id_field_name` without validation. Although `serde_json` handles escaping, sending invalid identifiers (e.g., containing semicolons or dots where not allowed) violates the principle of fail-fast and could potentially be exploited if the server-side validation is insufficient or if these values are reflected in logs/errors.
-**Defense:** Enforced strict validation using `validate_sobject_name` and `validate_external_id_field` in `BulkHandler::create_job` and `IngestJobBuilder`. This ensures only valid Salesforce identifiers are transmitted.
+**Threat:** The `BulkHandler::create_job` and `IngestJob::create` accepted arbitrary strings for `object` and `external_id_field_name` without validation. Although `serde_json` handles escaping, sending invalid identifiers (e.g., containing semicolons or dots where not allowed) violates the principle of fail-fast and could potentially be exploited if the server-side validation is insufficient or if these values are reflected in logs/errors.
+**Defense:** Enforced strict validation using `validate_sobject_name` and `validate_external_id_field` in `BulkHandler::create_job` and `IngestJob::create`. This ensures only valid Salesforce identifiers are transmitted.
 
 ## 2026-02-21 - [Safe Query Construction in Composite Batch]
 **Threat:** `BatchBuilder::add_request` accepts a raw URL string. If users construct this string manually using `format!` with untrusted input (e.g., `format!("query?q=SELECT+Id+FROM+Account+WHERE+Name='{}'", user_input)`), they are vulnerable to SOQL injection or invalid URL formatting (e.g., unencoded spaces).
@@ -34,3 +34,10 @@
 **2024-05-19 - Fix integer overflow DoS vector in LimitInfo percentage_used calculation**
 **Threat:** The `percentage_used` method calculated the used limit by subtracting the `remaining` limit from `max`. If a malicious or malformed response returned unexpected combinations of maximum and remaining limits (e.g., `i64::MIN` and `i64::MAX`), it would cause a subtraction overflow panic. An attacker who could manipulate Salesforce limit responses (e.g. through a proxy or MITM if SSL verification was disabled) or simply an anomaly from Salesforce could reliably trigger this DoS.
 **Defense:** Replaced the unsafe unchecked subtraction `self.max - self.remaining` with `self.max.saturating_sub(self.remaining)`, which prevents the overflow and provides bounded behavior without crashing the process.
+
+## 2024-03-05 - [DoS via Unbounded Error Response Reading]
+**Threat:** The `response_to_force_error` function originally read the entire HTTP response body into memory using `response.text().await`. A malicious or compromised Salesforce API server (or MITM attacker if TLS validation was disabled) could return a multi-gigabyte error payload, causing unbounded memory allocation and an Out-Of-Memory (OOM) panic, successfully performing a Denial of Service (DoS) attack.
+**Defense:** Replaced the unbounded `response.text().await` with a bounded stream reader (`response.bytes_stream()`) that collects up to 1MB of bytes. Any error payload exceeding 1MB is safely truncated, and `String::from_utf8_lossy` is used to prevent panic on split multi-byte characters at the boundary.
+**2024-05-24 - [Unbounded memory allocation during HTTP error response parsing]
+**Threat:** A Denial of Service (DoS) vulnerability via memory exhaustion. In client_credentials and jwt_bearer authenticators, the `response.text().await` call unbounded memory allocations reading error payloads. A malicious or misconfigured server returning a multi-gigabyte error body could crash the application.
+**Defense:** Replaced unbounded `.text().await` with a 1MB capped stream reader via `response.bytes_stream()` paired with `String::from_utf8_lossy()` to safely bound memory usage while parsing Salesforce error responses.

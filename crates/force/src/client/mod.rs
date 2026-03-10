@@ -1,7 +1,6 @@
-//! Salesforce API client with compile-time authentication safety.
+//! Salesforce API client.
 //!
-//! This module provides the core `ForceClient` and builder types with phantom type
-//! markers to ensure authentication is handled at compile-time.
+//! This module provides the core `ForceClient` and builder types.
 
 mod builder;
 
@@ -11,12 +10,10 @@ use crate::config::ClientConfig;
 use crate::session::Session;
 use std::sync::Arc;
 
-/// Salesforce API client with compile-time authentication safety.
+/// Salesforce API client.
 ///
-/// This client uses phantom types to ensure authentication is required before
-/// API calls can be made. Clients are cheaply cloneable via `Arc`.
-///
-/// The client is generic over the authenticator type for zero-cost abstraction.
+/// The client handles authentication and provides access to API handlers.
+/// Clients are cheaply cloneable via `Arc`.
 #[derive(Debug)]
 pub struct ForceClient<A: crate::auth::authenticator::Authenticator> {
     inner: Arc<Session<A>>,
@@ -114,10 +111,23 @@ impl<A: crate::auth::authenticator::Authenticator> ForceClient<A> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::MockAuthenticator;
+    use crate::test_support::Must;
 
     #[test]
     fn test_builder_creates_noauth_state() {
         let _builder = builder();
-        // Compile-time check: builder starts in NoAuth state
+        // Check that the builder is initialized properly.
+    }
+
+    #[tokio::test]
+    async fn test_force_client_clone() {
+        let auth = MockAuthenticator::new("test_token", "https://test.salesforce.com");
+        let client = builder().authenticate(auth).build().await.must();
+
+        let cloned_client = client.clone();
+
+        // Assert that the cloned client points to the same underlying Arc
+        assert!(Arc::ptr_eq(client.inner(), cloned_client.inner()));
     }
 }

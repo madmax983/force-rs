@@ -20,16 +20,6 @@ const UPSERT_ENCODE_SET: &AsciiSet = &NON_ALPHANUMERIC
     .remove(b'~');
 
 impl<A: crate::auth::Authenticator> RestHandler<A> {
-    /// Helper method to handle error responses from Salesforce API.
-    ///
-    /// Extracts the status code and response body to create a `HttpError`.
-    async fn handle_error_response(
-        response: reqwest::Response,
-        fallback_message: &str,
-    ) -> crate::error::ForceError {
-        crate::http::response_to_force_error(response, fallback_message).await
-    }
-
     /// Creates a new record in Salesforce.
     ///
     /// # Arguments
@@ -287,7 +277,7 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
                     .await
                     .map_err(|e| crate::error::HttpError::from(e).into())
             }
-            _ => Err(Self::handle_error_response(response, "Upsert request failed").await),
+            _ => Err(crate::http::response_to_force_error(response, "Upsert request failed").await),
         }
     }
 }

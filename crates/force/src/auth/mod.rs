@@ -12,12 +12,12 @@
 //!
 //! - `jwt`: Enables JWT bearer token flow (requires `jsonwebtoken` dependency)
 
-pub mod authenticator;
-pub mod client_credentials;
+pub(crate) mod authenticator;
+pub(crate) mod client_credentials;
 #[cfg(feature = "jwt")]
-pub mod jwt_bearer;
-pub mod token;
-pub mod token_manager;
+pub(crate) mod jwt_bearer;
+pub(crate) mod token;
+pub(crate) mod token_manager;
 
 pub use authenticator::Authenticator;
 pub use client_credentials::ClientCredentials;

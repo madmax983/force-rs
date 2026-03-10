@@ -189,3 +189,29 @@ C4Component
      Rel(executor, error, "Uses")
   }
 ```
+
+## C4 Component Diagram: REST API Module
+
+The REST API layer is decomposed into specialized sub-modules for specific Salesforce API operations, united by a common handler.
+
+```mermaid
+C4Component
+  title Component Diagram for REST API Module
+
+  Container_Boundary(rest_mod, "REST API Module") {
+     Component(handler, "RestHandler", "handler.rs", "Core HTTP execution and capabilities")
+     Component(crud, "CRUD", "crud.rs", "Create, Read, Update, Delete operations")
+     Component(query, "Query", "query.rs", "SOQL query execution")
+     Component(query_stream, "Query Stream", "query_stream.rs", "Streaming SOQL queries")
+     Component(search, "Search", "search.rs", "SOSL search execution")
+     Component(describe, "Describe", "describe.rs", "Metadata describe operations")
+     Component(limits, "Limits", "limits.rs", "Organization limits operations")
+
+     Rel(crud, handler, "Uses")
+     Rel(query, handler, "Uses")
+     Rel(query_stream, handler, "Uses")
+     Rel(search, handler, "Uses")
+     Rel(describe, handler, "Uses")
+     Rel(limits, handler, "Uses")
+  }
+```

@@ -17,7 +17,7 @@ use std::borrow::Cow;
 /// # Examples
 ///
 /// ```
-/// use force::api::rest::soql::escape_soql;
+/// use force::api::rest::escape_soql;
 ///
 /// assert_eq!(escape_soql("O'Reilly"), r"O\'Reilly");
 /// assert_eq!(escape_soql(r"C:\Docs"), r"C:\\Docs");
@@ -31,7 +31,7 @@ pub fn escape_soql(input: &str) -> String {
 ///
 /// Returns `Cow::Borrowed` if no escaping is required, avoiding allocation.
 /// Returns `Cow::Owned` if escaping is needed.
-pub(crate) fn escape_soql_cow(input: &str) -> Cow<'_, str> {
+pub fn escape_soql_cow(input: &str) -> Cow<'_, str> {
     let first_special = input.find(['\'', '\\', '"']);
 
     match first_special {
@@ -39,6 +39,11 @@ pub(crate) fn escape_soql_cow(input: &str) -> Cow<'_, str> {
             let mut escaped = String::with_capacity(input.len() + 8);
             escaped.push_str(&input[..idx]);
 
+            // Note: `input.find()` returns a byte index.
+            // Using `input[idx..]` here is technically safe because we know the needle
+            // `['\'', '\\', '"']` are 1-byte ASCII characters, meaning `idx` will
+            // always align with a char boundary for `input`. If we searched for a
+            // multi-byte char this would panic.
             for c in input[idx..].chars() {
                 match c {
                     '\'' => escaped.push_str(r"\'"),
@@ -50,19 +55,6 @@ pub(crate) fn escape_soql_cow(input: &str) -> Cow<'_, str> {
             Cow::Owned(escaped)
         }
         None => Cow::Borrowed(input),
-    }
-}
-
-#[derive(Debug, Clone)]
-enum WhereClause {
-    Raw(String),
-}
-
-impl std::fmt::Display for WhereClause {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Raw(s) => write!(f, "{}", s),
-        }
     }
 }
 
@@ -89,7 +81,7 @@ impl std::fmt::Display for WhereClause {
 pub struct SoqlQueryBuilder {
     fields: Vec<String>,
     sobject: Option<String>,
-    where_clauses: Vec<WhereClause>,
+    where_clauses: Vec<String>,
     limit: Option<u32>,
     offset: Option<u32>,
     order_by: Option<String>,
@@ -170,7 +162,7 @@ impl SoqlQueryBuilder {
     /// ```
     #[must_use]
     pub fn where_condition_unchecked(mut self, condition: impl Into<String>) -> Self {
-        self.where_clauses.push(WhereClause::Raw(condition.into()));
+        self.where_clauses.push(condition.into());
         self
     }
 
@@ -223,10 +215,8 @@ impl SoqlQueryBuilder {
         Self::validate_field(field, context);
         // Optimization: Use escape_soql_cow to avoid allocation if escape not needed
         let escaped_value = escape_soql_cow(value);
-        self.where_clauses.push(WhereClause::Raw(format!(
-            "{} {} '{}'",
-            field, op, escaped_value
-        )));
+        self.where_clauses
+            .push(format!("{} {} '{}'", field, op, escaped_value));
         self
     }
 
@@ -263,8 +253,7 @@ impl SoqlQueryBuilder {
 
         Self::validate_field(field, "where_in");
         if values.is_empty() {
-            self.where_clauses
-                .push(WhereClause::Raw(format!("{} IN ()", field)));
+            self.where_clauses.push(format!("{} IN ()", field));
             return self;
         }
 
@@ -272,20 +261,20 @@ impl SoqlQueryBuilder {
         let capacity = field.len() + 6 + (values.len() * 14);
         let mut buffer = String::with_capacity(capacity);
 
-        #[allow(clippy::expect_used)]
-        write!(buffer, "{} IN (", field).expect("writing to String is infallible");
+        write!(buffer, "{} IN (", field)
+            .unwrap_or_else(|_| unreachable!("writing to String is infallible"));
 
         for (i, value) in values.iter().enumerate() {
             if i > 0 {
                 buffer.push_str(", ");
             }
             let escaped = escape_soql_cow(value.as_ref());
-            #[allow(clippy::expect_used)]
-            write!(buffer, "'{}'", escaped).expect("writing to String is infallible");
+            write!(buffer, "'{}'", escaped)
+                .unwrap_or_else(|_| unreachable!("writing to String is infallible"));
         }
         buffer.push(')');
 
-        self.where_clauses.push(WhereClause::Raw(buffer));
+        self.where_clauses.push(buffer);
         self
     }
 
@@ -480,7 +469,7 @@ impl SoqlQueryBuilder {
             if i > 0 {
                 query.write_str(" AND ")?;
             }
-            write!(query, "{}", clause)?;
+            query.write_str(clause)?;
         }
         Ok(())
     }
@@ -656,6 +645,31 @@ mod tests {
         } else {
             panic!("Expected ForceError::InvalidInput");
         }
+    }
+
+    // Test unwrap_or_panic logic by calling `build` on invalid states directly.
+    #[test]
+    #[should_panic(
+        expected = "Invalid input in build: invalid input: Select fields cannot be empty"
+    )]
+    fn test_build_panics_on_missing_fields() {
+        let _ = SoqlQueryBuilder::new().from("Account").build();
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "Invalid input in build: invalid input: FROM clause (SObject) is required"
+    )]
+    fn test_build_panics_on_missing_sobject() {
+        let _ = SoqlQueryBuilder::new().select(&["Id"]).build();
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "Invalid input in from: invalid input: SObject name contains invalid characters: Invalid Object"
+    )]
+    fn test_from_panics_on_invalid_sobject() {
+        let _ = SoqlQueryBuilder::new().from("Invalid Object");
     }
 
     #[test]

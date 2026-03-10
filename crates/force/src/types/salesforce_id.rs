@@ -169,6 +169,7 @@ impl TryFrom<String> for SalesforceId {
 
 /// Errors that can occur when creating or validating a Salesforce ID.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[allow(clippy::enum_variant_names)]
 pub enum SalesforceIdError {
     /// The ID length is invalid (must be 15 or 18 characters).
     #[error("invalid ID length: {0} (must be 15 or 18 characters)")]

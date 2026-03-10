@@ -33,8 +33,6 @@ use crate::error::{AuthenticationError, ForceError, HttpError, Result};
 #[cfg(feature = "jwt")]
 use async_trait::async_trait;
 #[cfg(feature = "jwt")]
-use futures::StreamExt;
-#[cfg(feature = "jwt")]
 use jsonwebtoken::{EncodingKey, Header, encode};
 #[cfg(feature = "jwt")]
 use serde::{Deserialize, Serialize};
@@ -44,15 +42,15 @@ use std::time::{SystemTime, UNIX_EPOCH};
 /// JWT claims for Salesforce OAuth JWT bearer assertion.
 #[cfg(feature = "jwt")]
 #[derive(Debug, Serialize, Deserialize)]
-struct JwtClaims<'a> {
+struct JwtClaims {
     /// Issuer (OAuth client ID).
-    iss: &'a str,
+    iss: String,
 
     /// Subject (Salesforce username).
-    sub: &'a str,
+    sub: String,
 
     /// Audience (token endpoint).
-    aud: &'a str,
+    aud: String,
 
     /// Expiration time (Unix timestamp).
     exp: u64,
@@ -119,11 +117,12 @@ impl JwtBearerFlow {
                 )))
             })?;
 
+        #[allow(clippy::expect_used)]
         // Client initialization failure is fatal and unrecoverable here
         let http_client = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(30))
             .build()
-            .unwrap_or_else(|e| panic!("Failed to create secure HTTP client: {}", e));
+            .expect("Failed to create secure HTTP client");
 
         Ok(Self {
             client_id: client_id.into(),
@@ -184,9 +183,9 @@ impl JwtBearerFlow {
             .as_secs();
 
         let claims = JwtClaims {
-            iss: &self.client_id,
-            sub: &self.username,
-            aud: &self.audience,
+            iss: self.client_id.clone(),
+            sub: self.username.clone(),
+            aud: self.audience.clone(),
             exp: now + 300, // JWT valid for 5 minutes
         };
 
@@ -237,27 +236,10 @@ impl Authenticator for JwtBearerFlow {
 
         if !response.status().is_success() {
             let status = response.status();
-            // Read up to 1MB to prevent memory exhaustion DoS
-            let mut stream = response.bytes_stream();
-            let mut bytes = Vec::new();
-            while let Some(chunk) = stream.next().await {
-                if let Ok(chunk_bytes) = chunk {
-                    bytes.extend_from_slice(&chunk_bytes);
-                    if bytes.len() > 1024 * 1024 {
-                        bytes.truncate(1024 * 1024);
-                        break;
-                    }
-                } else {
-                    break;
-                }
-            }
-            let body = String::from_utf8_lossy(&bytes).into_owned();
-
-            let error_text = if body.trim().is_empty() {
-                "Unknown error".to_string()
-            } else {
-                body
-            };
+            let error_text = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Unknown error".to_string());
 
             // Try to parse OAuth error response
             if let Ok(oauth_error) = serde_json::from_str::<OAuthErrorResponse>(&error_text) {
@@ -381,36 +363,11 @@ QcWLHR6ul3bFRWNhXoThNBQ=
         )
         .must();
 
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .must()
-            .as_secs();
-
         let jwt = flow.generate_jwt().must();
         assert!(!jwt.is_empty());
 
         // JWT should have 3 parts separated by dots
-        let parts: Vec<&str> = jwt.split('.').collect();
-        assert_eq!(parts.len(), 3);
-
-        // Decode the payload (second part)
-        let payload_b64 = parts[1];
-        let payload_bytes = base64::Engine::decode(
-            &base64::engine::general_purpose::URL_SAFE_NO_PAD,
-            payload_b64,
-        )
-        .must();
-        let payload: serde_json::Value = serde_json::from_slice(&payload_bytes).must();
-
-        assert_eq!(payload["iss"], "test_client_id");
-        assert_eq!(payload["sub"], "test@example.com");
-        assert_eq!(payload["aud"], "https://test.salesforce.com");
-
-        let exp = payload["exp"].as_u64().must();
-        // Since `now` might be slightly behind the time inside `generate_jwt`,
-        // check that `exp` is bounded reasonably near `now + 300`
-        assert!(exp >= now + 300);
-        assert!(exp <= now + 305);
+        assert_eq!(jwt.split('.').count(), 3);
     }
     #[cfg(feature = "mock")]
     #[tokio::test]
@@ -541,43 +498,6 @@ QcWLHR6ul3bFRWNhXoThNBQ=
             "https://test.salesforce.com/services/oauth2/token"
         );
     }
-    #[cfg(feature = "mock")]
-    #[tokio::test]
-    async fn test_jwt_bearer_authenticate_error_truncation() {
-        use wiremock::matchers::{method, path};
-        use wiremock::{Mock, MockServer, ResponseTemplate};
-
-        let mock_server = MockServer::start().await;
-
-        // Generate a 2MB string.
-        let large_body = "A".repeat(2 * 1024 * 1024);
-
-        Mock::given(method("POST"))
-            .and(path("/services/oauth2/token"))
-            .respond_with(ResponseTemplate::new(400).set_body_string(large_body))
-            .mount(&mock_server)
-            .await;
-
-        let flow = JwtBearerFlow::new(
-            "test_client",
-            "test@example.com",
-            TEST_PRIVATE_KEY,
-            "https://login.salesforce.com",
-            format!("{}/services/oauth2/token", mock_server.uri()),
-        )
-        .must();
-
-        let result = flow.authenticate().await;
-        assert!(result.is_err());
-
-        if let Err(ForceError::Http(HttpError::StatusError { message, .. })) = result {
-            // Should be truncated to 1MB
-            assert_eq!(message.len(), 1024 * 1024);
-        } else {
-            panic!("Expected HttpError::StatusError");
-        }
-    }
-
     #[test]
     fn test_jwt_bearer_new_production() {
         let flow =

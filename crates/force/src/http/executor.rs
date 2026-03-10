@@ -1,6 +1,5 @@
 //! HTTP executor implementation.
 
-use super::error::parse_api_error;
 use super::retry::{
     RequestRetryClass, RetryPolicy, classify_request, exponential_backoff, parse_retry_after,
 };
@@ -393,8 +392,7 @@ impl HttpExecutor {
             .into())
         } else {
             // Parse API error from response body
-            let error_text = response.text().await.map_err(HttpError::from)?;
-            Err(parse_api_error(status.as_u16(), &error_text).into())
+            Err(crate::http::error::response_to_force_error(response, "Unknown error").await)
         }
     }
 
@@ -423,5 +421,289 @@ impl HttpExecutor {
 impl Default for HttpExecutor {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::auth::AccessToken;
+    use crate::error::HttpError;
+    use crate::test_support::Must;
+    use reqwest::Method;
+    use std::time::Duration;
+    use wiremock::matchers::{header, method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    fn create_test_token() -> AccessToken {
+        AccessToken::new(
+            "test_token".to_string(),
+            "https://test.salesforce.com".to_string(),
+            None,
+        )
+    }
+
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    #[tokio::test]
+    async fn test_execute_success() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/services/data/v60.0/query"))
+            .and(header("Authorization", "Bearer test_token"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "totalSize": 1,
+                "done": true,
+                "records": []
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let executor = HttpExecutor::new();
+        let token = create_test_token();
+
+        // Dummy refresh token closure that panics if called
+        let refresh_token = || async {
+            panic!("Should not be called");
+            #[allow(unreachable_code)]
+            Ok(create_test_token())
+        };
+
+        let request = executor
+            .client
+            .request(
+                Method::GET,
+                format!("{}/services/data/v60.0/query", mock_server.uri()),
+            )
+            .build()
+            .must();
+
+        let response = executor
+            .execute_response(request, &token, refresh_token)
+            .await
+            .must();
+
+        assert_eq!(response.status(), reqwest::StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn test_execute_401_retry() {
+        let mock_server = MockServer::start().await;
+
+        // First attempt fails with 401
+        Mock::given(method("GET"))
+            .and(path("/services/data/v60.0/query"))
+            .and(header("Authorization", "Bearer expired_token"))
+            .respond_with(
+                ResponseTemplate::new(401).set_body_json(serde_json::json!([{
+                    "message": "Session expired or invalid",
+                    "errorCode": "INVALID_SESSION_ID"
+                }])),
+            )
+            .up_to_n_times(1)
+            .mount(&mock_server)
+            .await;
+
+        // Second attempt succeeds with new token
+        Mock::given(method("GET"))
+            .and(path("/services/data/v60.0/query"))
+            .and(header("Authorization", "Bearer test_token"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "totalSize": 1,
+                "done": true,
+                "records": []
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let executor = HttpExecutor::new();
+
+        let initial_token = AccessToken::new(
+            "expired_token".to_string(),
+            "https://test.salesforce.com".to_string(),
+            None,
+        );
+
+        let refresh_calls = Arc::new(AtomicUsize::new(0));
+        let calls_clone = Arc::clone(&refresh_calls);
+
+        // Refresh token closure returns a new token and increments counter
+        let refresh_token = || {
+            let calls = Arc::clone(&calls_clone);
+            async move {
+                calls.fetch_add(1, Ordering::SeqCst);
+                Ok(create_test_token())
+            }
+        };
+
+        let request = executor
+            .client
+            .request(
+                Method::GET,
+                format!("{}/services/data/v60.0/query", mock_server.uri()),
+            )
+            .build()
+            .must();
+
+        let response = executor
+            .execute_response(request, &initial_token, refresh_token)
+            .await
+            .must();
+
+        assert_eq!(response.status(), reqwest::StatusCode::OK);
+        assert_eq!(refresh_calls.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn test_execute_429_rate_limit() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/services/data/v60.0/query"))
+            .respond_with(
+                ResponseTemplate::new(429)
+                    .insert_header("Retry-After", "60")
+                    .set_body_json(serde_json::json!([{
+                        "message": "Too Many Requests",
+                        "errorCode": "REQUEST_LIMIT_EXCEEDED"
+                    }])),
+            )
+            .mount(&mock_server)
+            .await;
+
+        let executor = HttpExecutor::new();
+        let token = create_test_token();
+
+        // Dummy refresh token closure that panics if called
+        let refresh_token = || async {
+            panic!("Should not be called");
+            #[allow(unreachable_code)]
+            Ok(create_test_token())
+        };
+
+        let request = executor
+            .client
+            .request(
+                Method::GET,
+                format!("{}/services/data/v60.0/query", mock_server.uri()),
+            )
+            .build()
+            .must();
+
+        let result = executor
+            .execute_response(request, &token, refresh_token)
+            .await;
+
+        match result {
+            Err(crate::error::ForceError::Http(HttpError::RateLimitExceeded {
+                retry_after_seconds,
+            })) => {
+                assert_eq!(retry_after_seconds, 60);
+            }
+            _ => panic!("Expected RateLimitExceeded error, got: {:?}", result),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_execute_503_retry() {
+        let mock_server = MockServer::start().await;
+
+        // Mock a 503 Service Unavailable response
+        Mock::given(method("GET"))
+            .and(path("/services/data/v60.0/query"))
+            .respond_with(
+                ResponseTemplate::new(503).set_body_json(serde_json::json!([{
+                    "message": "Service Unavailable",
+                    "errorCode": "SERVICE_UNAVAILABLE"
+                }])),
+            )
+            // It should be called 1 time originally + 2 retries = 3 times total
+            .up_to_n_times(3)
+            .expect(3)
+            .mount(&mock_server)
+            .await;
+
+        // Configure executor to retry fast for testing
+        let executor = HttpExecutor::with_config(2, Duration::from_secs(30))
+            .with_base_backoff(Duration::from_millis(1));
+
+        let token = create_test_token();
+
+        // Dummy refresh token closure
+        let refresh_token = || async {
+            panic!("Should not be called");
+            #[allow(unreachable_code)]
+            Ok(create_test_token())
+        };
+
+        let request = executor
+            .client
+            .request(
+                Method::GET,
+                format!("{}/services/data/v60.0/query", mock_server.uri()),
+            )
+            .build()
+            .must();
+
+        let response = executor
+            .execute_response(request, &token, refresh_token)
+            .await
+            .must();
+
+        // Expect the response to be successfully returned and it to be 503
+        assert_eq!(response.status(), reqwest::StatusCode::SERVICE_UNAVAILABLE);
+    }
+
+    #[tokio::test]
+    async fn test_execute_timeout() {
+        let mock_server = MockServer::start().await;
+
+        // Mock a delayed response that exceeds our timeout
+        Mock::given(method("GET"))
+            .and(path("/services/data/v60.0/query"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_delay(Duration::from_millis(100))
+                    .set_body_json(serde_json::json!({
+                        "totalSize": 1,
+                        "done": true,
+                        "records": []
+                    })),
+            )
+            .mount(&mock_server)
+            .await;
+
+        // Configure executor with 0 retries and a 10ms timeout
+        let executor = HttpExecutor::with_config(0, Duration::from_millis(10));
+        let token = create_test_token();
+
+        let refresh_token = || async {
+            panic!("Should not be called");
+            #[allow(unreachable_code)]
+            Ok(create_test_token())
+        };
+
+        let request = executor
+            .client
+            .request(
+                Method::GET,
+                format!("{}/services/data/v60.0/query", mock_server.uri()),
+            )
+            .build()
+            .must();
+
+        let result = executor
+            .execute_response(request, &token, refresh_token)
+            .await;
+
+        match result {
+            Err(crate::error::ForceError::Http(HttpError::Timeout { timeout_seconds })) => {
+                // Since 10ms converts to 0s in standard Duration::as_secs()
+                assert_eq!(timeout_seconds, 0);
+            }
+            _ => panic!("Expected Timeout error, got: {:?}", result),
+        }
     }
 }

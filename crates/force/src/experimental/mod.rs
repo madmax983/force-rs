@@ -9,7 +9,7 @@
 pub use crate::api::bulk::smart_ingest;
 
 #[cfg(feature = "rest")]
-pub mod scanner;
+pub(crate) mod scanner;
 
 #[cfg(feature = "composite")]
 pub mod query_batch;
@@ -26,3 +26,12 @@ pub mod type_generator;
 
 #[cfg(feature = "nova")]
 pub mod schema_diff;
+
+#[cfg(feature = "nova")]
+pub mod data_faker;
+
+#[cfg(feature = "nova")]
+pub mod sql_exporter;
+
+#[cfg(all(feature = "nova", feature = "composite"))]
+pub mod soql_mass_op;

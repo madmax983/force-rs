@@ -38,6 +38,7 @@
 use crate::auth::token::{AccessToken, TokenResponse};
 use crate::error::{AuthenticationError, ForceError, HttpError, Result};
 use async_trait::async_trait;
+use futures::StreamExt;
 use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
 
@@ -89,12 +90,11 @@ impl ClientCredentials {
         client_secret: impl Into<String>,
         token_url: impl Into<String>,
     ) -> Self {
-        #[allow(clippy::expect_used)]
         // Client initialization failure is fatal and unrecoverable here
         let client = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(30))
             .build()
-            .expect("Failed to create secure HTTP client");
+            .unwrap_or_else(|e| panic!("Failed to create secure HTTP client: {}", e));
 
         Self {
             client_id: client_id.into(),
@@ -175,10 +175,27 @@ impl crate::auth::authenticator::Authenticator for ClientCredentials {
         // Check for HTTP errors
         let status = response.status();
         if !status.is_success() {
-            let error_text = response
-                .text()
-                .await
-                .unwrap_or_else(|_| "Unknown error".to_string());
+            // Read up to 1MB to prevent memory exhaustion DoS
+            let mut stream = response.bytes_stream();
+            let mut bytes = Vec::new();
+            while let Some(chunk) = stream.next().await {
+                if let Ok(chunk_bytes) = chunk {
+                    bytes.extend_from_slice(&chunk_bytes);
+                    if bytes.len() > 1024 * 1024 {
+                        bytes.truncate(1024 * 1024);
+                        break;
+                    }
+                } else {
+                    break;
+                }
+            }
+            let body = String::from_utf8_lossy(&bytes).into_owned();
+
+            let error_text = if body.trim().is_empty() {
+                "Unknown error".to_string()
+            } else {
+                body
+            };
 
             // Try to parse OAuth error response
             if let Ok(oauth_error) = serde_json::from_str::<OAuthErrorResponse>(&error_text) {
@@ -395,6 +412,40 @@ mod tests {
         let result = auth.authenticate().await;
         assert!(result.is_err());
         assert!(matches!(result, Err(ForceError::Http(_))));
+    }
+
+    #[cfg(feature = "mock")]
+    #[tokio::test]
+    async fn test_authenticate_error_truncation() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let mock_server = MockServer::start().await;
+
+        // Generate a 2MB string.
+        let large_body = "A".repeat(2 * 1024 * 1024);
+
+        Mock::given(method("POST"))
+            .and(path("/services/oauth2/token"))
+            .respond_with(ResponseTemplate::new(400).set_body_string(large_body))
+            .mount(&mock_server)
+            .await;
+
+        let auth = ClientCredentials::new(
+            "test_client",
+            "test_secret",
+            format!("{}/services/oauth2/token", mock_server.uri()),
+        );
+
+        let result = auth.authenticate().await;
+        assert!(result.is_err());
+
+        if let Err(ForceError::Http(HttpError::StatusError { message, .. })) = result {
+            // Should be truncated to 1MB
+            assert_eq!(message.len(), 1024 * 1024);
+        } else {
+            panic!("Expected HttpError::StatusError");
+        }
     }
 
     #[cfg(feature = "mock")]

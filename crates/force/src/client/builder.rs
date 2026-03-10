@@ -1,4 +1,4 @@
-//! Builder for `ForceClient` with type-state pattern for authentication safety.
+//! Builder for `ForceClient` with safe authentication guarantees.
 
 use crate::auth::authenticator::Authenticator;
 use crate::auth::token_manager::TokenManager;
@@ -15,10 +15,10 @@ pub struct NoAuth;
 #[derive(Debug, Clone)]
 pub struct HasAuth;
 
-/// Builder for `ForceClient` with compile-time authentication safety.
+/// Builder for `ForceClient`.
 ///
-/// The builder uses phantom types to track authentication state at compile-time,
-/// ensuring that clients cannot be built without proper authentication.
+/// The builder ensures that you must configure authentication before
+/// calling `.build()`, preventing unauthenticated clients from being created.
 ///
 /// In the `NoAuth` state, there is no authenticator. In the `HasAuth` state,
 /// the builder becomes generic over the authenticator type.
