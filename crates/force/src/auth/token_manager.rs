@@ -125,29 +125,42 @@ impl<A: Authenticator> TokenManager<A> {
                 // Perform refresh.
                 let refresh_result = self.authenticator.refresh().await;
 
-                match refresh_result {
-                    Ok(new_token) => {
-                        let arc_token = Arc::new(new_token.clone());
-                        let mut state = self.state.write().await;
+                if let Ok(new_token) = refresh_result {
+                    let arc_token = Arc::new(new_token.clone());
+                    let mut state = self.state.write().await;
 
-                        // Check if a concurrent operation already updated the token to a newer one
-                        if let Some(current) = &state.token {
-                            if current.issued_at() > new_token.issued_at() {
-                                return Ok(current.clone());
-                            }
+                    // Check if a concurrent operation already updated the token to a newer one
+                    if let Some(current) = &state.token {
+                        if current.issued_at() > new_token.issued_at() {
+                            return Ok(current.clone());
                         }
+                    }
 
-                        state.token = Some(arc_token.clone());
-                        Ok(arc_token)
+                    state.token = Some(arc_token.clone());
+                    Ok(arc_token)
+                } else {
+                    // Refresh failed. Return the old token which is still valid (soft expired).
+                    // However, we must ensure it hasn't been explicitly cleared while we were refreshing.
+                    let state = self.state.read().await;
+                    if state.token.is_none() {
+                        return Err(crate::error::ForceError::Authentication(
+                            crate::error::AuthenticationError::InvalidToken,
+                        ));
                     }
-                    Err(_) => {
-                        // Refresh failed. Return the old token which is still valid (soft expired).
-                        // We swallow the error here because the user can still proceed.
-                        Ok(valid_token)
-                    }
+
+                    // We swallow the error here because the user can still proceed.
+                    Ok(valid_token)
                 }
             } else {
                 // Someone else is refreshing. Return current token immediately.
+                // However, we must ensure it hasn't been explicitly cleared.
+                let state = self.state.read().await;
+                if state.token.is_none() {
+                    return Err(crate::error::ForceError::Authentication(
+                        crate::error::AuthenticationError::InvalidToken,
+                    ));
+                }
+
                 Ok(valid_token)
             }
         } else {
