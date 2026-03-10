@@ -40,12 +40,12 @@ impl BulkPollPolicy {
 
     /// Calculates the total theoretical timeout in seconds.
     #[must_use]
-    pub(crate) fn timeout_seconds(self) -> u64 {
+    pub fn timeout_seconds(self) -> u64 {
         let mut total = Duration::ZERO;
         let mut attempt = 0;
         while attempt < self.max_attempts {
             total = total.saturating_add(self.backoff_for_attempt(attempt));
-            attempt += 1;
+            attempt = attempt.saturating_add(1);
         }
         total.as_secs()
     }
