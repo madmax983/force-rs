@@ -34,3 +34,6 @@
 **2024-05-19 - Fix integer overflow DoS vector in LimitInfo percentage_used calculation**
 **Threat:** The `percentage_used` method calculated the used limit by subtracting the `remaining` limit from `max`. If a malicious or malformed response returned unexpected combinations of maximum and remaining limits (e.g., `i64::MIN` and `i64::MAX`), it would cause a subtraction overflow panic. An attacker who could manipulate Salesforce limit responses (e.g. through a proxy or MITM if SSL verification was disabled) or simply an anomaly from Salesforce could reliably trigger this DoS.
 **Defense:** Replaced the unsafe unchecked subtraction `self.max - self.remaining` with `self.max.saturating_sub(self.remaining)`, which prevents the overflow and provides bounded behavior without crashing the process.
+**2023-10-27 - [Prevent CSV Deserialization DoS]**
+**Threat:** `deserialize_from_csv` in the Bulk API accepted an unbounded `Read` trait, allowing potential Denial of Service via memory exhaustion if an endlessly large CSV stream was provided.
+**Defense:** Added a `MAX_CSV_SIZE` constant (100MB) and applied `reader.take(MAX_CSV_SIZE)` exclusively to the unbounded vector collection method (`deserialize_from_csv`), ensuring bounded memory allocation.

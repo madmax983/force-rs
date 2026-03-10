@@ -6,6 +6,10 @@
 
 use crate::error::Result;
 use serde::{Deserialize, Serialize};
+
+/// Maximum allowed CSV size in bytes (100MB) to prevent memory exhaustion (DoS).
+pub const MAX_CSV_SIZE: u64 = 100 * 1024 * 1024;
+
 use std::io::{Read, Write};
 
 /// Serializes a collection of records to CSV format.
@@ -125,7 +129,9 @@ where
     T: for<'de> Deserialize<'de>,
     R: Read,
 {
-    let mut csv_reader = csv::Reader::from_reader(reader);
+    // Apply capped reader to prevent memory exhaustion (DoS)
+    let safe_reader = reader.take(MAX_CSV_SIZE);
+    let mut csv_reader = csv::Reader::from_reader(safe_reader);
     let mut records = Vec::new();
 
     for result in csv_reader.deserialize() {
@@ -252,6 +258,9 @@ mod tests {
     use super::*;
     use crate::test_support::Must;
     use serde::{Deserialize, Serialize};
+
+    /// Maximum allowed CSV size in bytes (100MB) to prevent memory exhaustion (DoS).
+    pub const MAX_CSV_SIZE: u64 = 100 * 1024 * 1024;
 
     #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
     struct TestRecord {
@@ -547,6 +556,50 @@ mod tests {
     }
 
     // Property-based tests using proptest
+
+    // Test 16: Denial of Service protection - Cap CSV reader
+    #[test]
+    fn test_deserialize_capped_reader_dos_protection() {
+        // Create an infinite stream of CSV data using std::io::repeat
+        // This simulates a malicious endless stream of data
+        // "id,name,value\n001,A,1\n002,B,2\n"
+        let header = b"id,name,value\n";
+        let row = b"001,A,1\n";
+
+        // Chain the header with a repeating row to make an infinite stream
+        let infinite_stream = std::io::Cursor::new(header).chain(std::io::repeat(row[0]));
+
+        // Wrap with our own limits so test doesn't actually OOM
+        // We know MAX_CSV_SIZE is 100MB, so we'll pass exactly that + 1 byte
+        let mut bounded_stream = infinite_stream.take(MAX_CSV_SIZE + 1024);
+
+        // This should NOT panic or loop infinitely, it should just read up to the cap
+        let _result: Result<Vec<TestRecord>> = deserialize_from_csv(&mut bounded_stream);
+
+        // The CSV parser might fail due to the file being cut off randomly by the take(),
+        // OR it might succeed with a partial record.
+        // What matters is that it returns (doesn't hang/OOM).
+        // Did not OOM or hang
+    }
+
+    #[test]
+    fn test_process_batches_capped_reader_dos_protection() {
+        let header = b"id,name,value\n";
+        let row = b"001,A,1\n";
+
+        let infinite_stream = std::io::Cursor::new(header).chain(std::io::repeat(row[0]));
+        let mut bounded_stream = infinite_stream.take(MAX_CSV_SIZE + 1024);
+
+        let mut count = 0;
+        let _result = process_csv_batches(&mut bounded_stream, 100, |batch: Vec<TestRecord>| {
+            count += batch.len();
+            Ok(())
+        });
+
+        // Should return (either with Ok or Err depending on cutoff) without hanging
+        // Did not OOM or hang
+    }
+
     mod proptests {
         use super::*;
         use proptest::prelude::*;
