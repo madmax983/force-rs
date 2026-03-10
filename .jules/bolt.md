@@ -7,3 +7,7 @@
 **[Zero-Cost JSON Deserialization]**
 **Learning:** `serde_json::from_value` requires taking ownership of `serde_json::Value`, forcing an expensive `.clone()` when the source is borrowed. However, `&Value` implements `serde::Deserializer`, so `T::deserialize(value)` can be used to deserialize directly from a reference without cloning the tree.
 **Action:** Always prefer `T::deserialize(value)` over `serde_json::from_value(value.clone())` when reading fields from a borrowed JSON value to avoid heap allocations.
+
+**[Pre-allocating Vecs for Graph Requests]**
+**Learning:** `GraphBuilder::new()` and `Graph::new()` in `api/composite/graph.rs` construct arrays using `Vec::new()`, resulting in multiple heap allocations as elements are added, especially given the Salesforce limit is often up to 500 subrequests but typically batches are around 15.
+**Action:** Use `Vec::with_capacity(15)` to avoid initial allocations and keep typical small batches entirely allocation-free during accumulation.
