@@ -191,9 +191,51 @@ impl SoqlQueryBuilder {
     ///     .build();
     /// assert_eq!(query, "SELECT Id FROM Contact WHERE LastName = 'Smith'");
     /// ```
+    pub fn try_where_eq(self, field: &str, value: &str) -> Result<Self, ForceError> {
+        self.try_add_condition(field, "=", value)
+    }
+
+    /// Adds a WHERE condition for equality (e.g., `Field = 'Value'`).
+    ///
+    /// # Panics
+    ///
+    /// Panics if the field name is invalid.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use force::api::rest::SoqlQueryBuilder;
+    /// let query = SoqlQueryBuilder::new()
+    ///     .select(&["Id"])
+    ///     .from("Contact")
+    ///     .where_eq("LastName", "Smith")
+    ///     .build();
+    /// assert_eq!(query, "SELECT Id FROM Contact WHERE LastName = 'Smith'");
+    /// ```
     #[must_use]
     pub fn where_eq(self, field: &str, value: &str) -> Self {
-        self.add_condition(field, "=", value, "where_eq")
+        Self::unwrap_or_panic(self.try_where_eq(field, value), "where_eq")
+    }
+
+    /// Adds a WHERE condition for NOT equality (e.g., `Field != 'Value'`).
+    ///
+    /// # Panics
+    ///
+    /// Panics if the field name is invalid.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use force::api::rest::SoqlQueryBuilder;
+    /// let query = SoqlQueryBuilder::new()
+    ///     .select(&["Id"])
+    ///     .from("Contact")
+    ///     .where_ne("LastName", "Smith")
+    ///     .build();
+    /// assert_eq!(query, "SELECT Id FROM Contact WHERE LastName != 'Smith'");
+    /// ```
+    pub fn try_where_ne(self, field: &str, value: &str) -> Result<Self, ForceError> {
+        self.try_add_condition(field, "!=", value)
     }
 
     /// Adds a WHERE condition for NOT equality (e.g., `Field != 'Value'`).
@@ -215,7 +257,19 @@ impl SoqlQueryBuilder {
     /// ```
     #[must_use]
     pub fn where_ne(self, field: &str, value: &str) -> Self {
-        self.add_condition(field, "!=", value, "where_ne")
+        Self::unwrap_or_panic(self.try_where_ne(field, value), "where_ne")
+    }
+
+    /// Adds a simple WHERE condition (helper).
+    fn try_add_condition(mut self, field: &str, op: &str, value: &str) -> Result<Self, ForceError> {
+        validate_field_name(field)?;
+        // Optimization: Use escape_soql_cow to avoid allocation if escape not needed
+        let escaped_value = escape_soql_cow(value);
+        self.where_clauses.push(WhereClause::Raw(format!(
+            "{} {} '{}'",
+            field, op, escaped_value
+        )));
+        Ok(self)
     }
 
     /// Adds a simple WHERE condition (helper).
@@ -257,15 +311,18 @@ impl SoqlQueryBuilder {
     ///
     /// **Performance:** Avoids intermediate `Vec<String>` heap allocations by pre-calculating capacity
     /// and writing the escaped SOQL string directly into a single formatted string buffer.
-    #[must_use]
-    pub fn where_in(mut self, field: &str, values: &[impl AsRef<str>]) -> Self {
+    pub fn try_where_in(
+        mut self,
+        field: &str,
+        values: &[impl AsRef<str>],
+    ) -> Result<Self, ForceError> {
         use std::fmt::Write;
 
-        Self::validate_field(field, "where_in");
+        validate_field_name(field)?;
         if values.is_empty() {
             self.where_clauses
                 .push(WhereClause::Raw(format!("{} IN ()", field)));
-            return self;
+            return Ok(self);
         }
 
         // Base capacity for "FIELD IN ()" + estimated 10 chars per value + quotes/commas
@@ -286,7 +343,55 @@ impl SoqlQueryBuilder {
         buffer.push(')');
 
         self.where_clauses.push(WhereClause::Raw(buffer));
-        self
+        Ok(self)
+    }
+
+    /// Adds a WHERE condition for IN clause (e.g., `Field IN ('Val1', 'Val2')`).
+    ///
+    /// # Panics
+    ///
+    /// Panics if the field name is invalid.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use force::api::rest::SoqlQueryBuilder;
+    /// let query = SoqlQueryBuilder::new()
+    ///     .select(&["Id"])
+    ///     .from("Account")
+    ///     .where_in("Industry", &["Technology", "Finance"])
+    ///     .build();
+    /// assert_eq!(query, "SELECT Id FROM Account WHERE Industry IN ('Technology', 'Finance')");
+    /// ```
+    ///
+    /// **Performance:** Avoids intermediate `Vec<String>` heap allocations by pre-calculating capacity
+    /// and writing the escaped SOQL string directly into a single formatted string buffer.
+    #[must_use]
+    pub fn where_in(self, field: &str, values: &[impl AsRef<str>]) -> Self {
+        Self::unwrap_or_panic(self.try_where_in(field, values), "where_in")
+    }
+
+    /// Adds a WHERE condition for LIKE clause (e.g., `Field LIKE 'Val%'`).
+    ///
+    /// **Note:** Preserves wildcards (`%`, `_`) but escapes quotes/backslashes.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the field name is invalid.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use force::api::rest::SoqlQueryBuilder;
+    /// let query = SoqlQueryBuilder::new()
+    ///     .select(&["Id"])
+    ///     .from("Account")
+    ///     .where_like("Name", "Acme%")
+    ///     .build();
+    /// assert_eq!(query, "SELECT Id FROM Account WHERE Name LIKE 'Acme%'");
+    /// ```
+    pub fn try_where_like(self, field: &str, value: &str) -> Result<Self, ForceError> {
+        self.try_add_condition(field, "LIKE", value)
     }
 
     /// Adds a WHERE condition for LIKE clause (e.g., `Field LIKE 'Val%'`).
@@ -310,7 +415,7 @@ impl SoqlQueryBuilder {
     /// ```
     #[must_use]
     pub fn where_like(self, field: &str, value: &str) -> Self {
-        self.add_condition(field, "LIKE", value, "where_like")
+        Self::unwrap_or_panic(self.try_where_like(field, value), "where_like")
     }
 
     /// Sets the LIMIT clause.
@@ -369,11 +474,55 @@ impl SoqlQueryBuilder {
     ///     .build();
     /// assert_eq!(query, "SELECT Id FROM Account ORDER BY Name");
     /// ```
-    #[must_use]
-    pub fn order_by(mut self, field: &str) -> Self {
-        Self::validate_field(field, "order_by");
+    pub fn try_order_by(mut self, field: &str) -> Result<Self, ForceError> {
+        validate_field_name(field)?;
         self.order_by = Some(field.to_string());
-        self
+        Ok(self)
+    }
+
+    /// Sets the ORDER BY clause.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the field name is invalid.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use force::api::rest::SoqlQueryBuilder;
+    /// let query = SoqlQueryBuilder::new()
+    ///     .select(&["Id"])
+    ///     .from("Account")
+    ///     .order_by("Name")
+    ///     .build();
+    /// assert_eq!(query, "SELECT Id FROM Account ORDER BY Name");
+    /// ```
+    #[must_use]
+    pub fn order_by(self, field: &str) -> Self {
+        Self::unwrap_or_panic(self.try_order_by(field), "order_by")
+    }
+
+    /// Sets the ORDER BY clause with direction (DESC).
+    ///
+    /// # Panics
+    ///
+    /// Panics if the field name is invalid.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use force::api::rest::SoqlQueryBuilder;
+    /// let query = SoqlQueryBuilder::new()
+    ///     .select(&["Id"])
+    ///     .from("Account")
+    ///     .order_by_desc("CreatedDate")
+    ///     .build();
+    /// assert_eq!(query, "SELECT Id FROM Account ORDER BY CreatedDate DESC");
+    /// ```
+    pub fn try_order_by_desc(mut self, field: &str) -> Result<Self, ForceError> {
+        validate_field_name(field)?;
+        self.order_by = Some(format!("{} DESC", field));
+        Ok(self)
     }
 
     /// Sets the ORDER BY clause with direction (DESC).
@@ -394,10 +543,8 @@ impl SoqlQueryBuilder {
     /// assert_eq!(query, "SELECT Id FROM Account ORDER BY CreatedDate DESC");
     /// ```
     #[must_use]
-    pub fn order_by_desc(mut self, field: &str) -> Self {
-        Self::validate_field(field, "order_by_desc");
-        self.order_by = Some(format!("{} DESC", field));
-        self
+    pub fn order_by_desc(self, field: &str) -> Self {
+        Self::unwrap_or_panic(self.try_order_by_desc(field), "order_by_desc")
     }
 
     /// Validates that the builder has all necessary components to build a query.

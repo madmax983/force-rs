@@ -3,6 +3,7 @@
 //! This module provides types and methods for executing SOSL searches across
 //! multiple objects and fields in Salesforce.
 
+use crate::error::ForceError;
 use crate::types::validator::validate_sobject_name;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
@@ -84,7 +85,7 @@ pub struct SearchAttributes {
 ///     "FIND {Acme Corporation} IN NAME FIELDS RETURNING Account(Id, Name, Industry) LIMIT 10"
 /// );
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct SearchQueryBuilder {
     /// Search text.
     search_text: String,
@@ -170,24 +171,40 @@ impl SearchQueryBuilder {
     ///
     /// Panics if object names contain non-alphanumeric/underscore characters or
     /// if field names contain characters other than alphanumeric, underscores, or dots.
-    #[must_use]
-    pub fn returning(mut self, sobject: impl Into<String>, fields: &[impl AsRef<str>]) -> Self {
+    pub fn try_returning(
+        mut self,
+        sobject: impl Into<String>,
+        fields: &[impl AsRef<str>],
+    ) -> Result<Self, ForceError> {
         let sobject = sobject.into();
-        if let Err(e) = validate_sobject_name(&sobject) {
-            panic!("{}", e);
+        validate_sobject_name(&sobject)?;
+
+        let mut valid_fields = Vec::with_capacity(fields.len());
+        for f in fields {
+            let f_str = f.as_ref();
+            validate_field_syntax(f_str)?;
+            valid_fields.push(f_str.to_string());
         }
 
-        let fields: Vec<String> = fields
-            .iter()
-            .map(|f| {
-                let f_str = f.as_ref();
-                validate_field_syntax(f_str);
-                f_str.to_string()
-            })
-            .collect();
+        self.returning.push((sobject, valid_fields));
+        Ok(self)
+    }
 
-        self.returning.push((sobject, fields));
-        self
+    /// Adds an object and its fields to the RETURNING clause.
+    ///
+    /// # Arguments
+    ///
+    /// * `sobject` - The name of the Salesforce object
+    /// * `fields` - The fields to return (e.g., `&["Id", "Name"]`)
+    ///
+    /// # Panics
+    ///
+    /// Panics if object names contain non-alphanumeric/underscore characters or
+    /// if field names contain characters other than alphanumeric, underscores, or dots.
+    #[must_use]
+    pub fn returning(self, sobject: impl Into<String>, fields: &[impl AsRef<str>]) -> Self {
+        self.try_returning(sobject, fields)
+            .unwrap_or_else(|e| panic!("{}", e))
     }
 
     /// Sets the maximum number of records to return per object.
@@ -209,68 +226,64 @@ impl SearchQueryBuilder {
     /// # Panics
     ///
     /// Panics if search text is empty or no objects are specified in RETURNING.
-    #[must_use]
-    pub fn build(self) -> String {
+    pub fn try_build(self) -> Result<String, ForceError> {
         use std::fmt::Write;
 
-        assert!(!self.search_text.is_empty(), "search text cannot be empty");
-        assert!(
-            !self.returning.is_empty(),
-            "at least one object must be specified in RETURNING"
-        );
+        if self.search_text.is_empty() {
+            return Err(ForceError::InvalidInput(
+                "search text cannot be empty".to_string(),
+            ));
+        }
+        if self.returning.is_empty() {
+            return Err(ForceError::InvalidInput(
+                "at least one object must be specified in RETURNING".to_string(),
+            ));
+        }
 
         let mut query = String::with_capacity(128);
+        write!(query, "FIND {{{}}}", self.search_text)
+            .map_err(|_| ForceError::InvalidInput("formatting error".to_string()))?;
 
-        #[allow(clippy::expect_used)]
-        write!(&mut query, "FIND {{{}}}", self.search_text).expect("String format cannot fail");
-
-        if let Some(scope) = self.search_scope {
-            #[allow(clippy::expect_used)]
-            write!(&mut query, " IN {}", scope).expect("String format cannot fail");
+        if let Some(scope) = &self.search_scope {
+            write!(query, " IN {}", scope)
+                .map_err(|_| ForceError::InvalidInput("formatting error".to_string()))?;
         }
 
         query.push_str(" RETURNING ");
-
-        let mut first_obj = true;
-        for (sobject, fields) in self.returning {
-            if !first_obj {
+        for (i, (sobject, fields)) in self.returning.iter().enumerate() {
+            if i > 0 {
                 query.push_str(", ");
             }
-            first_obj = false;
-
-            query.push_str(&sobject);
+            query.push_str(sobject);
 
             if !fields.is_empty() {
                 query.push('(');
-                let mut first_field = true;
-                for field in fields {
-                    if !first_field {
-                        query.push_str(", ");
-                    }
-                    first_field = false;
-                    query.push_str(&field);
-                }
+                query.push_str(&fields.join(", "));
                 query.push(')');
             }
         }
 
         if let Some(limit) = self.limit {
-            #[allow(clippy::expect_used)]
-            write!(&mut query, " LIMIT {}", limit).expect("String format cannot fail");
+            write!(query, " LIMIT {}", limit)
+                .map_err(|_| ForceError::InvalidInput("formatting error".to_string()))?;
         }
 
         if let Some(offset) = self.offset {
-            #[allow(clippy::expect_used)]
-            write!(&mut query, " OFFSET {}", offset).expect("String format cannot fail");
+            write!(query, " OFFSET {}", offset)
+                .map_err(|_| ForceError::InvalidInput("formatting error".to_string()))?;
         }
 
-        query
+        Ok(query)
     }
-}
 
-impl Default for SearchQueryBuilder {
-    fn default() -> Self {
-        Self::new()
+    /// Builds the SOSL query string.
+    ///
+    /// # Panics
+    ///
+    /// Panics if search text is empty or no objects are specified in RETURNING.
+    #[must_use]
+    pub fn build(self) -> String {
+        self.try_build().unwrap_or_else(|e| panic!("{}", e))
     }
 }
 
@@ -310,7 +323,7 @@ fn escape_sosl<'a>(text: impl Into<Cow<'a, str>>) -> Cow<'a, str> {
 /// - Inside quotes (`'` or `"`): All characters are allowed (except unescaped quote).
 /// - Outside quotes: Only alphanumeric and safe symbols allowed.
 /// - Parentheses must be balanced.
-fn validate_field_syntax(field: &str) {
+fn validate_field_syntax(field: &str) -> Result<(), ForceError> {
     let chars = field.chars();
     let mut balance = 0;
     let mut in_quote = None; // None, Some('\''), Some('"')
@@ -327,48 +340,63 @@ fn validate_field_syntax(field: &str) {
             continue;
         }
 
-        if let Some(quote_char) = in_quote {
-            if c == quote_char {
+        if let Some(q) = in_quote {
+            if c == q {
                 in_quote = None;
             }
-            // Inside quotes, any character is allowed (besides the closing quote)
         } else {
-            // Outside quotes
             match c {
                 '\'' | '"' => in_quote = Some(c),
                 '(' => balance += 1,
                 ')' => {
                     balance -= 1;
-                    assert!(
-                        balance >= 0,
-                        "unbalanced parentheses (unexpected closing) in field: {}",
-                        field
-                    );
+                    if balance < 0 {
+                        return Err(ForceError::InvalidInput(format!(
+                            "unbalanced parentheses (unexpected closing) in field: {}",
+                            field
+                        )));
+                    }
                 }
                 // Allowed structure characters
                 _ if c.is_ascii_alphanumeric() => {}
                 '_' | '.' | ' ' | '\t' | '\n' | '\r' | ',' | '=' | '!' | '<' | '>' | '-' | '+'
                 | ':' | '%' | '&' | '|' | '^' | '*' | '$' => {}
                 // Disallowed injection characters outside quotes
-                ';' | '{' | '}' | '[' | ']' => panic!(
-                    "field name contains invalid character outside quotes: '{}' in \"{}\"",
-                    c, field
-                ),
-                _ => panic!(
-                    "field name contains invalid character: '{}' in \"{}\"",
-                    c, field
-                ),
+                ';' | '{' | '}' | '[' | ']' => {
+                    return Err(ForceError::InvalidInput(format!(
+                        "field name contains invalid character outside quotes: '{}'",
+                        c
+                    )));
+                }
+                _ => {
+                    return Err(ForceError::InvalidInput(format!(
+                        "field name contains invalid character: '{}'",
+                        c
+                    )));
+                }
             }
         }
     }
 
-    assert!(in_quote.is_none(), "unclosed quote in field: {}", field);
-    assert!(
-        balance == 0,
-        "unbalanced parentheses (unclosed opening) in field: {}",
-        field
-    );
-    assert!(!escaped, "field cannot end with a backslash: {}", field);
+    if in_quote.is_some() {
+        return Err(ForceError::InvalidInput(format!(
+            "unclosed quote in field: {}",
+            field
+        )));
+    }
+    if balance != 0 {
+        return Err(ForceError::InvalidInput(format!(
+            "unbalanced parentheses (unclosed opening) in field: {}",
+            field
+        )));
+    }
+    if escaped {
+        return Err(ForceError::InvalidInput(format!(
+            "field cannot end with a backslash: {}",
+            field
+        )));
+    }
+    Ok(())
 }
 
 #[cfg(test)]
