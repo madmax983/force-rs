@@ -39,6 +39,11 @@ pub fn escape_soql_cow(input: &str) -> Cow<'_, str> {
             let mut escaped = String::with_capacity(input.len() + 8);
             escaped.push_str(&input[..idx]);
 
+            // Note: `input.find()` returns a byte index.
+            // Using `input[idx..]` here is technically safe because we know the needle
+            // `['\'', '\\', '"']` are 1-byte ASCII characters, meaning `idx` will
+            // always align with a char boundary for `input`. If we searched for a
+            // multi-byte char this would panic.
             for c in input[idx..].chars() {
                 match c {
                     '\'' => escaped.push_str(r"\'"),
