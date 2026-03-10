@@ -587,8 +587,14 @@ mod tests {
     fn test_validate_sobject_name() {
         assert!(validate_sobject_name("Account").is_ok());
         assert!(validate_sobject_name("Custom__c").is_ok());
-        assert!(validate_sobject_name("Account; DROP").is_err());
-        assert!(validate_sobject_name("Account Name").is_err()); // No spaces
+
+        let err1 = validate_sobject_name("Account; DROP").unwrap_err();
+        assert!(matches!(err1, ForceError::InvalidInput(_)));
+        assert!(err1.to_string().contains("invalid characters"));
+
+        let err2 = validate_sobject_name("Account Name").unwrap_err();
+        assert!(matches!(err2, ForceError::InvalidInput(_)));
+        assert!(err2.to_string().contains("invalid characters"));
     }
 
     #[test]
@@ -599,9 +605,17 @@ mod tests {
         assert!(validate_field_name("count(Id)").is_ok());
         assert!(validate_field_name("toLabel(StageName)").is_ok());
 
-        assert!(validate_field_name("Name; DROP").is_err());
-        assert!(validate_field_name("Name--").is_err());
-        assert!(validate_field_name("count(Id").is_err()); // Unbalanced
+        let err1 = validate_field_name("Name; DROP").unwrap_err();
+        assert!(matches!(err1, ForceError::InvalidInput(_)));
+        assert!(err1.to_string().contains("invalid character"));
+
+        let err2 = validate_field_name("Name--").unwrap_err();
+        assert!(matches!(err2, ForceError::InvalidInput(_)));
+        assert!(err2.to_string().contains("invalid character"));
+
+        let err3 = validate_field_name("count(Id").unwrap_err();
+        assert!(matches!(err3, ForceError::InvalidInput(_)));
+        assert!(err3.to_string().contains("Unbalanced"));
     }
 
     #[test]
@@ -641,21 +655,15 @@ mod tests {
 
         // Invalid field name
         let result = builder.clone().try_select(&["Valid", "Invalid;DROP"]);
-        assert!(result.is_err());
-        if let Err(ForceError::InvalidInput(msg)) = result {
-            assert!(msg.contains("invalid character"));
-        } else {
-            panic!("Expected ForceError::InvalidInput");
-        }
+        let err1 = result.unwrap_err();
+        assert!(matches!(err1, ForceError::InvalidInput(_)));
+        assert!(err1.to_string().contains("invalid character"));
 
         // Invalid SObject name
         let result = builder.try_from("Invalid SObject");
-        assert!(result.is_err());
-        if let Err(ForceError::InvalidInput(msg)) = result {
-            assert!(msg.contains("invalid characters"));
-        } else {
-            panic!("Expected ForceError::InvalidInput");
-        }
+        let err2 = result.unwrap_err();
+        assert!(matches!(err2, ForceError::InvalidInput(_)));
+        assert!(err2.to_string().contains("invalid characters"));
     }
 
     #[test]
@@ -663,24 +671,16 @@ mod tests {
         // Missing fields
         let builder = SoqlQueryBuilder::new().from("Account");
         let result = builder.try_build();
-        match result {
-            Err(e) => assert_eq!(
-                e.to_string(),
-                "invalid input: Select fields cannot be empty"
-            ),
-            Ok(_) => panic!("Expected error"),
-        }
+        let err1 = result.unwrap_err();
+        assert!(matches!(err1, ForceError::InvalidInput(_)));
+        assert_eq!(err1.to_string(), "invalid input: Select fields cannot be empty");
 
         // Missing SObject
         let builder = SoqlQueryBuilder::new().select(&["Id"]);
         let result = builder.try_build();
-        match result {
-            Err(e) => assert_eq!(
-                e.to_string(),
-                "invalid input: FROM clause (SObject) is required"
-            ),
-            Ok(_) => panic!("Expected error"),
-        }
+        let err2 = result.unwrap_err();
+        assert!(matches!(err2, ForceError::InvalidInput(_)));
+        assert_eq!(err2.to_string(), "invalid input: FROM clause (SObject) is required");
     }
 
     #[test]

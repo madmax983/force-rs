@@ -15,6 +15,7 @@ This journal records the findings of the Elenchus test audit.
 | **Acquitted** | `crates/force/src/experimental/scanner.rs` | 🟢 Acquitted | Initial audit found missing tests for filtering, batching, and zero-division. Added comprehensive tests and verified with mutation testing (12 mutants caught). |
 | **Acquitted** | `crates/force/src/experimental/query_batch.rs` | 🟢 Acquitted | Initial audit found missing coverage for `halt_on_error`, empty results, and partial failures. Added `test_query_batch_halt_on_error`, `test_query_batch_empty_results`, and `test_query_batch_mixed_results`. |
 | **Acquitted** | `crates/force/src/api/composite/batch.rs` | 🟢 Acquitted | Initial audit found tautological encoding tests and fragile JSON assertions. Refactored to use hardcoded "golden" strings and structural JSON validation. |
+| **Strengthened** | `crates/force/src/api/rest/soql.rs` | 🟡 Suspect | Tests were using weak `assert!(result.is_err())` validations, which are "prayers, not assertions". Tests were strengthened. |
 
 ## Detailed Findings
 
@@ -120,3 +121,13 @@ match result {
 - Tests like `test_serialize_empty_records` checked `is_ok` but didn't actually verify the output cleanly handled empty state via strong properties.
 **Recommendation:**
 - Replaced `assert!(result.is_ok())` with `.expect("...")` which guarantees the operation succeeded, bubbles up a helpful error message if it fails, and provides direct access to the `Ok` value.
+
+### [Strengthened] `crates/force/src/api/rest/soql.rs`
+
+**Module:** `crates/force/src/api/rest/soql.rs`
+**Severity:** 🟡 Suspect
+**Finding:** Multiple tests utilized weak assertions by using `assert!(result.is_err())` instead of unwrapping the error and explicitly validating the error variant and string payload. This provided false confidence because it did not guarantee that the failure was caused by the expected condition.
+**Evidence:**
+- `test_validate_sobject_name`, `test_validate_field_name`, and `test_builder_try_methods_errors` relied on `assert!(result.is_err())`.
+**Recommendation:**
+- Replaced `assert!(result.is_err())` with explicit unwraps (`.unwrap_err()`), matching against specific error variants (`ForceError::InvalidInput(_)`), and explicitly asserting on string match contents to ensure exact behavioral correctness.

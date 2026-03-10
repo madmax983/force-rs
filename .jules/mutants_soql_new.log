@@ -1,0 +1,3 @@
+Found 50 mutants to test
+ok       Unmutated baseline in 125s build + 6s test
+ INFO Auto-set test timeout to 32s
