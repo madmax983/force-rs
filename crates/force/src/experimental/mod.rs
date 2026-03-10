@@ -30,5 +30,8 @@ pub mod schema_diff;
 #[cfg(feature = "nova")]
 pub mod data_faker;
 
+#[cfg(feature = "nova")]
+pub mod sql_exporter;
+
 #[cfg(all(feature = "nova", feature = "composite"))]
 pub mod soql_mass_op;
