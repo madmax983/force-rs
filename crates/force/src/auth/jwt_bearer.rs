@@ -381,11 +381,36 @@ QcWLHR6ul3bFRWNhXoThNBQ=
         )
         .must();
 
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .must()
+            .as_secs();
+
         let jwt = flow.generate_jwt().must();
         assert!(!jwt.is_empty());
 
         // JWT should have 3 parts separated by dots
-        assert_eq!(jwt.split('.').count(), 3);
+        let parts: Vec<&str> = jwt.split('.').collect();
+        assert_eq!(parts.len(), 3);
+
+        // Decode the payload (second part)
+        let payload_b64 = parts[1];
+        let payload_bytes = base64::Engine::decode(
+            &base64::engine::general_purpose::URL_SAFE_NO_PAD,
+            payload_b64,
+        )
+        .must();
+        let payload: serde_json::Value = serde_json::from_slice(&payload_bytes).must();
+
+        assert_eq!(payload["iss"], "test_client_id");
+        assert_eq!(payload["sub"], "test@example.com");
+        assert_eq!(payload["aud"], "https://test.salesforce.com");
+
+        let exp = payload["exp"].as_u64().must();
+        // Since `now` might be slightly behind the time inside `generate_jwt`,
+        // check that `exp` is bounded reasonably near `now + 300`
+        assert!(exp >= now + 300);
+        assert!(exp <= now + 305);
     }
     #[cfg(feature = "mock")]
     #[tokio::test]
