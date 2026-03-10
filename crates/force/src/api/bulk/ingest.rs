@@ -1811,7 +1811,10 @@ mod tests {
             .await;
 
         let client = create_test_client(mock_server.uri()).await;
-        let job = IngestJob::<Open, _>::new_for_test("750xx0000000009AAA".to_string(), Arc::clone(client.inner()));
+        let job = IngestJob::<Open, _>::new_for_test(
+            "750xx0000000009AAA".to_string(),
+            Arc::clone(client.inner()),
+        );
 
         job.abort().await.must();
     }
@@ -1823,7 +1826,9 @@ mod tests {
 
         // Mock successful results
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/jobs/ingest/750xx0000000009AAA/successfulResults"))
+            .and(path(
+                "/services/data/v60.0/jobs/ingest/750xx0000000009AAA/successfulResults",
+            ))
             .and(bearer_token("test_token"))
             .respond_with(ResponseTemplate::new(200).set_body_bytes(b"success_data".to_vec()))
             .mount(&mock_server)
@@ -1831,7 +1836,9 @@ mod tests {
 
         // Mock failed results
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/jobs/ingest/750xx0000000009AAA/failedResults"))
+            .and(path(
+                "/services/data/v60.0/jobs/ingest/750xx0000000009AAA/failedResults",
+            ))
             .and(bearer_token("test_token"))
             .respond_with(ResponseTemplate::new(200).set_body_bytes(b"failed_data".to_vec()))
             .mount(&mock_server)
@@ -1839,14 +1846,19 @@ mod tests {
 
         // Mock unprocessed results
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/jobs/ingest/750xx0000000009AAA/unprocessedrecords"))
+            .and(path(
+                "/services/data/v60.0/jobs/ingest/750xx0000000009AAA/unprocessedrecords",
+            ))
             .and(bearer_token("test_token"))
             .respond_with(ResponseTemplate::new(200).set_body_bytes(b"unprocessed_data".to_vec()))
             .mount(&mock_server)
             .await;
 
         let client = create_test_client(mock_server.uri()).await;
-        let job = IngestJob::<JobComplete, _>::new_for_test("750xx0000000009AAA".to_string(), Arc::clone(client.inner()));
+        let job = IngestJob::<JobComplete, _>::new_for_test(
+            "750xx0000000009AAA".to_string(),
+            Arc::clone(client.inner()),
+        );
 
         let success = job.successful_results().await.must();
         assert_eq!(success, b"success_data");
