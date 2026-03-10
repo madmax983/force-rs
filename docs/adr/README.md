@@ -42,7 +42,7 @@ ADRs follow this structure:
 | [006](006-handler-pattern.md) | Handler Pattern for API Operations | Accepted | 2026-02-07 |
 | [007](007-rest-api-design.md) | REST API Design Decisions | Accepted | 2026-02-07 |
 | [008](008-bulk-api-design.md) | Bulk API 2.0 Design Decisions | Accepted | 2026-02-08 |
-| [009](009-decouple-storage-from-core.md) | Decouple Storage from Core | Proposed | 2026-02-17 |
+| [009](009-decouple-storage-from-core.md) | Decouple Storage from Core | Superseded | 2026-02-17 |
 
 ### Future ADRs
 

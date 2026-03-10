@@ -37,7 +37,6 @@ C4Component
     Rel(api, session, "Uses (Shared State)")
     Rel(session, auth, "Uses (TokenManager)")
     Rel(session, http, "Uses (HttpExecutor)")
-    Rel(auth, types, "Uses")
     Rel(api, types, "Uses")
   }
 ```
