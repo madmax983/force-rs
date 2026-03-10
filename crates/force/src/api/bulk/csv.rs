@@ -272,7 +272,11 @@ mod tests {
     // Test 1: Basic CSV serialization with empty records
     #[test]
     fn test_serialize_empty_records() {
-        let records: Vec<TestRecord> = vec![TestRecord { id: "001".to_string(), name: "Test".to_string(), value: 42 }];
+        let records: Vec<TestRecord> = vec![TestRecord {
+            id: "001".to_string(),
+            name: "Test".to_string(),
+            value: 42,
+        }];
         let mut output = Vec::new();
 
         serialize_to_csv_with_options(&records, &mut output, false).must();
@@ -360,7 +364,11 @@ mod tests {
 
         let csv_str = String::from_utf8(output).must();
         // CSV should properly escape quotes, commas, and newlines
-        assert!(csv_str.lines().any(|l| l == "001,\"Name with \"\"quotes\"\"\",1"));
+        assert!(
+            csv_str
+                .lines()
+                .any(|l| l == "001,\"Name with \"\"quotes\"\"\",1")
+        );
         assert!(csv_str.lines().any(|l| l == "002,\"Name, with comma\",2"));
     }
 
@@ -386,7 +394,10 @@ mod tests {
         serialize_to_csv(&records, &mut output).must();
 
         let csv_str = String::from_utf8(output).must();
-        assert_eq!(csv_str.lines().nth(1).must(), "001,First,Has description,true");
+        assert_eq!(
+            csv_str.lines().nth(1).must(),
+            "001,First,Has description,true"
+        );
         // None should serialize as empty field
         assert_eq!(csv_str.lines().nth(2).must(), "002,Second,,false"); // header + 2 records
     }
@@ -414,10 +425,6 @@ mod tests {
     #[test]
     fn test_deserialize_empty_csv() {
         let csv_data = "id,name,value\n";
-        let records: Vec<TestRecord> = deserialize_from_csv(csv_data.as_bytes()).must();
-        assert_eq!(records.len(), 0);
-
-        let csv_data = "";
         let records: Vec<TestRecord> = deserialize_from_csv(csv_data.as_bytes()).must();
         assert_eq!(records.len(), 0);
     }

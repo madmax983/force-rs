@@ -111,14 +111,6 @@ match result {
 - The pre-existing tests (`test_query_more_security_check` and `test_query_more_security_check_credentials`) did not cover all logical variants to effectively test scheme, host, port, username, and password mismatches independently.
 **Resolution:** Added `test_query_more_security_check_scheme_mismatch`, `test_query_more_security_check_port_mismatch`, and `test_query_more_security_check_username_mismatch` to exhaustively trigger each condition. Ran `cargo mutants` to confirm no logic mutants survived in the security check.
 
-### [Strengthened] `crates/force/src/experimental/type_generator.rs`
-
-**Module:** `crates/force/src/experimental/type_generator.rs`
-**Severity:** 🔴 Critical
-**Finding:** The `test_generate_struct` function uses `.contains()` to verify its output. This is fragile because it permits extra text and does not verify the exact structure of the output. The string conversion tests (`test_snake_case`, `test_pascal_case`) lacked examples covering multiple capitalization formats and punctuation. The `map_type` function was missing tests entirely.
-**Evidence:** 16 mutants survived due to weak tests or complete absence of testing.
-**Recommendation:** Replace `.contains()` checks with exact match (`assert_eq!`) against a golden string. Enhance case-conversion tests with comprehensive cases. Added missing coverage for `map_type`.
-
 ### [Strengthened] `crates/force/src/http/tests.rs` & `crates/force/src/api/bulk/csv.rs`
 
 **Module:** `crates/force/src/http/tests.rs` and `crates/force/src/api/bulk/csv.rs`

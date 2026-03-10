@@ -152,14 +152,13 @@ mod integration_tests {
             .await;
 
         // Assert
-        let err = result.as_ref().unwrap_err();
-        if let ForceError::Http(crate::error::HttpError::RateLimitExceeded {
-            retry_after_seconds,
-        }) = err
-        {
-            assert_eq!(*retry_after_seconds, 120);
-        } else {
-            panic!("Expected RateLimitExceeded error, got: {:?}", result);
+        match result {
+            Err(ForceError::Http(crate::error::HttpError::RateLimitExceeded {
+                retry_after_seconds,
+            })) => {
+                assert_eq!(retry_after_seconds, 120);
+            }
+            _ => panic!("Expected RateLimitExceeded error, got: {:?}", result),
         }
     }
 
@@ -187,17 +186,16 @@ mod integration_tests {
             .await;
 
         // Assert
-        let err = result.as_ref().unwrap_err();
-        if let ForceError::Http(crate::error::HttpError::RateLimitExceeded {
-            retry_after_seconds,
-        }) = err
-        {
-            assert_eq!(*retry_after_seconds, 60);
-        } else {
-            panic!(
+        match result {
+            Err(ForceError::Http(crate::error::HttpError::RateLimitExceeded {
+                retry_after_seconds,
+            })) => {
+                assert_eq!(retry_after_seconds, 60);
+            }
+            _ => panic!(
                 "Expected RateLimitExceeded error with default 60s, got: {:?}",
                 result
-            );
+            ),
         }
     }
 
@@ -229,17 +227,16 @@ mod integration_tests {
             .await;
 
         // Assert
-        let err = result.as_ref().unwrap_err();
-        if let ForceError::Http(crate::error::HttpError::RateLimitExceeded {
-            retry_after_seconds,
-        }) = err
-        {
-            assert_eq!(*retry_after_seconds, 60);
-        } else {
-            panic!(
+        match result {
+            Err(ForceError::Http(crate::error::HttpError::RateLimitExceeded {
+                retry_after_seconds,
+            })) => {
+                assert_eq!(retry_after_seconds, 60);
+            }
+            _ => panic!(
                 "Expected RateLimitExceeded error with default 60s, got: {:?}",
                 result
-            );
+            ),
         }
     }
 
@@ -309,13 +306,11 @@ mod integration_tests {
             })
             .await;
 
-
-        if let Err(ForceError::Http(crate::error::HttpError::StatusError { status_code, .. })) =
-            result
-        {
-            assert_eq!(status_code, 503);
-        } else {
-            panic!("Expected 503 status error for non-retried mutation");
+        match result {
+            Err(ForceError::Http(crate::error::HttpError::StatusError { status_code, .. })) => {
+                assert_eq!(status_code, 503);
+            }
+            _ => panic!("Expected 503 status error for non-retried mutation"),
         }
     }
 
@@ -449,17 +444,16 @@ mod integration_tests {
             .await;
 
         // Assert
-        let err = result.as_ref().unwrap_err();
-        if let ForceError::Http(crate::error::HttpError::StatusError {
-            status_code,
-            message,
-        }) = err
-        {
-            assert_eq!(*status_code, 400);
-            assert!(message.contains("INVALID_FIELD"));
-            assert!(message.contains("Field 'InvalidField' does not exist"));
-        } else {
-            panic!("Expected StatusError, got: {:?}", result);
+        match result {
+            Err(ForceError::Http(crate::error::HttpError::StatusError {
+                status_code,
+                message,
+            })) => {
+                assert_eq!(status_code, 400);
+                assert!(message.contains("INVALID_FIELD"));
+                assert!(message.contains("Field 'InvalidField' does not exist"));
+            }
+            _ => panic!("Expected StatusError, got: {:?}", result),
         }
     }
 
@@ -556,16 +550,15 @@ mod integration_tests {
             .await;
 
         // Assert
-        let err = result.as_ref().unwrap_err();
-        if let ForceError::Http(crate::error::HttpError::StatusError {
-            status_code,
-            message,
-        }) = err
-        {
-            assert_eq!(*status_code, 401);
-            assert!(message.contains("after token refresh"));
-        } else {
-            panic!("Expected StatusError with 401, got: {:?}", result);
+        match result {
+            Err(ForceError::Http(crate::error::HttpError::StatusError {
+                status_code,
+                message,
+            })) => {
+                assert_eq!(status_code, 401);
+                assert!(message.contains("after token refresh"));
+            }
+            _ => panic!("Expected StatusError with 401, got: {:?}", result),
         }
     }
 
