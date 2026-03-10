@@ -272,15 +272,19 @@ mod tests {
     // Test 1: Basic CSV serialization with empty records
     #[test]
     fn test_serialize_empty_records() {
+        let records: Vec<TestRecord> = vec![TestRecord { id: "001".to_string(), name: "Test".to_string(), value: 42 }];
+        let mut output = Vec::new();
+
+        serialize_to_csv_with_options(&records, &mut output, false).must();
+        let csv_str = String::from_utf8(output).must();
+        assert_eq!(csv_str, "001,Test,42\n");
+
         let records: Vec<TestRecord> = vec![];
         let mut output = Vec::new();
 
         serialize_to_csv(&records, &mut output).must();
-
-        // The csv crate doesn't write headers for empty datasets
-        // This is acceptable behavior - if you have no records, you get no output
         let csv_str = String::from_utf8(output).must();
-        assert!(csv_str.is_empty());
+        assert_eq!(csv_str, "");
     }
 
     // Test 2: Serialize single record
@@ -296,8 +300,8 @@ mod tests {
         serialize_to_csv(&records, &mut output).must();
 
         let csv_str = String::from_utf8(output).must();
-        assert!(csv_str.contains("id,name,value"));
-        assert!(csv_str.contains("001,Test,42"));
+        assert_eq!(csv_str.lines().next().must(), "id,name,value");
+        assert_eq!(csv_str.lines().nth(1).must(), "001,Test,42");
     }
 
     // Test 3: Serialize multiple records
@@ -325,9 +329,9 @@ mod tests {
         serialize_to_csv(&records, &mut output).must();
 
         let csv_str = String::from_utf8(output).must();
-        assert!(csv_str.contains("001,First,10"));
-        assert!(csv_str.contains("002,Second,20"));
-        assert!(csv_str.contains("003,Third,30"));
+        assert_eq!(csv_str.lines().nth(1).must(), "001,First,10");
+        assert_eq!(csv_str.lines().nth(2).must(), "002,Second,20");
+        assert_eq!(csv_str.lines().nth(3).must(), "003,Third,30");
     }
 
     // Test 4: Handle special characters and escaping
@@ -356,8 +360,8 @@ mod tests {
 
         let csv_str = String::from_utf8(output).must();
         // CSV should properly escape quotes, commas, and newlines
-        assert!(csv_str.contains("\"Name with \"\"quotes\"\"\""));
-        assert!(csv_str.contains("\"Name, with comma\""));
+        assert!(csv_str.lines().any(|l| l == "001,\"Name with \"\"quotes\"\"\",1"));
+        assert!(csv_str.lines().any(|l| l == "002,\"Name, with comma\",2"));
     }
 
     // Test 5: Handle optional fields
@@ -382,9 +386,9 @@ mod tests {
         serialize_to_csv(&records, &mut output).must();
 
         let csv_str = String::from_utf8(output).must();
-        assert!(csv_str.contains("Has description"));
+        assert_eq!(csv_str.lines().nth(1).must(), "001,First,Has description,true");
         // None should serialize as empty field
-        assert_eq!(csv_str.lines().count(), 3); // header + 2 records
+        assert_eq!(csv_str.lines().nth(2).must(), "002,Second,,false"); // header + 2 records
     }
 
     // Test 6: Respect serde rename attributes
@@ -402,14 +406,18 @@ mod tests {
 
         let csv_str = String::from_utf8(output).must();
         // Should use "Description" from rename attribute, not "description"
-        assert!(csv_str.contains("Description"));
-        assert!(!csv_str.contains("description,"));
+        assert_eq!(csv_str.lines().next().must(), "id,name,Description,active");
+        assert_eq!(csv_str.lines().nth(1).must(), "001,Test,test desc,true");
     }
 
     // Test 7: Deserialize empty CSV
     #[test]
     fn test_deserialize_empty_csv() {
         let csv_data = "id,name,value\n";
+        let records: Vec<TestRecord> = deserialize_from_csv(csv_data.as_bytes()).must();
+        assert_eq!(records.len(), 0);
+
+        let csv_data = "";
         let records: Vec<TestRecord> = deserialize_from_csv(csv_data.as_bytes()).must();
         assert_eq!(records.len(), 0);
     }
@@ -515,6 +523,9 @@ mod tests {
             Ok(())
         });
 
+        assert!(result.is_err());
+
+        let result = process_csv_batches(csv_data.as_bytes(), 0, |_: Vec<TestRecord>| Ok(()));
         assert!(result.is_err());
     }
 
