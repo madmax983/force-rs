@@ -53,6 +53,16 @@ mod tests {
         }
     }
 
+    impl TokenManager {
+        fn force_refresh(&self) -> String {
+            // Force refresh goes straight to write lock
+            let mut guard = self.token.write().unwrap();
+            let new_token = "forced_token".to_string();
+            *guard = Some(new_token.clone());
+            new_token
+        }
+    }
+
     #[test]
     fn test_double_checked_locking() {
         loom::model(|| {
@@ -67,6 +77,31 @@ mod tests {
 
             assert_eq!(r1, "new_token");
             assert_eq!(r2, "new_token");
+        });
+    }
+
+    #[test]
+    fn test_concurrent_get_and_force_refresh() {
+        loom::model(|| {
+            let manager = TokenManager::new();
+
+            // pre-populate token
+            {
+                let mut guard = manager.token.write().unwrap();
+                *guard = Some("initial_token".to_string());
+            }
+
+            let m1 = manager.clone();
+            let m2 = manager;
+
+            let t1 = thread::spawn(move || m1.get_token());
+            let t2 = thread::spawn(move || m2.force_refresh());
+
+            let r1 = t1.join().unwrap();
+            let r2 = t2.join().unwrap();
+
+            assert!(r1 == "initial_token" || r1 == "forced_token");
+            assert_eq!(r2, "forced_token");
         });
     }
 }
