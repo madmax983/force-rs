@@ -818,17 +818,17 @@ impl<A: Authenticator> BulkHandler<A> {
 
         // Create CSV with Id column
         #[derive(serde::Serialize)]
-        struct DeleteRecord {
+        struct DeleteRecord<'a> {
             #[serde(rename = "Id")]
-            id: String,
+            id: &'a str,
         }
 
-        let delete_records: Vec<DeleteRecord> = ids
+        let delete_records: Vec<DeleteRecord<'_>> = ids
             .iter()
-            .map(|id| DeleteRecord { id: id.clone() })
+            .map(|id| DeleteRecord { id: id.as_str() })
             .collect();
 
-        let mut csv_data = Vec::new();
+        let mut csv_data = Vec::with_capacity(ids.len() * 20); // Pre-allocate some capacity to minimize reallocations
         csv::serialize_to_csv(&delete_records, &mut csv_data)?;
 
         // Create job
