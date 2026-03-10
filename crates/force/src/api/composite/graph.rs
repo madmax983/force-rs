@@ -58,10 +58,15 @@ pub struct GraphBuilder<A: Authenticator> {
 
 impl<A: Authenticator> GraphBuilder<A> {
     /// Creates a new GraphBuilder.
+    ///
+    /// # Performance
+    ///
+    /// Pre-allocates capacity for 15 graphs (typical small batch)
+    /// to avoid heap reallocations during graph accumulation.
     pub(crate) fn new(handler: CompositeHandler<A>) -> Self {
         Self {
             handler,
-            graphs: Vec::new(),
+            graphs: Vec::with_capacity(15),
         }
     }
 
@@ -135,11 +140,16 @@ impl Graph {
     /// # Arguments
     ///
     /// * `graph_id` - A unique identifier for this graph (e.g., "graph1")
+    ///
+    /// # Performance
+    ///
+    /// Pre-allocates capacity for 15 subrequests (typical small graph)
+    /// to avoid heap reallocations during request accumulation.
     #[must_use]
     pub fn new(graph_id: impl Into<String>) -> Self {
         Self {
             graph_id: graph_id.into(),
-            composite_request: Vec::new(),
+            composite_request: Vec::with_capacity(15),
         }
     }
 
