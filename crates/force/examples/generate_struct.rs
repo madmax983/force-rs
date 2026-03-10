@@ -10,7 +10,7 @@ use std::env;
 #[cfg(feature = "nova")]
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    use force::experimental::type_generator::StructGenerator;
+    use force::experimental::StructGenerator;
 
     let client_id =
         env::var("SALESFORCE_CLIENT_ID").unwrap_or_else(|_| "your-client-id".to_string());
@@ -61,7 +61,7 @@ async fn main() -> anyhow::Result<()> {
 #[cfg(feature = "nova")]
 fn fallback_demonstration() -> anyhow::Result<()> {
     use force::api::rest::describe::SObjectDescribe;
-    use force::experimental::type_generator::StructGenerator;
+    use force::experimental::StructGenerator;
 
     println!("\nFallback demonstration mode:\n");
 

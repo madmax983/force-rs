@@ -7,7 +7,7 @@
 use std::sync::OnceLock;
 
 use async_trait::async_trait;
-use force::api::composite::batch::BatchBuilder;
+use force::api::composite::BatchBuilder;
 use force::auth::{AccessToken, Authenticator, TokenResponse};
 use force::client::builder;
 use force::error::Result;

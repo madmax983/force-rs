@@ -12,26 +12,47 @@ pub use crate::api::bulk::smart_ingest;
 pub(crate) mod scanner;
 
 #[cfg(feature = "composite")]
-pub mod query_batch;
+pub(crate) mod query_batch;
 
 #[cfg(feature = "nova")]
-pub mod schema_graph;
+pub(crate) mod schema_graph;
 
 #[cfg(feature = "nova")]
-pub mod data_dictionary;
+pub(crate) mod data_dictionary;
 
 #[cfg(feature = "nova")]
 #[allow(missing_docs)]
-pub mod type_generator;
+pub(crate) mod type_generator;
 
 #[cfg(feature = "nova")]
-pub mod schema_diff;
+pub(crate) mod schema_diff;
 
 #[cfg(feature = "nova")]
-pub mod data_faker;
+pub(crate) mod data_faker;
 
 #[cfg(feature = "nova")]
 pub mod sql_exporter;
 
 #[cfg(all(feature = "nova", feature = "composite"))]
-pub mod soql_mass_op;
+pub(crate) mod soql_mass_op;
+
+#[cfg(feature = "composite")]
+pub use query_batch::{BatchOp, BatchStats, QueryBatch};
+
+#[cfg(feature = "nova")]
+pub use schema_graph::SchemaGraph;
+
+#[cfg(feature = "nova")]
+pub use data_dictionary::DataDictionary;
+
+#[cfg(feature = "nova")]
+pub use type_generator::StructGenerator;
+
+#[cfg(feature = "nova")]
+pub use schema_diff::{FieldChange, SchemaDiff, SchemaDiffResult};
+
+#[cfg(feature = "nova")]
+pub use data_faker::DataFaker;
+
+#[cfg(all(feature = "nova", feature = "composite"))]
+pub use soql_mass_op::SoqlMassOp;

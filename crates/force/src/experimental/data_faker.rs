@@ -9,7 +9,7 @@
 //!
 //! ```no_run
 //! # use force::client::ForceClientBuilder;
-//! # use force::experimental::data_faker::DataFaker;
+//! # use force::experimental::DataFaker;
 //! # use force::auth::ClientCredentials;
 //! # #[tokio::main]
 //! # async fn main() -> anyhow::Result<()> {
