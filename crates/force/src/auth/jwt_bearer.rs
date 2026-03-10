@@ -364,7 +364,7 @@ QcWLHR6ul3bFRWNhXoThNBQ=
 
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
+            .must()
             .as_secs();
 
         let jwt = flow.generate_jwt().must();
@@ -380,14 +380,14 @@ QcWLHR6ul3bFRWNhXoThNBQ=
             &base64::engine::general_purpose::URL_SAFE_NO_PAD,
             payload_b64,
         )
-        .unwrap();
-        let payload: serde_json::Value = serde_json::from_slice(&payload_bytes).unwrap();
+        .must();
+        let payload: serde_json::Value = serde_json::from_slice(&payload_bytes).must();
 
         assert_eq!(payload["iss"], "test_client_id");
         assert_eq!(payload["sub"], "test@example.com");
         assert_eq!(payload["aud"], "https://test.salesforce.com");
 
-        let exp = payload["exp"].as_u64().unwrap();
+        let exp = payload["exp"].as_u64().must();
         // Since `now` might be slightly behind the time inside `generate_jwt`,
         // check that `exp` is bounded reasonably near `now + 300`
         assert!(exp >= now + 300);
