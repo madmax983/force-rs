@@ -33,6 +33,8 @@ use crate::error::{AuthenticationError, ForceError, HttpError, Result};
 #[cfg(feature = "jwt")]
 use async_trait::async_trait;
 #[cfg(feature = "jwt")]
+use futures::StreamExt;
+#[cfg(feature = "jwt")]
 use jsonwebtoken::{EncodingKey, Header, encode};
 #[cfg(feature = "jwt")]
 use serde::{Deserialize, Serialize};
@@ -235,10 +237,27 @@ impl Authenticator for JwtBearerFlow {
 
         if !response.status().is_success() {
             let status = response.status();
-            let error_text = response
-                .text()
-                .await
-                .unwrap_or_else(|_| "Unknown error".to_string());
+            // Read up to 1MB to prevent memory exhaustion DoS
+            let mut stream = response.bytes_stream();
+            let mut bytes = Vec::new();
+            while let Some(chunk) = stream.next().await {
+                if let Ok(chunk_bytes) = chunk {
+                    bytes.extend_from_slice(&chunk_bytes);
+                    if bytes.len() > 1024 * 1024 {
+                        bytes.truncate(1024 * 1024);
+                        break;
+                    }
+                } else {
+                    break;
+                }
+            }
+            let body = String::from_utf8_lossy(&bytes).into_owned();
+
+            let error_text = if body.trim().is_empty() {
+                "Unknown error".to_string()
+            } else {
+                body
+            };
 
             // Try to parse OAuth error response
             if let Ok(oauth_error) = serde_json::from_str::<OAuthErrorResponse>(&error_text) {
@@ -522,6 +541,43 @@ QcWLHR6ul3bFRWNhXoThNBQ=
             "https://test.salesforce.com/services/oauth2/token"
         );
     }
+    #[cfg(feature = "mock")]
+    #[tokio::test]
+    async fn test_jwt_bearer_authenticate_error_truncation() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let mock_server = MockServer::start().await;
+
+        // Generate a 2MB string.
+        let large_body = "A".repeat(2 * 1024 * 1024);
+
+        Mock::given(method("POST"))
+            .and(path("/services/oauth2/token"))
+            .respond_with(ResponseTemplate::new(400).set_body_string(large_body))
+            .mount(&mock_server)
+            .await;
+
+        let flow = JwtBearerFlow::new(
+            "test_client",
+            "test@example.com",
+            TEST_PRIVATE_KEY,
+            "https://login.salesforce.com",
+            format!("{}/services/oauth2/token", mock_server.uri()),
+        )
+        .must();
+
+        let result = flow.authenticate().await;
+        assert!(result.is_err());
+
+        if let Err(ForceError::Http(HttpError::StatusError { message, .. })) = result {
+            // Should be truncated to 1MB
+            assert_eq!(message.len(), 1024 * 1024);
+        } else {
+            panic!("Expected HttpError::StatusError");
+        }
+    }
+
     #[test]
     fn test_jwt_bearer_new_production() {
         let flow =

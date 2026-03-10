@@ -120,7 +120,7 @@ match result {
 - `grep "assert!(result.is_ok())"` returned numerous hits across both files.
 - Tests like `test_serialize_empty_records` checked `is_ok` but didn't actually verify the output cleanly handled empty state via strong properties.
 **Recommendation:**
-- Replaced `assert!(result.is_ok())` with `.expect("...")` which guarantees the operation succeeded, bubbles up a helpful error message if it fails, and provides direct access to the `Ok` value.
+- Replaced `assert!(result.is_ok())` with `.must()` which guarantees the operation succeeded, bubbles up a helpful error message if it fails, and provides direct access to the `Ok` value.
 
 ### [Strengthened] `crates/force/src/experimental/type_generator.rs`
 
