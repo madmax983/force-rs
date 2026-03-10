@@ -171,23 +171,35 @@ impl SearchQueryBuilder {
     /// Panics if object names contain non-alphanumeric/underscore characters or
     /// if field names contain characters other than alphanumeric, underscores, or dots.
     #[must_use]
-    pub fn returning(mut self, sobject: impl Into<String>, fields: &[impl AsRef<str>]) -> Self {
+    pub fn returning(self, sobject: impl Into<String>, fields: &[impl AsRef<str>]) -> Self {
+        self.try_returning(sobject, fields).unwrap_or_else(|e| panic!("{}", e))
+    }
+
+    /// Adds a RETURNING clause to the search query, returning a `Result`.
+    ///
+    /// The SObject name and all field expressions will be validated to prevent SOSL injection.
+    ///
+    /// # Arguments
+    ///
+    /// * `sobject` - The name of the Salesforce object (e.g., "Account")
+    /// * `fields` - A slice of field expressions (e.g., `["Id", "Name WHERE Name = 'Acme'"]`)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the SObject name or any field contains invalid characters or unbalanced parentheses.
+    pub fn try_returning(mut self, sobject: impl Into<String>, fields: &[impl AsRef<str>]) -> crate::error::Result<Self> {
         let sobject = sobject.into();
-        if let Err(e) = validate_sobject_name(&sobject) {
-            panic!("{}", e);
+        validate_sobject_name(&sobject)?;
+
+        let mut valid_fields = Vec::with_capacity(fields.len());
+        for f in fields {
+            let f_str = f.as_ref();
+            validate_field_syntax(f_str)?;
+            valid_fields.push(f_str.to_string());
         }
 
-        let fields: Vec<String> = fields
-            .iter()
-            .map(|f| {
-                let f_str = f.as_ref();
-                validate_field_syntax(f_str);
-                f_str.to_string()
-            })
-            .collect();
-
-        self.returning.push((sobject, fields));
-        self
+        self.returning.push((sobject, valid_fields));
+        Ok(self)
     }
 
     /// Sets the maximum number of records to return per object.
@@ -310,7 +322,7 @@ fn escape_sosl<'a>(text: impl Into<Cow<'a, str>>) -> Cow<'a, str> {
 /// - Inside quotes (`'` or `"`): All characters are allowed (except unescaped quote).
 /// - Outside quotes: Only alphanumeric and safe symbols allowed.
 /// - Parentheses must be balanced.
-fn validate_field_syntax(field: &str) {
+fn validate_field_syntax(field: &str) -> crate::error::Result<()> {
     let chars = field.chars();
     let mut balance = 0;
     let mut in_quote = None; // None, Some('\''), Some('"')
@@ -339,36 +351,53 @@ fn validate_field_syntax(field: &str) {
                 '(' => balance += 1,
                 ')' => {
                     balance -= 1;
-                    assert!(
-                        balance >= 0,
-                        "unbalanced parentheses (unexpected closing) in field: {}",
-                        field
-                    );
+                    if balance < 0 {
+                        return Err(crate::error::ForceError::InvalidInput(format!(
+                            "unbalanced parentheses (unexpected closing) in field: {}",
+                            field
+                        )));
+                    }
                 }
                 // Allowed structure characters
                 _ if c.is_ascii_alphanumeric() => {}
                 '_' | '.' | ' ' | '\t' | '\n' | '\r' | ',' | '=' | '!' | '<' | '>' | '-' | '+'
                 | ':' | '%' | '&' | '|' | '^' | '*' | '$' => {}
                 // Disallowed injection characters outside quotes
-                ';' | '{' | '}' | '[' | ']' => panic!(
-                    "field name contains invalid character outside quotes: '{}' in \"{}\"",
-                    c, field
-                ),
-                _ => panic!(
-                    "field name contains invalid character: '{}' in \"{}\"",
-                    c, field
-                ),
+                ';' | '{' | '}' | '[' | ']' => {
+                    return Err(crate::error::ForceError::InvalidInput(format!(
+                        "field name contains invalid character outside quotes: '{}' in \"{}\"",
+                        c, field
+                    )));
+                }
+                _ => {
+                    return Err(crate::error::ForceError::InvalidInput(format!(
+                        "field name contains invalid character: '{}' in \"{}\"",
+                        c, field
+                    )));
+                }
             }
         }
     }
 
-    assert!(in_quote.is_none(), "unclosed quote in field: {}", field);
-    assert!(
-        balance == 0,
-        "unbalanced parentheses (unclosed opening) in field: {}",
-        field
-    );
-    assert!(!escaped, "field cannot end with a backslash: {}", field);
+    if in_quote.is_some() {
+        return Err(crate::error::ForceError::InvalidInput(format!(
+            "unclosed quote in field: {}",
+            field
+        )));
+    }
+    if balance != 0 {
+        return Err(crate::error::ForceError::InvalidInput(format!(
+            "unbalanced parentheses (unclosed opening) in field: {}",
+            field
+        )));
+    }
+    if escaped {
+        return Err(crate::error::ForceError::InvalidInput(format!(
+            "field cannot end with a backslash: {}",
+            field
+        )));
+    }
+    Ok(())
 }
 
 #[cfg(test)]
