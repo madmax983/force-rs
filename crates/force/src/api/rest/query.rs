@@ -109,6 +109,23 @@ fn resolve_next_records_url(
     instance_url: &str,
     next_records_url: &str,
 ) -> Result<String, ForceError> {
+    // Prevent SSRF via URL parsing tricks (e.g. "@attacker.com", "//attacker.com")
+    // If it doesn't start with a slash and isn't clearly an absolute http(s) URL, reject it.
+    if !next_records_url.starts_with('/') && !next_records_url.starts_with("http") {
+        return Err(ForceError::InvalidInput(format!(
+            "Security Error: nextRecordsUrl must be an absolute HTTP URL or start with a slash, got: {}",
+            next_records_url
+        )));
+    }
+
+    // Prevent protocol relative URLs (e.g. //attacker.com)
+    if next_records_url.starts_with("//") {
+        return Err(ForceError::InvalidInput(format!(
+            "Security Error: Protocol-relative URLs are not allowed for nextRecordsUrl: {}",
+            next_records_url
+        )));
+    }
+
     if next_records_url.starts_with("http") {
         // Security check: If URL is absolute, ensure it matches the instance host
         let next_parsed = url::Url::parse(next_records_url)
@@ -814,5 +831,31 @@ mod tests {
                 result
             ),
         }
+    }
+
+    #[test]
+    fn test_resolve_next_records_url_ssrf_at() {
+        let instance_url = "https://instance.salesforce.com";
+        // This URL attempts to turn the instance_url into a username, connecting to attacker.com
+        let malicious = "@attacker.com/leak";
+
+        let result = resolve_next_records_url(instance_url, malicious);
+        assert!(
+            result.is_err(),
+            "👺 Havoc: SSRF successfully exploited via @ symbol parsing in URL!"
+        );
+    }
+
+    #[test]
+    fn test_resolve_next_records_url_ssrf_slash() {
+        let instance_url = "https://instance.salesforce.com";
+        // This URL attempts to use network-path reference
+        let malicious = "//attacker.com/leak";
+
+        let result = resolve_next_records_url(instance_url, malicious);
+        assert!(
+            result.is_err(),
+            "👺 Havoc: SSRF successfully exploited via // parsing in URL!"
+        );
     }
 }
