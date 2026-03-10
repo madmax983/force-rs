@@ -222,6 +222,7 @@ impl SearchQueryBuilder {
         let mut query = String::with_capacity(128);
 
         #[allow(clippy::expect_used)]
+        // We write to a String, which guarantees formatting success.
         write!(&mut query, "FIND {{{}}}", self.search_text).expect("String format cannot fail");
 
         if let Some(scope) = self.search_scope {

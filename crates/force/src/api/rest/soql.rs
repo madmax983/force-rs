@@ -257,7 +257,9 @@ impl SoqlQueryBuilder {
         let mut buffer = String::with_capacity(capacity);
 
         #[allow(clippy::expect_used)]
-        write!(buffer, "{} IN (", field).expect("writing to String is infallible");
+        // We map formatting errors to logic panic only to satisfy SoqlQueryBuilder constraints.
+        // It's technically safe because we write to String and we control formatting.
+        write!(buffer, "{} IN (", field).expect("Writing to String should not fail");
 
         for (i, value) in values.iter().enumerate() {
             if i > 0 {
@@ -265,7 +267,7 @@ impl SoqlQueryBuilder {
             }
             let escaped = escape_soql_cow(value.as_ref());
             #[allow(clippy::expect_used)]
-            write!(buffer, "'{}'", escaped).expect("writing to String is infallible");
+            write!(buffer, "'{}'", escaped).expect("Writing to String should not fail");
         }
         buffer.push(')');
 
