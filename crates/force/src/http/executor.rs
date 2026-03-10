@@ -1,6 +1,5 @@
 //! HTTP executor implementation.
 
-use super::error::parse_api_error;
 use super::retry::{
     RequestRetryClass, RetryPolicy, classify_request, exponential_backoff, parse_retry_after,
 };
@@ -393,8 +392,7 @@ impl HttpExecutor {
             .into())
         } else {
             // Parse API error from response body
-            let error_text = response.text().await.map_err(HttpError::from)?;
-            Err(parse_api_error(status.as_u16(), &error_text).into())
+            Err(crate::http::error::response_to_force_error(response, "Unknown error").await)
         }
     }
 
