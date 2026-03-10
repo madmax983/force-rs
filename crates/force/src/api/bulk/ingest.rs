@@ -1699,4 +1699,89 @@ mod tests {
         let data = bytes::Bytes::from_static(b"Zero Copy Data");
         let _job = job.upload(data).await.must();
     }
+
+    #[cfg(feature = "bulk")]
+    #[tokio::test]
+    async fn test_abort_job() {
+        use wiremock::matchers::body_json;
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("PATCH"))
+            .and(path("/services/data/v60.0/jobs/ingest/750xx0000000009AAA"))
+            .and(bearer_token("test_token"))
+            .and(header("content-type", "application/json"))
+            .and(body_json(serde_json::json!({
+                "state": "Aborted"
+            })))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "id": "750xx0000000009AAA",
+                "operation": "insert",
+                "object": "Account",
+                "createdById": "005xx0000000001AAA",
+                "createdDate": "2024-01-01T00:00:00.000Z",
+                "state": "Aborted",
+                "contentType": "CSV"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = create_test_client(mock_server.uri()).await;
+        let job = IngestJob::<Open, _>::new_for_test(
+            "750xx0000000009AAA".to_string(),
+            Arc::clone(client.inner()),
+        );
+
+        job.abort().await.must();
+    }
+
+    #[cfg(feature = "bulk")]
+    #[tokio::test]
+    async fn test_get_results() {
+        let mock_server = MockServer::start().await;
+
+        // Mock successful results
+        Mock::given(method("GET"))
+            .and(path(
+                "/services/data/v60.0/jobs/ingest/750xx0000000009AAA/successfulResults",
+            ))
+            .and(bearer_token("test_token"))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(b"success_data".to_vec()))
+            .mount(&mock_server)
+            .await;
+
+        // Mock failed results
+        Mock::given(method("GET"))
+            .and(path(
+                "/services/data/v60.0/jobs/ingest/750xx0000000009AAA/failedResults",
+            ))
+            .and(bearer_token("test_token"))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(b"failed_data".to_vec()))
+            .mount(&mock_server)
+            .await;
+
+        // Mock unprocessed results
+        Mock::given(method("GET"))
+            .and(path(
+                "/services/data/v60.0/jobs/ingest/750xx0000000009AAA/unprocessedrecords",
+            ))
+            .and(bearer_token("test_token"))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(b"unprocessed_data".to_vec()))
+            .mount(&mock_server)
+            .await;
+
+        let client = create_test_client(mock_server.uri()).await;
+        let job = IngestJob::<JobComplete, _>::new_for_test(
+            "750xx0000000009AAA".to_string(),
+            Arc::clone(client.inner()),
+        );
+
+        let success = job.successful_results().await.must();
+        assert_eq!(success, b"success_data");
+
+        let failed = job.failed_results().await.must();
+        assert_eq!(failed, b"failed_data");
+
+        let unprocessed = job.unprocessed_results().await.must();
+        assert_eq!(unprocessed, b"unprocessed_data");
+    }
 }

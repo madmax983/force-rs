@@ -96,3 +96,44 @@ impl<T: ?Sized + Authenticator> Authenticator for Box<T> {
         (**self).refresh().await
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_support::Must;
+
+    #[derive(Debug)]
+    struct MockAuthenticator;
+
+    #[async_trait]
+    impl Authenticator for MockAuthenticator {
+        async fn authenticate(&self) -> Result<AccessToken> {
+            Ok(AccessToken::new(
+                "auth_token".to_string(),
+                "https://test.salesforce.com".to_string(),
+                None,
+            ))
+        }
+
+        async fn refresh(&self) -> Result<AccessToken> {
+            Ok(AccessToken::new(
+                "refresh_token".to_string(),
+                "https://test.salesforce.com".to_string(),
+                None,
+            ))
+        }
+    }
+
+    #[tokio::test]
+    async fn test_box_authenticator() {
+        let boxed_auth: Box<dyn Authenticator> = Box::new(MockAuthenticator);
+
+        let auth_token = boxed_auth.authenticate().await.must();
+        assert_eq!(auth_token.as_str(), "auth_token");
+        assert_eq!(auth_token.instance_url(), "https://test.salesforce.com");
+
+        let refresh_token = boxed_auth.refresh().await.must();
+        assert_eq!(refresh_token.as_str(), "refresh_token");
+        assert_eq!(refresh_token.instance_url(), "https://test.salesforce.com");
+    }
+}
