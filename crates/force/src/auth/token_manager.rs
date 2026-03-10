@@ -114,9 +114,16 @@ impl<A: Authenticator> TokenManager<A> {
                     if current.issued_at() > arc_token.issued_at() {
                         return Ok(current.clone());
                     }
+                    state.token = Some(arc_token.clone());
+                } else {
+                    // State is `None`.
+                    // If we just authenticated (`has_token` is false), it's correct to store it.
+                    // If we just refreshed (`has_token` is true), it means `clear()` was called
+                    // concurrently during our refresh. We must NOT store it to avoid resurrection.
+                    if !has_token {
+                        state.token = Some(arc_token.clone());
+                    }
                 }
-
-                state.token = Some(arc_token.clone());
             }
             Ok(arc_token)
         } else if let Some(valid_token) = current_token {
@@ -139,9 +146,12 @@ impl<A: Authenticator> TokenManager<A> {
                             if current.issued_at() > arc_token.issued_at() {
                                 return Ok(current.clone());
                             }
+                            state.token = Some(arc_token.clone());
+                        } else {
+                            // If the state is `None`, it means `clear()` was called concurrently during our refresh.
+                            // We should NOT store the refreshed token to avoid resurrecting a cleared session.
                         }
 
-                        state.token = Some(arc_token.clone());
                         Ok(arc_token)
                     }
                     Err(_) => {
@@ -216,9 +226,11 @@ impl<A: Authenticator> TokenManager<A> {
                 if current.issued_at() > arc_token.issued_at() {
                     return Ok(current.as_ref().clone());
                 }
+                state.token = Some(arc_token.clone());
+            } else {
+                // If the state is `None`, it means `clear()` was called concurrently during our refresh.
+                // We should NOT store the refreshed token to avoid resurrecting a cleared session.
             }
-
-            state.token = Some(arc_token.clone());
         } // Write lock dropped here
 
         Ok((*arc_token).clone())
