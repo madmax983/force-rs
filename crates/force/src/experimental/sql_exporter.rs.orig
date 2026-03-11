@@ -49,8 +49,7 @@ impl SqlExporter {
 
         // Sort fields alphabetically to ensure deterministic output,
         // but always put 'Id' first if it exists.
-        // ⚡ Bolt: Collecting references to fields instead of deep cloning the entire `describe.fields` Vec avoids significant heap allocation per field.
-        let mut fields: Vec<&_> = describe.fields.iter().collect();
+        let mut fields = describe.fields.clone();
         fields.sort_by(|a, b| {
             if a.name == "Id" {
                 std::cmp::Ordering::Less
