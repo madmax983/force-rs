@@ -706,4 +706,41 @@ mod tests {
             _ => panic!("Expected Timeout error, got: {:?}", result),
         }
     }
+
+    #[tokio::test]
+    async fn test_execute_transport_error() {
+        // Use an unroutable local address to force a transport/connection error
+        let unroutable_url = "http://127.0.0.1:0/services/data/v60.0/query";
+
+        // We only want 0 retries here so we can assert the final error directly
+        let executor = HttpExecutor::with_config(0, Duration::from_millis(100));
+        let token = create_test_token();
+
+        let refresh_token = || async {
+            panic!("Should not be called");
+            #[allow(unreachable_code)]
+            Ok(create_test_token())
+        };
+
+        let request = executor
+            .client
+            .request(Method::GET, unroutable_url)
+            .build()
+            .must();
+
+        let result = executor
+            .execute_response(request, &token, refresh_token)
+            .await;
+
+        match result {
+            Err(crate::error::ForceError::Http(HttpError::RequestFailed(e))) => {
+                assert!(
+                    e.is_connect() || e.is_builder() || e.is_request(),
+                    "Expected connection/transport error, got: {:?}",
+                    e
+                );
+            }
+            _ => panic!("Expected Transport error, got: {:?}", result),
+        }
+    }
 }
