@@ -300,6 +300,10 @@ mod tests {
     #[async_trait]
     impl Authenticator for MockAuthenticator {
         async fn authenticate(&self) -> Result<AccessToken> {
+            if let Some(delay) = self.refresh_delay {
+                tokio::time::sleep(delay).await;
+            }
+
             self.auth_count.fetch_add(1, Ordering::SeqCst);
 
             if self.should_fail {
@@ -576,5 +580,218 @@ mod tests {
         // 4. Verify state also has the future token
         let state_token = manager.token().await.must();
         assert_eq!(state_token.as_str(), "future_token");
+    }
+
+    #[tokio::test]
+    async fn test_token_manager_hard_refresh_protects_against_overwrite() {
+        let auth = MockAuthenticator::new().with_delay(std::time::Duration::from_millis(50));
+        let manager = StdArc::new(TokenManager::new(auth));
+
+        // Let the manager start fetching the initial token (hard refresh path)
+        let manager_clone = manager.clone();
+        let handle = tokio::spawn(async move { manager_clone.token().await.must() });
+
+        // Sleep to ensure the task has acquired the refresh lock and is awaiting `authenticator.authenticate()`
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+
+        // Concurrently inject a FUTURE token
+        let future_ts = (Utc::now() + Duration::hours(1)).timestamp_millis();
+        let response = crate::auth::token::TokenResponse {
+            access_token: "future_token".to_string(),
+            instance_url: "https://test.salesforce.com".to_string(),
+            token_type: "Bearer".to_string(),
+            issued_at: future_ts.to_string(),
+            signature: String::new(),
+            expires_in: None,
+            refresh_token: None,
+        };
+        let future_token = AccessToken::from_response(response);
+
+        {
+            let mut state = manager.state.write().await;
+            state.token = Some(StdArc::new(future_token));
+        }
+
+        // Wait for the task to finish
+        let result = handle.await.must();
+
+        // The manager's task should have realized a newer token was injected and returned it
+        // instead of its own "newly generated" one.
+        assert_eq!(result.as_str(), "future_token");
+
+        // Verify state also has the future token
+        let final_token = manager.token().await.must();
+        assert_eq!(final_token.as_str(), "future_token");
+    }
+
+    #[tokio::test]
+    async fn test_token_manager_soft_refresh_protects_against_overwrite() {
+        let auth = MockAuthenticator::new().with_delay(std::time::Duration::from_millis(50));
+        let manager = StdArc::new(TokenManager::new(auth));
+
+        // 1. Manually inject a SOFT EXPIRED token
+        // It expires in 30 seconds, which is less than the 60s buffer, so it's soft expired.
+        let soft_token = AccessToken::new(
+            "soft_token".to_string(),
+            "https://test.salesforce.com".to_string(),
+            Some(Utc::now() + Duration::seconds(30)),
+        );
+
+        {
+            let mut state = manager.state.write().await;
+            state.token = Some(StdArc::new(soft_token));
+        }
+
+        // 2. Trigger token() which will see it's soft expired and call refresh(), taking 50ms
+        let manager_clone = manager.clone();
+        let handle = tokio::spawn(async move { manager_clone.token().await.must() });
+
+        // 3. Wait 10ms to ensure the spawn starts and begins sleeping
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+
+        // 4. Concurrently inject a FUTURE token
+        let future_ts = (Utc::now() + Duration::hours(1)).timestamp_millis();
+        let future_response = crate::auth::token::TokenResponse {
+            access_token: "future_token".to_string(),
+            instance_url: "https://test.salesforce.com".to_string(),
+            token_type: "Bearer".to_string(),
+            issued_at: future_ts.to_string(),
+            signature: String::new(),
+            expires_in: None,
+            refresh_token: None,
+        };
+        let future_token = AccessToken::from_response(future_response);
+
+        {
+            let mut state = manager.state.write().await;
+            state.token = Some(StdArc::new(future_token));
+        }
+
+        // 5. Await result
+        let result = handle.await.must();
+
+        // Should return the injected future token, not the newly refreshed one
+        assert_eq!(result.as_str(), "future_token");
+
+        // Verify state also has the future token
+        let final_token = manager.token().await.must();
+        assert_eq!(final_token.as_str(), "future_token");
+    }
+
+    #[tokio::test]
+    async fn test_token_manager_equality_overwrites() {
+        // We need the mock to generate a token with a specific timestamp to ensure equality.
+        // Wait, MockAuthenticator just uses `Utc::now()`.
+        // If we inject a token that has a timestamp slightly in the past, the new token will be newer (>),
+        // which tests the overwrite. But we specifically want to test EQUALITY (==).
+        // Since `TokenResponse` parses `issued_at` exactly, let's force the authenticator to use
+        // a known timestamp.
+
+        // Actually, we can just let `force_refresh` return its token,
+        // and before the `force_refresh` writes to state, we inject a token with the EXACT SAME TIMESTAMP.
+        // But doing it concurrently is hard because we don't control the exact MS the Mock uses.
+        // Let's create a special `EqualityAuthenticator` for this specific test.
+        #[derive(Debug)]
+        struct EqAuth(i64);
+        #[async_trait]
+        impl Authenticator for EqAuth {
+            async fn authenticate(&self) -> Result<AccessToken> {
+                let response = crate::auth::token::TokenResponse {
+                    access_token: "new_token".to_string(),
+                    instance_url: "https://test.salesforce.com".to_string(),
+                    token_type: "Bearer".to_string(),
+                    issued_at: self.0.to_string(),
+                    signature: String::new(),
+                    expires_in: None,
+                    refresh_token: None,
+                };
+                Ok(AccessToken::from_response(response))
+            }
+            async fn refresh(&self) -> Result<AccessToken> {
+                self.authenticate().await
+            }
+        }
+
+        let fixed_ts = Utc::now().timestamp_millis();
+        let eq_auth = EqAuth(fixed_ts);
+        let eq_manager = TokenManager::new(eq_auth);
+
+        // Inject a token with the EXACT SAME timestamp
+        let response = crate::auth::token::TokenResponse {
+            access_token: "old_token".to_string(),
+            instance_url: "https://test.salesforce.com".to_string(),
+            token_type: "Bearer".to_string(),
+            issued_at: fixed_ts.to_string(),
+            signature: String::new(),
+            expires_in: None,
+            refresh_token: None,
+        };
+        let old_token = AccessToken::from_response(response);
+
+        {
+            let mut state = eq_manager.state.write().await;
+            state.token = Some(StdArc::new(old_token));
+        }
+
+        // Call force_refresh. The new token will have the same `issued_at`.
+        // Since `old.issued_at > new.issued_at` is false, it SHOULD overwrite
+        // and return the new token ("new_token").
+        let result = eq_manager.force_refresh().await.must();
+        assert_eq!(
+            result.as_str(),
+            "new_token",
+            "Equality should trigger an overwrite in force_refresh"
+        );
+
+        // Now let's test equality overwrite for hard expiration (line 114)
+        let hard_eq_manager = TokenManager::new(EqAuth(fixed_ts));
+        // Inject hard expired token with same timestamp
+        // The mock will return a token with this exact timestamp
+        let response = crate::auth::token::TokenResponse {
+            access_token: "hard_old_token".to_string(),
+            instance_url: "https://test.salesforce.com".to_string(),
+            token_type: "Bearer".to_string(),
+            issued_at: fixed_ts.to_string(),
+            signature: String::new(),
+            expires_in: Some(0), // Hard expired immediately
+            refresh_token: None,
+        };
+        let hard_old_token = AccessToken::from_response(response);
+        {
+            let mut state = hard_eq_manager.state.write().await;
+            state.token = Some(StdArc::new(hard_old_token));
+        }
+
+        let result = hard_eq_manager.token().await.must();
+        assert_eq!(
+            result.as_str(),
+            "new_token",
+            "Equality should trigger an overwrite in hard refresh"
+        );
+
+        // Now let's test equality overwrite for soft expiration (line 146)
+        let soft_eq_manager = TokenManager::new(EqAuth(fixed_ts));
+        // Inject soft expired token with same timestamp
+        let response = crate::auth::token::TokenResponse {
+            access_token: "soft_old_token".to_string(),
+            instance_url: "https://test.salesforce.com".to_string(),
+            token_type: "Bearer".to_string(),
+            issued_at: fixed_ts.to_string(),
+            signature: String::new(),
+            expires_in: Some(30), // Expires in 30s -> Soft expired
+            refresh_token: None,
+        };
+        let soft_old_token = AccessToken::from_response(response);
+        {
+            let mut state = soft_eq_manager.state.write().await;
+            state.token = Some(StdArc::new(soft_old_token));
+        }
+
+        let result = soft_eq_manager.token().await.must();
+        assert_eq!(
+            result.as_str(),
+            "new_token",
+            "Equality should trigger an overwrite in soft refresh"
+        );
     }
 }
