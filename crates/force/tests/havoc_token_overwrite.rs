@@ -7,9 +7,9 @@
 mod tests {
     #![allow(clippy::unwrap_used)]
     // Use std so the test reliably runs and demonstrates the failure without needing `RUSTFLAGS="--cfg loom"`
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::{Arc, Mutex, RwLock};
     use std::thread;
-    use std::sync::atomic::{AtomicUsize, Ordering};
 
     // Simplified TokenManager logic mirroring crates/force/src/auth/token_manager.rs
     struct TokenManager {
@@ -62,10 +62,10 @@ mod tests {
             let mut guard = self.token.write().unwrap();
 
             // The Fix: only overwrite if `new_token` is strictly newer.
-            if let Some(current) = *guard {
-                if current > new_token {
-                    return current;
-                }
+            if let Some(current) = *guard
+                && current > new_token
+            {
+                return current;
             }
 
             *guard = Some(new_token);
@@ -78,10 +78,10 @@ mod tests {
 
             {
                 let mut guard = self.token.write().unwrap();
-                if let Some(current) = *guard {
-                    if current > new_token {
-                        return current;
-                    }
+                if let Some(current) = *guard
+                    && current > new_token
+                {
+                    return current;
                 }
                 *guard = Some(new_token);
             }
