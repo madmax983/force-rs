@@ -264,7 +264,7 @@ mod tests {
     use crate::auth::{AccessToken, Authenticator, TokenResponse};
     use crate::client::{ForceClient, builder};
     use crate::error::Result;
-    use crate::test_support::MustMsg;
+    use crate::test_support::{Must, MustMsg};
     use async_trait::async_trait;
     use serde::Serialize;
     use wiremock::matchers::{body_string, header, method, path};
@@ -394,7 +394,7 @@ mod tests {
             .await;
 
         assert!(result.is_ok());
-        let info = result.unwrap();
+        let info = result.must();
         assert_eq!(info.id, "JOB_ID");
         assert_eq!(info.state, JobState::JobComplete);
         assert_eq!(info.number_records_processed, Some(1));

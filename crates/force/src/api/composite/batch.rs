@@ -360,11 +360,8 @@ pub struct BatchSubResponse {
 
 #[cfg(test)]
 mod tests {
-    #![allow(clippy::unwrap_used)]
-    #![allow(clippy::expect_used)]
-
     use super::*;
-    use crate::test_support::Must;
+    use crate::test_support::{Must, MustMsg};
 
     // Unit tests for serialization logic
 
@@ -393,7 +390,7 @@ mod tests {
 
         let requests = value["batchRequests"]
             .as_array()
-            .expect("batchRequests should be an array");
+            .must_msg("batchRequests should be an array");
         assert_eq!(requests.len(), 2);
 
         let req1 = &requests[0];
@@ -438,7 +435,7 @@ mod tests {
             .authenticate(auth)
             .build()
             .await
-            .expect("failed to build client");
+            .must_msg("failed to build client");
 
         client.composite().batch()
     }
@@ -452,9 +449,9 @@ mod tests {
             .from("Account")
             .where_eq("Name", "100% + 50%");
 
-        let mut builder = builder.query(query).unwrap();
+        let mut builder = builder.query(query).must();
 
-        let req = builder.requests.pop().expect("No request added");
+        let req = builder.requests.pop().must_msg("No request added");
 
         // Expected SOQL: SELECT Id FROM Account WHERE Name = '100% + 50%'
         // Encoded: query?q=SELECT+Id+FROM+Account+WHERE+Name+%3D+%27100%25+%2B+50%25%27
@@ -472,11 +469,11 @@ mod tests {
     async fn test_batch_validation_sobject_invalid() {
         let builder = create_builder().await;
         let result = builder.get("Invalid;Name", "001000000000000");
-        assert!(result.is_err());
+        let Err(err) = result else {
+            panic!("Expected error")
+        };
         assert!(
-            result
-                .unwrap_err()
-                .to_string()
+            err.to_string()
                 .contains("SObject name contains invalid characters")
         );
     }
@@ -485,24 +482,21 @@ mod tests {
     async fn test_batch_validation_sobject_empty() {
         let builder = create_builder().await;
         let result = builder.get("", "001000000000000");
-        assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .to_string()
-                .contains("SObject name cannot be empty")
-        );
+        let Err(err) = result else {
+            panic!("Expected error")
+        };
+        assert!(err.to_string().contains("SObject name cannot be empty"));
     }
 
     #[tokio::test]
     async fn test_batch_validation_id_invalid() {
         let builder = create_builder().await;
         let result = builder.get("Account", "Invalid;ID");
-        assert!(result.is_err());
+        let Err(err) = result else {
+            panic!("Expected error")
+        };
         assert!(
-            result
-                .unwrap_err()
-                .to_string()
+            err.to_string()
                 .contains("Salesforce ID contains invalid characters")
         );
     }
@@ -533,7 +527,7 @@ mod tests {
             let res = builder.get("Account", &format!("001000000000{:03}AAA", i));
 
             if i < 25 {
-                builder = res.unwrap();
+                builder = res.must();
             } else {
                 assert!(res.is_err());
                 if let Err(ForceError::InvalidInput(msg)) = res {
@@ -553,7 +547,7 @@ mod tests {
         for i in 0..25 {
             builder = builder
                 .get("Account", &format!("001000000000{:03}AAA", i))
-                .unwrap();
+                .must();
         }
 
         let result = builder.execute().await;
@@ -578,8 +572,10 @@ mod tests {
 
         let res = builder.query(query);
 
-        assert!(res.is_err());
-        let err_msg = res.unwrap_err().to_string();
+        let Err(err) = res else {
+            panic!("Expected error")
+        };
+        let err_msg = err.to_string();
         assert!(
             err_msg.contains("Invalid query builder")
                 || err_msg.contains("query requires a FROM clause"),
@@ -597,10 +593,10 @@ mod tests {
             .from("Account")
             .where_eq("Name", "Acme & Co.");
 
-        let mut builder = builder.query(query).unwrap();
+        let mut builder = builder.query(query).must();
 
         // Check the request
-        let req = builder.requests.pop().expect("No request added");
+        let req = builder.requests.pop().must_msg("No request added");
         assert_eq!(req.method, "GET");
 
         // Verify encoding against a hardcoded expected string.
@@ -627,7 +623,7 @@ mod tests {
         for i in 0..25 {
             builder = builder
                 .get("Account", &format!("001000000000{:03}AAA", i))
-                .unwrap();
+                .must();
         }
 
         assert!(!builder.is_empty());
@@ -642,9 +638,9 @@ mod tests {
         let builder = create_builder().await;
 
         let unsafe_url = "query?q=SELECT Id FROM Account";
-        let mut builder = builder.add_request("GET", unsafe_url, None).unwrap();
+        let mut builder = builder.add_request("GET", unsafe_url, None).must();
 
-        let req = builder.requests.pop().expect("No request added");
+        let req = builder.requests.pop().must_msg("No request added");
 
         // It should match exactly what was passed
         assert_eq!(req.url, unsafe_url);
@@ -662,9 +658,9 @@ mod tests {
 
         let method = String::from("POST");
         let url = String::from("sobjects/Account");
-        let mut builder = builder.add_request(method, url, None).unwrap();
+        let mut builder = builder.add_request(method, url, None).must();
 
-        let req = builder.requests.pop().expect("No request added");
+        let req = builder.requests.pop().must_msg("No request added");
 
         assert_eq!(req.method, "POST");
         assert_eq!(req.url, "sobjects/Account");

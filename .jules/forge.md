@@ -21,3 +21,7 @@
 **[Iterator Chains over nested for loops]**
 **Learning:** Re-implementing a `map` and `join` logic via a nested `for` loop with manual state tracking (like `first_obj`, `first_field` boolean flags) makes the code unnecessarily complex, harder to read, and error prone.
 **Action:** Always prefer using idiomatic `.into_iter().map(...).collect()` pipelines combined with `.join(...)` when constructing comma-separated lists from collections.
+
+**[Enforce Idiomatic Test Unwrap]**
+**Learning:** Re-implementing unwraps with `#![allow(clippy::unwrap_used)]` or manual expect inside tests suppresses useful lints and introduces repetitive failure messages.
+**Action:** Consistently replace `unwrap()`/`expect()` in tests with the internal extension traits `.must()` and `.must_msg()` provided in `crate::test_support`. For `.unwrap_err()`, instead use explicit match destructing such as `let Err(err) = result else { panic!(...) }`.
