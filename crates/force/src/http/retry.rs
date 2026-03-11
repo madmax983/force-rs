@@ -108,6 +108,7 @@ pub fn parse_retry_after(headers: &reqwest::header::HeaderMap) -> Option<u64> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::Must;
 
     #[test]
     fn test_retry_policy_initialization() {
@@ -197,10 +198,9 @@ mod tests {
     }
 
     #[test]
-    #[allow(clippy::unwrap_used)]
     fn test_parse_retry_after_valid() {
         let mut headers = reqwest::header::HeaderMap::new();
-        headers.insert("Retry-After", "120".parse().unwrap());
+        headers.insert("Retry-After", "120".parse().must());
         assert_eq!(parse_retry_after(&headers), Some(120));
     }
 
@@ -211,19 +211,17 @@ mod tests {
     }
 
     #[test]
-    #[allow(clippy::unwrap_used)]
     fn test_parse_retry_after_invalid() {
         let mut headers = reqwest::header::HeaderMap::new();
-        headers.insert("Retry-After", "soon".parse().unwrap());
+        headers.insert("Retry-After", "soon".parse().must());
         assert_eq!(parse_retry_after(&headers), None);
     }
 
     #[test]
-    #[allow(clippy::unwrap_used)]
     fn test_parse_retry_after_negative() {
         let mut headers = reqwest::header::HeaderMap::new();
         // Header value parsing itself doesn't validate numeric, so "-1" is a valid header value string
-        headers.insert("Retry-After", "-1".parse().unwrap());
+        headers.insert("Retry-After", "-1".parse().must());
         // But u64 parsing should fail
         assert_eq!(parse_retry_after(&headers), None);
     }

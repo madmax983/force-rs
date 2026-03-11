@@ -507,10 +507,8 @@ impl SoqlQueryBuilder {
 
 #[cfg(test)]
 mod tests {
-    #![allow(clippy::unwrap_used)]
-    #![allow(clippy::expect_used)]
-
     use super::*;
+    use crate::test_support::Must;
 
     #[test]
     fn test_escape_soql() {
@@ -770,10 +768,10 @@ mod tests {
     fn test_write_query_streaming() {
         let builder = SoqlQueryBuilder::new().select(&["Id"]).from("Account");
 
-        builder.validate().unwrap();
+        builder.validate().must();
 
         let mut buffer = String::new();
-        builder.write_query(&mut buffer).unwrap();
+        builder.write_query(&mut buffer).must();
 
         assert_eq!(buffer, "SELECT Id FROM Account");
     }
