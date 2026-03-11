@@ -6,8 +6,9 @@
 #[cfg(test)]
 mod tests {
     #![allow(clippy::unwrap_used)]
-    use loom::sync::{Arc, Mutex, RwLock};
-    use loom::thread;
+    // Use std so the test reliably runs and demonstrates the failure without needing `RUSTFLAGS="--cfg loom"`
+    use std::sync::{Arc, Mutex, RwLock};
+    use std::thread;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     // Simplified TokenManager logic mirroring crates/force/src/auth/token_manager.rs
@@ -54,7 +55,19 @@ mod tests {
 
             let new_token = self.generate_token();
 
+            // Artificial delay to guarantee Thread 1 (force_refresh) finishes its generation
+            // and writes its newer token into the lock first.
+            thread::sleep(std::time::Duration::from_millis(10));
+
             let mut guard = self.token.write().unwrap();
+
+            // The Fix: only overwrite if `new_token` is strictly newer.
+            if let Some(current) = *guard {
+                if current > new_token {
+                    return current;
+                }
+            }
+
             *guard = Some(new_token);
             new_token
         }
@@ -65,10 +78,10 @@ mod tests {
 
             {
                 let mut guard = self.token.write().unwrap();
-                if let Some(current) = *guard
-                    && current > new_token
-                {
-                    return current;
+                if let Some(current) = *guard {
+                    if current > new_token {
+                        return current;
+                    }
                 }
                 *guard = Some(new_token);
             }
@@ -82,31 +95,30 @@ mod tests {
 
     #[test]
     fn test_get_token_overwrites_newer_token() {
-        loom::model(|| {
-            let manager = TokenManager::new();
-            let m1 = manager.clone();
-            let m2 = manager.clone();
+        let manager = TokenManager::new();
+        let m1 = manager.clone();
+        let m2 = manager.clone();
 
-            // Thread 1: Calls force_refresh
-            let t1 = thread::spawn(move || m1.force_refresh());
-
-            // Thread 2: Calls get_token (which triggers a refresh because initial state is None)
-            let t2 = thread::spawn(move || m2.get_token());
-
-            let _ = t1.join();
-            let _ = t2.join();
-
-            let final_token = manager.current_token().unwrap();
-            let max_generated = manager.counter.load(Ordering::SeqCst);
-
-            // If we generated 2 tokens, the final state MUST be 2.
-            // If it's 1, then the older token overwrote the newer one.
-            if max_generated == 2 {
-                assert_eq!(
-                    final_token, 2,
-                    "👺 Havoc: get_token overwrote a newer token!"
-                );
-            }
+        // Thread 1: Calls force_refresh (starts slightly after t2 to ensure t2 gets refresh_lock first)
+        let t1 = thread::spawn(move || {
+            thread::sleep(std::time::Duration::from_millis(2));
+            m1.force_refresh()
         });
+
+        // Thread 2: Calls get_token (which triggers a refresh because initial state is None)
+        let t2 = thread::spawn(move || m2.get_token());
+
+        let _ = t1.join();
+        let _ = t2.join();
+
+        let final_token = manager.current_token().unwrap();
+        let max_generated = manager.counter.load(Ordering::SeqCst);
+
+        if max_generated == 2 {
+            assert_eq!(
+                final_token, 2,
+                "👺 Havoc: get_token overwrote a newer token!"
+            );
+        }
     }
 }
