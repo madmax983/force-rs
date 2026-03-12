@@ -685,7 +685,8 @@ impl<A: Authenticator> BulkHandler<A> {
         use crate::api::bulk::csv;
 
         // Serialize records to CSV
-        let mut csv_data = Vec::new();
+        // ⚡ Bolt: Pre-allocate capacity (assuming ~100 bytes per record) to minimize heap reallocations during serialization
+        let mut csv_data = Vec::with_capacity(records.len() * 100);
         csv::serialize_to_csv(records, &mut csv_data)?;
 
         // Create job
@@ -759,7 +760,8 @@ impl<A: Authenticator> BulkHandler<A> {
         use crate::api::bulk::csv;
 
         // Serialize records to CSV
-        let mut csv_data = Vec::new();
+        // ⚡ Bolt: Pre-allocate capacity (assuming ~100 bytes per record) to minimize heap reallocations during serialization
+        let mut csv_data = Vec::with_capacity(records.len() * 100);
         csv::serialize_to_csv(records, &mut csv_data)?;
 
         // Create job
