@@ -146,3 +146,11 @@ match result {
 **Finding:** The concurrent overwrite protection logic (`if current.issued_at() > arc_token.issued_at()`) was partially untested. While `force_refresh` had an overwrite test, `get_token_arc`'s hard expiration and soft expiration paths had identical untested conditions. Furthermore, the behavior when tokens have the exact same timestamp was untested, allowing mutants with `>=` and `==` operators to survive.
 **Evidence:** `cargo mutants` reported 5 missed mutants related to `>` operators on lines 114, 146, and 226 in `TokenManager`.
 **Recommendation:** Added `test_token_manager_hard_refresh_protects_against_overwrite`, `test_token_manager_soft_refresh_protects_against_overwrite`, and `test_token_manager_equality_overwrites` to explicitly test concurrent token injections and timestamp equality. This killed all 5 surviving mutants, achieving 100% mutation coverage for viable logic.
+
+### [Acquitted] `crates/force/src/auth/jwt_bearer.rs` and `crates/force/src/auth/client_credentials.rs`
+
+**Module:** `crates/force/src/auth/jwt_bearer.rs` and `crates/force/src/auth/client_credentials.rs`
+**Severity:** 🟢 Acquitted
+**Finding:** Mutation testing revealed that replacing `>` with `>=` in the `1024 * 1024` byte stream limit logic survived in `authenticate` methods for both `JwtBearerFlow` and `ClientCredentials`. Analysis showed this is an equivalent mutant; truncating exactly at 1MB or waiting for the next chunk to exceed 1MB results in the same final bounded string length, making the mutation practically unobservable without internal side channels.
+**Evidence:** `cargo mutants` output showing exactly one missed mutant: `replace > with >= in <impl Authenticator for JwtBearerFlow>::authenticate`.
+**Recommendation:** Acknowledge the limitation of mutation tools concerning equivalent mutants. No further testing or code change is needed for these specific truncation lines as they correctly enforce the 1MB cap.
