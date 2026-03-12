@@ -138,3 +138,11 @@ match result {
 **Evidence:**
 - `cargo mutants` output showing `+` replaced with `-` and `*` in the `exp` claim calculation survived.
 **Recommendation:** Strengthen the test to decode the base64 URL-encoded JWT payload into a JSON object and verify that the claims (`iss`, `sub`, `aud`) are correct, and specifically that the `exp` claim is approximately `now + 300`.
+
+### [Strengthened] `crates/force/src/auth/token_manager.rs`
+
+**Module:** `crates/force/src/auth/token_manager.rs`
+**Severity:** 🟡 Suspect
+**Finding:** The concurrent overwrite protection logic (`if current.issued_at() > arc_token.issued_at()`) was partially untested. While `force_refresh` had an overwrite test, `get_token_arc`'s hard expiration and soft expiration paths had identical untested conditions. Furthermore, the behavior when tokens have the exact same timestamp was untested, allowing mutants with `>=` and `==` operators to survive.
+**Evidence:** `cargo mutants` reported 5 missed mutants related to `>` operators on lines 114, 146, and 226 in `TokenManager`.
+**Recommendation:** Added `test_token_manager_hard_refresh_protects_against_overwrite`, `test_token_manager_soft_refresh_protects_against_overwrite`, and `test_token_manager_equality_overwrites` to explicitly test concurrent token injections and timestamp equality. This killed all 5 surviving mutants, achieving 100% mutation coverage for viable logic.
