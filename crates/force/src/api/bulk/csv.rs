@@ -87,6 +87,26 @@ where
     Ok(())
 }
 
+struct LimitReader<R> {
+    inner: R,
+    limit: u64,
+    read: u64,
+}
+
+impl<R: Read> Read for LimitReader<R> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        let n = self.inner.read(buf)?;
+        self.read = self.read.saturating_add(n as u64);
+        if self.read > self.limit {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "CSV data exceeds maximum allowed size (150MB)",
+            ));
+        }
+        Ok(n)
+    }
+}
+
 /// Deserializes CSV data into a collection of records.
 ///
 /// Reads CSV data from the provided reader and deserializes it into a vector
@@ -125,7 +145,15 @@ where
     T: for<'de> Deserialize<'de>,
     R: Read,
 {
-    let mut csv_reader = csv::Reader::from_reader(reader);
+    // Limit to 150MB (Salesforce Bulk API limit) to prevent memory exhaustion DoS
+    // instead of `.take()`, it returns an error if limit is exceeded, avoiding silent truncation.
+    let limited_reader = LimitReader {
+        inner: reader,
+        limit: 150 * 1024 * 1024,
+        read: 0,
+    };
+
+    let mut csv_reader = csv::Reader::from_reader(limited_reader);
     let mut records = Vec::new();
 
     for result in csv_reader.deserialize() {
@@ -554,6 +582,25 @@ mod tests {
         // Verify we got all records in the output
         let csv_str = String::from_utf8(output).must();
         assert_eq!(csv_str.lines().count(), 1001); // header + 1000 records
+    }
+
+    // Test 16: Ensure LimitReader errors when limit is exceeded
+    #[test]
+    fn test_limit_reader_error() {
+        let data = vec![0u8; 200];
+        let mut reader = LimitReader {
+            inner: data.as_slice(),
+            limit: 100,
+            read: 0,
+        };
+
+        let mut buf = vec![0u8; 150];
+        let res = reader.read(&mut buf);
+        assert!(res.is_err());
+        let Err(err) = res else {
+            panic!("Expected an error");
+        };
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
     }
 
     // Property-based tests using proptest

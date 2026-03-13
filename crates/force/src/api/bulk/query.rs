@@ -595,7 +595,7 @@ impl<A: crate::auth::Authenticator> super::BulkHandler<A> {
                     }
 
                     tokio::time::sleep(poll_policy.backoff_for_attempt(attempt)).await;
-                    attempt += 1;
+                    attempt = attempt.saturating_add(1);
                 }
             }
         }

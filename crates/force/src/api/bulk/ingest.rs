@@ -350,7 +350,7 @@ impl<A: Authenticator> IngestJob<InProgress, A> {
                     }
 
                     tokio::time::sleep(poll_policy.backoff_for_attempt(attempt)).await;
-                    attempt += 1;
+                    attempt = attempt.saturating_add(1);
                 }
             }
         }

@@ -257,7 +257,7 @@ impl HttpExecutor {
                     if is_retryable {
                         self.handle_transient_failure(retry_attempt, &ctx, None)
                             .await;
-                        retry_attempt += 1;
+                        retry_attempt = retry_attempt.saturating_add(1);
                         continue;
                     }
                     return Err(e);
@@ -291,7 +291,7 @@ impl HttpExecutor {
                     // 503: Retry with exponential backoff
                     self.handle_transient_failure(retry_attempt, &ctx, Some(503))
                         .await;
-                    retry_attempt += 1;
+                    retry_attempt = retry_attempt.saturating_add(1);
                     continue;
                 }
                 _ => {

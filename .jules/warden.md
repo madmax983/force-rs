@@ -41,3 +41,11 @@
 **2024-05-24 - [Unbounded memory allocation during HTTP error response parsing]
 **Threat:** A Denial of Service (DoS) vulnerability via memory exhaustion. In client_credentials and jwt_bearer authenticators, the `response.text().await` call unbounded memory allocations reading error payloads. A malicious or misconfigured server returning a multi-gigabyte error body could crash the application.
 **Defense:** Replaced unbounded `.text().await` with a 1MB capped stream reader via `response.bytes_stream()` paired with `String::from_utf8_lossy()` to safely bound memory usage while parsing Salesforce error responses.
+
+**2025-02-28 - [DoS via Memory Exhaustion in CSV Deserialization]
+**Threat:** The `deserialize_from_csv` function in `crates/force/src/api/bulk/csv.rs` read unbounded amounts of CSV data directly into memory, presenting a DoS vulnerability. An attacker could potentially exhaust memory by sending massive multi-gigabyte CSV payloads, crashing the process.
+**Defense:** Replaced the direct reader passing with a custom `LimitReader` that explicitly tracks bytes read and returns an `std::io::Error(ErrorKind::InvalidData)` if the stream exceeds the Salesforce Bulk API limit of 150MB, preventing OOM without causing silent data truncation.
+
+**2025-02-28 - [Integer Overflow DoS vectors in Polling and Retries]
+**Threat:** Several internal polling and execution loops (like in `crates/force/src/http/executor.rs` and `crates/force/src/api/bulk/policy.rs`) incremented execution counters using standard addition (`+= 1`). While currently bounded by other variables or timeouts, an unexpected internal logic bug or prolonged attack could potentially overflow these counters, leading to an unsafe panic and a Denial of Service.
+**Defense:** Hardened the math operations by switching all loop counters to use `saturating_add(1)`. This guarantees they will hit their respective type limits gracefully without panicking the application.
