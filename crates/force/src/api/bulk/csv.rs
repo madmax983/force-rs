@@ -87,8 +87,6 @@ where
     Ok(())
 }
 
-
-
 /// A reader that enforces a maximum read limit to prevent memory exhaustion (DoS).
 struct LimitReader<R> {
     inner: R,

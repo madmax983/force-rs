@@ -3,6 +3,7 @@
 use serde::Deserialize;
 use std::io::{Read, Result as IoResult};
 
+#[allow(dead_code)]
 #[derive(Deserialize, Debug)]
 struct TestRecord {
     id: String,
@@ -43,12 +44,22 @@ impl Read for InfiniteCsvReader {
 fn havoc_csv_memory_limit() {
     let reader = InfiniteCsvReader { count: 0 };
 
-    let res: force::error::Result<Vec<TestRecord>> = force::api::bulk::csv::deserialize_from_csv(reader);
+    let res: force::error::Result<Vec<TestRecord>> =
+        force::api::bulk::csv::deserialize_from_csv(reader);
 
-    assert!(res.is_err(), "Expected memory limit error, but succeeded (or OOM'd)");
+    assert!(
+        res.is_err(),
+        "Expected memory limit error, but succeeded (or OOM'd)"
+    );
 
     // Check if error is IO ErrorKind::InvalidData
-    let msg = format!("{:?}", res.unwrap_err());
-    assert!(msg.contains("Payload exceeded maximum size limit") || msg.contains("InvalidData"),
-        "Expected InvalidData error, got: {}", msg);
+    let Err(err) = res else {
+        panic!("Expected an error result");
+    };
+
+    let msg = format!("{err:?}");
+    assert!(
+        msg.contains("Payload exceeded maximum size limit") || msg.contains("InvalidData"),
+        "Expected InvalidData error, got: {msg}"
+    );
 }
