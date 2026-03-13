@@ -17,7 +17,7 @@ use std::borrow::Cow;
 /// # Examples
 ///
 /// ```
-/// use force::api::rest::escape_soql;
+/// use force::api::soql::escape_soql;
 ///
 /// assert_eq!(escape_soql("O'Reilly"), r"O\'Reilly");
 /// assert_eq!(escape_soql(r"C:\Docs"), r"C:\\Docs");
