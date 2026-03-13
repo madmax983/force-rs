@@ -336,76 +336,102 @@ fn escape_sosl<'a>(text: impl Into<Cow<'a, str>>) -> Cow<'a, str> {
 ///
 /// Safe helper for field validation.
 fn validate_field_syntax_safe(field: &str) -> Result<(), String> {
-    let chars = field.chars();
-    let mut balance = 0;
-    let mut in_quote = None; // None, Some('\''), Some('"')
-    let mut escaped = false;
+    FieldSyntaxValidator::new(field).validate()
+}
 
-    for c in chars {
-        if escaped {
-            escaped = false;
-            continue;
+struct FieldSyntaxValidator<'a> {
+    field: &'a str,
+    balance: i32,
+    in_quote: Option<char>,
+    escaped: bool,
+}
+
+impl<'a> FieldSyntaxValidator<'a> {
+    fn new(field: &'a str) -> Self {
+        Self {
+            field,
+            balance: 0,
+            in_quote: None,
+            escaped: false,
+        }
+    }
+
+    fn validate(mut self) -> Result<(), String> {
+        for c in self.field.chars() {
+            self.process_char(c)?;
+        }
+        self.verify_completion()
+    }
+
+    fn process_char(&mut self, c: char) -> Result<(), String> {
+        if self.escaped {
+            self.escaped = false;
+            return Ok(());
         }
 
         if c == '\\' {
-            escaped = true;
-            continue;
+            self.escaped = true;
+            return Ok(());
         }
 
-        if let Some(quote_char) = in_quote {
+        if let Some(quote_char) = self.in_quote {
             if c == quote_char {
-                in_quote = None;
+                self.in_quote = None;
             }
-            // Inside quotes, any character is allowed (besides the closing quote)
         } else {
-            // Outside quotes
-            match c {
-                '\'' | '"' => in_quote = Some(c),
-                '(' => balance += 1,
-                ')' => {
-                    balance -= 1;
-                    if balance < 0 {
-                        return Err(format!(
-                            "unbalanced parentheses (unexpected closing) in field: {}",
-                            field
-                        ));
-                    }
-                }
-                // Allowed structure characters
-                _ if c.is_ascii_alphanumeric() => {}
-                '_' | '.' | ' ' | '\t' | '\n' | '\r' | ',' | '=' | '!' | '<' | '>' | '-' | '+'
-                | ':' | '%' | '&' | '|' | '^' | '*' | '$' => {}
-                // Disallowed injection characters outside quotes
-                ';' | '{' | '}' | '[' | ']' => {
+            self.process_unquoted_char(c)?;
+        }
+
+        Ok(())
+    }
+
+    fn process_unquoted_char(&mut self, c: char) -> Result<(), String> {
+        match c {
+            '\'' | '"' => self.in_quote = Some(c),
+            '(' => self.balance += 1,
+            ')' => {
+                self.balance -= 1;
+                if self.balance < 0 {
                     return Err(format!(
-                        "field name contains invalid character outside quotes: '{}' in \"{}\"",
-                        c, field
+                        "unbalanced parentheses (unexpected closing) in field: {}",
+                        self.field
                     ));
                 }
-                _ => {
-                    return Err(format!(
-                        "field name contains invalid character: '{}' in \"{}\"",
-                        c, field
-                    ));
-                }
+            }
+            _ if c.is_ascii_alphanumeric() => {}
+            '_' | '.' | ' ' | '\t' | '\n' | '\r' | ',' | '=' | '!' | '<' | '>' | '-' | '+'
+            | ':' | '%' | '&' | '|' | '^' | '*' | '$' => {}
+            ';' | '{' | '}' | '[' | ']' => {
+                return Err(format!(
+                    "field name contains invalid character outside quotes: '{}' in \"{}\"",
+                    c, self.field
+                ));
+            }
+            _ => {
+                return Err(format!(
+                    "field name contains invalid character: '{}' in \"{}\"",
+                    c, self.field
+                ));
             }
         }
+        Ok(())
     }
 
-    if in_quote.is_some() {
-        return Err(format!("unclosed quote in field: {}", field));
+    fn verify_completion(self) -> Result<(), String> {
+        if self.in_quote.is_some() {
+            return Err(format!("unclosed quote in field: {}", self.field));
+        }
+        if self.balance != 0 {
+            return Err(format!(
+                "unbalanced parentheses (unclosed opening) in field: {}",
+                self.field
+            ));
+        }
+        if self.escaped {
+            return Err(format!("field cannot end with a backslash: {}", self.field));
+        }
+        Ok(())
     }
-    if balance != 0 {
-        return Err(format!(
-            "unbalanced parentheses (unclosed opening) in field: {}",
-            field
-        ));
-    }
-    if escaped {
-        return Err(format!("field cannot end with a backslash: {}", field));
-    }
-
-    Ok(())
 }
 
 /// Implements a state machine to track quoting and parenthesis balance.
