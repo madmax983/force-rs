@@ -1,7 +1,7 @@
 #![allow(missing_docs)]
 #![cfg(feature = "bulk")]
 
-use force::api::bulk::csv::process_csv_batches;
+use force::api::process_csv_batches;
 use serde::Deserialize;
 
 #[derive(Deserialize, Debug)]

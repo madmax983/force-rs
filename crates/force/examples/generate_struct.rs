@@ -60,7 +60,7 @@ async fn main() -> anyhow::Result<()> {
 
 #[cfg(feature = "nova")]
 fn fallback_demonstration() -> anyhow::Result<()> {
-    use force::api::rest::describe::SObjectDescribe;
+    use force::api::SObjectDescribe;
     use force::experimental::StructGenerator;
 
     println!("\nFallback demonstration mode:\n");

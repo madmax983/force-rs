@@ -6,9 +6,9 @@
 //! This module provides the `CompositeHandler` which serves as the entry point
 //! for composite operations like `batch` and `graph`.
 
-pub(crate) mod batch;
+pub mod batch;
 #[cfg(feature = "nova")]
-pub(crate) mod graph;
+pub mod graph;
 
 pub use batch::{BatchBuilder, BatchResponse, BatchSubResponse};
 #[cfg(feature = "nova")]

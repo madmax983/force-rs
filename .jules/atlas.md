@@ -43,3 +43,6 @@
 **2024-05-30 - [The Facade: Fixing the Leak in Composite and Experimental]**
 **Tangle:** The `api::composite` and `experimental` modules leaked their internal structures (`batch`, `query_batch`, `schema_graph`, etc.) directly into the public API by declaring them as `pub mod`. This violated the Facade pattern and exposed implementation details that users shouldn't depend on.
 **Blueprint:** Changed visibility of these internal modules to `pub(crate) mod` and explicitly re-exported their main public structs/enums (like `BatchBuilder`, `SchemaGraph`, `DataDictionary`) using `pub use` statements at the module root (`api/composite/mod.rs` and `experimental/mod.rs`). This enforces encapsulation and presents a clean, un-nested API surface to consumers.
+**The API Facade**
+**Tangle:** Modules like `api::rest`, `api::bulk`, `api::composite`, and `experimental` were exposing internal structure and forcing users into deep, brittle import paths.
+**Blueprint:** Refactored module visibility (`pub(crate) mod` instead of `pub mod`) and used `pub use` at the root of `api::mod.rs` to enforce a clean, flat Facade for consumers.

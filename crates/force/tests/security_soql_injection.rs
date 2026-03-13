@@ -2,7 +2,7 @@
 #![cfg(feature = "rest")]
 //! Tests for SOQL injection prevention.
 
-use force::api::rest::SoqlQueryBuilder;
+use force::api::SoqlQueryBuilder;
 
 #[test]
 fn test_soql_injection_prevention() {

@@ -7,7 +7,7 @@
 use std::sync::OnceLock;
 
 use async_trait::async_trait;
-use force::api::composite::BatchBuilder;
+use force::api::BatchBuilder;
 use force::auth::{AccessToken, Authenticator, TokenResponse};
 use force::client::builder;
 use force::error::Result;
@@ -66,7 +66,7 @@ proptest! {
     #[test]
     fn test_soql_builder_where_in_panic(values in prop::collection::vec(".*", 1..100)) {
         // Attempt to find inputs that panic the formatting logic in SoqlQueryBuilder
-        let mut builder = force::api::rest::SoqlQueryBuilder::new().select(&["Id"]).from("Account");
+        let mut builder = force::api::SoqlQueryBuilder::new().select(&["Id"]).from("Account");
         builder = builder.where_in("Name", &values);
         let query = builder.build();
         assert!(query.starts_with("SELECT Id FROM Account WHERE Name IN ("));
@@ -75,7 +75,7 @@ proptest! {
     #[test]
     fn test_escape_soql_cow_byte_mismatch_panic(s in ".*['\\\\\"].*") {
         // Find bugs in escape_soql_cow char vs byte indexing
-        let escaped = force::api::rest::escape_soql(&s);
+        let escaped = force::api::escape_soql(&s);
         let _ = escaped;
     }
 

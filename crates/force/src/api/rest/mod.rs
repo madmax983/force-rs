@@ -3,17 +3,23 @@
 //! This module provides the `RestHandler` which serves as the foundation for all
 //! REST API operations including CRUD, queries, and metadata operations.
 
-pub(crate) mod crud;
+pub mod crud;
 pub mod describe;
 #[cfg(feature = "nova")]
-pub(crate) mod explain;
+pub mod explain;
 pub mod limits;
-pub(crate) mod query;
-pub(crate) mod query_stream;
+pub mod query;
+pub mod query_stream;
 pub mod search;
-pub(crate) mod soql;
+pub mod soql;
 
+pub use describe::{
+    ChildRelationship, FieldDescribe, FieldType, FilteredLookupInfo, GlobalDescribe,
+    GlobalSObjectDescribe, PicklistValue, RecordTypeInfo, SObjectDescribe,
+};
+pub use limits::{LimitInfo, OrgLimits};
 pub use query_stream::QueryStream;
+pub use search::{SearchAttributes, SearchQueryBuilder, SearchRecords, SearchResult};
 pub use soql::{SoqlQueryBuilder, escape_soql};
 
 use crate::error::Result;
