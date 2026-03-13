@@ -31,6 +31,9 @@ pub(crate) mod schema_diff;
 pub(crate) mod data_faker;
 
 #[cfg(feature = "nova")]
+pub(crate) mod schema_analyzer;
+
+#[cfg(feature = "nova")]
 pub mod sql_exporter;
 
 #[cfg(all(feature = "nova", feature = "composite"))]
@@ -53,6 +56,9 @@ pub use schema_diff::{FieldChange, SchemaDiff, SchemaDiffResult};
 
 #[cfg(feature = "nova")]
 pub use data_faker::DataFaker;
+
+#[cfg(feature = "nova")]
+pub use schema_analyzer::{SchemaAnalyzer, SchemaInsights};
 
 #[cfg(all(feature = "nova", feature = "composite"))]
 pub use soql_mass_op::SoqlMassOp;
