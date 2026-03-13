@@ -60,3 +60,55 @@ impl Default for BulkPollPolicy {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_backoff_for_attempt_basic() {
+        let policy = BulkPollPolicy::new(10, Duration::from_secs(1), Duration::from_secs(30));
+        assert_eq!(policy.backoff_for_attempt(0), Duration::from_secs(1));
+        assert_eq!(policy.backoff_for_attempt(1), Duration::from_secs(2));
+        assert_eq!(policy.backoff_for_attempt(2), Duration::from_secs(4));
+        assert_eq!(policy.backoff_for_attempt(3), Duration::from_secs(8));
+    }
+
+    #[test]
+    fn test_backoff_for_attempt_respects_max() {
+        let policy = BulkPollPolicy::new(10, Duration::from_secs(1), Duration::from_secs(10));
+        assert_eq!(policy.backoff_for_attempt(3), Duration::from_secs(8));
+        assert_eq!(policy.backoff_for_attempt(4), Duration::from_secs(10));
+        assert_eq!(policy.backoff_for_attempt(5), Duration::from_secs(10));
+    }
+
+    #[test]
+    fn test_backoff_for_attempt_overflow_protection() {
+        let policy = BulkPollPolicy::new(100, Duration::from_secs(1), Duration::from_secs(30));
+        assert_eq!(policy.backoff_for_attempt(32), Duration::from_secs(30));
+        assert_eq!(
+            policy.backoff_for_attempt(u32::MAX),
+            Duration::from_secs(30)
+        );
+    }
+
+    #[test]
+    fn test_timeout_seconds_basic() {
+        let policy = BulkPollPolicy::new(4, Duration::from_secs(1), Duration::from_secs(30));
+        // 1s + 2s + 4s + 8s = 15s
+        assert_eq!(policy.timeout_seconds(), 15);
+    }
+
+    #[test]
+    fn test_timeout_seconds_with_max() {
+        let policy = BulkPollPolicy::new(4, Duration::from_secs(1), Duration::from_secs(5));
+        // 1s + 2s + 4s + 5s = 12s
+        assert_eq!(policy.timeout_seconds(), 12);
+    }
+
+    #[test]
+    fn test_timeout_seconds_zero_attempts() {
+        let policy = BulkPollPolicy::new(0, Duration::from_secs(1), Duration::from_secs(30));
+        assert_eq!(policy.timeout_seconds(), 0);
+    }
+}
