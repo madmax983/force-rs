@@ -502,7 +502,7 @@ mod tests {
             .from("Account")
             .where_eq("Name", "Acme & Co.");
 
-        let graph = Graph::new("graph1").query(query, "refQuery").unwrap();
+        let graph = Graph::new("graph1").query(query, "refQuery").must();
 
         assert_eq!(graph.composite_request.len(), 1);
 
