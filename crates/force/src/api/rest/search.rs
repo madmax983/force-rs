@@ -408,15 +408,6 @@ fn validate_field_syntax_safe(field: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// Implements a state machine to track quoting and parenthesis balance.
-/// - Inside quotes (`'` or `"`): All characters are allowed (except unescaped quote).
-/// - Outside quotes: Only alphanumeric and safe symbols allowed.
-/// - Parentheses must be balanced.
-fn validate_field_syntax(field: &str) {
-    if let Err(e) = validate_field_syntax_safe(field) {
-        panic!("{}", e);
-    }
-}
 
 #[cfg(test)]
 mod tests {
