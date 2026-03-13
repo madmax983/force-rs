@@ -58,7 +58,9 @@ pub async fn response_to_force_error(
 
     // Read up to 1MB to prevent memory exhaustion DoS
     let mut stream = response.bytes_stream();
-    let mut bytes = Vec::new();
+    #[allow(unused_doc_comments)]
+    /// ⚡ Bolt: Pre-allocate capacity for the error body to minimize reallocations
+    let mut bytes = Vec::with_capacity(4096);
     while let Some(chunk) = stream.next().await {
         if let Ok(chunk_bytes) = chunk {
             bytes.extend_from_slice(&chunk_bytes);
