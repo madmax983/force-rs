@@ -282,7 +282,6 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
     }
 }
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use crate::client::builder;
@@ -346,7 +345,7 @@ mod tests {
         let rest = client.rest();
         let result = rest.create("Account", &json!({})).await;
 
-        let err = result.unwrap_err();
+        let Err(err) = result else { panic!("Expected Err") };
         assert!(err.to_string().contains("Required fields are missing"));
     }
 
@@ -372,7 +371,7 @@ mod tests {
             .create("Account", &json!({"InvalidField": "value"}))
             .await;
 
-        let err = result.unwrap_err();
+        let Err(err) = result else { panic!("Expected Err") };
         assert!(err.to_string().contains("No such column 'InvalidField'"));
     }
 
@@ -429,7 +428,7 @@ mod tests {
         let id = SalesforceId::new("003000000000001").must();
         let result = rest.get("Contact", &id).await;
 
-        let err = result.unwrap_err();
+        let Err(err) = result else { panic!("Expected Err") };
         assert!(
             err.to_string()
                 .contains("Provided external ID field does not exist or is not accessible")
@@ -490,7 +489,7 @@ mod tests {
             .update("Account", &id, &json!({"Phone": "555-0100"}))
             .await;
 
-        let err = result.unwrap_err();
+        let Err(err) = result else { panic!("Expected Err") };
         assert!(err.to_string().contains("Entity is deleted"));
     }
 
@@ -519,7 +518,7 @@ mod tests {
             .update("Account", &id, &json!({"BadField": "value"}))
             .await;
 
-        let err = result.unwrap_err();
+        let Err(err) = result else { panic!("Expected Err") };
         assert!(err.to_string().contains("No such column 'BadField'"));
     }
 
@@ -571,7 +570,7 @@ mod tests {
         let id = SalesforceId::new("001000000000003").must();
         let result = rest.delete("Account", &id).await;
 
-        let err = result.unwrap_err();
+        let Err(err) = result else { panic!("Expected Err") };
         assert!(err.to_string().contains("Entity is deleted"));
     }
 
@@ -677,7 +676,7 @@ mod tests {
             )
             .await;
 
-        let err = result.unwrap_err();
+        let Err(err) = result else { panic!("Expected Err") };
         assert!(err.to_string().contains("temporary outage"));
     }
 
@@ -781,7 +780,7 @@ mod tests {
             .upsert("Account", "BadField__c", "VALUE", &json!({"Name": "Test"}))
             .await;
 
-        let err = result.unwrap_err();
+        let Err(err) = result else { panic!("Expected Err") };
         assert!(
             err.to_string()
                 .contains("Provided external ID field does not exist or is not accessible")

@@ -257,7 +257,6 @@ impl<'a, A: crate::auth::Authenticator> SmartIngest<'a, A> {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::SmartIngest;
     use crate::api::bulk::types::{JobOperation, JobState};
@@ -700,7 +699,7 @@ mod tests {
             .await;
 
         assert!(result.is_err());
-        let err = result.unwrap_err();
+        let Err(err) = result else { panic!("Expected Err") };
         assert!(err.to_string().contains("Job failed: Something went wrong"));
     }
 
@@ -775,7 +774,7 @@ mod tests {
             .await;
 
         assert!(result.is_err());
-        let err = result.unwrap_err();
+        let Err(err) = result else { panic!("Expected Err") };
         assert!(err.to_string().contains("Job was aborted"));
     }
 
