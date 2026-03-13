@@ -87,6 +87,53 @@ where
     Ok(())
 }
 
+
+
+/// A reader that enforces a maximum read limit to prevent memory exhaustion (DoS).
+struct LimitReader<R> {
+    inner: R,
+    limit: usize,
+    read_bytes: usize,
+}
+
+impl<R: Read> LimitReader<R> {
+    fn new(inner: R, limit: usize) -> Self {
+        Self {
+            inner,
+            limit,
+            read_bytes: 0,
+        }
+    }
+}
+
+impl<R: Read> Read for LimitReader<R> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        if self.read_bytes > self.limit {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "Payload exceeded maximum size limit",
+            ));
+        }
+
+        let remaining = self.limit.saturating_sub(self.read_bytes);
+        let max_to_read = remaining.saturating_add(1);
+        let to_read = std::cmp::min(buf.len(), max_to_read);
+
+        let n = self.inner.read(&mut buf[..to_read])?;
+
+        self.read_bytes = self.read_bytes.saturating_add(n);
+
+        if self.read_bytes > self.limit {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "Payload exceeded maximum size limit",
+            ));
+        }
+
+        Ok(n)
+    }
+}
+
 /// Deserializes CSV data into a collection of records.
 ///
 /// Reads CSV data from the provided reader and deserializes it into a vector
@@ -125,7 +172,8 @@ where
     T: for<'de> Deserialize<'de>,
     R: Read,
 {
-    let mut csv_reader = csv::Reader::from_reader(reader);
+    let limit_reader = LimitReader::new(reader, 150 * 1024 * 1024);
+    let mut csv_reader = csv::Reader::from_reader(limit_reader);
     let mut records = Vec::new();
 
     for result in csv_reader.deserialize() {
