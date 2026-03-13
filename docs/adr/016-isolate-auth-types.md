@@ -1,6 +1,6 @@
 # ADR-016: Isolate Auth Types
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-03-02
 **Deciders:** Codex, Atlas
 **Context:**

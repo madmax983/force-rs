@@ -215,3 +215,21 @@ C4Component
      Rel(limits, handler, "Uses")
   }
 ```
+
+## C4 Component Diagram: Composite API
+
+The Composite API layer provides batch and graph abstractions to execute multiple operations in a single request.
+
+```mermaid
+C4Component
+  title Component Diagram for Composite API
+
+  Container_Boundary(composite_mod, "Composite API Module") {
+     Component(batch, "Batch API", "batch.rs", "Executes independent requests in a batch (up to 25)")
+     Component(graph, "Graph API", "graph.rs", "Executes interdependent requests in a graph (up to 15 nodes)")
+     Component(builder, "Builders", "batch.rs / graph.rs", "Constructs and pre-allocates request capacities")
+
+     Rel(builder, batch, "Builds")
+     Rel(builder, graph, "Builds")
+  }
+```

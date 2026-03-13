@@ -42,18 +42,21 @@ ADRs follow this structure:
 | [006](006-handler-pattern.md) | Handler Pattern for API Operations | Accepted | 2026-02-07 |
 | [007](007-rest-api-design.md) | REST API Design Decisions | Accepted | 2026-02-07 |
 | [008](008-bulk-api-design.md) | Bulk API 2.0 Design Decisions | Accepted | 2026-02-08 |
-| [009](009-decouple-storage-from-core.md) | Decouple Storage from Core | Proposed | 2026-02-17 |
+| [009](009-decouple-storage-from-core.md) | Decouple Storage from Core | Superseded | 2026-02-17 |
+| [010](010-internal-shared-state.md) | Internal Shared State via Arc | Accepted | 2026-02-17 |
+| [011](011-remove-pub-sub-support.md) | Remove Pub/Sub Support | Accepted | 2024-05-22 |
+| [012](012-http-layer-refactoring.md) | HTTP Layer Refactoring | Accepted | 2026-02-17 |
+| [013](013-rename-inner-to-session.md) | Rename Inner to Session | Accepted | 2026-02-18 |
+| [014](014-query-plan-support.md) | Query Plan Support | Accepted | 2026-02-18 |
+| [015](015-merge-storage-into-auth.md) | Merge Storage Logic into Auth | Accepted | 2026-02-18 |
+| [016](016-isolate-auth-types.md) | Isolate Auth Types | Accepted | 2026-03-02 |
+| [017](017-decomposed-rest-api.md) | Decomposed REST API Module | Proposed | 2026-03-05 |
+| [018](018-composite-api-design.md) | Composite API Design | Proposed | 2026-03-10 |
 
 ### Future ADRs
 
 Planned ADRs for upcoming decisions:
-- **ADR-010**: SOQL Query Builder Design
-- **ADR-011**: Bulk API Job Management
-- **ADR-012**: Pub/Sub gRPC Integration
-- **ADR-013**: Testing Strategy and Mock Framework
-- **ADR-014**: Logging and Observability
-- **ADR-015**: Connection Pooling Configuration
-- **ADR-016**: API Versioning Strategy
+- **ADR-018**: Composite API Design
 
 ## Decision Process
 
@@ -145,7 +148,52 @@ graph TD
 ### ADR-009: Decouple Storage from Core
 - **Decision**: Move persistence logic to a dedicated crate/boundary
 - **Rationale**: Resolve circular dependencies and improve build times
-- **Impact**: Modular architecture but increased complexity
+- **Impact**: Modular architecture but increased complexity (Superseded by ADR-015)
+
+### ADR-010: Internal Shared State via Arc
+- **Decision**: Use `Arc` and `RwLock` for internal state management within a `Session` struct.
+- **Rationale**: Enables concurrent API requests sharing a single authentication token and HTTP client.
+- **Impact**: Prevents cloning the HTTP client and token manager per request, but introduces potential for lock contention.
+
+### ADR-011: Remove Pub/Sub Support
+- **Decision**: Remove gRPC Pub/Sub support from the core SDK.
+- **Rationale**: Focus the library on HTTP-based APIs (REST, Bulk, Composite) and reduce dependency bloat (e.g., `tonic`, `prost`).
+- **Impact**: Smaller compile times and footprint.
+
+### ADR-012: HTTP Layer Refactoring
+- **Decision**: Decompose the HTTP module into executor, retry, and error logic.
+- **Rationale**: Separation of concerns for resilient HTTP requests.
+- **Impact**: More maintainable and testable HTTP middleware.
+
+### ADR-013: Rename Inner to Session
+- **Decision**: Rename the `Inner` state struct to `Session`.
+- **Rationale**: Improves code readability and accurately reflects its role as the shared state holder.
+- **Impact**: Clearer domain terminology.
+
+### ADR-014: Query Plan Support
+- **Decision**: Implement the REST API query execution plan endpoint.
+- **Rationale**: Provide developers tools to optimize SOQL queries.
+- **Impact**: Increases API surface, gated behind `nova`.
+
+### ADR-015: Merge Storage Logic into Auth
+- **Decision**: Keep token storage logic co-located with authentication in `crates/force/src/auth`.
+- **Rationale**: Accurate reflection of the codebase, preventing module sprawl. Supersedes ADR-009.
+- **Impact**: Simpler architecture, though slightly tighter coupling.
+
+### ADR-016: Isolate Auth Types
+- **Decision**: Deprecate authentication type re-exports in the root `types` module.
+- **Rationale**: Improve module cohesion and boundaries.
+- **Impact**: Clearer domain primitives; developers must import from `force::auth`.
+
+### ADR-017: Decomposed REST API Module
+- **Decision**: Split the REST module into specialized sub-modules (crud, query, search, etc.) using a facade.
+- **Rationale**: Enhance maintainability, cohesion, and testing.
+- **Impact**: Smaller file sizes but slightly more complex module structure.
+
+### ADR-018: Composite API Design
+- **Decision**: Implemented Builder patterns and pre-allocated Vectors in `crates/force/src/api/composite/`.
+- **Rationale**: Optimization to avoid heap reallocation and respect Salesforce batch/graph sizing limits.
+- **Impact**: Enhanced memory safety and optimized limits handling.
 
 ## Contributing ADRs
 
