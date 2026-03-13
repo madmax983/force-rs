@@ -699,7 +699,9 @@ mod tests {
             .await;
 
         assert!(result.is_err());
-        let Err(err) = result else { panic!("Expected Err") };
+        let Err(err) = result else {
+            panic!("Expected Err")
+        };
         assert!(err.to_string().contains("Job failed: Something went wrong"));
     }
 
@@ -774,7 +776,9 @@ mod tests {
             .await;
 
         assert!(result.is_err());
-        let Err(err) = result else { panic!("Expected Err") };
+        let Err(err) = result else {
+            panic!("Expected Err")
+        };
         assert!(err.to_string().contains("Job was aborted"));
     }
 
