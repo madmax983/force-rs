@@ -43,3 +43,6 @@
 **2024-05-30 - [The Facade: Fixing the Leak in Composite and Experimental]**
 **Tangle:** The `api::composite` and `experimental` modules leaked their internal structures (`batch`, `query_batch`, `schema_graph`, etc.) directly into the public API by declaring them as `pub mod`. This violated the Facade pattern and exposed implementation details that users shouldn't depend on.
 **Blueprint:** Changed visibility of these internal modules to `pub(crate) mod` and explicitly re-exported their main public structs/enums (like `BatchBuilder`, `SchemaGraph`, `DataDictionary`) using `pub use` statements at the module root (`api/composite/mod.rs` and `experimental/mod.rs`). This enforces encapsulation and presents a clean, un-nested API surface to consumers.
+**[Extracted SOQL Query Builder]**
+**Tangle:** The `SoqlQueryBuilder` was located in `crates/force/src/api/rest/soql.rs`, which created an inverted dependency where sibling modules like `composite` (specifically `BatchBuilder`) had to reach into the `rest` module to construct queries.
+**Blueprint:** Moved `SoqlQueryBuilder` to the root `api` module (`crates/force/src/api/soql.rs`) to establish a clear structural boundary and eliminate the leaky abstraction. The `rest` module now re-exports it to preserve backward compatibility.

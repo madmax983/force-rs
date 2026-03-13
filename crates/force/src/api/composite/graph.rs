@@ -8,6 +8,7 @@
 //! You can execute multiple graphs in a single API call.
 
 use super::CompositeHandler;
+use crate::api::soql::SoqlQueryBuilder;
 use crate::auth::Authenticator;
 use crate::error::{ForceError, Result};
 use crate::types::validator;
@@ -236,6 +237,59 @@ impl Graph {
             reference_id,
         )))
     }
+
+    /// Adds a SOQL query request to the graph.
+    ///
+    /// The query will be properly URL-encoded according to form-urlencoded rules
+    /// (e.g., spaces become `+`, `%` becomes `%25`).
+    ///
+    /// # Arguments
+    ///
+    /// * `query_builder` - The SOQL query builder
+    /// * `reference_id` - Unique reference ID for this request
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the query builder contains validation errors
+    /// or if formatting fails.
+    #[allow(clippy::needless_pass_by_value)] // Ownership consumed to enforce builder pattern
+    pub fn query(self, query_builder: SoqlQueryBuilder, reference_id: &str) -> Result<Self> {
+        validate_reference_id(reference_id)?;
+
+        if let Err(e) = query_builder.validate() {
+            return Err(ForceError::InvalidInput(format!(
+                "Invalid query builder: {}",
+                e
+            )));
+        }
+
+        let mut url = String::with_capacity(256 + 8);
+        url.push_str("query?q=");
+
+        {
+            // We use a custom writer adapter to encode directly into the URL string.
+            // This is identical to how `batch.rs` does it, to avoid intermediate allocations.
+            struct UrlEncodedWriter<'a>(&'a mut String);
+
+            impl std::fmt::Write for UrlEncodedWriter<'_> {
+                fn write_str(&mut self, s: &str) -> std::fmt::Result {
+                    self.0
+                        .extend(url::form_urlencoded::byte_serialize(s.as_bytes()));
+                    Ok(())
+                }
+            }
+
+            let mut writer = UrlEncodedWriter(&mut url);
+            if let Err(e) = query_builder.write_query(&mut writer) {
+                return Err(ForceError::InvalidInput(format!(
+                    "Formatting failed: {}",
+                    e
+                )));
+            }
+        }
+
+        Ok(self.add_request(GraphRequest::new("GET", url, reference_id)))
+    }
 }
 
 /// A single subrequest within a graph.
@@ -439,6 +493,29 @@ mod tests {
             }
             _ => panic!("Expected Serialization error, got {:?}", result),
         }
+    }
+
+    #[test]
+    fn test_graph_query_encoding() {
+        let query = SoqlQueryBuilder::new()
+            .select(&["Id", "Name"])
+            .from("Account")
+            .where_eq("Name", "Acme & Co.");
+
+        let graph = Graph::new("graph1").query(query, "refQuery").must();
+
+        assert_eq!(graph.composite_request.len(), 1);
+
+        let req = &graph.composite_request[0];
+        assert_eq!(req.method, "GET");
+        assert_eq!(req.reference_id, "refQuery");
+        assert!(req.body.is_none());
+
+        // Expected SOQL: SELECT Id, Name FROM Account WHERE Name = 'Acme & Co.'
+        // Encoded: query?q=SELECT+Id%2C+Name+FROM+Account+WHERE+Name+%3D+%27Acme+%26+Co.%27
+        let expected_url =
+            "query?q=SELECT+Id%2C+Name+FROM+Account+WHERE+Name+%3D+%27Acme+%26+Co.%27";
+        assert_eq!(req.url, expected_url);
     }
 
     #[test]

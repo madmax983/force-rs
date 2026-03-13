@@ -11,10 +11,9 @@ pub mod limits;
 pub(crate) mod query;
 pub(crate) mod query_stream;
 pub mod search;
-pub(crate) mod soql;
 
+pub use crate::api::soql::{SoqlQueryBuilder, escape_soql};
 pub use query_stream::QueryStream;
-pub use soql::{SoqlQueryBuilder, escape_soql};
 
 use crate::error::Result;
 use serde::de::DeserializeOwned;
