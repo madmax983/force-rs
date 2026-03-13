@@ -5,7 +5,7 @@
 //! type (GET, POST, PATCH, DELETE).
 
 use super::CompositeHandler;
-use crate::api::rest::SoqlQueryBuilder;
+use crate::api::soql::SoqlQueryBuilder;
 use crate::auth::Authenticator;
 use crate::error::{ForceError, Result};
 use crate::types::{SalesforceId, validator};

@@ -11,3 +11,5 @@ pub mod bulk;
 
 #[cfg(feature = "composite")]
 pub mod composite;
+
+pub mod soql;

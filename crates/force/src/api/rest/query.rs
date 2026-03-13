@@ -18,7 +18,7 @@ impl<A: crate::auth::Authenticator> super::RestHandler<A> {
     ///
     /// This method accepts a raw SOQL string. **Do not construct queries using `format!`
     /// with untrusted input**, as this leads to SOQL injection vulnerabilities.
-    /// Instead, use [`SoqlQueryBuilder`](crate::api::rest::SoqlQueryBuilder) or
+    /// Instead, use [`SoqlQueryBuilder`](crate::api::soql::SoqlQueryBuilder) or
     /// [`escape_soql`](crate::api::rest::escape_soql).
     ///
     /// # Errors
@@ -32,7 +32,7 @@ impl<A: crate::auth::Authenticator> super::RestHandler<A> {
     ///
     /// ```ignore
     /// use force::types::DynamicSObject;
-    /// use force::api::rest::SoqlQueryBuilder;
+    /// use force::api::soql::SoqlQueryBuilder;
     ///
     /// // Safe query construction
     /// let query = SoqlQueryBuilder::new()
