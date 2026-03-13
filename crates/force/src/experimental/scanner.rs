@@ -73,7 +73,9 @@ impl<'a, A: Authenticator> FieldUsageScanner<'a, A> {
             return Ok(Vec::new());
         }
 
-        let mut results = Vec::new();
+        #[allow(unused_doc_comments)]
+        /// ⚡ Bolt: Pre-allocate capacity to avoid heap reallocations when extending results.
+        let mut results = Vec::with_capacity(scanable_fields.len());
 
         // 3. Batch fields to avoid SOQL character limits (safe chunk size: 20)
         for chunk in scanable_fields.chunks(20) {
