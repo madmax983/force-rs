@@ -30,18 +30,18 @@ impl std::fmt::Write for UrlEncodedWriter<'_> {
     }
 }
 
-/// Builder for constructing a Composite Batch request.
+/// Constructs a Composite Batch request.
 ///
-/// Use this builder to add up to 25 subrequests and execute them atomically.
+/// Use this request object to add up to 25 subrequests and execute them atomically.
 #[derive(Debug)]
-pub struct BatchBuilder<A: Authenticator> {
+pub struct BatchRequest<A: Authenticator> {
     handler: CompositeHandler<A>,
     requests: Vec<BatchSubRequest>,
     halt_on_error: bool,
 }
 
-impl<A: Authenticator> BatchBuilder<A> {
-    /// Creates a new BatchBuilder.
+impl<A: Authenticator> BatchRequest<A> {
+    /// Creates a new BatchRequest.
     ///
     /// Performance: Pre-allocates capacity for 25 requests (Salesforce limit)
     /// to avoid heap reallocations during request accumulation.
@@ -298,7 +298,7 @@ impl<A: Authenticator> BatchBuilder<A> {
         // Construct the composite batch URL
         let url = self.handler.inner.resolve_url("composite/batch").await?;
 
-        let request_body = BatchRequest {
+        let request_body = BatchRequestBody {
             batch_requests: self.requests,
             halt_on_error: self.halt_on_error,
         };
@@ -321,7 +321,7 @@ impl<A: Authenticator> BatchBuilder<A> {
 /// A request to the Composite Batch API.
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct BatchRequest {
+struct BatchRequestBody {
     batch_requests: Vec<BatchSubRequest>,
     halt_on_error: bool,
 }
@@ -367,7 +367,7 @@ mod tests {
 
     #[test]
     fn test_batch_request_serialization() {
-        let req = BatchRequest {
+        let req = BatchRequestBody {
             halt_on_error: true,
             batch_requests: vec![
                 BatchSubRequest {
@@ -429,7 +429,7 @@ mod tests {
     use crate::client::builder as client_builder;
     use crate::test_support::MockAuthenticator;
 
-    async fn create_builder() -> BatchBuilder<MockAuthenticator> {
+    async fn create_builder() -> BatchRequest<MockAuthenticator> {
         let auth = MockAuthenticator::new("token", "https://test.salesforce.com");
         let client = client_builder()
             .authenticate(auth)
