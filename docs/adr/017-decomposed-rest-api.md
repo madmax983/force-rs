@@ -1,6 +1,6 @@
 # ADR-017: Decomposed REST API Module
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-03-05
 **Deciders:** Codex, Atlas
 **Context:**

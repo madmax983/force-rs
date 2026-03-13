@@ -206,6 +206,8 @@ C4Component
      Component(search, "Search", "search.rs", "SOSL search execution")
      Component(describe, "Describe", "describe.rs", "Metadata describe operations")
      Component(limits, "Limits", "limits.rs", "Organization limits operations")
+     Component(soql, "SOQL Builder", "soql.rs", "SOQL query builder utilities")
+     Component(explain, "Query Plan", "explain.rs", "Query execution plan operations")
 
      Rel(crud, handler, "Uses")
      Rel(query, handler, "Uses")
@@ -213,5 +215,7 @@ C4Component
      Rel(search, handler, "Uses")
      Rel(describe, handler, "Uses")
      Rel(limits, handler, "Uses")
+     Rel(soql, handler, "Uses")
+     Rel(explain, handler, "Uses")
   }
 ```
