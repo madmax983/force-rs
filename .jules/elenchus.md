@@ -16,6 +16,7 @@ This journal records the findings of the Elenchus test audit.
 | **Acquitted** | `crates/force/src/experimental/query_batch.rs` | 🟢 Acquitted | Initial audit found missing coverage for `halt_on_error`, empty results, and partial failures. Added `test_query_batch_halt_on_error`, `test_query_batch_empty_results`, and `test_query_batch_mixed_results`. |
 | **Acquitted** | `crates/force/src/api/composite/batch.rs` | 🟢 Acquitted | Initial audit found tautological encoding tests and fragile JSON assertions. Refactored to use hardcoded "golden" strings and structural JSON validation. |
 | **Strengthened** | `crates/force/src/experimental/type_generator.rs` | 🔴 Critical | Replace `.contains()` checks with exact match (`assert_eq!`) against a golden string. Enhance case-conversion tests with comprehensive cases. Added missing coverage for `map_type`. |
+| **Strengthened** | `crates/force/src/experimental/schema_analyzer.rs` | 🔴 Critical | Original test `test_schema_analyzer` provided only 6 total fields, meaning that the `total_fields / 10` division resulted in `0`. Tests did not effectively test logic. |
 
 ## Detailed Findings
 
@@ -154,3 +155,11 @@ match result {
 **Finding:** Mutation testing revealed that replacing `>` with `>=` in the `1024 * 1024` byte stream limit logic survived in `authenticate` methods for both `JwtBearerFlow` and `ClientCredentials`. Analysis showed this is an equivalent mutant; truncating exactly at 1MB or waiting for the next chunk to exceed 1MB results in the same final bounded string length, making the mutation practically unobservable without internal side channels.
 **Evidence:** `cargo mutants` output showing exactly one missed mutant: `replace > with >= in <impl Authenticator for JwtBearerFlow>::authenticate`.
 **Recommendation:** Acknowledge the limitation of mutation tools concerning equivalent mutants. No further testing or code change is needed for these specific truncation lines as they correctly enforce the 1MB cap.
+
+### [Strengthened] `crates/force/src/experimental/schema_analyzer.rs`
+
+**Module:** `crates/force/src/experimental/schema_analyzer.rs`
+**Severity:** 🔴 Critical
+**Finding:** The original test `test_schema_analyzer` provided only 6 total fields, meaning that the `total_fields / 10` division resulted in `0`. This made the test blind to mutants replacing division `/` with multiplication `*` (`6 * 10 = 60`), which caused false confidence. Additionally, the existing test inputs did not robustly exercise all `+` and `*` operators in the `complexity_score` calculation.
+**Evidence:** `cargo mutants` revealed that multiple logic mutants in `SchemaAnalyzer::analyze` replacing `*` with `+` or `/`, and `/` with `*` survived, indicating that the test suite was insufficiently sensitive to mathematical logic errors and edge cases in the scoring heuristic.
+**Recommendation:** Added `test_schema_analyzer_complexity_math` with exactly 12 fields (so `12 / 10 = 1`) and non-zero counts for custom, formula, and relationship fields to ensure all mathematical operations `*`, `/`, and `+` produce meaningful, non-identity/non-zero outcomes that effectively kill the mathematical mutants.
