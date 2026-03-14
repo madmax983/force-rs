@@ -223,7 +223,7 @@ impl<A: Authenticator> TokenManager<A> {
             // This protects against race conditions where a concurrent `get_token` call
             // might have refreshed the token while we were waiting for the refresh.
             if let Some(current) = &state.token {
-                if current.issued_at() >= arc_token.issued_at() {
+                if current.issued_at() > arc_token.issued_at() {
                     return Ok(current.as_ref().clone());
                 }
                 state.token = Some(arc_token.clone());
@@ -765,8 +765,8 @@ mod tests {
         let result = hard_eq_manager.token().await.must();
         assert_eq!(
             result.as_str(),
-            "new_token",
-            "Equality should trigger an overwrite in hard refresh"
+            "hard_old_token",
+            "Equality should not trigger an overwrite in hard refresh"
         );
 
         // Now let's test equality overwrite for soft expiration (line 146)
@@ -790,8 +790,8 @@ mod tests {
         let result = soft_eq_manager.token().await.must();
         assert_eq!(
             result.as_str(),
-            "new_token",
-            "Equality should trigger an overwrite in soft refresh"
+            "soft_old_token",
+            "Equality should not trigger an overwrite in soft refresh"
         );
     }
 }
