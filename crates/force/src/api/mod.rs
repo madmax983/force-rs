@@ -13,3 +13,5 @@ pub mod bulk;
 pub mod composite;
 
 pub mod soql;
+
+pub(crate) mod path_utils;

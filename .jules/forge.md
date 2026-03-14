@@ -29,3 +29,6 @@
 **Field Validation Struct Extraction**
 **Learning:** Large character parsing loops implementing complex state machines become unreadable and hard to maintain when packed into a single function.
 **Action:** Extract long state machines into a clear structs with well-named internal state transitions to reduce cognitive load.
+**SObject Path Formatting**
+**Learning:** Repetitive string formatting for API paths (like `/sobjects/{}` and `/sobjects/{}/{id}`) across multiple methods causes visual noise and copy-paste vulnerabilities.
+**Action:** Centralize path construction into pure helper functions (e.g., `format_sobject_path(sobject: &str, id: Option<&str>) -> String`) to enforce DRY principles.

@@ -178,7 +178,7 @@ impl Graph {
         validate_reference_id(reference_id)?;
         Ok(self.add_request(GraphRequest::new(
             "GET",
-            format!("sobjects/{}/{}", sobject, id),
+            crate::api::path_utils::format_sobject_path(sobject, Some(id)),
             reference_id,
         )))
     }
@@ -194,7 +194,12 @@ impl Graph {
         validator::validate_sobject_name(sobject)?;
         validate_reference_id(reference_id)?;
         Ok(self.add_request(
-            GraphRequest::new("POST", format!("sobjects/{}", sobject), reference_id).body(body),
+            GraphRequest::new(
+                "POST",
+                crate::api::path_utils::format_sobject_path(sobject, None),
+                reference_id,
+            )
+            .body(body),
         ))
     }
 
@@ -213,7 +218,7 @@ impl Graph {
         Ok(self.add_request(
             GraphRequest::new(
                 "PATCH",
-                format!("sobjects/{}/{}", sobject, id),
+                crate::api::path_utils::format_sobject_path(sobject, Some(id)),
                 reference_id,
             )
             .body(body),
@@ -233,7 +238,7 @@ impl Graph {
         validate_reference_id(reference_id)?;
         Ok(self.add_request(GraphRequest::new(
             "DELETE",
-            format!("sobjects/{}/{}", sobject, id),
+            crate::api::path_utils::format_sobject_path(sobject, Some(id)),
             reference_id,
         )))
     }
