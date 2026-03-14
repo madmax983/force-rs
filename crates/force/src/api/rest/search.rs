@@ -70,7 +70,7 @@ pub struct SearchAttributes {
 /// # Examples
 ///
 /// ```
-/// use force::api::rest::search::SearchQueryBuilder;
+/// use force::api::rest::SearchQueryBuilder;
 ///
 /// let query = SearchQueryBuilder::new()
 ///     .find("Acme Corporation")

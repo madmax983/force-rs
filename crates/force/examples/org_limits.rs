@@ -18,7 +18,7 @@
 #[cfg(feature = "rest")]
 mod example {
     use anyhow::Context;
-    use force::api::rest::limits::OrgLimits;
+    use force::api::rest::OrgLimits;
     use force::auth::ClientCredentials;
     use force::client::ForceClientBuilder;
 

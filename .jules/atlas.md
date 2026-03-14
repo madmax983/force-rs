@@ -46,3 +46,6 @@
 **[Extracted SOQL Query Builder]**
 **Tangle:** The `SoqlQueryBuilder` was located in `crates/force/src/api/rest/soql.rs`, which created an inverted dependency where sibling modules like `composite` (specifically `BatchBuilder`) had to reach into the `rest` module to construct queries.
 **Blueprint:** Moved `SoqlQueryBuilder` to the root `api` module (`crates/force/src/api/soql.rs`) to establish a clear structural boundary and eliminate the leaky abstraction. The `rest` module now re-exports it to preserve backward compatibility.
+**[Facade] RestAPI Module Consolidation**
+**Tangle:** The `force::api::rest` sub-modules (`describe`, `limits`, `search`) were publicly exposed, leaking the internal module structure and forcing users to navigate a nested module hierarchy.
+**Blueprint:** Applied the Facade pattern by changing sub-module visibility to `pub(crate)` and selectively re-exporting only the public types (Structs, Enums, Builders) via `pub use` at the root of `force::api::rest::mod.rs`.
