@@ -253,19 +253,21 @@ impl SearchQueryBuilder {
 
         query.push_str(" RETURNING ");
 
-        let returning_clauses: Vec<String> = self
-            .returning
-            .into_iter()
-            .map(|(sobject, fields)| {
-                if fields.is_empty() {
-                    sobject
-                } else {
-                    format!("{}({})", sobject, fields.join(", "))
-                }
-            })
-            .collect();
+        // ⚡ Bolt: Write RETURNING clauses directly to the `query` buffer, avoiding a temporary `.collect::<Vec<_>>()` and `.join(", ")` allocation.
+        let mut first = true;
+        for (sobject, fields) in self.returning {
+            if !first {
+                query.push_str(", ");
+            }
+            first = false;
 
-        query.push_str(&returning_clauses.join(", "));
+            if fields.is_empty() {
+                query.push_str(&sobject);
+            } else {
+                write!(&mut query, "{}({})", sobject, fields.join(", "))
+                    .unwrap_or_else(|_| unreachable!("String format cannot fail"));
+            }
+        }
 
         if let Some(limit) = self.limit {
             write!(&mut query, " LIMIT {}", limit)
