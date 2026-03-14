@@ -269,12 +269,8 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
     /// }
     /// ```
     pub async fn describe_global(&self) -> Result<describe::GlobalDescribe> {
-        self.execute_get(
-            "/sobjects",
-            None,
-            "Global describe request failed",
-        )
-        .await
+        self.execute_get("/sobjects", None, "Global describe request failed")
+            .await
     }
 
     /// Retrieves detailed metadata for a specific SObject.
