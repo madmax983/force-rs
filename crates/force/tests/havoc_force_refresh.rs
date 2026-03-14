@@ -66,7 +66,7 @@ mod tests {
                 let mut guard = self.token.write().unwrap();
                 // FIX: Check if current token is newer
                 if let Some(current) = *guard
-                    && current > new_token
+                    && current >= new_token
                 {
                     return current;
                 }
