@@ -22,3 +22,8 @@
 **Bloat:** `IngestJobBuilder` in `crates/force/src/api/bulk/ingest.rs`.
 **Cut:** Deleted the `IngestJobBuilder` struct and its implementation. Replaced it with a direct, asynchronous `IngestJob::create` method that constructs the job directly using the `BulkHandler`.
 **Saved:** ~95 lines of code. Removed unnecessary "Factory Factory" pattern in favor of simpler direct instantiation, aligning it with the KISS principle and reducing cognitive load.
+
+## [Reduction]
+**Bloat:** `BatchBuilder` in `crates/force/src/api/composite/batch.rs` and `GraphBuilder` in `crates/force/src/api/composite/graph.rs`.
+**Cut:** Renamed to `BatchRequest` and `CompositeGraphRequest` respectively, eliminating the redundant factory builder pattern and directly constructing request structures inline.
+**Saved:** Simplified the user API, eliminating "Factory Factory" patterns and directly mirroring Salesforce concepts (Batch and Graph Requests) without arbitrary intermediate abstractions. Cognitive load saved for developers constructing Composite API requests.

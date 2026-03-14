@@ -10,10 +10,10 @@ pub(crate) mod batch;
 #[cfg(feature = "nova")]
 pub(crate) mod graph;
 
-pub use batch::{BatchBuilder, BatchResponse, BatchSubResponse};
+pub use batch::{BatchRequest, BatchResponse, BatchSubResponse};
 #[cfg(feature = "nova")]
 pub use graph::{
-    Graph, GraphBuilder, GraphErrorResponse, GraphRequest, GraphResponse, GraphResult,
+    CompositeGraphRequest, Graph, GraphErrorResponse, GraphRequest, GraphResponse, GraphResult,
     GraphSubResponse,
 };
 
@@ -44,7 +44,7 @@ impl<A: Authenticator> CompositeHandler<A> {
         Self { inner }
     }
 
-    /// Creates a new batch request builder.
+    /// Creates a new batch request.
     ///
     /// A batch request can contain up to 25 subrequests. Subrequests are independent
     /// and can be of different types (GET, POST, PATCH, DELETE).
@@ -58,18 +58,18 @@ impl<A: Authenticator> CompositeHandler<A> {
     /// let results = batch.execute().await?;
     /// ```
     #[must_use]
-    pub fn batch(&self) -> batch::BatchBuilder<A> {
-        batch::BatchBuilder::new(self.clone())
+    pub fn batch(&self) -> batch::BatchRequest<A> {
+        batch::BatchRequest::new(self.clone())
     }
 
-    /// Creates a new graph request builder.
+    /// Creates a new graph request.
     ///
     /// The Composite Graph API allows you to execute complex, dependent requests
     /// (up to 500 nodes) in a single call.
     #[cfg(feature = "nova")]
     #[must_use]
-    pub fn graph(&self) -> graph::GraphBuilder<A> {
-        graph::GraphBuilder::new(self.clone())
+    pub fn graph(&self) -> graph::CompositeGraphRequest<A> {
+        graph::CompositeGraphRequest::new(self.clone())
     }
 
     /// Helper to get the API version from config.

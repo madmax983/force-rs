@@ -48,17 +48,17 @@ fn validate_graph_id(id: &str) -> Result<()> {
     Ok(())
 }
 
-/// Builder for constructing a Composite Graph request.
+/// Constructs a Composite Graph request.
 ///
-/// Use this builder to add one or more graphs and execute them atomically.
+/// Use this request object to add one or more graphs and execute them atomically.
 #[derive(Debug)]
-pub struct GraphBuilder<A: Authenticator> {
+pub struct CompositeGraphRequest<A: Authenticator> {
     handler: CompositeHandler<A>,
     graphs: Vec<Graph>,
 }
 
-impl<A: Authenticator> GraphBuilder<A> {
-    /// Creates a new GraphBuilder.
+impl<A: Authenticator> CompositeGraphRequest<A> {
+    /// Creates a new CompositeGraphRequest.
     ///
     /// # Performance
     ///
@@ -397,7 +397,7 @@ mod tests {
     use wiremock::matchers::{method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
-    async fn create_builder() -> GraphBuilder<MockAuthenticator> {
+    async fn create_builder() -> CompositeGraphRequest<MockAuthenticator> {
         let auth = MockAuthenticator::new("token", "https://test.salesforce.com");
         let client = client_builder().authenticate(auth).build().await.must();
 

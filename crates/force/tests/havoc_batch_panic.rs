@@ -1,4 +1,4 @@
-//! Integration test for robust `BatchBuilder` behavior.
+//! Integration test for robust `BatchRequest` behavior.
 
 #![cfg(feature = "composite")]
 #![allow(clippy::unwrap_used)]
@@ -7,7 +7,7 @@
 use std::sync::OnceLock;
 
 use async_trait::async_trait;
-use force::api::composite::BatchBuilder;
+use force::api::composite::BatchRequest;
 use force::auth::{AccessToken, Authenticator, TokenResponse};
 use force::client::builder;
 use force::error::Result;
@@ -42,7 +42,7 @@ fn get_runtime() -> &'static Runtime {
     RUNTIME.get_or_init(|| Runtime::new().unwrap())
 }
 
-async fn create_batch_builder() -> BatchBuilder<MockAuthenticator> {
+async fn create_batch_builder() -> BatchRequest<MockAuthenticator> {
     let auth = MockAuthenticator;
     let client = builder().authenticate(auth).build().await.expect("client");
     client.composite().batch()
