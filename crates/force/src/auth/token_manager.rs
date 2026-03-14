@@ -111,7 +111,7 @@ impl<A: Authenticator> TokenManager<A> {
 
                 // Check if a concurrent operation already updated the token to a newer one
                 if let Some(current) = &state.token {
-                    if current.issued_at() > arc_token.issued_at() {
+                    if current.issued_at() >= arc_token.issued_at() {
                         return Ok(current.clone());
                     }
                     state.token = Some(arc_token.clone());
@@ -143,7 +143,7 @@ impl<A: Authenticator> TokenManager<A> {
 
                         // Check if a concurrent operation already updated the token to a newer one
                         if let Some(current) = &state.token {
-                            if current.issued_at() > arc_token.issued_at() {
+                            if current.issued_at() >= arc_token.issued_at() {
                                 return Ok(current.clone());
                             }
                             state.token = Some(arc_token.clone());
@@ -223,7 +223,7 @@ impl<A: Authenticator> TokenManager<A> {
             // This protects against race conditions where a concurrent `get_token` call
             // might have refreshed the token while we were waiting for the refresh.
             if let Some(current) = &state.token {
-                if current.issued_at() > arc_token.issued_at() {
+                if current.issued_at() >= arc_token.issued_at() {
                     return Ok(current.as_ref().clone());
                 }
                 state.token = Some(arc_token.clone());

@@ -63,7 +63,7 @@ mod tests {
 
             // The Fix: only overwrite if `new_token` is strictly newer.
             if let Some(current) = *guard
-                && current > new_token
+                && current >= new_token
             {
                 return current;
             }
@@ -79,7 +79,7 @@ mod tests {
             {
                 let mut guard = self.token.write().unwrap();
                 if let Some(current) = *guard
-                    && current > new_token
+                    && current >= new_token
                 {
                     return current;
                 }
