@@ -1,7 +1,7 @@
 #![allow(missing_docs)]
 #![cfg(feature = "rest")]
 
-use force::api::rest::search::SearchQueryBuilder;
+use force::api::rest::SearchQueryBuilder;
 
 #[test]
 #[should_panic(expected = "SObject name contains invalid characters")]
