@@ -125,7 +125,8 @@ where
     T: for<'de> Deserialize<'de>,
     R: Read,
 {
-    let mut csv_reader = csv::Reader::from_reader(reader);
+    let limit_reader = LimitReader::new(reader, 150 * 1024 * 1024);
+    let mut csv_reader = csv::Reader::from_reader(limit_reader);
     let mut records = Vec::new();
 
     for result in csv_reader.deserialize() {
@@ -134,6 +135,37 @@ where
     }
 
     Ok(records)
+}
+
+/// A reader that limits the number of bytes that can be read to prevent DoS via memory exhaustion.
+struct LimitReader<R> {
+    inner: R,
+    limit: u64,
+    bytes_read: u64,
+}
+
+impl<R: Read> LimitReader<R> {
+    fn new(inner: R, limit: u64) -> Self {
+        Self {
+            inner,
+            limit,
+            bytes_read: 0,
+        }
+    }
+}
+
+impl<R: Read> Read for LimitReader<R> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        let n = self.inner.read(buf)?;
+        self.bytes_read = self.bytes_read.saturating_add(n as u64);
+        if self.bytes_read > self.limit {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "Payload exceeds maximum allowed size of 150MB",
+            ));
+        }
+        Ok(n)
+    }
 }
 
 /// Processes CSV data in batches to reduce memory usage.
@@ -650,5 +682,40 @@ mod tests {
                 prop_assert_eq!(total, records.len());
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod warden_tests {
+    use super::*;
+    use std::io::Read;
+
+    struct InfiniteZeros;
+
+    impl Read for InfiniteZeros {
+        fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+            for b in buf.iter_mut() {
+                *b = 0;
+            }
+            Ok(buf.len())
+        }
+    }
+
+    #[test]
+    fn test_deserialize_from_csv_dos_protection() {
+        // Test that reading past the 150MB limit returns an InvalidData error
+        // Instead of reading a real 150MB, we can test LimitReader directly with a small limit
+        let mut reader = LimitReader::new(InfiniteZeros, 1024);
+        let mut buf = vec![0; 2048];
+        let result = reader.read(&mut buf);
+        assert!(result.is_err());
+        let Err(err) = result else {
+            panic!("Expected error");
+        };
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
+        assert_eq!(
+            err.to_string(),
+            "Payload exceeds maximum allowed size of 150MB"
+        );
     }
 }
