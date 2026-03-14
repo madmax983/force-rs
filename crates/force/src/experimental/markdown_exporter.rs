@@ -145,19 +145,23 @@ mod tests {
         assert!(md.contains("| AnnualRevenue |"));
         assert!(!md.contains("attributes"));
 
-        assert!(md.contains("| 001A00000000000 | Acme Corp | 1000000 |") ||
-                md.contains("| Acme Corp | 1000000 | 001A00000000000 |") ||
-                md.contains("| 1000000 | 001A00000000000 | Acme Corp |") ||
-                md.contains("| 001A00000000000 | 1000000 | Acme Corp |") ||
-                md.contains("| Acme Corp | 001A00000000000 | 1000000 |") ||
-                md.contains("| 1000000 | Acme Corp | 001A00000000000 |"));
+        assert!(
+            md.contains("| 001A00000000000 | Acme Corp | 1000000 |")
+                || md.contains("| Acme Corp | 1000000 | 001A00000000000 |")
+                || md.contains("| 1000000 | 001A00000000000 | Acme Corp |")
+                || md.contains("| 001A00000000000 | 1000000 | Acme Corp |")
+                || md.contains("| Acme Corp | 001A00000000000 | 1000000 |")
+                || md.contains("| 1000000 | Acme Corp | 001A00000000000 |")
+        );
 
         // Check for the null handling (empty string)
-        assert!(md.contains("| 001A00000000001 | Global Systems |  |") ||
-                md.contains("| Global Systems |  | 001A00000000001 |") ||
-                md.contains("|  | 001A00000000001 | Global Systems |") ||
-                md.contains("| 001A00000000001 |  | Global Systems |") ||
-                md.contains("| Global Systems | 001A00000000001 |  |") ||
-                md.contains("|  | Global Systems | 001A00000000001 |"));
+        assert!(
+            md.contains("| 001A00000000001 | Global Systems |  |")
+                || md.contains("| Global Systems |  | 001A00000000001 |")
+                || md.contains("|  | 001A00000000001 | Global Systems |")
+                || md.contains("| 001A00000000001 |  | Global Systems |")
+                || md.contains("| Global Systems | 001A00000000001 |  |")
+                || md.contains("|  | Global Systems | 001A00000000001 |")
+        );
     }
 }
