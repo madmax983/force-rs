@@ -302,7 +302,10 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
     /// }
     /// ```
     pub async fn describe(&self, sobject_name: &str) -> Result<describe::SObjectDescribe> {
-        let path = format!("/sobjects/{}/describe", sobject_name);
+        let path = format!(
+            "{}/describe",
+            crate::api::path_utils::format_absolute_sobject_path(sobject_name, None)
+        );
         self.execute_get(
             &path,
             None,

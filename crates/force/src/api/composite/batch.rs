@@ -77,7 +77,11 @@ impl<A: Authenticator> BatchRequest<A> {
     pub fn get(self, sobject: &str, id: &str) -> Result<Self> {
         validator::validate_sobject_name(sobject)?;
         validate_id(id)?;
-        self.add_request("GET", format!("sobjects/{}/{}", sobject, id), None)
+        self.add_request(
+            "GET",
+            crate::api::path_utils::format_sobject_path(sobject, Some(id)),
+            None,
+        )
     }
 
     /// Adds a POST (Create) request to the batch.
@@ -93,7 +97,11 @@ impl<A: Authenticator> BatchRequest<A> {
     /// or if the batch size limit (25) is exceeded.
     pub fn post(self, sobject: &str, body: Value) -> Result<Self> {
         validator::validate_sobject_name(sobject)?;
-        self.add_request("POST", format!("sobjects/{}", sobject), Some(body))
+        self.add_request(
+            "POST",
+            crate::api::path_utils::format_sobject_path(sobject, None),
+            Some(body),
+        )
     }
 
     /// Adds a PATCH (Update) request to the batch.
@@ -111,7 +119,11 @@ impl<A: Authenticator> BatchRequest<A> {
     pub fn patch(self, sobject: &str, id: &str, body: Value) -> Result<Self> {
         validator::validate_sobject_name(sobject)?;
         validate_id(id)?;
-        self.add_request("PATCH", format!("sobjects/{}/{}", sobject, id), Some(body))
+        self.add_request(
+            "PATCH",
+            crate::api::path_utils::format_sobject_path(sobject, Some(id)),
+            Some(body),
+        )
     }
 
     /// Adds a DELETE request to the batch.
@@ -128,7 +140,11 @@ impl<A: Authenticator> BatchRequest<A> {
     pub fn delete(self, sobject: &str, id: &str) -> Result<Self> {
         validator::validate_sobject_name(sobject)?;
         validate_id(id)?;
-        self.add_request("DELETE", format!("sobjects/{}/{}", sobject, id), None)
+        self.add_request(
+            "DELETE",
+            crate::api::path_utils::format_sobject_path(sobject, Some(id)),
+            None,
+        )
     }
 
     /// Adds a custom subrequest to the batch.

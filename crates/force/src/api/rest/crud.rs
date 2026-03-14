@@ -50,7 +50,7 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
     /// ```
     pub async fn create(&self, sobject: &str, data: &serde_json::Value) -> Result<CreateResponse> {
         validate_sobject_name(sobject)?;
-        let path = format!("/sobjects/{}", sobject);
+        let path = crate::api::path_utils::format_absolute_sobject_path(sobject, None);
         self.execute_post(&path, data, "Create request failed")
             .await
     }
@@ -78,7 +78,7 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
     /// ```
     pub async fn get(&self, sobject: &str, id: &SalesforceId) -> Result<serde_json::Value> {
         validate_sobject_name(sobject)?;
-        let path = format!("/sobjects/{}/{}", sobject, id.as_str());
+        let path = crate::api::path_utils::format_absolute_sobject_path(sobject, Some(id.as_str()));
         self.execute_get(&path, None, "Get request failed").await
     }
 
@@ -118,7 +118,7 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
         data: &serde_json::Value,
     ) -> Result<UpdateResponse> {
         validate_sobject_name(sobject)?;
-        let path = format!("/sobjects/{}/{}", sobject, id.as_str());
+        let path = crate::api::path_utils::format_absolute_sobject_path(sobject, Some(id.as_str()));
         self.execute_patch_empty(&path, data, "Update request failed")
             .await?;
         Ok(UpdateResponse::success())
@@ -146,7 +146,7 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
     /// ```
     pub async fn delete(&self, sobject: &str, id: &SalesforceId) -> Result<DeleteResponse> {
         validate_sobject_name(sobject)?;
-        let path = format!("/sobjects/{}/{}", sobject, id.as_str());
+        let path = crate::api::path_utils::format_absolute_sobject_path(sobject, Some(id.as_str()));
         self.execute_delete_empty(&path, "Delete request failed")
             .await?;
         Ok(DeleteResponse::success())
