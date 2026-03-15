@@ -4,17 +4,29 @@
 //! Bulk API 2.0 operations including ingest jobs and bulk queries.
 
 pub(crate) mod handler;
-pub mod ingest;
+pub(crate) mod ingest;
 pub(crate) mod policy;
-pub mod query;
-pub mod types;
+pub(crate) mod query;
+pub(crate) mod types;
 
 #[cfg(feature = "bulk")]
-pub mod csv;
+pub(crate) mod csv;
 
 #[cfg(feature = "bulk")]
-pub mod smart_ingest;
+pub(crate) mod smart_ingest;
 
 pub use handler::BulkHandler;
+pub use ingest::{InProgress, IngestJob, JobComplete, Open, UploadComplete};
 pub use policy::BulkPollPolicy;
-pub use query::BulkQueryStream;
+pub use query::{BulkQueryJobInfo, BulkQueryRequest, BulkQueryStream};
+pub use types::{
+    ContentType, CreateJobRequest, JobInfo, JobOperation, JobState, LineEnding, UpdateJobRequest,
+};
+
+#[cfg(feature = "bulk")]
+pub use csv::{
+    deserialize_from_csv, process_csv_batches, serialize_to_csv, serialize_to_csv_with_options,
+};
+
+#[cfg(feature = "bulk")]
+pub use smart_ingest::SmartIngest;
