@@ -445,12 +445,25 @@ mod tests {
     fn test_havoc_path_traversal() {
         let graph = Graph::new("graph1");
 
-        // This should fail validation but currently doesn't!
-        let result = graph.get("Account", "../../../../../etc/passwd", "ref1");
-
+        // GET validation
+        let result_get = graph.clone().get("Account", "../../../../../etc/passwd", "ref1");
         assert!(
-            result.is_err(),
-            "👺 Havoc: Path traversal successfully passed into ID parameter!"
+            result_get.is_err(),
+            "👺 Havoc: Path traversal successfully passed into GET ID parameter!"
+        );
+
+        // PATCH validation
+        let result_patch = graph.clone().patch("Account", "../../../../../etc/passwd", json!({}), "ref1");
+        assert!(
+            result_patch.is_err(),
+            "👺 Havoc: Path traversal successfully passed into PATCH ID parameter!"
+        );
+
+        // DELETE validation
+        let result_delete = graph.delete("Account", "../../../../../etc/passwd", "ref1");
+        assert!(
+            result_delete.is_err(),
+            "👺 Havoc: Path traversal successfully passed into DELETE ID parameter!"
         );
     }
 
@@ -458,12 +471,32 @@ mod tests {
     fn test_havoc_invalid_reference_id() {
         let graph = Graph::new("graph1");
 
-        // This should fail validation but currently doesn't!
-        let result = graph.get("Account", "001xx000003DHP0AAO", "invalid ref id! @#$");
-
+        // GET validation
+        let result_get = graph.clone().get("Account", "001xx000003DHP0AAO", "invalid ref id! @#$");
         assert!(
-            result.is_err(),
-            "👺 Havoc: Invalid characters successfully passed into reference_id!"
+            result_get.is_err(),
+            "👺 Havoc: Invalid characters successfully passed into GET reference_id!"
+        );
+
+        // POST validation
+        let result_post = graph.clone().post("Account", json!({}), "invalid ref id! @#$");
+        assert!(
+            result_post.is_err(),
+            "👺 Havoc: Invalid characters successfully passed into POST reference_id!"
+        );
+
+        // PATCH validation
+        let result_patch = graph.clone().patch("Account", "001xx000003DHP0AAO", json!({}), "invalid ref id! @#$");
+        assert!(
+            result_patch.is_err(),
+            "👺 Havoc: Invalid characters successfully passed into PATCH reference_id!"
+        );
+
+        // DELETE validation
+        let result_delete = graph.delete("Account", "001xx000003DHP0AAO", "invalid ref id! @#$");
+        assert!(
+            result_delete.is_err(),
+            "👺 Havoc: Invalid characters successfully passed into DELETE reference_id!"
         );
     }
 }
