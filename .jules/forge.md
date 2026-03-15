@@ -25,3 +25,10 @@
 **[Enforce Idiomatic Test Unwrap]**
 **Learning:** Re-implementing unwraps with `#![allow(clippy::unwrap_used)]` or manual expect inside tests suppresses useful lints and introduces repetitive failure messages.
 **Action:** Consistently replace `unwrap()`/`expect()` in tests with the internal extension traits `.must()` and `.must_msg()` provided in `crate::test_support`. For `.unwrap_err()`, instead use explicit match destructing such as `let Err(err) = result else { panic!(...) }`.
+**Field Validation Struct Extraction**\n**Learning:** Large character parsing loops implementing complex state machines become unreadable and hard to maintain when packed into a single function.\n**Action:** Extract long state machines into a clear structs with well-named internal state transitions (e.g. , ) to reduce cognitive load.
+**Field Validation Struct Extraction**
+**Learning:** Large character parsing loops implementing complex state machines become unreadable and hard to maintain when packed into a single function.
+**Action:** Extract long state machines into a clear structs with well-named internal state transitions to reduce cognitive load.
+**SObject Path Formatting**
+**Learning:** Repetitive string formatting for API paths (like `/sobjects/{}` and `/sobjects/{}/{id}`) across multiple methods causes visual noise and copy-paste vulnerabilities.
+**Action:** Centralize path construction into pure helper functions (e.g., `format_sobject_path(sobject: &str, id: Option<&str>) -> String`) to enforce DRY principles.

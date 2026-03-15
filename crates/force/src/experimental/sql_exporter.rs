@@ -42,10 +42,10 @@ impl SqlExporter {
     /// if it exists.
     #[must_use]
     pub fn generate_ddl(describe: &SObjectDescribe) -> String {
-        let mut ddl = String::with_capacity(1024);
-        ddl.push_str(&format!("CREATE TABLE {} (\n", describe.name));
+        use std::fmt::Write;
 
-        let mut field_defs = Vec::with_capacity(describe.fields.len());
+        let mut ddl = String::with_capacity(1024);
+        let _ = writeln!(ddl, "CREATE TABLE {} (", describe.name);
 
         // Sort fields alphabetically to ensure deterministic output,
         // but always put 'Id' first if it exists.
@@ -61,24 +61,28 @@ impl SqlExporter {
             }
         });
 
+        // ⚡ Bolt: Append directly to `ddl` buffer instead of collecting into an intermediate `field_defs` Vec and calling `.join(",\n")`.
+        let mut first = true;
         for field in fields {
+            if !first {
+                ddl.push_str(",\n");
+            }
+            first = false;
+
             let sql_type = Self::map_field_type(&field.type_, field.length);
 
-            let mut field_def = format!("    {} {}", field.name, sql_type);
+            let _ = write!(ddl, "    {} {}", field.name, sql_type);
 
             if field.name == "Id" {
-                field_def.push_str(" PRIMARY KEY");
+                ddl.push_str(" PRIMARY KEY");
             } else if !field.nillable && !field.defaulted_on_create {
                 // If it's required and doesn't have a default on create, it should probably be NOT NULL
                 // However, standard Salesforce behavior often allows inserts when a trigger sets the value,
                 // but for SQL consistency we can add NOT NULL for strict mappings.
-                field_def.push_str(" NOT NULL");
+                ddl.push_str(" NOT NULL");
             }
-
-            field_defs.push(field_def);
         }
 
-        ddl.push_str(&field_defs.join(",\n"));
         ddl.push_str("\n);");
 
         ddl

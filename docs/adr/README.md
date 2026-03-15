@@ -42,18 +42,15 @@ ADRs follow this structure:
 | [006](006-handler-pattern.md) | Handler Pattern for API Operations | Accepted | 2026-02-07 |
 | [007](007-rest-api-design.md) | REST API Design Decisions | Accepted | 2026-02-07 |
 | [008](008-bulk-api-design.md) | Bulk API 2.0 Design Decisions | Accepted | 2026-02-08 |
-| [009](009-decouple-storage-from-core.md) | Decouple Storage from Core | Proposed | 2026-02-17 |
-
-### Future ADRs
-
-Planned ADRs for upcoming decisions:
-- **ADR-010**: SOQL Query Builder Design
-- **ADR-011**: Bulk API Job Management
-- **ADR-012**: Pub/Sub gRPC Integration
-- **ADR-013**: Testing Strategy and Mock Framework
-- **ADR-014**: Logging and Observability
-- **ADR-015**: Connection Pooling Configuration
-- **ADR-016**: API Versioning Strategy
+| [009](009-decouple-storage-from-core.md) | Decouple Storage from Core | Superseded | 2026-02-17 |
+| [010](010-internal-shared-state.md) | Internal Shared State Pattern | Accepted | 2026-02-17 |
+| [011](011-remove-pub-sub-support.md) | Remove Pub/Sub Support | Accepted | 2024-05-22 |
+| [012](012-http-layer-refactoring.md) | HTTP Layer Refactoring & Observability | Accepted | 2026-02-17 |
+| [013](013-rename-inner-to-session.md) | Rename Inner to Session | Accepted | 2026-02-18 |
+| [014](014-query-plan-support.md) | Query Plan Support (Nova) | Accepted | 2026-02-18 |
+| [015](015-merge-storage-into-auth.md) | Merge Storage Logic into Auth | Accepted | 2026-02-18 |
+| [016](016-isolate-auth-types.md) | Isolate Auth Types | Accepted | 2026-03-02 |
+| [017](017-decomposed-rest-api.md) | Decomposed REST API Module | Accepted | 2026-03-05 |
 
 ## Decision Process
 
@@ -88,6 +85,12 @@ graph TD
     ADR003 --> ADR007
 
     ADR002 --> ADR009[ADR-009: Decouple Storage]
+
+    ADR009 -.->|Superseded by| ADR015[ADR-015: Merge Storage into Auth]
+    ADR006 --> ADR010[ADR-010: Internal Shared State]
+    ADR006 --> ADR012[ADR-012: HTTP Layer Refactoring]
+    ADR010 --> ADR013[ADR-013: Rename Inner to Session]
+    ADR007 --> ADR017[ADR-017: Decomposed REST API]
 
     style ADR001 fill:#4a9eff
     style ADR002 fill:#ffd43b

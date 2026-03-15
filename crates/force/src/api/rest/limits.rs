@@ -106,7 +106,7 @@ pub struct OrgLimits {
 /// # Examples
 ///
 /// ```
-/// use force::api::rest::limits::LimitInfo;
+/// use force::api::rest::LimitInfo;
 ///
 /// let limit = LimitInfo {
 ///     max: 15000,
@@ -155,7 +155,7 @@ impl LimitInfo {
     /// # Examples
     ///
     /// ```
-    /// use force::api::rest::limits::LimitInfo;
+    /// use force::api::rest::LimitInfo;
     ///
     /// let limit = LimitInfo::new(1000, 250, Some(750));
     /// assert_eq!(limit.percentage_used(), 75.0);
@@ -186,7 +186,7 @@ impl LimitInfo {
     /// # Examples
     ///
     /// ```
-    /// use force::api::rest::limits::LimitInfo;
+    /// use force::api::rest::LimitInfo;
     ///
     /// let limit = LimitInfo::new(1000, 100, Some(900));
     /// assert!(limit.is_above_threshold(80.0));

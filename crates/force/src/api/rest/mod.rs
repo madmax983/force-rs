@@ -4,16 +4,22 @@
 //! REST API operations including CRUD, queries, and metadata operations.
 
 pub(crate) mod crud;
-pub mod describe;
+pub(crate) mod describe;
 #[cfg(feature = "nova")]
 pub(crate) mod explain;
-pub mod limits;
+pub(crate) mod limits;
 pub(crate) mod query;
 pub(crate) mod query_stream;
-pub mod search;
+pub(crate) mod search;
 
 pub use crate::api::soql::{SoqlQueryBuilder, escape_soql};
+pub use describe::{
+    ChildRelationship, FieldDescribe, FieldType, FilteredLookupInfo, GlobalDescribe,
+    GlobalSObjectDescribe, PicklistValue, RecordTypeInfo, SObjectDescribe,
+};
+pub use limits::{LimitInfo, OrgLimits};
 pub use query_stream::QueryStream;
+pub use search::{SearchAttributes, SearchQueryBuilder, SearchRecords, SearchResult};
 
 use crate::error::Result;
 use serde::de::DeserializeOwned;
@@ -302,7 +308,10 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
     /// }
     /// ```
     pub async fn describe(&self, sobject_name: &str) -> Result<describe::SObjectDescribe> {
-        let path = format!("/sobjects/{}/describe", sobject_name);
+        let path = format!(
+            "{}/describe",
+            crate::api::path_utils::format_absolute_sobject_path(sobject_name, None)
+        );
         self.execute_get(
             &path,
             None,

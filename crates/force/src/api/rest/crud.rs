@@ -50,7 +50,7 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
     /// ```
     pub async fn create(&self, sobject: &str, data: &serde_json::Value) -> Result<CreateResponse> {
         validate_sobject_name(sobject)?;
-        let path = format!("/sobjects/{}", sobject);
+        let path = crate::api::path_utils::format_absolute_sobject_path(sobject, None);
         self.execute_post(&path, data, "Create request failed")
             .await
     }
@@ -78,7 +78,7 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
     /// ```
     pub async fn get(&self, sobject: &str, id: &SalesforceId) -> Result<serde_json::Value> {
         validate_sobject_name(sobject)?;
-        let path = format!("/sobjects/{}/{}", sobject, id.as_str());
+        let path = crate::api::path_utils::format_absolute_sobject_path(sobject, Some(id.as_str()));
         self.execute_get(&path, None, "Get request failed").await
     }
 
@@ -118,7 +118,7 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
         data: &serde_json::Value,
     ) -> Result<UpdateResponse> {
         validate_sobject_name(sobject)?;
-        let path = format!("/sobjects/{}/{}", sobject, id.as_str());
+        let path = crate::api::path_utils::format_absolute_sobject_path(sobject, Some(id.as_str()));
         self.execute_patch_empty(&path, data, "Update request failed")
             .await?;
         Ok(UpdateResponse::success())
@@ -146,7 +146,7 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
     /// ```
     pub async fn delete(&self, sobject: &str, id: &SalesforceId) -> Result<DeleteResponse> {
         validate_sobject_name(sobject)?;
-        let path = format!("/sobjects/{}/{}", sobject, id.as_str());
+        let path = crate::api::path_utils::format_absolute_sobject_path(sobject, Some(id.as_str()));
         self.execute_delete_empty(&path, "Delete request failed")
             .await?;
         Ok(DeleteResponse::success())
@@ -282,7 +282,6 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
     }
 }
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use crate::client::builder;
@@ -346,7 +345,9 @@ mod tests {
         let rest = client.rest();
         let result = rest.create("Account", &json!({})).await;
 
-        let err = result.unwrap_err();
+        let Err(err) = result else {
+            panic!("Expected Err")
+        };
         assert!(err.to_string().contains("Required fields are missing"));
     }
 
@@ -372,7 +373,9 @@ mod tests {
             .create("Account", &json!({"InvalidField": "value"}))
             .await;
 
-        let err = result.unwrap_err();
+        let Err(err) = result else {
+            panic!("Expected Err")
+        };
         assert!(err.to_string().contains("No such column 'InvalidField'"));
     }
 
@@ -429,7 +432,9 @@ mod tests {
         let id = SalesforceId::new("003000000000001").must();
         let result = rest.get("Contact", &id).await;
 
-        let err = result.unwrap_err();
+        let Err(err) = result else {
+            panic!("Expected Err")
+        };
         assert!(
             err.to_string()
                 .contains("Provided external ID field does not exist or is not accessible")
@@ -490,7 +495,9 @@ mod tests {
             .update("Account", &id, &json!({"Phone": "555-0100"}))
             .await;
 
-        let err = result.unwrap_err();
+        let Err(err) = result else {
+            panic!("Expected Err")
+        };
         assert!(err.to_string().contains("Entity is deleted"));
     }
 
@@ -519,7 +526,9 @@ mod tests {
             .update("Account", &id, &json!({"BadField": "value"}))
             .await;
 
-        let err = result.unwrap_err();
+        let Err(err) = result else {
+            panic!("Expected Err")
+        };
         assert!(err.to_string().contains("No such column 'BadField'"));
     }
 
@@ -571,7 +580,9 @@ mod tests {
         let id = SalesforceId::new("001000000000003").must();
         let result = rest.delete("Account", &id).await;
 
-        let err = result.unwrap_err();
+        let Err(err) = result else {
+            panic!("Expected Err")
+        };
         assert!(err.to_string().contains("Entity is deleted"));
     }
 
@@ -677,7 +688,9 @@ mod tests {
             )
             .await;
 
-        let err = result.unwrap_err();
+        let Err(err) = result else {
+            panic!("Expected Err")
+        };
         assert!(err.to_string().contains("temporary outage"));
     }
 
@@ -781,7 +794,9 @@ mod tests {
             .upsert("Account", "BadField__c", "VALUE", &json!({"Name": "Test"}))
             .await;
 
-        let err = result.unwrap_err();
+        let Err(err) = result else {
+            panic!("Expected Err")
+        };
         assert!(
             err.to_string()
                 .contains("Provided external ID field does not exist or is not accessible")

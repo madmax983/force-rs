@@ -16,6 +16,7 @@ This journal records the findings of the Elenchus test audit.
 | **Acquitted** | `crates/force/src/experimental/query_batch.rs` | 🟢 Acquitted | Initial audit found missing coverage for `halt_on_error`, empty results, and partial failures. Added `test_query_batch_halt_on_error`, `test_query_batch_empty_results`, and `test_query_batch_mixed_results`. |
 | **Acquitted** | `crates/force/src/api/composite/batch.rs` | 🟢 Acquitted | Initial audit found tautological encoding tests and fragile JSON assertions. Refactored to use hardcoded "golden" strings and structural JSON validation. |
 | **Strengthened** | `crates/force/src/experimental/type_generator.rs` | 🔴 Critical | Replace `.contains()` checks with exact match (`assert_eq!`) against a golden string. Enhance case-conversion tests with comprehensive cases. Added missing coverage for `map_type`. |
+| **Strengthened** | `crates/force/src/experimental/schema_analyzer.rs` | 🔴 Critical | Original test `test_schema_analyzer` provided only 6 total fields, meaning that the `total_fields / 10` division resulted in `0`. Tests did not effectively test logic. |
 
 ## Detailed Findings
 
@@ -163,3 +164,10 @@ match result {
 **Evidence:**
 - `cargo mutants` reported that multiple mutations within `validate_reference_id` (e.g., `replace || with &&`, `replace validate_reference_id -> Result<()> with Ok(())`) and `validate_graph_id` went uncaught by the test suite.
 **Recommendation:** Replaced `assert!(result.is_err())` with explicit unwrapping and assertion of the returned error context to guarantee that the test fails if the *specific* validation fails, ensuring it correctly catches logic regressions.
+### [Strengthened] `crates/force/src/experimental/schema_analyzer.rs`
+
+**Module:** `crates/force/src/experimental/schema_analyzer.rs`
+**Severity:** 🔴 Critical
+**Finding:** The original test `test_schema_analyzer` provided only 6 total fields, meaning that the `total_fields / 10` division resulted in `0`. This made the test blind to mutants replacing division `/` with multiplication `*` (`6 * 10 = 60`), which caused false confidence. Additionally, the existing test inputs did not robustly exercise all `+` and `*` operators in the `complexity_score` calculation.
+**Evidence:** `cargo mutants` revealed that multiple logic mutants in `SchemaAnalyzer::analyze` replacing `*` with `+` or `/`, and `/` with `*` survived, indicating that the test suite was insufficiently sensitive to mathematical logic errors and edge cases in the scoring heuristic.
+**Recommendation:** Added `test_schema_analyzer_complexity_math` with exactly 12 fields (so `12 / 10 = 1`) and non-zero counts for custom, formula, and relationship fields to ensure all mathematical operations `*`, `/`, and `+` produce meaningful, non-identity/non-zero outcomes that effectively kill the mathematical mutants.
