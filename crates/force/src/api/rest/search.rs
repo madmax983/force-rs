@@ -88,8 +88,9 @@ pub struct SearchAttributes {
 pub struct SearchQueryBuilder {
     /// Search text.
     search_text: String,
+    /// ⚡ Bolt: Using `&'static str` for predefined search scopes avoids `.to_string()` heap allocations.
     /// Search scope (e.g., "ALL FIELDS", "NAME FIELDS").
-    search_scope: Option<String>,
+    search_scope: Option<&'static str>,
     /// Objects and fields to return.
     returning: Vec<(String, Vec<String>)>,
     /// Maximum number of records per object.
@@ -127,35 +128,35 @@ impl SearchQueryBuilder {
     /// Searches in all fields.
     #[must_use]
     pub fn in_all_fields(mut self) -> Self {
-        self.search_scope = Some("ALL FIELDS".to_string());
+        self.search_scope = Some("ALL FIELDS");
         self
     }
 
     /// Searches in name fields only.
     #[must_use]
     pub fn in_name_fields(mut self) -> Self {
-        self.search_scope = Some("NAME FIELDS".to_string());
+        self.search_scope = Some("NAME FIELDS");
         self
     }
 
     /// Searches in email fields only.
     #[must_use]
     pub fn in_email_fields(mut self) -> Self {
-        self.search_scope = Some("EMAIL FIELDS".to_string());
+        self.search_scope = Some("EMAIL FIELDS");
         self
     }
 
     /// Searches in phone fields only.
     #[must_use]
     pub fn in_phone_fields(mut self) -> Self {
-        self.search_scope = Some("PHONE FIELDS".to_string());
+        self.search_scope = Some("PHONE FIELDS");
         self
     }
 
     /// Searches in sidebar fields only.
     #[must_use]
     pub fn in_sidebar_fields(mut self) -> Self {
-        self.search_scope = Some("SIDEBAR FIELDS".to_string());
+        self.search_scope = Some("SIDEBAR FIELDS");
         self
     }
 
