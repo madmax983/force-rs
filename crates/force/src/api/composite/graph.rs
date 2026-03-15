@@ -530,10 +530,18 @@ mod tests {
         // This should fail validation but currently doesn't!
         let result = graph.get("Account", "../../../../../etc/passwd", "ref1");
 
-        assert!(
-            result.is_err(),
-            "👺 Havoc: Path traversal successfully passed into ID parameter!"
-        );
+        let Err(err) = result else {
+            panic!("Expected an error");
+        };
+        match err {
+            crate::error::ForceError::InvalidInput(msg) => {
+                assert!(msg.contains("invalid path traversal characters"));
+            }
+            _ => panic!(
+                "Expected InvalidInput error for path traversal, got: {:?}",
+                err
+            ),
+        }
     }
 
     #[test]
@@ -543,9 +551,17 @@ mod tests {
         // This should fail validation but currently doesn't!
         let result = graph.get("Account", "001xx000003DHP0AAO", "invalid ref id! @#$");
 
-        assert!(
-            result.is_err(),
-            "👺 Havoc: Invalid characters successfully passed into reference_id!"
-        );
+        let Err(err) = result else {
+            panic!("Expected an error");
+        };
+        match err {
+            crate::error::ForceError::InvalidInput(msg) => {
+                assert!(msg.contains("Reference ID contains invalid characters"));
+            }
+            _ => panic!(
+                "Expected InvalidInput error for invalid reference id, got: {:?}",
+                err
+            ),
+        }
     }
 }
