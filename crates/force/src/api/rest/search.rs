@@ -253,19 +253,30 @@ impl SearchQueryBuilder {
 
         query.push_str(" RETURNING ");
 
-        let returning_clauses: Vec<String> = self
-            .returning
-            .into_iter()
-            .map(|(sobject, fields)| {
-                if fields.is_empty() {
-                    sobject
-                } else {
-                    format!("{}({})", sobject, fields.join(", "))
+        #[allow(unused_doc_comments)]
+        /// ⚡ Bolt: Prefer manual `for` loops utilizing `std::fmt::Write` directly to the buffer over `.iter().map().collect::<Vec<_>>().join(", ")` pipelines to avoid unnecessary intermediate heap allocations.
+        let mut first_returning = true;
+        for (sobject, fields) in self.returning {
+            if first_returning {
+                first_returning = false;
+            } else {
+                query.push_str(", ");
+            }
+            query.push_str(&sobject);
+            if !fields.is_empty() {
+                query.push('(');
+                let mut first_field = true;
+                for field in fields {
+                    if first_field {
+                        first_field = false;
+                    } else {
+                        query.push_str(", ");
+                    }
+                    query.push_str(&field);
                 }
-            })
-            .collect();
-
-        query.push_str(&returning_clauses.join(", "));
+                query.push(')');
+            }
+        }
 
         if let Some(limit) = self.limit {
             write!(&mut query, " LIMIT {}", limit)

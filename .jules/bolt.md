@@ -16,3 +16,7 @@
 **Avoid `.clone()` in `Arc::new()`**
 **Learning:** Initializing an `Arc` by cloning the source variable (`Arc::new(val.clone())`) instead of moving it (`Arc::new(val)`) causes a completely unnecessary deep copy and heap allocation.
 **Action:** When transferring ownership of a newly created object to an `Arc` where the original variable is no longer needed, pass ownership directly without calling `.clone()`.
+
+**Search Returning Clause Formatting**
+**Learning:** Repetitive string formatting and collecting intermediate structures (like `.map(|_| format!(...)).collect::<Vec<_>>().join(", ")`) causes unnecessary allocations and memory overhead.
+**Action:** Replace map-collect-join pipelines with a direct `for` loop utilizing `std::fmt::Write` to build strings without intermediate allocations.
