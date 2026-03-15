@@ -57,7 +57,7 @@ impl BulkQueryRequest {
     /// # Examples
     ///
     /// ```
-    /// use force::api::bulk::query::BulkQueryRequest;
+    /// use force::api::bulk::BulkQueryRequest;
     ///
     /// let request = BulkQueryRequest::new("SELECT Id, Name FROM Account WHERE CreatedDate > TODAY");
     /// ```
@@ -304,7 +304,7 @@ impl<A: crate::auth::Authenticator> super::BulkHandler<A> {
     /// # Examples
     ///
     /// ```ignore
-    /// use force::api::bulk::query::BulkQueryRequest;
+    /// use force::api::bulk::BulkQueryRequest;
     ///
     /// let request = BulkQueryRequest::new("SELECT Id, Name FROM Account");
     /// let job = client.bulk().create_query_job(request).await?;
