@@ -8,6 +8,46 @@ use crate::error::Result;
 use serde::{Deserialize, Serialize};
 use std::io::{Read, Write};
 
+/// A wrapper around a Read instance that limits the number of bytes that can be read.
+/// This prevents memory exhaustion from unexpectedly large payloads (e.g. DoS attacks).
+struct LimitReader<R> {
+    inner: R,
+    limit: u64,
+    bytes_read: u64,
+}
+
+impl<R: Read> LimitReader<R> {
+    fn new(inner: R, limit: u64) -> Self {
+        Self {
+            inner,
+            limit,
+            bytes_read: 0,
+        }
+    }
+}
+
+impl<R: Read> Read for LimitReader<R> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        let remaining = self.limit.saturating_sub(self.bytes_read);
+        if remaining == 0 {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "Payload exceeded maximum size limit",
+            ));
+        }
+
+        let max_read = std::cmp::min(buf.len() as u64, remaining);
+        // max_read is bounded by buf.len() which is a usize, so the cast is safe
+        #[allow(clippy::cast_possible_truncation)]
+        let max_read_usize = max_read as usize;
+
+        let n = self.inner.read(&mut buf[..max_read_usize])?;
+        self.bytes_read = self.bytes_read.saturating_add(n as u64);
+
+        Ok(n)
+    }
+}
+
 /// Serializes a collection of records to CSV format.
 ///
 /// Writes the records as CSV with headers to the provided writer. This function
@@ -125,7 +165,8 @@ where
     T: for<'de> Deserialize<'de>,
     R: Read,
 {
-    let mut csv_reader = csv::Reader::from_reader(reader);
+    let limited_reader = LimitReader::new(reader, 150 * 1024 * 1024);
+    let mut csv_reader = csv::Reader::from_reader(limited_reader);
     let mut records = Vec::new();
 
     for result in csv_reader.deserialize() {
