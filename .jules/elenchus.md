@@ -154,3 +154,12 @@ match result {
 **Finding:** Mutation testing revealed that replacing `>` with `>=` in the `1024 * 1024` byte stream limit logic survived in `authenticate` methods for both `JwtBearerFlow` and `ClientCredentials`. Analysis showed this is an equivalent mutant; truncating exactly at 1MB or waiting for the next chunk to exceed 1MB results in the same final bounded string length, making the mutation practically unobservable without internal side channels.
 **Evidence:** `cargo mutants` output showing exactly one missed mutant: `replace > with >= in <impl Authenticator for JwtBearerFlow>::authenticate`.
 **Recommendation:** Acknowledge the limitation of mutation tools concerning equivalent mutants. No further testing or code change is needed for these specific truncation lines as they correctly enforce the 1MB cap.
+
+### [Strengthened] `crates/force/src/api/composite/graph.rs`
+
+**Module:** `crates/force/src/api/composite/graph.rs`
+**Severity:** 🟡 Suspect
+**Finding:** The `test_havoc_path_traversal` and `test_havoc_invalid_reference_id` tests used weak "Ceremony Test" assertions (`assert!(result.is_err())`). This provided false confidence because functions could fail for entirely unrelated reasons, or they could falsely pass tests if a mutant accidentally converted validation logic to return `Ok(())` while another validation logic step failed.
+**Evidence:**
+- `cargo mutants` reported that multiple mutations within `validate_reference_id` (e.g., `replace || with &&`, `replace validate_reference_id -> Result<()> with Ok(())`) and `validate_graph_id` went uncaught by the test suite.
+**Recommendation:** Replaced `assert!(result.is_err())` with explicit unwrapping and assertion of the returned error context to guarantee that the test fails if the *specific* validation fails, ensuring it correctly catches logic regressions.
