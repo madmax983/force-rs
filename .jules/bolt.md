@@ -16,3 +16,7 @@
 **Avoid `.clone()` in `Arc::new()`**
 **Learning:** Initializing an `Arc` by cloning the source variable (`Arc::new(val.clone())`) instead of moving it (`Arc::new(val)`) causes a completely unnecessary deep copy and heap allocation.
 **Action:** When transferring ownership of a newly created object to an `Arc` where the original variable is no longer needed, pass ownership directly without calling `.clone()`.
+
+**[Zero-Cost Static String Options]**
+**Learning:** For builder pattern fields that only accept a small set of predefined string values (e.g., specific search scopes), using `Option<String>` and `.to_string()` forces unnecessary heap allocations.
+**Action:** Define the property as `Option<&'static str>` instead and assign the static slice directly to avoid the runtime cost.
