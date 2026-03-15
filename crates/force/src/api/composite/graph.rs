@@ -446,14 +446,19 @@ mod tests {
         let graph = Graph::new("graph1");
 
         // GET validation
-        let result_get = graph.clone().get("Account", "../../../../../etc/passwd", "ref1");
+        let result_get = graph
+            .clone()
+            .get("Account", "../../../../../etc/passwd", "ref1");
         assert!(
             result_get.is_err(),
             "👺 Havoc: Path traversal successfully passed into GET ID parameter!"
         );
 
         // PATCH validation
-        let result_patch = graph.clone().patch("Account", "../../../../../etc/passwd", json!({}), "ref1");
+        let result_patch =
+            graph
+                .clone()
+                .patch("Account", "../../../../../etc/passwd", json!({}), "ref1");
         assert!(
             result_patch.is_err(),
             "👺 Havoc: Path traversal successfully passed into PATCH ID parameter!"
@@ -472,21 +477,30 @@ mod tests {
         let graph = Graph::new("graph1");
 
         // GET validation
-        let result_get = graph.clone().get("Account", "001xx000003DHP0AAO", "invalid ref id! @#$");
+        let result_get = graph
+            .clone()
+            .get("Account", "001xx000003DHP0AAO", "invalid ref id! @#$");
         assert!(
             result_get.is_err(),
             "👺 Havoc: Invalid characters successfully passed into GET reference_id!"
         );
 
         // POST validation
-        let result_post = graph.clone().post("Account", json!({}), "invalid ref id! @#$");
+        let result_post = graph
+            .clone()
+            .post("Account", json!({}), "invalid ref id! @#$");
         assert!(
             result_post.is_err(),
             "👺 Havoc: Invalid characters successfully passed into POST reference_id!"
         );
 
         // PATCH validation
-        let result_patch = graph.clone().patch("Account", "001xx000003DHP0AAO", json!({}), "invalid ref id! @#$");
+        let result_patch = graph.clone().patch(
+            "Account",
+            "001xx000003DHP0AAO",
+            json!({}),
+            "invalid ref id! @#$",
+        );
         assert!(
             result_patch.is_err(),
             "👺 Havoc: Invalid characters successfully passed into PATCH reference_id!"
