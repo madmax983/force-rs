@@ -6,7 +6,7 @@
 
 #[cfg(feature = "bulk")]
 #[deprecated(since = "0.2.0", note = "Use `crate::api::bulk::smart_ingest` instead")]
-pub use crate::api::bulk::smart_ingest;
+pub use crate::api::bulk::SmartIngest;
 
 #[cfg(feature = "rest")]
 pub(crate) mod scanner;

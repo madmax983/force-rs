@@ -7,8 +7,8 @@
 #![allow(clippy::expect_used)]
 
 use async_trait::async_trait;
-use force::api::bulk::csv::{process_csv_batches, serialize_to_csv};
-use force::api::bulk::types::JobOperation;
+use force::api::bulk::JobOperation;
+use force::api::bulk::{process_csv_batches, serialize_to_csv};
 use force::auth::{AccessToken, Authenticator, TokenResponse};
 use force::client::builder;
 use force::error::Result;

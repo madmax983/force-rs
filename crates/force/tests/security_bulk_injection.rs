@@ -4,7 +4,7 @@
 #![allow(clippy::expect_used)]
 
 use async_trait::async_trait;
-use force::api::bulk::types::{CreateJobRequest, JobOperation};
+use force::api::bulk::{CreateJobRequest, JobOperation};
 use force::auth::{AccessToken, Authenticator, TokenResponse};
 use force::client::builder;
 use force::error::{ForceError, Result};

@@ -3,9 +3,9 @@
 #[cfg(feature = "bulk")]
 mod example {
     use anyhow::Context;
-    use force::api::bulk::csv::{deserialize_from_csv, serialize_to_csv};
-    use force::api::bulk::ingest::IngestJob;
-    use force::api::bulk::types::JobOperation;
+    use force::api::bulk::IngestJob;
+    use force::api::bulk::JobOperation;
+    use force::api::bulk::{deserialize_from_csv, serialize_to_csv};
     use force::auth::ClientCredentials;
     use force::client::{ForceClient, ForceClientBuilder};
     use serde::{Deserialize, Serialize};

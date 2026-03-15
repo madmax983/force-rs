@@ -27,7 +27,7 @@ use std::io::{Read, Write};
 /// # Examples
 ///
 /// ```
-/// use force::api::bulk::csv::serialize_to_csv;
+/// use force::api::bulk::serialize_to_csv;
 /// use serde::Serialize;
 ///
 /// #[derive(Serialize)]
@@ -107,7 +107,7 @@ where
 /// # Examples
 ///
 /// ```
-/// use force::api::bulk::csv::deserialize_from_csv;
+/// use force::api::bulk::deserialize_from_csv;
 /// use serde::Deserialize;
 ///
 /// #[derive(Deserialize)]
@@ -157,7 +157,7 @@ where
 /// # Examples
 ///
 /// ```
-/// use force::api::bulk::csv::process_csv_batches;
+/// use force::api::bulk::process_csv_batches;
 /// use serde::Deserialize;
 ///
 /// #[derive(Deserialize)]
