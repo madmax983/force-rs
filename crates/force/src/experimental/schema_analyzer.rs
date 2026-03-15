@@ -200,4 +200,33 @@ mod tests {
         // Total = 17
         assert_eq!(insights.complexity_score, 17);
     }
+
+    #[test]
+    fn test_schema_analyzer_complexity_math() {
+        let describe = create_mock_describe(&json!([
+            mock_field("Id", "id", false, false, true, false),
+            mock_field("Name", "string", false, false, false, false),
+            mock_field("Custom1__c", "string", true, true, false, false),
+            mock_field("Custom2__c", "string", true, true, false, false),
+            mock_field("Custom3__c", "string", true, true, false, false),
+            mock_field("Formula1__c", "double", true, true, false, true),
+            mock_field("Formula2__c", "double", true, true, false, true),
+            mock_field("Rel1__c", "reference", true, true, false, false),
+            mock_field("Rel2__c", "reference", true, true, false, false),
+            mock_field("Standard1", "string", false, true, false, false),
+            mock_field("Standard2", "string", false, true, false, false),
+            mock_field("Standard3", "string", false, true, false, false)
+        ]));
+
+        let analyzer = SchemaAnalyzer::new();
+        let insights = analyzer.analyze(&describe);
+
+        assert_eq!(insights.total_fields, 12);
+        assert_eq!(insights.custom_field_count, 7);
+        assert_eq!(insights.formula_field_count, 2);
+        assert_eq!(insights.relationship_field_count, 2);
+
+        // Score logic: 1 + 14 + 10 + 6 = 31
+        assert_eq!(insights.complexity_score, 31);
+    }
 }
