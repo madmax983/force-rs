@@ -671,6 +671,14 @@ mod tests {
     }
 
     #[test]
+    #[should_panic(
+        expected = "Invalid input in select: invalid input: Field name contains invalid character ';': Invalid;DROP"
+    )]
+    fn test_select_panics_on_invalid_field() {
+        let _ = SoqlQueryBuilder::new().select(&["Valid", "Invalid;DROP"]);
+    }
+
+    #[test]
     fn test_build_errors() {
         // Missing fields
         let builder = SoqlQueryBuilder::new().from("Account");
