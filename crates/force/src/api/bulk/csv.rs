@@ -120,12 +120,105 @@ where
 /// let accounts: Vec<Account> = deserialize_from_csv(csv_data.as_bytes())?;
 /// # Ok::<(), force::error::ForceError>(())
 /// ```
+struct LimitReader<R> {
+    inner: R,
+    limit: u64,
+    bytes_read: u64,
+}
+
+impl<R: Read> LimitReader<R> {
+    fn new(inner: R, limit: u64) -> Self {
+        Self {
+            inner,
+            limit,
+            bytes_read: 0,
+        }
+    }
+}
+
+impl<R: Read> Read for LimitReader<R> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        if self.bytes_read >= self.limit {
+            // Attempt to read one more byte to see if we're actually at EOF
+            let mut check_buf = [0; 1];
+            let n = self.inner.read(&mut check_buf)?;
+            if n == 0 {
+                return Ok(0); // Actually EOF, exactly at limit
+            } else {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    "Payload exceeds maximum allowed size of 150MB",
+                ));
+            }
+        }
+
+        let remaining = self.limit.saturating_sub(self.bytes_read);
+        let max_read = remaining.saturating_add(1);
+        let max_read_usize = usize::try_from(max_read).unwrap_or(usize::MAX);
+
+        let read_len = std::cmp::min(buf.len(), max_read_usize);
+        let n = self.inner.read(&mut buf[..read_len])?;
+
+        if n == 0 {
+            return Ok(0);
+        }
+
+        self.bytes_read = self.bytes_read.saturating_add(n as u64);
+
+        if self.bytes_read > self.limit {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "Payload exceeds maximum allowed size of 150MB",
+            ));
+        }
+
+        Ok(n)
+    }
+}
+
+const MAX_CSV_PAYLOAD_SIZE: u64 = 150 * 1024 * 1024; // 150MB
+
+/// Deserializes CSV data into a collection of records.
+///
+/// Reads CSV data from the provided reader and deserializes it into a vector
+/// of records. This function streams the input but limits the payload to 150MB
+/// to prevent Denial of Service (DoS) attacks via memory exhaustion.
+///
+/// # Arguments
+///
+/// * `reader` - The reader to read CSV data from
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - CSV deserialization fails
+/// - Reading from the input fails
+/// - The payload exceeds the 150MB limit
+/// - Data validation fails
+///
+/// # Examples
+///
+/// ```
+/// use force::api::bulk::deserialize_from_csv;
+/// use serde::Deserialize;
+///
+/// #[derive(Deserialize)]
+/// struct Account {
+///     name: String,
+///     industry: String,
+/// }
+///
+/// let csv_data = "name,industry\nAcme,Technology\n";
+/// let accounts: Vec<Account> = deserialize_from_csv(csv_data.as_bytes())?;
+/// # Ok::<(), force::error::ForceError>(())
+/// ```
 pub fn deserialize_from_csv<T, R>(reader: R) -> Result<Vec<T>>
 where
     T: for<'de> Deserialize<'de>,
     R: Read,
 {
-    let mut csv_reader = csv::Reader::from_reader(reader);
+    let limit_reader = LimitReader::new(reader, MAX_CSV_PAYLOAD_SIZE);
+    let mut csv_reader = csv::Reader::from_reader(limit_reader);
     let mut records = Vec::new();
 
     for result in csv_reader.deserialize() {
@@ -249,6 +342,40 @@ where
 }
 #[cfg(test)]
 mod tests {
+
+    // Test 16: DoS prevention - payload over 150MB limit
+    #[test]
+    fn test_deserialize_limit_exceeded() {
+        struct InfiniteZeros;
+        impl std::io::Read for InfiniteZeros {
+            fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+                for b in buf.iter_mut() {
+                    *b = b'0';
+                }
+                Ok(buf.len())
+            }
+        }
+
+        let reader = InfiniteZeros;
+        let result: std::result::Result<Vec<TestRecord>, _> = deserialize_from_csv(reader);
+        assert!(result.is_err());
+
+        let Err(err) = result else {
+            panic!("Expected error")
+        };
+        if let crate::error::ForceError::Serialization(crate::error::SerializationError::Csv(
+            csv_err,
+        )) = err
+        {
+            if let csv::ErrorKind::Io(io_err) = csv_err.kind() {
+                assert_eq!(io_err.kind(), std::io::ErrorKind::InvalidData);
+                assert!(io_err.to_string().contains("150MB"));
+                return;
+            }
+        }
+        panic!("Expected InvalidData IO error from LimitReader, got something else");
+    }
+
     use super::*;
     use crate::test_support::Must;
     use serde::{Deserialize, Serialize};

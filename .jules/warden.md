@@ -41,3 +41,6 @@
 **2024-05-24 - [Unbounded memory allocation during HTTP error response parsing]
 **Threat:** A Denial of Service (DoS) vulnerability via memory exhaustion. In client_credentials and jwt_bearer authenticators, the `response.text().await` call unbounded memory allocations reading error payloads. A malicious or misconfigured server returning a multi-gigabyte error body could crash the application.
 **Defense:** Replaced unbounded `.text().await` with a 1MB capped stream reader via `response.bytes_stream()` paired with `String::from_utf8_lossy()` to safely bound memory usage while parsing Salesforce error responses.
+**2025-03-16 - Prevent DoS vector in deserialize_from_csv**
+**Threat:** Unbounded memory allocation when deserializing huge CSV files into memory
+**Defense:** Wrap the incoming Reader in a LimitReader with a 150MB payload limit
