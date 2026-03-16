@@ -36,7 +36,7 @@ pub(crate) mod schema_analyzer;
 pub(crate) mod schema_visualizer;
 
 #[cfg(feature = "nova")]
-pub mod sql_exporter;
+pub(crate) mod sql_exporter;
 
 #[cfg(all(feature = "nova", feature = "composite"))]
 pub(crate) mod soql_mass_op;
@@ -66,3 +66,5 @@ pub use schema_visualizer::SchemaVisualizer;
 
 #[cfg(all(feature = "nova", feature = "composite"))]
 pub use soql_mass_op::SoqlMassOp;
+#[cfg(feature = "nova")]
+pub use sql_exporter::SqlExporter;
