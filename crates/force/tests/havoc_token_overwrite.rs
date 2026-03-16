@@ -7,10 +7,10 @@
 mod tests {
     #![allow(clippy::unwrap_used)]
     // Use std so the test reliably runs and demonstrates the failure without needing `RUSTFLAGS="--cfg loom"`
-    use std::sync::atomic::Ordering;
     use loom::sync::atomic::AtomicUsize;
     use loom::sync::{Arc, Mutex, RwLock};
     use loom::thread;
+    use std::sync::atomic::Ordering;
 
     // Simplified TokenManager logic mirroring crates/force/src/auth/token_manager.rs
     struct TokenManager {
@@ -56,8 +56,6 @@ mod tests {
 
             let new_token = self.generate_token();
 
-
-
             let mut guard = self.token.write().unwrap();
 
             // The Fix: only overwrite if `new_token` is strictly newer.
@@ -100,9 +98,7 @@ mod tests {
             let m2 = manager.clone();
 
             // Thread 1: Calls force_refresh
-            let t1 = thread::spawn(move || {
-                m1.force_refresh()
-            });
+            let t1 = thread::spawn(move || m1.force_refresh());
 
             // Thread 2: Calls get_token (which triggers a refresh because initial state is None)
             let t2 = thread::spawn(move || m2.get_token());
