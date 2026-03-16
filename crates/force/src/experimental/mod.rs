@@ -14,61 +14,61 @@ pub(crate) mod scanner;
 #[cfg(feature = "composite")]
 pub(crate) mod query_batch;
 
-#[cfg(feature = "nova")]
+#[cfg(feature = "schema")]
 pub(crate) mod schema_graph;
 
-#[cfg(feature = "nova")]
+#[cfg(feature = "schema")]
 pub(crate) mod data_dictionary;
 
-#[cfg(feature = "nova")]
+#[cfg(feature = "schema")]
 #[allow(missing_docs)]
 pub(crate) mod type_generator;
 
-#[cfg(feature = "nova")]
+#[cfg(feature = "schema")]
 pub(crate) mod schema_diff;
 
-#[cfg(feature = "nova")]
+#[cfg(feature = "data_utility")]
 pub(crate) mod data_faker;
 
-#[cfg(feature = "nova")]
+#[cfg(feature = "schema")]
 pub(crate) mod schema_analyzer;
-#[cfg(feature = "nova")]
+#[cfg(feature = "schema")]
 pub(crate) mod schema_visualizer;
 
-#[cfg(feature = "nova")]
+#[cfg(feature = "data_utility")]
 pub mod sql_exporter;
 
-#[cfg(all(feature = "nova", feature = "composite"))]
+#[cfg(feature = "composite")]
 pub(crate) mod soql_mass_op;
 
 #[cfg(feature = "composite")]
 pub use query_batch::{BatchOp, BatchStats, QueryBatch};
 
-#[cfg(feature = "nova")]
+#[cfg(feature = "schema")]
 pub use schema_graph::SchemaGraph;
 
-#[cfg(feature = "nova")]
+#[cfg(feature = "schema")]
 pub use data_dictionary::DataDictionary;
 
-#[cfg(feature = "nova")]
+#[cfg(feature = "schema")]
 pub use type_generator::StructGenerator;
 
-#[cfg(feature = "nova")]
+#[cfg(feature = "schema")]
 pub use schema_diff::{FieldChange, SchemaDiff, SchemaDiffResult};
 
-#[cfg(feature = "nova")]
+#[cfg(feature = "data_utility")]
 pub use data_faker::DataFaker;
 
-#[cfg(feature = "nova")]
+#[cfg(feature = "schema")]
 pub use schema_analyzer::{SchemaAnalyzer, SchemaInsights};
-#[cfg(feature = "nova")]
+#[cfg(feature = "schema")]
 pub use schema_visualizer::SchemaVisualizer;
 
-#[cfg(all(feature = "nova", feature = "composite"))]
+#[cfg(feature = "composite")]
 pub use soql_mass_op::SoqlMassOp;
 
-#[cfg(feature = "nova")]
+#[cfg(feature = "schema")]
 pub(crate) mod schema_changelog;
 
-#[cfg(feature = "nova")]
+#[cfg(feature = "schema")]
 pub use schema_changelog::SchemaChangelogGenerator;

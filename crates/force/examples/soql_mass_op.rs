@@ -3,7 +3,7 @@
 //! This example demonstrates how to find specific records using a SOQL query
 //! and instantly update all of them using the experimental `SoqlMassOp` utility.
 //!
-//! Run with: `cargo run --example soql_mass_op --features full`
+//! Run with: `cargo run --example soql_mass_op --features composite`
 
 use force::api::rest::SoqlQueryBuilder;
 use force::auth::ClientCredentials;
