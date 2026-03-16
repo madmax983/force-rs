@@ -262,11 +262,21 @@ impl SearchQueryBuilder {
             }
             first = false;
 
-            if fields.is_empty() {
-                query.push_str(&sobject);
-            } else {
-                write!(&mut query, "{}({})", sobject, fields.join(", "))
-                    .unwrap_or_else(|_| unreachable!("String format cannot fail"));
+            query.push_str(&sobject);
+            if !fields.is_empty() {
+                query.push('(');
+                #[allow(unused_doc_comments)]
+                /// ⚡ Bolt: Iterating over fields directly pushes them to the `query` string buffer.
+                /// This avoids the intermediate heap allocation that would occur if `fields.join(", ")` was used.
+                let mut first_field = true;
+                for field in fields {
+                    if !first_field {
+                        query.push_str(", ");
+                    }
+                    first_field = false;
+                    query.push_str(&field);
+                }
+                query.push(')');
             }
         }
 
