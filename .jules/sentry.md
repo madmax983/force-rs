@@ -35,3 +35,7 @@
 **Doc Tests for Public API**
 **Learning:** Added doc tests to SoqlQueryBuilder methods to improve coverage and provide usage examples.
 **Action:** Use doc tests for public API methods to ensure they compile and serve as documentation.
+
+**Table Driven Tests in Rust**
+**Learning:** `cargo mutants` often exposes missing test cases that ensure errors are correctly propagated in APIs. Injecting tests manually via sed/awk into an existing `mod tests` is brittle and error-prone due to nested braces.
+**Action:** Use Python with regular expressions (`re.sub`) to safely target and inject tests exactly before the final closing brace of the module, ensuring no duplicate content or missing scope blocks.
