@@ -32,3 +32,15 @@
 **SObject Path Formatting**
 **Learning:** Repetitive string formatting for API paths (like `/sobjects/{}` and `/sobjects/{}/{id}`) across multiple methods causes visual noise and copy-paste vulnerabilities.
 **Action:** Centralize path construction into pure helper functions (e.g., `format_sobject_path(sobject: &str, id: Option<&str>) -> String`) to enforce DRY principles.
+
+**[Centralize URL Path Construction]**
+**Learning:** Re-implementing URL construction via intermediate base URLs and `format!` macros (e.g., `format!("{}/{}", self.base_url().await?, job_id)`) across bulk modules introduces duplicate logic and can be prone to slash/path errors.
+**Action:** Always use the centralized `Session::resolve_url` directly with the full path suffix (e.g., `self.inner.resolve_url(&format!("jobs/ingest/{}", job_id))`).
+
+**[Extract Complex God Functions]**
+**Learning:** Functions handling multiple responsibilities like HTTP fetching, pagination, and data deserialization (e.g., `BulkQueryStream::next`) become overly long and complex, violating the single responsibility principle.
+**Action:** Extract large blocks of logic into smaller, specifically named helper methods (e.g., `fetch_next_page`, `deserialize_csv`) to flatten the function structure and improve readability.
+
+**[Future Not Send in Extracted Helpers]**
+**Learning:** Extracting private asynchronous helper methods that hold `&mut self` across await points in generic structs can trigger `clippy::future_not_send` if the generic parameter `T` is not bound by `Send`.
+**Action:** Apply `#[allow(clippy::future_not_send)]` to such internal helper methods to ensure they pass strict `clippy -D warnings` checks without altering the public trait bounds.
