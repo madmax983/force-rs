@@ -144,12 +144,11 @@ impl<R: Read> Read for LimitReader<R> {
             let n = self.inner.read(&mut check_buf)?;
             if n == 0 {
                 return Ok(0); // Actually EOF, exactly at limit
-            } else {
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::InvalidData,
-                    "Payload exceeds maximum allowed size of 150MB",
-                ));
             }
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "Payload exceeds maximum allowed size of 150MB",
+            ));
         }
 
         let remaining = self.limit.saturating_sub(self.bytes_read);
