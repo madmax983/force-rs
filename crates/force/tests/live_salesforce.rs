@@ -8,7 +8,7 @@
 //! - optional `SF_API_VERSION` (defaults to `v60.0`)
 
 use async_trait::async_trait;
-use force::api::bulk::BulkPollPolicy;
+use force::api::bulk::{BulkPollPolicy, IngestJob, JobOperation};
 use force::auth::{AccessToken, Authenticator, TokenResponse};
 use force::client::{ForceClient, builder};
 use force::config::ClientConfig;
@@ -306,19 +306,14 @@ async fn live_bulk_ingest_partial_failure_results() -> Result<()> {
     let result = tokio::time::timeout(config.runtime.test_timeout, async {
         let client = create_live_client(&config).await?;
         let handler = client.bulk();
-        let job = force::api::bulk::ingest::IngestJobBuilder::new(
-            "Account",
-            force::api::bulk::types::JobOperation::Insert,
-        )
-        .build(&handler)
-        .await?;
+        let job = IngestJob::create(&handler, "Account", JobOperation::Insert, None).await?;
 
         // First row should be valid in most orgs; second row intentionally exceeds
         // standard Account.Name length to trigger a row-level validation failure.
         let long_name = "X".repeat(400);
         let csv_data = format!("Name\nLive Smoke Partial Row\n{long_name}\n");
 
-        let job = job.upload(csv_data.as_bytes()).await?;
+        let job = job.upload(csv_data).await?;
         let job = job.close().await?;
         let job = job
             .poll_until_complete_with_policy(config.runtime.bulk_poll_policy)
