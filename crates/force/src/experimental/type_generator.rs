@@ -3,98 +3,91 @@ use crate::api::rest::describe::{FieldType, SObjectDescribe};
 
 /// Experimental utility to generate Rust structs from SObject describe metadata.
 #[cfg(feature = "nova")]
-pub struct StructGenerator;
-
+/// Generates a Rust struct definition from an SObject describe result.
+///
+/// This will generate a struct with `serde` rename attributes to match the
+/// Salesforce API field names, and map the Salesforce types to appropriate
+/// Rust types.
 #[cfg(feature = "nova")]
-impl StructGenerator {
-    /// Generates a Rust struct definition from an SObject describe result.
-    ///
-    /// This will generate a struct with `serde` rename attributes to match the
-    /// Salesforce API field names, and map the Salesforce types to appropriate
-    /// Rust types.
-    pub fn generate(describe: &SObjectDescribe) -> String {
-        let mut out = String::with_capacity(describe.fields.len() * 128);
-        out.push_str(&format!("/// {}\n", describe.label));
-        out.push_str("#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]\n");
+pub fn generate_struct(describe: &SObjectDescribe) -> String {
+    let mut out = String::with_capacity(describe.fields.len() * 128);
+    out.push_str(&format!("/// {}\n", describe.label));
+    out.push_str("#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]\n");
+    out.push_str(&format!("pub struct {} {{\n", pascal_case(&describe.name)));
+
+    for field in &describe.fields {
+        out.push_str(&format!("    /// {}\n", field.label));
+        out.push_str(&format!("    #[serde(rename = \"{}\")]\n", field.name));
+        let rust_type = map_type(&field.type_);
+        let final_type = if field.nillable {
+            format!("Option<{}>", rust_type)
+        } else {
+            rust_type.to_string()
+        };
         out.push_str(&format!(
-            "pub struct {} {{\n",
-            Self::pascal_case(&describe.name)
+            "    pub {}: {},\n",
+            snake_case(&field.name),
+            final_type
         ));
-
-        for field in &describe.fields {
-            out.push_str(&format!("    /// {}\n", field.label));
-            out.push_str(&format!("    #[serde(rename = \"{}\")]\n", field.name));
-            let rust_type = Self::map_type(&field.type_);
-            let final_type = if field.nillable {
-                format!("Option<{}>", rust_type)
-            } else {
-                rust_type.to_string()
-            };
-            out.push_str(&format!(
-                "    pub {}: {},\n",
-                Self::snake_case(&field.name),
-                final_type
-            ));
-        }
-
-        out.push_str("}\n");
-        out
     }
 
-    /// Converts a string to PascalCase.
-    ///
-    /// ⚡ Bolt: Uses `String::with_capacity` to prevent reallocation.
-    fn pascal_case(s: &str) -> String {
-        let mut result = String::with_capacity(s.len());
-        let mut capitalize_next = true;
-        for c in s.chars() {
-            if c == '_' {
-                capitalize_next = true;
-            } else if capitalize_next {
-                result.push(c.to_ascii_uppercase());
-                capitalize_next = false;
-            } else {
-                result.push(c);
-            }
+    out.push_str("}\n");
+    out
+}
+
+/// Converts a string to PascalCase.
+///
+/// ⚡ Bolt: Uses `String::with_capacity` to prevent reallocation.
+fn pascal_case(s: &str) -> String {
+    let mut result = String::with_capacity(s.len());
+    let mut capitalize_next = true;
+    for c in s.chars() {
+        if c == '_' {
+            capitalize_next = true;
+        } else if capitalize_next {
+            result.push(c.to_ascii_uppercase());
+            capitalize_next = false;
+        } else {
+            result.push(c);
         }
-        result
     }
+    result
+}
 
-    /// Converts a string to snake_case.
-    ///
-    /// ⚡ Bolt: Uses `String::with_capacity` to prevent reallocation and iterates
-    /// over `chars()` to remove intermediate `Vec<char>` allocation.
-    fn snake_case(s: &str) -> String {
-        let mut result = String::with_capacity(s.len() + 2);
-        let mut prev_char: Option<char> = None;
+/// Converts a string to snake_case.
+///
+/// ⚡ Bolt: Uses `String::with_capacity` to prevent reallocation and iterates
+/// over `chars()` to remove intermediate `Vec<char>` allocation.
+fn snake_case(s: &str) -> String {
+    let mut result = String::with_capacity(s.len() + 2);
+    let mut prev_char: Option<char> = None;
 
-        for c in s.chars() {
-            if c.is_ascii_uppercase() {
-                if let Some(p) = prev_char {
-                    if !p.is_ascii_uppercase() && p != '_' {
-                        result.push('_');
-                    }
+    for c in s.chars() {
+        if c.is_ascii_uppercase() {
+            if let Some(p) = prev_char {
+                if !p.is_ascii_uppercase() && p != '_' {
+                    result.push('_');
                 }
-                result.push(c.to_ascii_lowercase());
-            } else {
-                result.push(c);
             }
-            prev_char = Some(c);
+            result.push(c.to_ascii_lowercase());
+        } else {
+            result.push(c);
         }
-
-        if result == "type" {
-            result.push('_');
-        }
-        result
+        prev_char = Some(c);
     }
 
-    fn map_type(ft: &FieldType) -> &'static str {
-        match ft {
-            FieldType::Boolean => "bool",
-            FieldType::Int => "i64",
-            FieldType::Double | FieldType::Currency | FieldType::Percent => "f64",
-            _ => "String",
-        }
+    if result == "type" {
+        result.push('_');
+    }
+    result
+}
+
+fn map_type(ft: &FieldType) -> &'static str {
+    match ft {
+        FieldType::Boolean => "bool",
+        FieldType::Int => "i64",
+        FieldType::Double | FieldType::Currency | FieldType::Percent => "f64",
+        _ => "String",
     }
 }
 
@@ -105,49 +98,37 @@ mod tests {
 
     #[test]
     fn test_snake_case() {
-        assert_eq!(StructGenerator::snake_case("Account"), "account");
-        assert_eq!(StructGenerator::snake_case("AccountId"), "account_id");
-        assert_eq!(StructGenerator::snake_case("IsActive"), "is_active");
-        assert_eq!(StructGenerator::snake_case("type"), "type_");
-        assert_eq!(StructGenerator::snake_case("ID"), "id");
-        assert_eq!(StructGenerator::snake_case("camelCase"), "camel_case");
-        assert_eq!(
-            StructGenerator::snake_case("Custom_Field__c"),
-            "custom_field__c"
-        );
-        assert_eq!(StructGenerator::snake_case("URL"), "url");
-        assert_eq!(StructGenerator::snake_case("someURLField"), "some_urlfield");
-        assert_eq!(
-            StructGenerator::snake_case("Already_Snake_Case"),
-            "already_snake_case"
-        );
+        assert_eq!(snake_case("Account"), "account");
+        assert_eq!(snake_case("AccountId"), "account_id");
+        assert_eq!(snake_case("IsActive"), "is_active");
+        assert_eq!(snake_case("type"), "type_");
+        assert_eq!(snake_case("ID"), "id");
+        assert_eq!(snake_case("camelCase"), "camel_case");
+        assert_eq!(snake_case("Custom_Field__c"), "custom_field__c");
+        assert_eq!(snake_case("URL"), "url");
+        assert_eq!(snake_case("someURLField"), "some_urlfield");
+        assert_eq!(snake_case("Already_Snake_Case"), "already_snake_case");
     }
 
     #[test]
     fn test_map_type() {
-        assert_eq!(StructGenerator::map_type(&FieldType::Boolean), "bool");
-        assert_eq!(StructGenerator::map_type(&FieldType::Int), "i64");
-        assert_eq!(StructGenerator::map_type(&FieldType::Double), "f64");
-        assert_eq!(StructGenerator::map_type(&FieldType::Currency), "f64");
-        assert_eq!(StructGenerator::map_type(&FieldType::Percent), "f64");
-        assert_eq!(StructGenerator::map_type(&FieldType::String), "String");
-        assert_eq!(StructGenerator::map_type(&FieldType::Picklist), "String");
+        assert_eq!(map_type(&FieldType::Boolean), "bool");
+        assert_eq!(map_type(&FieldType::Int), "i64");
+        assert_eq!(map_type(&FieldType::Double), "f64");
+        assert_eq!(map_type(&FieldType::Currency), "f64");
+        assert_eq!(map_type(&FieldType::Percent), "f64");
+        assert_eq!(map_type(&FieldType::String), "String");
+        assert_eq!(map_type(&FieldType::Picklist), "String");
     }
 
     #[test]
     fn test_pascal_case() {
-        assert_eq!(StructGenerator::pascal_case("account"), "Account");
-        assert_eq!(StructGenerator::pascal_case("account_id"), "AccountId");
-        assert_eq!(StructGenerator::pascal_case("ID"), "ID");
-        assert_eq!(
-            StructGenerator::pascal_case("custom_field__c"),
-            "CustomFieldC"
-        );
-        assert_eq!(StructGenerator::pascal_case("camelCase"), "CamelCase");
-        assert_eq!(
-            StructGenerator::pascal_case("AlreadyPascalCase"),
-            "AlreadyPascalCase"
-        );
+        assert_eq!(pascal_case("account"), "Account");
+        assert_eq!(pascal_case("account_id"), "AccountId");
+        assert_eq!(pascal_case("ID"), "ID");
+        assert_eq!(pascal_case("custom_field__c"), "CustomFieldC");
+        assert_eq!(pascal_case("camelCase"), "CamelCase");
+        assert_eq!(pascal_case("AlreadyPascalCase"), "AlreadyPascalCase");
     }
 
     #[test]
@@ -316,7 +297,7 @@ mod tests {
 
         let describe: SObjectDescribe = serde_json::from_str(json).must();
 
-        let result = StructGenerator::generate(&describe);
+        let result = generate_struct(&describe);
 
         let expected = r#"/// Account Object
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]

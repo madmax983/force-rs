@@ -17,7 +17,7 @@
 //! # let client = ForceClientBuilder::new().authenticate(auth).build().await?;
 //! let describe = client.rest().describe("Account").await?;
 //!
-//! let ddl = SqlExporter::generate_ddl(&describe);
+//! let ddl = generate_ddl(&describe);
 //! println!("{}", ddl);
 //! // CREATE TABLE Account (
 //! //     Id VARCHAR(18) PRIMARY KEY,
@@ -31,89 +31,82 @@
 use crate::api::rest::describe::{FieldType, SObjectDescribe};
 
 /// Exporter that converts Salesforce describe metadata into SQL DDL statements.
-#[derive(Debug, Default)]
-pub struct SqlExporter;
+/// Generates a `CREATE TABLE` SQL statement for the given SObject describe metadata.
+///
+/// The generated SQL uses standard types that are generally compatible with
+/// PostgreSQL and SQLite. The primary key is automatically set to the `Id` field
+/// if it exists.
+#[must_use]
+pub fn generate_ddl(describe: &SObjectDescribe) -> String {
+    let mut ddl = String::with_capacity(1024);
+    ddl.push_str(&format!("CREATE TABLE {} (\n", describe.name));
 
-impl SqlExporter {
-    /// Generates a `CREATE TABLE` SQL statement for the given SObject describe metadata.
-    ///
-    /// The generated SQL uses standard types that are generally compatible with
-    /// PostgreSQL and SQLite. The primary key is automatically set to the `Id` field
-    /// if it exists.
-    #[must_use]
-    pub fn generate_ddl(describe: &SObjectDescribe) -> String {
-        let mut ddl = String::with_capacity(1024);
-        ddl.push_str(&format!("CREATE TABLE {} (\n", describe.name));
+    let mut field_defs = Vec::with_capacity(describe.fields.len());
 
-        let mut field_defs = Vec::with_capacity(describe.fields.len());
+    // Sort fields alphabetically to ensure deterministic output,
+    // but always put 'Id' first if it exists.
+    // ⚡ Bolt: Collecting references to fields instead of deep cloning the entire `describe.fields` Vec avoids significant heap allocation per field.
+    let mut fields: Vec<&_> = describe.fields.iter().collect();
+    fields.sort_by(|a, b| {
+        if a.name == "Id" {
+            std::cmp::Ordering::Less
+        } else if b.name == "Id" {
+            std::cmp::Ordering::Greater
+        } else {
+            a.name.cmp(&b.name)
+        }
+    });
 
-        // Sort fields alphabetically to ensure deterministic output,
-        // but always put 'Id' first if it exists.
-        // ⚡ Bolt: Collecting references to fields instead of deep cloning the entire `describe.fields` Vec avoids significant heap allocation per field.
-        let mut fields: Vec<&_> = describe.fields.iter().collect();
-        fields.sort_by(|a, b| {
-            if a.name == "Id" {
-                std::cmp::Ordering::Less
-            } else if b.name == "Id" {
-                std::cmp::Ordering::Greater
-            } else {
-                a.name.cmp(&b.name)
-            }
-        });
+    for field in fields {
+        let sql_type = map_field_type(&field.type_, field.length);
 
-        for field in fields {
-            let sql_type = Self::map_field_type(&field.type_, field.length);
+        let mut field_def = format!("    {} {}", field.name, sql_type);
 
-            let mut field_def = format!("    {} {}", field.name, sql_type);
-
-            if field.name == "Id" {
-                field_def.push_str(" PRIMARY KEY");
-            } else if !field.nillable && !field.defaulted_on_create {
-                // If it's required and doesn't have a default on create, it should probably be NOT NULL
-                // However, standard Salesforce behavior often allows inserts when a trigger sets the value,
-                // but for SQL consistency we can add NOT NULL for strict mappings.
-                field_def.push_str(" NOT NULL");
-            }
-
-            field_defs.push(field_def);
+        if field.name == "Id" {
+            field_def.push_str(" PRIMARY KEY");
+        } else if !field.nillable && !field.defaulted_on_create {
+            // If it's required and doesn't have a default on create, it should probably be NOT NULL
+            // However, standard Salesforce behavior often allows inserts when a trigger sets the value,
+            // but for SQL consistency we can add NOT NULL for strict mappings.
+            field_def.push_str(" NOT NULL");
         }
 
-        ddl.push_str(&field_defs.join(",\n"));
-        ddl.push_str("\n);");
-
-        ddl
+        field_defs.push(field_def);
     }
 
-    /// Maps a Salesforce `FieldType` to a standard SQL data type.
-    fn map_field_type(field_type: &FieldType, length: i32) -> String {
-        match field_type {
-            FieldType::Id | FieldType::Reference => "VARCHAR(18)".to_string(),
-            FieldType::String
-            | FieldType::Email
-            | FieldType::Phone
-            | FieldType::Url
-            | FieldType::Picklist
-            | FieldType::Multipicklist
-            | FieldType::Combobox => {
-                if length > 0 {
-                    format!("VARCHAR({})", length)
-                } else {
-                    "VARCHAR(255)".to_string()
-                }
+    ddl.push_str(&field_defs.join(",\n"));
+    ddl.push_str("\n);");
+
+    ddl
+}
+
+/// Maps a Salesforce `FieldType` to a standard SQL data type.
+fn map_field_type(field_type: &FieldType, length: i32) -> String {
+    match field_type {
+        FieldType::Id | FieldType::Reference => "VARCHAR(18)".to_string(),
+        FieldType::String
+        | FieldType::Email
+        | FieldType::Phone
+        | FieldType::Url
+        | FieldType::Picklist
+        | FieldType::Multipicklist
+        | FieldType::Combobox => {
+            if length > 0 {
+                format!("VARCHAR({})", length)
+            } else {
+                "VARCHAR(255)".to_string()
             }
-            FieldType::Textarea | FieldType::Encryptedstring | FieldType::Base64 => {
-                "TEXT".to_string()
-            }
-            FieldType::Boolean => "BOOLEAN".to_string(),
-            FieldType::Int => "INTEGER".to_string(),
-            FieldType::Double | FieldType::Currency | FieldType::Percent => {
-                "DOUBLE PRECISION".to_string()
-            }
-            FieldType::Date => "DATE".to_string(),
-            FieldType::Datetime => "TIMESTAMP".to_string(),
-            FieldType::Time => "TIME".to_string(),
-            _ => "TEXT".to_string(), // Fallback for complex/unknown types
         }
+
+        FieldType::Boolean => "BOOLEAN".to_string(),
+        FieldType::Int => "INTEGER".to_string(),
+        FieldType::Double | FieldType::Currency | FieldType::Percent => {
+            "DOUBLE PRECISION".to_string()
+        }
+        FieldType::Date => "DATE".to_string(),
+        FieldType::Datetime => "TIMESTAMP".to_string(),
+        FieldType::Time => "TIME".to_string(),
+        _ => "TEXT".to_string(), // Fallback for complex/unknown types
     }
 }
 
@@ -227,7 +220,7 @@ mod tests {
             ],
         };
 
-        let ddl = SqlExporter::generate_ddl(&describe);
+        let ddl = generate_ddl(&describe);
 
         let expected = "CREATE TABLE Account (\n    Id VARCHAR(18) PRIMARY KEY,\n    AnnualRevenue DOUBLE PRECISION,\n    IsActive BOOLEAN,\n    Name VARCHAR(255) NOT NULL,\n    NumberOfEmployees INTEGER\n);";
         assert_eq!(ddl, expected);

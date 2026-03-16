@@ -22,3 +22,8 @@
 **Bloat:** `IngestJobBuilder` in `crates/force/src/api/bulk/ingest.rs`.
 **Cut:** Deleted the `IngestJobBuilder` struct and its implementation. Replaced it with a direct, asynchronous `IngestJob::create` method that constructs the job directly using the `BulkHandler`.
 **Saved:** ~95 lines of code. Removed unnecessary "Factory Factory" pattern in favor of simpler direct instantiation, aligning it with the KISS principle and reducing cognitive load.
+
+## [Reduction]
+**Bloat:** Empty structs acting as namespaces (`SqlExporter`, `SchemaDiff`, `StructGenerator`, `DataFaker`) grouping static methods instead of leveraging Rust modules and free functions.
+**Cut:** Removed the dummy `pub struct Foo;` declarations and their associated `impl Foo` blocks. Converted their static methods (`generate_ddl`, `compare`, `generate_struct`, `generate_mock_record`) into standard free functions directly exposed by their respective modules.
+**Saved:** Unnecessary indirection, cognitive load from OOP-style static classes in a language that natively supports module-level functions, and about 30 lines of boilerplate.

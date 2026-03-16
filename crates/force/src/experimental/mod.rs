@@ -46,13 +46,13 @@ pub use schema_graph::SchemaGraph;
 pub use data_dictionary::DataDictionary;
 
 #[cfg(feature = "nova")]
-pub use type_generator::StructGenerator;
+pub use type_generator::generate_struct;
 
 #[cfg(feature = "nova")]
-pub use schema_diff::{FieldChange, SchemaDiff, SchemaDiffResult};
+pub use schema_diff::{FieldChange, SchemaDiffResult, compare_schemas};
 
 #[cfg(feature = "nova")]
-pub use data_faker::DataFaker;
+pub use data_faker::generate_mock_record;
 
 #[cfg(all(feature = "nova", feature = "composite"))]
 pub use soql_mass_op::SoqlMassOp;
