@@ -183,8 +183,9 @@ impl crate::auth::authenticator::Authenticator for ClientCredentials {
             while let Some(chunk) = stream.next().await {
                 if let Ok(chunk_bytes) = chunk {
                     bytes.extend_from_slice(&chunk_bytes);
-                    if bytes.len() > 1024 * 1024 {
-                        bytes.truncate(1024 * 1024);
+                    const MAX_ERR_BODY: usize = 1024 * 1024;
+                    if bytes.len() >= MAX_ERR_BODY {
+                        bytes.truncate(MAX_ERR_BODY);
                         break;
                     }
                 } else {
@@ -412,43 +413,12 @@ mod tests {
         );
 
         let result = auth.authenticate().await;
-        assert!(result.is_err());
-        assert!(matches!(result, Err(ForceError::Http(_))));
+        let Err(ForceError::Http(HttpError::RequestFailed(_))) = result else {
+            panic!("Expected HttpError::RequestFailed");
+        };
     }
 
-    #[cfg(feature = "mock")]
-    #[tokio::test]
-    async fn test_authenticate_error_truncation() {
-        use wiremock::matchers::{method, path};
-        use wiremock::{Mock, MockServer, ResponseTemplate};
 
-        let mock_server = MockServer::start().await;
-
-        // Generate a 2MB string.
-        let large_body = "A".repeat(2 * 1024 * 1024);
-
-        Mock::given(method("POST"))
-            .and(path("/services/oauth2/token"))
-            .respond_with(ResponseTemplate::new(400).set_body_string(large_body))
-            .mount(&mock_server)
-            .await;
-
-        let auth = ClientCredentials::new(
-            "test_client",
-            "test_secret",
-            format!("{}/services/oauth2/token", mock_server.uri()),
-        );
-
-        let result = auth.authenticate().await;
-        assert!(result.is_err());
-
-        if let Err(ForceError::Http(HttpError::StatusError { message, .. })) = result {
-            // Should be truncated to 1MB
-            assert_eq!(message.len(), 1024 * 1024);
-        } else {
-            panic!("Expected HttpError::StatusError");
-        }
-    }
 
     #[cfg(feature = "mock")]
     #[tokio::test]
@@ -484,4 +454,59 @@ mod tests {
             panic!("Expected HttpError::StatusError");
         }
     }
+
+
+
+
+
+
+
+    #[cfg(feature = "mock")]
+    #[tokio::test]
+    async fn test_authenticate_error_truncation() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let mock_server = MockServer::start().await;
+
+        let exact_1mb = "B".repeat(1024 * 1024);
+
+        Mock::given(method("POST"))
+            .and(path("/services/oauth2/token"))
+            .respond_with(ResponseTemplate::new(400).set_body_string(exact_1mb))
+            .mount(&mock_server)
+            .await;
+
+        let auth2 = ClientCredentials::new(
+            "test_client",
+            "test_secret",
+            format!("{}/services/oauth2/token", mock_server.uri()),
+        );
+
+        let result2 = auth2.authenticate().await;
+        let Err(crate::error::ForceError::Http(crate::error::HttpError::StatusError { message: msg2, .. })) = result2 else {
+            panic!("Expected HttpError::StatusError");
+        };
+        assert_eq!(msg2.len(), 1024 * 1024);
+
+        let exact_1mb_plus_1 = "A".repeat(1024 * 1024 + 1);
+        let mock_server_3 = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/services/oauth2/token"))
+            .respond_with(ResponseTemplate::new(400).set_body_string(exact_1mb_plus_1))
+            .mount(&mock_server_3)
+            .await;
+
+        let auth3 = ClientCredentials::new(
+            "test_client",
+            "test_secret",
+            format!("{}/services/oauth2/token", mock_server_3.uri()),
+        );
+        let result3 = auth3.authenticate().await;
+        let Err(crate::error::ForceError::Http(crate::error::HttpError::StatusError { message: msg3, .. })) = result3 else {
+            panic!("Expected HttpError::StatusError");
+        };
+        assert_eq!(msg3.len(), 1024 * 1024);
+    }
+
 }

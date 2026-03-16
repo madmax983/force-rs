@@ -171,3 +171,13 @@ match result {
 **Finding:** The original test `test_schema_analyzer` provided only 6 total fields, meaning that the `total_fields / 10` division resulted in `0`. This made the test blind to mutants replacing division `/` with multiplication `*` (`6 * 10 = 60`), which caused false confidence. Additionally, the existing test inputs did not robustly exercise all `+` and `*` operators in the `complexity_score` calculation.
 **Evidence:** `cargo mutants` revealed that multiple logic mutants in `SchemaAnalyzer::analyze` replacing `*` with `+` or `/`, and `/` with `*` survived, indicating that the test suite was insufficiently sensitive to mathematical logic errors and edge cases in the scoring heuristic.
 **Recommendation:** Added `test_schema_analyzer_complexity_math` with exactly 12 fields (so `12 / 10 = 1`) and non-zero counts for custom, formula, and relationship fields to ensure all mathematical operations `*`, `/`, and `+` produce meaningful, non-identity/non-zero outcomes that effectively kill the mathematical mutants.
+
+### [Strengthened] `crates/force/src/auth/jwt_bearer.rs` and `crates/force/src/auth/client_credentials.rs`
+
+**Module:** `crates/force/src/auth/jwt_bearer.rs` and `crates/force/src/auth/client_credentials.rs`
+**Severity:** 🟡 Suspect (was 🟢 Acquitted)
+**Finding:** A previous audit marked the truncation logic `bytes.len() > 1024 * 1024` as an equivalent mutant when mutated to `>=`. While true for the final buffer size under large input streaming, changing the code to `>=` removes the mutation vulnerability entirely and avoids reading an unnecessary extra chunk into memory before breaking when the boundary is hit. Additionally, the existing tests lacked explicit validation for `Result::Err` values without resorting to `matches!(_)`.
+**Evidence:** Mutation `>` to `>=` survived, and some tests used weak `assert!(result.is_err())` patterns.
+**Recommendation:**
+- Changed `>` to `>=` to eliminate the mutant and strictly bound the loop.
+- Added specific `test_authenticate_error_truncation` tests that inject exactly 1MB and 1MB + 1 byte strings to ensure truncation behaves exactly as expected, using explicit unwrapping (`let Err(ForceError::Http(HttpError::StatusError { message, .. })) = result else { panic!(...) }`) instead of `assert!(result.is_err())`.
