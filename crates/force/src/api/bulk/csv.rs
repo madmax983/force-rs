@@ -346,17 +346,22 @@ mod tests {
     // Test 16: DoS prevention - payload over 150MB limit
     #[test]
     fn test_deserialize_limit_exceeded() {
-        struct InfiniteZeros;
-        impl std::io::Read for InfiniteZeros {
+        struct InfiniteCsv;
+        impl std::io::Read for InfiniteCsv {
             fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-                for b in buf.iter_mut() {
-                    *b = b'0';
+                let chunk = b"001,Test,42
+";
+                let mut i = 0;
+                while i < buf.len() {
+                    let to_copy = std::cmp::min(chunk.len(), buf.len() - i);
+                    buf[i..i + to_copy].copy_from_slice(&chunk[..to_copy]);
+                    i += to_copy;
                 }
                 Ok(buf.len())
             }
         }
 
-        let reader = InfiniteZeros;
+        let reader = InfiniteCsv;
         let result: std::result::Result<Vec<TestRecord>, _> = deserialize_from_csv(reader);
         assert!(result.is_err());
 
