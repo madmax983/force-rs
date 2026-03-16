@@ -66,3 +66,9 @@ pub use schema_visualizer::SchemaVisualizer;
 
 #[cfg(all(feature = "nova", feature = "composite"))]
 pub use soql_mass_op::SoqlMassOp;
+
+#[cfg(feature = "nova")]
+pub(crate) mod schema_changelog;
+
+#[cfg(feature = "nova")]
+pub use schema_changelog::SchemaChangelogGenerator;
