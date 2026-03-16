@@ -1,5 +1,5 @@
 //! Experimental feature: Struct Generator
-//! Requires the "nova" feature: force = { version = "0.1", features = [`nova`] }
+//! Requires the `schema` feature: `force = { version = "0.1", features = ["schema"] }`
 
 #![allow(clippy::too_many_lines)]
 
@@ -7,7 +7,7 @@ use force::auth::ClientCredentials;
 use force::client::ForceClientBuilder;
 use std::env;
 
-#[cfg(feature = "nova")]
+#[cfg(feature = "schema")]
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     use force::experimental::StructGenerator;
@@ -58,7 +58,7 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-#[cfg(feature = "nova")]
+#[cfg(feature = "schema")]
 fn fallback_demonstration() -> anyhow::Result<()> {
     use force::api::rest::SObjectDescribe;
     use force::experimental::StructGenerator;
@@ -188,8 +188,8 @@ fn fallback_demonstration() -> anyhow::Result<()> {
     Ok(())
 }
 
-#[cfg(not(feature = "nova"))]
+#[cfg(not(feature = "schema"))]
 fn main() {
-    println!("This example requires the 'nova' feature. Run with:");
-    println!("cargo run --example generate_struct --features nova");
+    println!("This example requires the 'schema' feature. Run with:");
+    println!("cargo run --example generate_struct --features schema");
 }

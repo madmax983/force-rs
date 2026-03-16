@@ -1,11 +1,11 @@
-#[cfg(feature = "nova")]
+#[cfg(feature = "schema")]
 use crate::api::rest::describe::{FieldType, SObjectDescribe};
 
 /// Experimental utility to generate Rust structs from SObject describe metadata.
-#[cfg(feature = "nova")]
+#[cfg(feature = "schema")]
 pub struct StructGenerator;
 
-#[cfg(feature = "nova")]
+#[cfg(feature = "schema")]
 impl StructGenerator {
     /// Generates a Rust struct definition from an SObject describe result.
     ///
@@ -99,7 +99,7 @@ impl StructGenerator {
 }
 
 #[cfg(test)]
-#[cfg(feature = "nova")]
+#[cfg(feature = "schema")]
 mod tests {
     use super::*;
 

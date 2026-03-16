@@ -46,13 +46,17 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 proptest = "1.5"
 
 [features]
-nova = ["rest"]
 default = ["rest"]
 
 # Platform API surfaces
 rest = []
 bulk = ["dep:csv"]
 composite = ["rest"]
+composite_graph = ["composite"]
+
+# Experimental capability surfaces
+schema = ["rest"]
+data_utility = ["rest"]
 
 # Auth flows
 jwt = ["dep:jsonwebtoken"]
@@ -62,20 +66,20 @@ mock = ["dep:wiremock"]
 
 # Meta features
 full = ["rest", "bulk", "composite", "jwt"]
-all = ["full"]
+all = ["full", "schema", "data_utility", "composite_graph"]
 
 [[example]]
 name = "query_plan"
-required-features = ["nova"]
+required-features = ["rest"]
 
 [[example]]
 name = "data_dictionary"
-required-features = ["nova"]
+required-features = ["schema"]
 
 [[example]]
 name = "generate_struct"
-required-features = ["nova"]
+required-features = ["schema"]
 
 [[example]]
 name = "soql_mass_op"
-required-features = ["nova", "composite"]
+required-features = ["composite"]

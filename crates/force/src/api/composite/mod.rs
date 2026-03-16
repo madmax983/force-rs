@@ -7,11 +7,11 @@
 //! for composite operations like `batch` and `graph`.
 
 pub(crate) mod batch;
-#[cfg(feature = "nova")]
+#[cfg(feature = "composite_graph")]
 pub(crate) mod graph;
 
 pub use batch::{BatchRequest, BatchResponse, BatchSubResponse};
-#[cfg(feature = "nova")]
+#[cfg(feature = "composite_graph")]
 pub use graph::{
     CompositeGraphRequest, Graph, GraphErrorResponse, GraphRequest, GraphResponse, GraphResult,
     GraphSubResponse,
@@ -66,7 +66,7 @@ impl<A: Authenticator> CompositeHandler<A> {
     ///
     /// The Composite Graph API allows you to execute complex, dependent requests
     /// (up to 500 nodes) in a single call.
-    #[cfg(feature = "nova")]
+    #[cfg(feature = "composite_graph")]
     #[must_use]
     pub fn graph(&self) -> graph::CompositeGraphRequest<A> {
         graph::CompositeGraphRequest::new(self.clone())
