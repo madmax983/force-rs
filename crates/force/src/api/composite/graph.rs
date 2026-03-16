@@ -524,10 +524,30 @@ mod tests {
     }
 
     #[test]
+    fn test_validate_reference_id() {
+        assert!(validate_reference_id("valid_id_123").is_ok());
+        assert!(validate_reference_id("validId").is_ok());
+        assert!(validate_reference_id("").is_err());
+        assert!(validate_reference_id("invalid ref id! @#$").is_err());
+        assert!(validate_reference_id("invalid-ref").is_err());
+    }
+
+    #[test]
+    fn test_validate_graph_id() {
+        assert!(validate_graph_id("001000000000000").is_ok());
+        assert!(validate_graph_id("@{ref.id}").is_ok());
+        assert!(validate_graph_id("validId").is_ok());
+        assert!(validate_graph_id("").is_err());
+        assert!(validate_graph_id("some/path").is_err());
+        assert!(validate_graph_id("..").is_err());
+        assert!(validate_graph_id("path\\test").is_err());
+        assert!(validate_graph_id("path?query").is_err());
+    }
+
+    #[test]
     fn test_havoc_path_traversal() {
         let graph = Graph::new("graph1");
 
-        // This should fail validation but currently doesn't!
         let result = graph.get("Account", "../../../../../etc/passwd", "ref1");
 
         let Err(err) = result else {
@@ -548,7 +568,6 @@ mod tests {
     fn test_havoc_invalid_reference_id() {
         let graph = Graph::new("graph1");
 
-        // This should fail validation but currently doesn't!
         let result = graph.get("Account", "001xx000003DHP0AAO", "invalid ref id! @#$");
 
         let Err(err) = result else {
