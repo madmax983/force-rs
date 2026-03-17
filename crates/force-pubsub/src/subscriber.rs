@@ -19,6 +19,13 @@ use crate::proto::eventbus_v1::{FetchRequest, pub_sub_client::PubSubClient};
 use crate::schema_cache::SchemaCache;
 use crate::types::{EventMessage, PubSubEvent, ReplayId};
 
+/// Compute the mpsc channel capacity for a subscribe stream.
+const fn stream_channel_capacity(batch_size: i32) -> usize {
+    #[allow(clippy::cast_sign_loss)] // batch_size validated to 1..=100 by connect()
+    let capacity = batch_size as usize * 2;
+    capacity
+}
+
 /// Convert our [`ReplayPreset`] to the proto integer value.
 #[allow(clippy::missing_const_for_fn)]
 fn preset_to_proto(preset: &ReplayPreset) -> i32 {
@@ -131,17 +138,27 @@ async fn subscribe_loop<A: Authenticator + Send + Sync + 'static>(
                         break 'outer;
                     }
                 } else {
+                    let mut consecutive_schema_misses = 0u32;
+
                     for event in &response.events {
                         let Some(header) = &event.event else { continue };
                         let schema_id = &header.schema_id;
                         let replay_id = ReplayId::from_bytes(header.replay_id.clone());
 
-                        let Some(schema) = state.schema_cache.get(schema_id) else {
+                        let schema = if let Some(s) = state.schema_cache.get(schema_id) {
+                            consecutive_schema_misses = 0;
+                            s
+                        } else {
+                            consecutive_schema_misses += 1;
                             let _ = tx
                                 .send(Err(PubSubError::SchemaNotFound {
                                     schema_id: schema_id.clone(),
                                 }))
                                 .await;
+                            if consecutive_schema_misses >= 3 {
+                                // Permanent schema gap — break out to avoid infinite spin
+                                break 'outer;
+                            }
                             continue;
                         };
 
@@ -157,6 +174,7 @@ async fn subscribe_loop<A: Authenticator + Send + Sync + 'static>(
                                     break 'outer;
                                 }
                                 reconnect_count = 0; // reset on success
+                                consecutive_schema_misses = 0;
                             }
                             Err(e) => {
                                 if tx.send(Err(e)).await.is_err() {
@@ -230,9 +248,7 @@ pub fn subscribe_dynamic<A: Authenticator + Send + Sync + 'static>(
     topic: String,
     preset: ReplayPreset,
 ) -> Pin<Box<dyn Stream<Item = Result<PubSubEvent<Value>>> + Send>> {
-    #[allow(clippy::cast_sign_loss)] // batch_size validated to 1..=100 by connect()
-    let capacity = config.batch_size as usize * 2;
-    let (tx, rx) = mpsc::channel(capacity);
+    let (tx, rx) = mpsc::channel(stream_channel_capacity(config.batch_size));
     tokio::spawn(subscribe_loop(
         SubscribeState {
             session,
@@ -263,9 +279,7 @@ where
     A: Authenticator + Send + Sync + 'static,
     T: DeserializeOwned + Send + 'static,
 {
-    #[allow(clippy::cast_sign_loss)] // batch_size validated to 1..=100 by connect()
-    let capacity = config.batch_size as usize * 2;
-    let (tx, rx) = mpsc::channel(capacity);
+    let (tx, rx) = mpsc::channel(stream_channel_capacity(config.batch_size));
 
     let dynamic = subscribe_dynamic(session, config, schema_cache, channel, topic, preset);
 
