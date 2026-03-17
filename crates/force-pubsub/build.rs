@@ -2,12 +2,9 @@
 
 // Build scripts don't need doc comments on every item.
 #![allow(missing_docs)]
-// Clippy nursery / pedantic lints that are noise in a build script.
-#![allow(clippy::expect_used)]
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let protoc = protoc_bin_vendored::protoc_bin_path()
-        .expect("protoc-bin-vendored: protoc binary not found");
+    let protoc = protoc_bin_vendored::protoc_bin_path()?;
 
     let mut prost_config = prost_build::Config::new();
     prost_config.protoc_executable(protoc);

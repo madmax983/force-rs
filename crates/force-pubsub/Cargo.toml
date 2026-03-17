@@ -28,9 +28,9 @@ tracing = { workspace = true }
 async-trait = { workspace = true }
 
 [build-dependencies]
-tonic-build = "0.12"
-prost-build = "0.13"
-protoc-bin-vendored = "3.0"
+tonic-build = { workspace = true }
+prost-build = { workspace = true }
+protoc-bin-vendored = { workspace = true }
 
 [dev-dependencies]
 tokio-test = "0.4"
