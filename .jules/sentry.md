@@ -35,3 +35,6 @@
 **Doc Tests for Public API**
 **Learning:** Added doc tests to SoqlQueryBuilder methods to improve coverage and provide usage examples.
 **Action:** Use doc tests for public API methods to ensure they compile and serve as documentation.
+**2024-03-26 - [Unenforced unwrap_or_panic caught by missing test]
+**Learning:** Found a missing test gap for a custom `unwrap_or_panic` implementation on `SoqlQueryBuilder::select` handling invalid characters.
+**Action:** Check that untested execution paths using helper methods like `unwrap_or_panic` or `unwrap_or_else` contain proper explicit tests using `#[should_panic]`. Always append `>>` to memory.
