@@ -36,3 +36,5 @@ protoc-bin-vendored = { workspace = true }
 tokio-test = "0.4"
 tokio-stream = { workspace = true, features = ["net"] }
 anyhow = { workspace = true }
+async-trait = { workspace = true }
+force = { path = "../force" }

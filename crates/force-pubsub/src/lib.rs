@@ -10,16 +10,19 @@
 // tonic::Status is 176 bytes; suppressed crate-wide rather than boxing
 // through every From impl and call site.
 #![allow(clippy::result_large_err)]
+#![allow(dead_code)] // Phase in progress — handler fields used by subscribe/publish tasks
 
 pub mod codec;
 pub mod config;
 pub mod error;
+pub mod handler;
 pub mod types;
 
 pub mod schema_cache;
 
 pub use config::{BackoffConfig, PubSubConfig, ReconnectPolicy, ReplayPreset};
 pub use error::{PubSubError, Result};
+pub use handler::{PubSubHandler, SchemaInfo, TopicInfo};
 pub use schema_cache::SchemaCache;
 pub use types::{EventMessage, PubSubEvent, PublishResponse, PublishResult, ReplayId};
 

@@ -31,6 +31,15 @@ pub struct Session<A: crate::auth::authenticator::Authenticator> {
 }
 
 impl<A: crate::auth::authenticator::Authenticator> Session<A> {
+    /// Returns the token manager for this session.
+    ///
+    /// Extension crates (e.g. `force-pubsub`) use this to obtain fresh access
+    /// tokens without duplicating authentication logic.
+    #[must_use]
+    pub fn token_manager(&self) -> &Arc<TokenManager<A>> {
+        &self.token_manager
+    }
+
     /// Executes a request through the shared middleware pipeline.
     pub(crate) async fn execute_request(
         &self,

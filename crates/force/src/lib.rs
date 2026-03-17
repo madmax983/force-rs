@@ -34,7 +34,7 @@ pub mod config;
 pub mod error;
 pub mod experimental;
 pub mod http;
-pub(crate) mod session;
+pub mod session;
 #[cfg(test)]
 pub(crate) mod test_support;
 pub mod types;
