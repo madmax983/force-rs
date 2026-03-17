@@ -131,7 +131,11 @@ where
     // Iterating via `.collect()` allows the standard library to optimally size the allocation.
     csv_reader
         .deserialize()
-        .map(|result| result.map_err(crate::error::SerializationError::from).map_err(Into::into))
+        .map(|result| {
+            result
+                .map_err(crate::error::SerializationError::from)
+                .map_err(Into::into)
+        })
         .collect()
 }
 
