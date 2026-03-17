@@ -16,3 +16,7 @@
 **Avoid `.clone()` in `Arc::new()`**
 **Learning:** Initializing an `Arc` by cloning the source variable (`Arc::new(val.clone())`) instead of moving it (`Arc::new(val)`) causes a completely unnecessary deep copy and heap allocation.
 **Action:** When transferring ownership of a newly created object to an `Arc` where the original variable is no longer needed, pass ownership directly without calling `.clone()`.
+
+**[Removing String Allocations in Telemetry Hooks]**
+**Learning:** Returning an owned `String` inside a telemetry event payload (e.g. `RequestCompletion` and `RetryEvent`) causes an allocation on *every* request, even when the telemetry hook only needs to synchronously read the values.
+**Action:** Use lifetimes and `&'a str` for temporary payload structures passed to closure hooks instead of `.clone().unwrap_or_default()`. To handle the async borrow checker in tests that need to store the events, create an owned version locally in the test and clone only when necessary.
