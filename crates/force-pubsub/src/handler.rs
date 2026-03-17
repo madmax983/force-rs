@@ -6,8 +6,8 @@ use tonic::transport::Channel;
 
 use force::auth::Authenticator;
 use force::session::Session;
-use serde::de::DeserializeOwned;
 use serde::Serialize;
+use serde::de::DeserializeOwned;
 use serde_json::Value;
 use tokio_stream::Stream;
 
@@ -16,11 +16,9 @@ use crate::error::{PubSubError, Result};
 use crate::publisher::publish_unary;
 use crate::schema_cache::SchemaCache;
 use crate::subscriber::{subscribe_dynamic, subscribe_typed_dynamic};
-use crate::types::{PublishResponse, PubSubEvent};
+use crate::types::{PubSubEvent, PublishResponse};
 
-use crate::proto::eventbus_v1::{
-    pub_sub_client::PubSubClient, SchemaRequest, TopicRequest,
-};
+use crate::proto::eventbus_v1::{SchemaRequest, TopicRequest, pub_sub_client::PubSubClient};
 
 /// Public-facing topic metadata (mirrors proto without leaking generated types).
 #[derive(Debug, Clone)]

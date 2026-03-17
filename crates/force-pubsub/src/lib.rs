@@ -18,8 +18,8 @@ pub mod error;
 pub mod handler;
 pub mod types;
 
-pub mod schema_cache;
 pub(crate) mod publisher;
+pub mod schema_cache;
 pub(crate) mod subscriber;
 
 pub use config::{BackoffConfig, PubSubConfig, ReconnectPolicy, ReplayPreset};

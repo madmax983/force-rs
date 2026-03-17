@@ -15,7 +15,7 @@ use tonic::transport::Channel;
 use crate::codec::decode_avro;
 use crate::config::{PubSubConfig, ReconnectPolicy, ReplayPreset};
 use crate::error::{PubSubError, Result};
-use crate::proto::eventbus_v1::{pub_sub_client::PubSubClient, FetchRequest};
+use crate::proto::eventbus_v1::{FetchRequest, pub_sub_client::PubSubClient};
 use crate::schema_cache::SchemaCache;
 use crate::types::{EventMessage, PubSubEvent, ReplayId};
 
@@ -91,7 +91,9 @@ impl<A: Authenticator> SubscribeState<A> {
                 .map_err(|_| PubSubError::Config("invalid instance URL characters".to_string()))?,
         );
 
-        let response = PubSubClient::new(self.channel.clone()).subscribe(req).await?;
+        let response = PubSubClient::new(self.channel.clone())
+            .subscribe(req)
+            .await?;
         Ok(response.into_inner())
     }
 }
@@ -175,7 +177,10 @@ async fn subscribe_loop<A: Authenticator + Send + Sync + 'static>(
                             .await;
                         break 'outer;
                     }
-                    ReconnectPolicy::Auto { max_retries, backoff } => {
+                    ReconnectPolicy::Auto {
+                        max_retries,
+                        backoff,
+                    } => {
                         reconnect_count += 1;
                         if reconnect_count > *max_retries {
                             let _ = tx
