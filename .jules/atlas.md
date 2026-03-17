@@ -53,3 +53,7 @@
 **[The Facade: Enforcing Module Boundaries in Bulk API]**
 **Tangle:** The `api::bulk` module leaked its internal structures (`ingest`, `query`, `types`, `csv`, `smart_ingest`) directly into the public API by declaring them as `pub mod`. This violated the Facade pattern and exposed implementation details that users shouldn't depend on.
 **Blueprint:** Changed visibility of these internal modules to `pub(crate) mod` and explicitly re-exported their main public structs/enums using `pub use` statements at the module root (`api/bulk/mod.rs`). This enforces encapsulation and presents a clean, un-nested API surface to consumers.
+
+**[The Facade: Eliminating Empty Static Structs]**
+**Tangle:** Several experimental utilities (`SchemaAnalyzer`, `SchemaDiff`, `SchemaChangelogGenerator`) were implemented as empty, stateless structs with methods (e.g., `pub struct SchemaAnalyzer; impl SchemaAnalyzer { pub fn analyze(...) }`). This is a Java-style object-oriented anti-pattern in Rust that introduces unnecessary namespacing, obfuscates intent, and requires boilerplate instantiations.
+**Blueprint:** Refactored these structs into simple module-level free functions (`analyze_schema`, `compare_schemas`, `generate_changelog`). This aligns with idiomatic Rust, enforces simplicity (KISS), and cleans up the public API by removing empty structs that carry no data.

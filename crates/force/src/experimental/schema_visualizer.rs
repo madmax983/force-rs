@@ -2,13 +2,13 @@ use crate::auth::Authenticator;
 use crate::client::ForceClient;
 use crate::error::Result;
 use crate::experimental::scanner::FieldUsageScanner;
-use crate::experimental::schema_analyzer::SchemaAnalyzer;
+use crate::experimental::schema_analyzer::analyze_schema;
 use crate::experimental::schema_graph::SchemaGraph;
 use std::collections::HashMap;
 
 /// A utility to generate a comprehensive Markdown report of an SObject schema.
 ///
-/// This combines `SchemaAnalyzer`, `SchemaGraph`, and `FieldUsageScanner`
+/// This combines `analyze_schema`, `SchemaGraph`, and `FieldUsageScanner`
 /// into a single, unified visual report.
 #[derive(Debug)]
 pub struct SchemaVisualizer<'a, A: Authenticator> {
@@ -36,8 +36,7 @@ impl<'a, A: Authenticator> SchemaVisualizer<'a, A> {
     pub async fn generate_report(&self, sobject: &str, include_usage: bool) -> Result<String> {
         let describe = self.client.rest().describe(sobject).await?;
 
-        let analyzer = SchemaAnalyzer::new();
-        let insights = analyzer.analyze(&describe);
+        let insights = analyze_schema(&describe);
 
         let mut graph = SchemaGraph::new(self.client);
         graph.scan(sobject).await?;

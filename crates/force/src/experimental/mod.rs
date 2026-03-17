@@ -54,13 +54,13 @@ pub use data_dictionary::DataDictionary;
 pub use type_generator::StructGenerator;
 
 #[cfg(feature = "schema")]
-pub use schema_diff::{FieldChange, SchemaDiff, SchemaDiffResult};
+pub use schema_diff::{FieldChange, SchemaDiffResult, compare_schemas};
 
 #[cfg(feature = "data_utility")]
 pub use data_faker::DataFaker;
 
 #[cfg(feature = "schema")]
-pub use schema_analyzer::{SchemaAnalyzer, SchemaInsights};
+pub use schema_analyzer::{SchemaInsights, analyze_schema};
 #[cfg(feature = "schema")]
 pub use schema_visualizer::SchemaVisualizer;
 
@@ -71,4 +71,4 @@ pub use soql_mass_op::SoqlMassOp;
 pub(crate) mod schema_changelog;
 
 #[cfg(feature = "schema")]
-pub use schema_changelog::SchemaChangelogGenerator;
+pub use schema_changelog::generate_changelog;
