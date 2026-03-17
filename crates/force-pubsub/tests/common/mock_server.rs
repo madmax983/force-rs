@@ -103,11 +103,13 @@ pub async fn start_mock_server(service: MockPubSubService) -> String {
     let stream = TcpListenerStream::new(listener);
 
     tokio::spawn(async move {
-        Server::builder()
+        if let Err(e) = Server::builder()
             .add_service(PubSubServer::new(service))
             .serve_with_incoming(stream)
             .await
-            .unwrap();
+        {
+            eprintln!("mock Pub/Sub server error: {e}");
+        }
     });
 
     format!("http://{addr}")

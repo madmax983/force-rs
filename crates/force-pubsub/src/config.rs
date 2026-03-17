@@ -7,7 +7,11 @@ use std::time::Duration;
 pub struct PubSubConfig {
     /// gRPC endpoint for the Pub/Sub API.
     pub endpoint: String,
-    /// Number of events to request per FetchRequest batch (1–100).
+    /// Number of events to request per FetchRequest batch.
+    ///
+    /// Must be between 1 and 100 (inclusive). Values outside this range will
+    /// cause [`PubSubHandler::connect`] to return a [`PubSubError::Config`] error.
+    /// The Salesforce Pub/Sub API rejects requests with 0 or negative values.
     pub batch_size: i32,
     /// Reconnection policy for the subscribe stream.
     pub reconnect_policy: ReconnectPolicy,
