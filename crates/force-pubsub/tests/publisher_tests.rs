@@ -5,11 +5,12 @@
 mod common;
 
 use async_trait::async_trait;
-use common::mock_server::{MockPubSubService, start_mock_server};
+use common::mock_server::{MockPubSubService, start_mock_server, start_userinfo_mock};
 use force::auth::{AccessToken, Authenticator, TokenResponse};
 use force::client::builder;
 use force::error::Result as ForceResult;
 use force_pubsub::{PubSubConfig, PubSubError, PubSubHandler, ReconnectPolicy};
+use wiremock::MockServer;
 
 const SCHEMA_JSON: &str =
     r#"{"type":"record","name":"TestEvent","fields":[{"name":"id","type":"string"}]}"#;
@@ -50,23 +51,26 @@ impl Authenticator for TestAuth {
     }
 }
 
-async fn make_handler(endpoint: String) -> PubSubHandler<TestAuth> {
-    let auth = TestAuth::new("test-token", "https://test.salesforce.com");
+/// Returns `(handler, _userinfo_mock)` — keep `_userinfo_mock` alive for the test duration.
+async fn make_handler(endpoint: String) -> (PubSubHandler<TestAuth>, MockServer) {
+    let (userinfo_mock, instance_url) = start_userinfo_mock("00Dxx0000001gEREAY").await;
+    let auth = TestAuth::new("test-token", &instance_url);
     let client = builder().authenticate(auth).build().await.unwrap();
     let config = PubSubConfig {
         endpoint,
         reconnect_policy: ReconnectPolicy::None,
         ..PubSubConfig::default()
     };
-    PubSubHandler::connect(client.session(), config)
+    let handler = PubSubHandler::connect(client.session(), config)
         .await
-        .unwrap()
+        .unwrap();
+    (handler, userinfo_mock)
 }
 
 #[tokio::test]
 async fn test_publish_returns_response() {
     let url = start_mock_server(MockPubSubService::default()).await;
-    let handler = make_handler(url).await;
+    let (handler, _userinfo) = make_handler(url).await;
 
     // Pre-populate schema cache so publish can encode events
     handler
@@ -85,7 +89,7 @@ async fn test_publish_returns_response() {
 #[tokio::test]
 async fn test_publish_empty_events_succeeds() {
     let url = start_mock_server(MockPubSubService::default()).await;
-    let handler = make_handler(url).await;
+    let (handler, _userinfo) = make_handler(url).await;
     handler
         .schema_cache
         .parse_and_insert(SCHEMA_ID.to_string(), SCHEMA_JSON)
@@ -101,7 +105,7 @@ async fn test_publish_empty_events_succeeds() {
 #[tokio::test]
 async fn test_publish_schema_not_in_cache_returns_error() {
     let url = start_mock_server(MockPubSubService::default()).await;
-    let handler = make_handler(url).await;
+    let (handler, _userinfo) = make_handler(url).await;
     // schema_cache is empty — don't insert anything
 
     let payload = serde_json::json!({"id": "evt-001"});

@@ -6,6 +6,8 @@ use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::wrappers::TcpListenerStream;
 use tonic::transport::Server;
 use tonic::{Request, Response, Status};
+use wiremock::matchers::{header_exists, method, path};
+use wiremock::{Mock, MockServer, ResponseTemplate};
 
 use force_pubsub::proto::eventbus_v1::{
     FetchRequest, FetchResponse, PublishRequest, PublishResponse as ProtoPublishResponse,
@@ -110,4 +112,27 @@ pub async fn start_mock_server(service: MockPubSubService) -> String {
     });
 
     format!("http://{addr}")
+}
+
+/// Start a wiremock HTTP server that responds to `/services/oauth2/userinfo` with a
+/// fake org ID. Returns the server (keep alive for the test duration) and its base URL.
+///
+/// The returned `MockServer` must be kept alive for the duration of the test.
+pub async fn start_userinfo_mock(org_id: &str) -> (MockServer, String) {
+    let server = MockServer::start().await;
+    let body = format!(
+        r#"{{"sub":"https://login.salesforce.com/id/00D000000000001EAA/005000000000001AAA","user_id":"005000000000001AAA","organization_id":"{org_id}","username":"test@example.com"}}"#
+    );
+    Mock::given(method("GET"))
+        .and(path("/services/oauth2/userinfo"))
+        .and(header_exists("authorization"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .insert_header("content-type", "application/json")
+                .set_body_string(body),
+        )
+        .mount(&server)
+        .await;
+    let url = server.uri();
+    (server, url)
 }

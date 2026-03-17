@@ -16,6 +16,7 @@ pub mod codec;
 pub mod config;
 pub mod error;
 pub mod handler;
+pub(crate) mod interceptor;
 pub mod types;
 
 pub(crate) mod publisher;

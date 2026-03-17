@@ -9,16 +9,53 @@ use force::session::Session;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
+use tokio::sync::OnceCell;
 use tokio_stream::Stream;
 
 use crate::config::{PubSubConfig, ReplayPreset};
 use crate::error::{PubSubError, Result};
+use crate::interceptor;
 use crate::publisher::publish_unary;
 use crate::schema_cache::SchemaCache;
 use crate::subscriber::{subscribe_dynamic, subscribe_typed_dynamic};
 use crate::types::{PubSubEvent, PublishResponse};
 
 use crate::proto::eventbus_v1::{SchemaRequest, TopicRequest, pub_sub_client::PubSubClient};
+
+/// JSON structure of Salesforce's `/services/oauth2/userinfo` response (relevant fields only).
+#[derive(serde::Deserialize)]
+struct UserInfo {
+    organization_id: String,
+}
+
+/// Fetch the 18-char org ID from the Salesforce userinfo endpoint.
+///
+/// Used by [`PubSubHandler::get_tenant_id`] as the initialiser for its [`OnceCell`].
+async fn fetch_tenant_id<A: Authenticator>(session: &Arc<Session<A>>) -> Result<String> {
+    let token = session.token_manager().token().await?;
+    let userinfo_url = format!("{}/services/oauth2/userinfo", token.instance_url());
+
+    let resp = reqwest::Client::new()
+        .get(&userinfo_url)
+        .bearer_auth(token.as_str())
+        .send()
+        .await
+        .map_err(|e| PubSubError::Config(format!("userinfo request failed: {e}")))?;
+
+    if !resp.status().is_success() {
+        return Err(PubSubError::Config(format!(
+            "userinfo returned status {}",
+            resp.status()
+        )));
+    }
+
+    let info: UserInfo = resp
+        .json()
+        .await
+        .map_err(|e| PubSubError::Config(format!("userinfo parse failed: {e}")))?;
+
+    Ok(info.organization_id)
+}
 
 /// Public-facing topic metadata (mirrors proto without leaking generated types).
 #[derive(Debug, Clone)]
@@ -56,6 +93,10 @@ pub struct PubSubHandler<A: Authenticator> {
     /// Shared schema cache, populated during subscribe/publish operations in later tasks.
     pub schema_cache: SchemaCache,
     pub(crate) channel: Channel,
+    /// Lazily fetched org ID (18-char) from `/services/oauth2/userinfo`.
+    ///
+    /// Populated on the first call to [`Self::get_tenant_id`] and reused thereafter.
+    tenant_id: Arc<OnceCell<String>>,
 }
 
 impl<A: Authenticator> PubSubHandler<A> {
@@ -85,6 +126,7 @@ impl<A: Authenticator> PubSubHandler<A> {
             config,
             schema_cache: SchemaCache::new(),
             channel,
+            tenant_id: Arc::new(OnceCell::new()),
         })
     }
 
@@ -93,25 +135,32 @@ impl<A: Authenticator> PubSubHandler<A> {
         PubSubClient::new(self.channel.clone())
     }
 
-    /// Inject auth headers into a tonic request (pre-fetch pattern).
+    /// Fetch the org's 18-char tenant ID from `/services/oauth2/userinfo`, caching the result.
+    ///
+    /// Salesforce's userinfo response includes `organization_id` which is the 18-char org ID
+    /// required as the `tenantid` gRPC metadata header.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PubSubError::Config`] if the userinfo endpoint cannot be reached or the
+    /// response does not contain a valid `organization_id` field.
+    pub(crate) async fn get_tenant_id(&self) -> Result<&str> {
+        self.tenant_id
+            .get_or_try_init(|| fetch_tenant_id(&self.session))
+            .await
+            .map(String::as_str)
+    }
+
+    /// Build a tonic request with all three required Pub/Sub auth headers.
+    ///
+    /// Fetches a fresh token and (lazily) the tenant ID, then delegates to
+    /// [`crate::interceptor::build_metadata`].
     async fn auth_request<T>(&self, message: T) -> Result<tonic::Request<T>> {
         let token = self.session.token_manager().token().await?;
+        let tenant_id = self.get_tenant_id().await?.to_string();
+        let meta = interceptor::build_metadata(&token, token.instance_url(), &tenant_id)?;
         let mut req = tonic::Request::new(message);
-        let metadata = req.metadata_mut();
-        metadata.insert(
-            "accesstoken",
-            token
-                .as_str()
-                .parse()
-                .map_err(|_| PubSubError::Config("invalid token characters".to_string()))?,
-        );
-        metadata.insert(
-            "instanceurl",
-            token
-                .instance_url()
-                .parse()
-                .map_err(|_| PubSubError::Config("invalid instance URL characters".to_string()))?,
-        );
+        *req.metadata_mut() = meta;
         Ok(req)
     }
 
@@ -179,6 +228,7 @@ impl<A: Authenticator + Send + Sync + 'static> PubSubHandler<A> {
         topic: &str,
         events: Vec<T>,
     ) -> Result<PublishResponse> {
+        let tenant_id = self.get_tenant_id().await?.to_string();
         publish_unary(
             &self.session,
             &self.channel,
@@ -186,6 +236,7 @@ impl<A: Authenticator + Send + Sync + 'static> PubSubHandler<A> {
             schema_id,
             topic,
             events,
+            &tenant_id,
         )
         .await
     }
@@ -197,13 +248,13 @@ impl<A: Authenticator + Send + Sync + 'static> PubSubHandler<A> {
     ///
     /// # Errors
     ///
-    /// This method is infallible at call time; errors surface as stream items.
-    #[allow(clippy::unused_async)]
+    /// Returns [`PubSubError::Config`] if the tenant ID cannot be fetched from userinfo.
     pub async fn subscribe(
         &self,
         topic: &str,
         replay: ReplayPreset,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<PubSubEvent<Value>>> + Send>>> {
+        let tenant_id = self.get_tenant_id().await?.to_string();
         Ok(subscribe_dynamic(
             Arc::clone(&self.session),
             self.config.clone(),
@@ -211,6 +262,7 @@ impl<A: Authenticator + Send + Sync + 'static> PubSubHandler<A> {
             self.channel.clone(),
             topic.to_string(),
             replay,
+            tenant_id,
         ))
     }
 
@@ -218,8 +270,7 @@ impl<A: Authenticator + Send + Sync + 'static> PubSubHandler<A> {
     ///
     /// # Errors
     ///
-    /// This method is infallible at call time; errors surface as stream items.
-    #[allow(clippy::unused_async)]
+    /// Returns [`PubSubError::Config`] if the tenant ID cannot be fetched from userinfo.
     pub async fn subscribe_typed<T>(
         &self,
         topic: &str,
@@ -228,6 +279,7 @@ impl<A: Authenticator + Send + Sync + 'static> PubSubHandler<A> {
     where
         T: DeserializeOwned + Send + 'static,
     {
+        let tenant_id = self.get_tenant_id().await?.to_string();
         Ok(subscribe_typed_dynamic(
             Arc::clone(&self.session),
             self.config.clone(),
@@ -235,6 +287,7 @@ impl<A: Authenticator + Send + Sync + 'static> PubSubHandler<A> {
             self.channel.clone(),
             topic.to_string(),
             replay,
+            tenant_id,
         ))
     }
 }

@@ -15,6 +15,7 @@ use tonic::transport::Channel;
 use crate::codec::decode_avro;
 use crate::config::{PubSubConfig, ReconnectPolicy, ReplayPreset};
 use crate::error::{PubSubError, Result};
+use crate::interceptor;
 use crate::proto::eventbus_v1::{FetchRequest, pub_sub_client::PubSubClient};
 use crate::schema_cache::SchemaCache;
 use crate::types::{EventMessage, PubSubEvent, ReplayId};
@@ -58,6 +59,8 @@ struct SubscribeState<A: Authenticator> {
     schema_cache: SchemaCache,
     channel: Channel,
     topic: String,
+    /// 18-char org ID, pre-fetched by the caller before spawning the subscribe task.
+    tenant_id: String,
 }
 
 impl<A: Authenticator> SubscribeState<A> {
@@ -81,22 +84,9 @@ impl<A: Authenticator> SubscribeState<A> {
             .await
             .map_err(|_| PubSubError::Config("initial FetchRequest send failed".to_string()))?;
 
+        let meta = interceptor::build_metadata(&token, token.instance_url(), &self.tenant_id)?;
         let mut req = tonic::Request::new(ReceiverStream::new(rx));
-        let metadata = req.metadata_mut();
-        metadata.insert(
-            "accesstoken",
-            token
-                .as_str()
-                .parse()
-                .map_err(|_| PubSubError::Config("invalid token characters".to_string()))?,
-        );
-        metadata.insert(
-            "instanceurl",
-            token
-                .instance_url()
-                .parse()
-                .map_err(|_| PubSubError::Config("invalid instance URL characters".to_string()))?,
-        );
+        *req.metadata_mut() = meta;
 
         let response = PubSubClient::new(self.channel.clone())
             .subscribe(req)
@@ -240,6 +230,9 @@ async fn subscribe_loop<A: Authenticator + Send + Sync + 'static>(
 /// decoded events through a channel. The returned stream emits
 /// [`PubSubEvent<Value>`] items until the channel is closed or an unrecoverable
 /// error occurs.
+///
+/// `tenant_id` is the 18-char Salesforce org ID required as the `tenantid`
+/// gRPC header on every subscribe call.
 pub fn subscribe_dynamic<A: Authenticator + Send + Sync + 'static>(
     session: Arc<Session<A>>,
     config: PubSubConfig,
@@ -247,6 +240,7 @@ pub fn subscribe_dynamic<A: Authenticator + Send + Sync + 'static>(
     channel: Channel,
     topic: String,
     preset: ReplayPreset,
+    tenant_id: String,
 ) -> Pin<Box<dyn Stream<Item = Result<PubSubEvent<Value>>> + Send>> {
     let (tx, rx) = mpsc::channel(stream_channel_capacity(config.batch_size));
     tokio::spawn(subscribe_loop(
@@ -256,6 +250,7 @@ pub fn subscribe_dynamic<A: Authenticator + Send + Sync + 'static>(
             schema_cache,
             channel,
             topic,
+            tenant_id,
         },
         preset,
         tx,
@@ -267,6 +262,9 @@ pub fn subscribe_dynamic<A: Authenticator + Send + Sync + 'static>(
 ///
 /// Internally calls [`subscribe_dynamic`] and maps each decoded
 /// [`serde_json::Value`] payload to `T` via [`serde_json::from_value`].
+///
+/// `tenant_id` is the 18-char Salesforce org ID required as the `tenantid`
+/// gRPC header on every subscribe call.
 pub fn subscribe_typed_dynamic<A, T>(
     session: Arc<Session<A>>,
     config: PubSubConfig,
@@ -274,6 +272,7 @@ pub fn subscribe_typed_dynamic<A, T>(
     channel: Channel,
     topic: String,
     preset: ReplayPreset,
+    tenant_id: String,
 ) -> Pin<Box<dyn Stream<Item = Result<PubSubEvent<T>>> + Send>>
 where
     A: Authenticator + Send + Sync + 'static,
@@ -281,7 +280,15 @@ where
 {
     let (tx, rx) = mpsc::channel(stream_channel_capacity(config.batch_size));
 
-    let dynamic = subscribe_dynamic(session, config, schema_cache, channel, topic, preset);
+    let dynamic = subscribe_dynamic(
+        session,
+        config,
+        schema_cache,
+        channel,
+        topic,
+        preset,
+        tenant_id,
+    );
 
     tokio::spawn(async move {
         let mut stream = dynamic;

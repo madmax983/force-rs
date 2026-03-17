@@ -9,12 +9,15 @@ use force::session::Session;
 
 use crate::codec::encode_avro;
 use crate::error::{PubSubError, Result};
+use crate::interceptor;
 use crate::schema_cache::SchemaCache;
 use crate::types::{PublishResponse, PublishResult, ReplayId};
 
 use crate::proto::eventbus_v1::{ProducerEvent, PublishRequest, pub_sub_client::PubSubClient};
 
 /// Encode events and publish via the unary Publish RPC.
+///
+/// `tenant_id` must be the 18-char Salesforce org ID, used as the `tenantid` gRPC header.
 pub async fn publish_unary<A, T>(
     session: &Arc<Session<A>>,
     channel: &Channel,
@@ -22,6 +25,7 @@ pub async fn publish_unary<A, T>(
     schema_id: &str,
     topic: &str,
     events: Vec<T>,
+    tenant_id: &str,
 ) -> Result<PublishResponse>
 where
     A: Authenticator,
@@ -43,27 +47,13 @@ where
     }
 
     let token = session.token_manager().token().await?;
+    let meta = interceptor::build_metadata(&token, token.instance_url(), tenant_id)?;
 
     let mut req = tonic::Request::new(PublishRequest {
         topic_name: topic.to_string(),
         events: producer_events,
     });
-
-    let metadata = req.metadata_mut();
-    metadata.insert(
-        "accesstoken",
-        token
-            .as_str()
-            .parse()
-            .map_err(|_| PubSubError::Config("invalid token characters".to_string()))?,
-    );
-    metadata.insert(
-        "instanceurl",
-        token
-            .instance_url()
-            .parse()
-            .map_err(|_| PubSubError::Config("invalid instance URL characters".to_string()))?,
-    );
+    *req.metadata_mut() = meta;
 
     let resp = PubSubClient::new(channel.clone())
         .publish(req)

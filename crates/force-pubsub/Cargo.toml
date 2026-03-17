@@ -14,6 +14,7 @@ workspace = true
 
 [dependencies]
 force = { path = "../force" }
+reqwest = { workspace = true }
 tonic = { workspace = true, features = ["tls", "tls-roots"] }
 prost = { workspace = true }
 apache-avro = { workspace = true }
@@ -39,3 +40,5 @@ anyhow = { workspace = true }
 async-trait = { workspace = true }
 force = { path = "../force" }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+wiremock = { workspace = true }
+futures = { workspace = true }

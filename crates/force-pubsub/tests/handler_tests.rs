@@ -5,11 +5,12 @@
 mod common;
 
 use async_trait::async_trait;
-use common::mock_server::{MockPubSubService, start_mock_server};
+use common::mock_server::{MockPubSubService, start_mock_server, start_userinfo_mock};
 use force::auth::{AccessToken, Authenticator, TokenResponse};
 use force::client::builder;
 use force::error::Result as ForceResult;
 use force_pubsub::{PubSubConfig, PubSubError, PubSubHandler};
+use wiremock::MockServer;
 
 /// Minimal mock authenticator for handler tests.
 #[derive(Debug, Clone)]
@@ -46,22 +47,25 @@ impl Authenticator for TestAuth {
     }
 }
 
-async fn make_handler(endpoint: String) -> PubSubHandler<TestAuth> {
-    let auth = TestAuth::new("test-token", "https://test.salesforce.com");
+/// Returns `(handler, _userinfo_mock)` — keep `_userinfo_mock` alive for the test duration.
+async fn make_handler(endpoint: String) -> (PubSubHandler<TestAuth>, MockServer) {
+    let (userinfo_mock, instance_url) = start_userinfo_mock("00Dxx0000001gEREAY").await;
+    let auth = TestAuth::new("test-token", &instance_url);
     let client = builder().authenticate(auth).build().await.unwrap();
     let config = PubSubConfig {
         endpoint,
         ..PubSubConfig::default()
     };
-    PubSubHandler::connect(client.session(), config)
+    let handler = PubSubHandler::connect(client.session(), config)
         .await
-        .unwrap()
+        .unwrap();
+    (handler, userinfo_mock)
 }
 
 #[tokio::test]
 async fn test_get_topic_returns_info() {
     let url = start_mock_server(MockPubSubService::default()).await;
-    let handler = make_handler(url).await;
+    let (handler, _userinfo) = make_handler(url).await;
 
     let info = handler.get_topic("/event/MyEvent__e").await.unwrap();
     assert_eq!(info.topic_name, "/event/MyEvent__e");
@@ -72,7 +76,7 @@ async fn test_get_topic_returns_info() {
 #[tokio::test]
 async fn test_get_schema_returns_info() {
     let url = start_mock_server(MockPubSubService::default()).await;
-    let handler = make_handler(url).await;
+    let (handler, _userinfo) = make_handler(url).await;
 
     let info = handler.get_schema("schema-test-001").await.unwrap();
     assert_eq!(info.schema_id, "schema-test-001");
@@ -82,7 +86,7 @@ async fn test_get_schema_returns_info() {
 #[tokio::test]
 async fn test_get_schema_not_found_returns_error() {
     let url = start_mock_server(MockPubSubService::default()).await;
-    let handler = make_handler(url).await;
+    let (handler, _userinfo) = make_handler(url).await;
 
     let result = handler.get_schema("nonexistent-schema").await;
     assert!(result.is_err());
@@ -92,7 +96,7 @@ async fn test_get_schema_not_found_returns_error() {
 #[tokio::test]
 async fn test_handler_is_cloneable() {
     let url = start_mock_server(MockPubSubService::default()).await;
-    let handler = make_handler(url).await;
+    let (handler, _userinfo) = make_handler(url).await;
     let _cloned = handler.clone();
 }
 
@@ -131,7 +135,7 @@ async fn test_connect_rejects_invalid_batch_size_over_100() {
 #[tokio::test]
 async fn test_get_topic_can_publish_is_true() {
     let url = start_mock_server(MockPubSubService::default()).await;
-    let handler = make_handler(url).await;
+    let (handler, _userinfo) = make_handler(url).await;
 
     let info = handler.get_topic("/event/MyEvent__e").await.unwrap();
     assert!(info.can_publish);
