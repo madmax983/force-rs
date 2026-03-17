@@ -7,6 +7,21 @@
 #![warn(missing_docs)]
 #![allow(clippy::doc_markdown)]
 #![allow(clippy::missing_errors_doc)]
+// tonic::Status is 176 bytes; suppressed crate-wide rather than boxing
+// through every From impl and call site.
+#![allow(clippy::result_large_err)]
+
+pub mod codec;
+pub mod config;
+pub mod error;
+pub mod types;
+
+pub(crate) mod schema_cache;
+
+pub use config::{BackoffConfig, PubSubConfig, ReconnectPolicy, ReplayPreset};
+pub use error::{PubSubError, Result};
+pub use schema_cache::SchemaCache;
+pub use types::{EventMessage, PubSubEvent, PublishResponse, PublishResult, ReplayId};
 
 /// Generated protobuf types from the Salesforce Pub/Sub API proto.
 pub mod proto {
