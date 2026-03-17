@@ -171,3 +171,11 @@ match result {
 **Finding:** The original test `test_schema_analyzer` provided only 6 total fields, meaning that the `total_fields / 10` division resulted in `0`. This made the test blind to mutants replacing division `/` with multiplication `*` (`6 * 10 = 60`), which caused false confidence. Additionally, the existing test inputs did not robustly exercise all `+` and `*` operators in the `complexity_score` calculation.
 **Evidence:** `cargo mutants` revealed that multiple logic mutants in `SchemaAnalyzer::analyze` replacing `*` with `+` or `/`, and `/` with `*` survived, indicating that the test suite was insufficiently sensitive to mathematical logic errors and edge cases in the scoring heuristic.
 **Recommendation:** Added `test_schema_analyzer_complexity_math` with exactly 12 fields (so `12 / 10 = 1`) and non-zero counts for custom, formula, and relationship fields to ensure all mathematical operations `*`, `/`, and `+` produce meaningful, non-identity/non-zero outcomes that effectively kill the mathematical mutants.
+
+### [Strengthened] `crates/force/src/experimental/schema_analyzer.rs`
+
+**Module:** `crates/force/src/experimental/schema_analyzer.rs`
+**Severity:** 🔴 Critical
+**Finding:** The tests failed to catch mathematical mutants in `complexity_score` and logical mutants in `required_field_count` calculation. Additionally, a mutant replacing `analyze_schema` return value with `Default::default()` survived due to missing assertions on `standard_field_count` and `required_field_count`.
+**Evidence:** 30 mutants survived in `cargo mutants` output including replacements of `*` with `+`, `&&` with `||`, and deletion of `!`.
+**Recommendation:** Expanded the test payload in `test_schema_analyzer_complexity_math` to 20 fields explicitly designed to yield distinct non-identity arithmetic values, explicitly hit all boolean logic paths, and asserted on all output struct properties.

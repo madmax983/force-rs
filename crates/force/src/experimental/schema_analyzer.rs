@@ -190,28 +190,65 @@ mod tests {
     #[test]
     fn test_schema_analyzer_complexity_math() {
         let describe = create_mock_describe(&json!([
-            mock_field("Id", "id", false, false, true, false),
+            // 1. Id: Test exclusion from required even if not nillable and not defaulted
+            mock_field("Id", "id", false, false, false, false),
+            // 2. Name: Required standard
             mock_field("Name", "string", false, false, false, false),
+            // 3. Required2: Required standard
+            mock_field("Required2", "string", false, false, false, false),
+            // 4. Custom1__c
             mock_field("Custom1__c", "string", true, true, false, false),
+            // 5. Custom2__c
             mock_field("Custom2__c", "string", true, true, false, false),
+            // 6. Custom3__c
             mock_field("Custom3__c", "string", true, true, false, false),
+            // 7. Custom4__c
+            mock_field("Custom4__c", "string", true, true, false, false),
+            // 8. Custom5__c: Required custom
+            mock_field("Custom5__c", "string", true, false, false, false),
+            // 9. Custom6__c: Required custom
+            mock_field("Custom6__c", "string", true, false, false, false),
+            // 10. Custom7__c
+            mock_field("Custom7__c", "string", true, true, false, false),
+            // 11. Formula1__c: Formula
             mock_field("Formula1__c", "double", true, true, false, true),
+            // 12. Formula2__c: Formula
             mock_field("Formula2__c", "double", true, true, false, true),
+            // 13. Formula3__c: Formula
+            mock_field("Formula3__c", "double", true, true, false, true),
+            // 14. Rel1__c: Reference
             mock_field("Rel1__c", "reference", true, true, false, false),
+            // 15. Rel2__c: Reference
             mock_field("Rel2__c", "reference", true, true, false, false),
+            // 16. Rel3__c: Reference
+            mock_field("Rel3__c", "reference", true, true, false, false),
+            // 17. Rel4__c: Reference
+            mock_field("Rel4__c", "reference", true, true, false, false),
+            // 18. Standard1: Nillable test
             mock_field("Standard1", "string", false, true, false, false),
-            mock_field("Standard2", "string", false, true, false, false),
+            // 19. Standard2: Defaulted test
+            mock_field("Standard2", "string", false, false, true, false),
+            // 20. Standard3: Filler
             mock_field("Standard3", "string", false, true, false, false)
         ]));
 
         let insights = analyze_schema(&describe);
 
-        assert_eq!(insights.total_fields, 12);
-        assert_eq!(insights.custom_field_count, 7);
-        assert_eq!(insights.formula_field_count, 2);
-        assert_eq!(insights.relationship_field_count, 2);
+        assert_eq!(insights.total_fields, 20);
+        // Custom = 4,5,6,7,8,9,10,11,12,13,14,15,16,17 = 14
+        assert_eq!(insights.custom_field_count, 14);
+        assert_eq!(insights.standard_field_count, 6);
+        // Required = Name, Required2, Custom5__c, Custom6__c = 4
+        assert_eq!(insights.required_field_count, 4);
+        assert_eq!(insights.formula_field_count, 3);
+        assert_eq!(insights.relationship_field_count, 4);
 
-        // Score logic: 1 + 14 + 10 + 6 = 31
-        assert_eq!(insights.complexity_score, 31);
+        // Score logic:
+        // 20/10 = 2
+        // 14*2 = 28
+        // 3*5 = 15
+        // 4*3 = 12
+        // Total = 57
+        assert_eq!(insights.complexity_score, 57);
     }
 }
