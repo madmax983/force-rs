@@ -4,16 +4,13 @@
 //! Each event carries a `schema_id` in its header that identifies the Avro
 //! schema required for decoding.
 
-use apache_avro::{from_value, to_avro_datum, Schema};
+use apache_avro::{Schema, from_value, to_avro_datum};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::error::{PubSubError, Result};
 
-fn avro_value_from_bytes(
-    schema: &Schema,
-    bytes: &[u8],
-) -> Result<apache_avro::types::Value> {
+fn avro_value_from_bytes(schema: &Schema, bytes: &[u8]) -> Result<apache_avro::types::Value> {
     apache_avro::from_avro_datum(schema, &mut std::io::Cursor::new(bytes), None)
         .map_err(|e| PubSubError::Avro(e.to_string()))
 }
@@ -37,10 +34,7 @@ pub fn decode_avro(schema: &Schema, bytes: &[u8]) -> Result<Value> {
 ///
 /// Returns [`PubSubError::Avro`] if the bytes cannot be decoded or deserialized
 /// into `T`.
-pub fn decode_avro_typed<T: for<'de> Deserialize<'de>>(
-    schema: &Schema,
-    bytes: &[u8],
-) -> Result<T> {
+pub fn decode_avro_typed<T: for<'de> Deserialize<'de>>(schema: &Schema, bytes: &[u8]) -> Result<T> {
     let value = avro_value_from_bytes(schema, bytes)?;
     from_value::<T>(&value).map_err(|e| PubSubError::Avro(e.to_string()))
 }
@@ -54,8 +48,7 @@ pub fn decode_avro_typed<T: for<'de> Deserialize<'de>>(
 /// Returns [`PubSubError::Avro`] if the value cannot be serialized or resolved
 /// against the provided schema.
 pub fn encode_avro<T: Serialize>(schema: &Schema, value: &T) -> Result<Vec<u8>> {
-    let avro_value = apache_avro::to_value(value)
-        .map_err(|e| PubSubError::Avro(e.to_string()))?;
+    let avro_value = apache_avro::to_value(value).map_err(|e| PubSubError::Avro(e.to_string()))?;
     let resolved = avro_value
         .resolve(schema)
         .map_err(|e| PubSubError::Avro(e.to_string()))?;
@@ -109,8 +102,7 @@ mod tests {
         };
 
         let encoded = encode_avro(&schema, &event).expect("encode succeeds");
-        let decoded: TestEvent =
-            decode_avro_typed(&schema, &encoded).expect("decode succeeds");
+        let decoded: TestEvent = decode_avro_typed(&schema, &encoded).expect("decode succeeds");
 
         assert_eq!(decoded.id, "event-002");
         assert!((decoded.amount - 42.0).abs() < f64::EPSILON);

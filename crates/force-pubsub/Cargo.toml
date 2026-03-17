@@ -38,3 +38,4 @@ tokio-stream = { workspace = true, features = ["net"] }
 anyhow = { workspace = true }
 async-trait = { workspace = true }
 force = { path = "../force" }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }

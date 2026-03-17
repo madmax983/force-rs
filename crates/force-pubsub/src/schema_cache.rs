@@ -59,9 +59,8 @@ impl SchemaCache {
     ///
     /// Returns the parsed schema. Called after receiving `schema_json` from `GetSchema`.
     pub fn parse_and_insert(&self, schema_id: String, schema_json: &str) -> Result<Schema> {
-        let schema = Schema::parse_str(schema_json).map_err(|e| {
-            PubSubError::Avro(format!("failed to parse schema {schema_id}: {e}"))
-        })?;
+        let schema = Schema::parse_str(schema_json)
+            .map_err(|e| PubSubError::Avro(format!("failed to parse schema {schema_id}: {e}")))?;
         self.inner.cache.insert(schema_id, schema.clone());
         Ok(schema)
     }

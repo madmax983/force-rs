@@ -12,7 +12,7 @@ use crate::error::{PubSubError, Result};
 use crate::schema_cache::SchemaCache;
 use crate::types::{PublishResponse, PublishResult, ReplayId};
 
-use crate::proto::eventbus_v1::{pub_sub_client::PubSubClient, ProducerEvent, PublishRequest};
+use crate::proto::eventbus_v1::{ProducerEvent, PublishRequest, pub_sub_client::PubSubClient};
 
 /// Encode events and publish via the unary Publish RPC.
 pub async fn publish_unary<A, T>(

@@ -5,7 +5,7 @@
 mod common;
 
 use async_trait::async_trait;
-use common::mock_server::{start_mock_server, MockPubSubService};
+use common::mock_server::{MockPubSubService, start_mock_server};
 use force::auth::{AccessToken, Authenticator, TokenResponse};
 use force::client::builder;
 use force::error::Result as ForceResult;
@@ -53,7 +53,9 @@ async fn make_handler(endpoint: String) -> PubSubHandler<TestAuth> {
         endpoint,
         ..PubSubConfig::default()
     };
-    PubSubHandler::connect(client.session(), config).await.unwrap()
+    PubSubHandler::connect(client.session(), config)
+        .await
+        .unwrap()
 }
 
 #[tokio::test]

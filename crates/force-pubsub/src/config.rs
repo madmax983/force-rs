@@ -104,7 +104,10 @@ mod tests {
         let config = PubSubConfig::default();
         assert_eq!(config.endpoint, "https://api.pubsub.salesforce.com:7443");
         assert_eq!(config.batch_size, 100);
-        assert!(matches!(config.reconnect_policy, ReconnectPolicy::Auto { .. }));
+        assert!(matches!(
+            config.reconnect_policy,
+            ReconnectPolicy::Auto { .. }
+        ));
     }
 
     #[test]

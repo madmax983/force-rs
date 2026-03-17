@@ -4,15 +4,13 @@ use std::net::SocketAddr;
 use tokio::net::TcpListener;
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::wrappers::TcpListenerStream;
-use tonic::{Request, Response, Status};
 use tonic::transport::Server;
+use tonic::{Request, Response, Status};
 
 use force_pubsub::proto::eventbus_v1::{
-    pub_sub_server::{PubSub, PubSubServer},
-    FetchRequest, FetchResponse,
-    PublishRequest,
-    PublishResponse as ProtoPublishResponse,
+    FetchRequest, FetchResponse, PublishRequest, PublishResponse as ProtoPublishResponse,
     SchemaInfo, SchemaRequest, TopicInfo, TopicRequest,
+    pub_sub_server::{PubSub, PubSubServer},
 };
 
 /// Simple mock Pub/Sub gRPC server.
@@ -27,7 +25,9 @@ impl Default for MockPubSubService {
     fn default() -> Self {
         Self {
             topic_schema_id: "schema-test-001".to_string(),
-            schema_json: r#"{"type":"record","name":"TestEvent","fields":[{"name":"id","type":"string"}]}"#.to_string(),
+            schema_json:
+                r#"{"type":"record","name":"TestEvent","fields":[{"name":"id","type":"string"}]}"#
+                    .to_string(),
         }
     }
 }
@@ -37,10 +37,7 @@ impl PubSub for MockPubSubService {
     type SubscribeStream = ReceiverStream<Result<FetchResponse, Status>>;
     type PublishStreamStream = ReceiverStream<Result<ProtoPublishResponse, Status>>;
 
-    async fn get_topic(
-        &self,
-        req: Request<TopicRequest>,
-    ) -> Result<Response<TopicInfo>, Status> {
+    async fn get_topic(&self, req: Request<TopicRequest>) -> Result<Response<TopicInfo>, Status> {
         let name = req.into_inner().topic_name;
         Ok(Response::new(TopicInfo {
             topic_name: name.clone(),
