@@ -20,15 +20,7 @@ fn validate_id(id: &str) -> Result<()> {
     Ok(())
 }
 
-struct UrlEncodedWriter<'a>(&'a mut String);
-
-impl std::fmt::Write for UrlEncodedWriter<'_> {
-    fn write_str(&mut self, s: &str) -> std::fmt::Result {
-        self.0
-            .extend(url::form_urlencoded::byte_serialize(s.as_bytes()));
-        Ok(())
-    }
-}
+use crate::api::url_encoded_writer::UrlEncodedWriter;
 
 /// Constructs a Composite Batch request.
 ///
