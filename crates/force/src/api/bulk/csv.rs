@@ -126,14 +126,13 @@ where
     R: Read,
 {
     let mut csv_reader = csv::Reader::from_reader(reader);
-    let mut records = Vec::new();
 
-    for result in csv_reader.deserialize() {
-        let record: T = result.map_err(crate::error::SerializationError::from)?;
-        records.push(record);
-    }
-
-    Ok(records)
+    // ⚡ Bolt: Iterate directly without manual push loop.
+    // Iterating via `.collect()` allows the standard library to optimally size the allocation.
+    csv_reader
+        .deserialize()
+        .map(|result| result.map_err(crate::error::SerializationError::from).map_err(Into::into))
+        .collect()
 }
 
 /// Processes CSV data in batches to reduce memory usage.
