@@ -272,18 +272,7 @@ impl Graph {
         url.push_str("query?q=");
 
         {
-            // We use a custom writer adapter to encode directly into the URL string.
-            // This is identical to how `batch.rs` does it, to avoid intermediate allocations.
-            struct UrlEncodedWriter<'a>(&'a mut String);
-
-            impl std::fmt::Write for UrlEncodedWriter<'_> {
-                fn write_str(&mut self, s: &str) -> std::fmt::Result {
-                    self.0
-                        .extend(url::form_urlencoded::byte_serialize(s.as_bytes()));
-                    Ok(())
-                }
-            }
-
+            use crate::api::url_encoded_writer::UrlEncodedWriter;
             let mut writer = UrlEncodedWriter(&mut url);
             if let Err(e) = query_builder.write_query(&mut writer) {
                 return Err(ForceError::InvalidInput(format!(
