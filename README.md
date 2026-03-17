@@ -69,11 +69,11 @@ struct Account {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     // Authenticate with OAuth 2.0 client credentials
-    // For Sandbox, use: ClientCredentials::new_sandbox("client-id", "client-secret")
+    // For Sandbox, use: ClientCredentials::new_sandbox("client-id", "client-secret")?
     let auth = ClientCredentials::new_production(
         "your-client-id",
         "your-client-secret",
-    );
+    )?;
 
     let client = ForceClientBuilder::new()
         .authenticate(auth)
@@ -97,7 +97,7 @@ async fn main() -> anyhow::Result<()> {
 }
 ```
 
-> **Note:** For Sandbox environments, use `ClientCredentials::new_sandbox("client-id", "client-secret")` instead of `new_production`.
+> **Note:** For Sandbox environments, use `ClientCredentials::new_sandbox("client-id", "client-secret")?` instead of `new_production`.
 
 ## Advanced Examples
 
@@ -121,11 +121,11 @@ struct Account {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // For Sandbox, use: ClientCredentials::new_sandbox("client-id", "client-secret")
+    // For Sandbox, use: ClientCredentials::new_sandbox("client-id", "client-secret")?
     let auth = ClientCredentials::new_production(
         "client-id",
         "client-secret",
-    );
+    )?;
     let client = ForceClientBuilder::new().authenticate(auth).build().await?;
 
     let accounts = vec![
@@ -165,11 +165,11 @@ struct Contact {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // For Sandbox, use: ClientCredentials::new_sandbox("client-id", "client-secret")
+    // For Sandbox, use: ClientCredentials::new_sandbox("client-id", "client-secret")?
     let auth = ClientCredentials::new_production(
         "client-id",
         "client-secret",
-    );
+    )?;
     let client = ForceClientBuilder::new().authenticate(auth).build().await?;
 
     // Create bulk query job and stream results
@@ -267,11 +267,11 @@ use force::auth::ClientCredentials;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // For Sandbox, use: ClientCredentials::new_sandbox("client-id", "client-secret")
+    // For Sandbox, use: ClientCredentials::new_sandbox("client-id", "client-secret")?
     let auth = ClientCredentials::new_production(
         "client-id",
         "client-secret",
-    );
+    )?;
     let client = ForceClientBuilder::new().authenticate(auth).build().await?;
 
     let soql = "SELECT Id FROM Account WHERE Name LIKE 'A%'";

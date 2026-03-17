@@ -16,7 +16,7 @@ async fn main() -> anyhow::Result<()> {
     let client_secret = std::env::var("SALESFORCE_CLIENT_SECRET")
         .unwrap_or_else(|_| "dummy_client_secret".to_string());
 
-    let auth = ClientCredentials::new_sandbox(client_id, client_secret);
+    let auth = ClientCredentials::new_sandbox(client_id, client_secret)?;
 
     let client = ForceClientBuilder::new().authenticate(auth).build().await?;
 

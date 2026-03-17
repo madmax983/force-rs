@@ -16,8 +16,8 @@ mod example {
     }
 
     pub async fn main() -> anyhow::Result<()> {
-        // For Sandbox, use: ClientCredentials::new_sandbox("client-id", "client-secret")
-        let auth = ClientCredentials::new_production("client-id", "client-secret");
+        // For Sandbox, use: ClientCredentials::new_sandbox("client-id", "client-secret")?
+        let auth = ClientCredentials::new_production("client-id", "client-secret")?;
         let client = ForceClientBuilder::new().authenticate(auth).build().await?;
 
         let accounts = vec![

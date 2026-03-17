@@ -26,11 +26,11 @@
 //! ```ignore
 //! use force::auth::ClientCredentials;
 //!
-//! // For Sandbox, use: ClientCredentials::new_sandbox("client-id", "client-secret")
+//! // For Sandbox, use: ClientCredentials::new_sandbox("client-id", "client-secret")?
 //! let auth = ClientCredentials::new_production(
 //!     "your_client_id",
 //!     "your_client_secret",
-//! );
+//! )?;
 //!
 //! let token = auth.authenticate().await?;
 //! ```
@@ -79,29 +79,31 @@ impl ClientCredentials {
     ///     "3MVG9...",
     ///     "1234567890...",
     ///     "https://login.salesforce.com/services/oauth2/token",
-    /// );
+    /// ).must();
     /// ```
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics if the default HTTP client cannot be initialized (e.g., due to missing TLS backend).
+    /// Returns an error if the default HTTP client cannot be initialized (e.g., due to missing TLS backend).
     pub fn new(
         client_id: impl Into<String>,
         client_secret: impl Into<String>,
         token_url: impl Into<String>,
-    ) -> Self {
+    ) -> Result<Self> {
         // Client initialization failure is fatal and unrecoverable here
         let client = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(30))
             .build()
-            .unwrap_or_else(|e| panic!("Failed to create secure HTTP client: {}", e));
+            .map_err(|e| {
+                crate::error::ForceError::Http(crate::error::HttpError::RequestFailed(e))
+            })?;
 
-        Self {
+        Ok(Self {
             client_id: client_id.into(),
             client_secret: SecretString::new(client_secret.into().into()),
             token_url: token_url.into(),
             client,
-        }
+        })
     }
 
     /// Sets a custom HTTP client.
@@ -122,7 +124,7 @@ impl ClientCredentials {
     ///
     /// * `client_id` - OAuth client ID from Connected App
     /// * `client_secret` - OAuth client secret from Connected App
-    pub fn new_production(client_id: impl Into<String>, client_secret: impl Into<String>) -> Self {
+    pub fn new_production(client_id: impl Into<String>, client_secret: impl Into<String>) -> Result<Self> {
         Self::new(
             client_id,
             client_secret,
@@ -139,7 +141,7 @@ impl ClientCredentials {
     ///
     /// * `client_id` - OAuth client ID from Connected App
     /// * `client_secret` - OAuth client secret from Connected App
-    pub fn new_sandbox(client_id: impl Into<String>, client_secret: impl Into<String>) -> Self {
+    pub fn new_sandbox(client_id: impl Into<String>, client_secret: impl Into<String>) -> Result<Self> {
         Self::new(
             client_id,
             client_secret,
@@ -253,7 +255,7 @@ mod tests {
             "test_client_id",
             "test_client_secret",
             "https://login.salesforce.com/services/oauth2/token",
-        );
+        ).must();
 
         assert_eq!(auth.client_id, "test_client_id");
         assert_eq!(
@@ -268,7 +270,7 @@ mod tests {
             "client_id",
             "client_secret",
             "https://login.salesforce.com/services/oauth2/token",
-        );
+        ).must();
 
         assert_eq!(auth.grant_type(), "client_credentials");
     }
@@ -279,7 +281,7 @@ mod tests {
             "client_id",
             "my_secret",
             "https://login.salesforce.com/services/oauth2/token",
-        );
+        ).must();
 
         // Verify secret is properly wrapped
         assert_eq!(auth.client_secret.expose_secret(), "my_secret");
@@ -318,7 +320,7 @@ mod tests {
             "test_client_id",
             "test_client_secret",
             format!("{}/services/oauth2/token", mock_server.uri()),
-        );
+        ).must();
 
         let token = auth.authenticate().await.must();
         assert_eq!(token.as_str(), "00Dxx0000001gPL!test_token");
@@ -349,7 +351,7 @@ mod tests {
             "invalid_client_id",
             "invalid_secret",
             format!("{}/services/oauth2/token", mock_server.uri()),
-        );
+        ).must();
 
         let result = auth.authenticate().await;
         assert!(result.is_err());
@@ -391,7 +393,7 @@ mod tests {
             "test_client",
             "test_secret",
             format!("{}/services/oauth2/token", mock_server.uri()),
-        );
+        ).must();
 
         // First authenticate
         let _token1 = auth.authenticate().await.must();
@@ -409,7 +411,7 @@ mod tests {
             "test_client",
             "test_secret",
             "http://invalid.invalid.localhost:99999/oauth2/token",
-        );
+        ).must();
 
         let result = auth.authenticate().await;
         assert!(result.is_err());
@@ -437,7 +439,7 @@ mod tests {
             "test_client",
             "test_secret",
             format!("{}/services/oauth2/token", mock_server.uri()),
-        );
+        ).must();
 
         let result = auth.authenticate().await;
         assert!(result.is_err());
@@ -468,7 +470,7 @@ mod tests {
             "test_client",
             "test_secret",
             format!("{}/services/oauth2/token", mock_server.uri()),
-        );
+        ).must();
 
         let result = auth.authenticate().await;
         assert!(result.is_err());

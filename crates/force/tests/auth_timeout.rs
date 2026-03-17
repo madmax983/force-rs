@@ -34,7 +34,7 @@ async fn test_client_credentials_timeout() {
         "client_id",
         "client_secret",
         format!("{}/services/oauth2/token", mock_server.uri()),
-    )
+    ).unwrap()
     .with_client(http_client);
 
     let result = auth.authenticate().await;

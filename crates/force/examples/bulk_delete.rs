@@ -43,8 +43,8 @@ mod example {
 
         println!("═══ Authenticating ═══");
         // Use new_production() for standard login URL
-        // For Sandbox, use: ClientCredentials::new_sandbox("client-id", "client-secret")
-        let auth = ClientCredentials::new_production(client_id, client_secret);
+        // For Sandbox, use: ClientCredentials::new_sandbox("client-id", "client-secret")?
+        let auth = ClientCredentials::new_production(client_id, client_secret)?;
         let client = ForceClientBuilder::new().authenticate(auth).build().await?;
         println!("✓ Authentication successful\n");
 

@@ -21,7 +21,7 @@ async fn main() -> anyhow::Result<()> {
         env::var("SF_CLIENT_SECRET").unwrap_or_else(|_| "dummy_client_secret".to_string());
 
     // Authenticate
-    let auth = ClientCredentials::new_production(client_id, client_secret);
+    let auth = ClientCredentials::new_production(client_id, client_secret)?;
     let client = ForceClientBuilder::new().authenticate(auth).build().await?;
 
     println!("Finding Contact records that are marked as 'New'...");

@@ -18,8 +18,8 @@ mod example {
 
     pub async fn main() -> anyhow::Result<()> {
         // Authenticate with OAuth 2.0 client credentials
-        // For Sandbox, use: ClientCredentials::new_sandbox("client-id", "client-secret")
-        let auth = ClientCredentials::new_production("your-client-id", "your-client-secret");
+        // For Sandbox, use: ClientCredentials::new_sandbox("client-id", "client-secret")?
+        let auth = ClientCredentials::new_production("your-client-id", "your-client-secret")?;
 
         let client = ForceClientBuilder::new().authenticate(auth).build().await?;
 
