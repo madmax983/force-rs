@@ -10,6 +10,14 @@ use serde_json::Value;
 
 use crate::error::{PubSubError, Result};
 
+fn avro_value_from_bytes(
+    schema: &Schema,
+    bytes: &[u8],
+) -> Result<apache_avro::types::Value> {
+    apache_avro::from_avro_datum(schema, &mut std::io::Cursor::new(bytes), None)
+        .map_err(|e| PubSubError::Avro(e.to_string()))
+}
+
 /// Decode Avro-binary bytes into a [`serde_json::Value`] using the given schema.
 ///
 /// The schema must match the `schema_id` on the event header.
@@ -19,9 +27,7 @@ use crate::error::{PubSubError, Result};
 /// Returns [`PubSubError::Avro`] if the bytes cannot be decoded with the
 /// provided schema.
 pub fn decode_avro(schema: &Schema, bytes: &[u8]) -> Result<Value> {
-    let value =
-        apache_avro::from_avro_datum(schema, &mut std::io::Cursor::new(bytes), None)
-            .map_err(|e| PubSubError::Avro(e.to_string()))?;
+    let value = avro_value_from_bytes(schema, bytes)?;
     from_value::<Value>(&value).map_err(|e| PubSubError::Avro(e.to_string()))
 }
 
@@ -35,9 +41,7 @@ pub fn decode_avro_typed<T: for<'de> Deserialize<'de>>(
     schema: &Schema,
     bytes: &[u8],
 ) -> Result<T> {
-    let value =
-        apache_avro::from_avro_datum(schema, &mut std::io::Cursor::new(bytes), None)
-            .map_err(|e| PubSubError::Avro(e.to_string()))?;
+    let value = avro_value_from_bytes(schema, bytes)?;
     from_value::<T>(&value).map_err(|e| PubSubError::Avro(e.to_string()))
 }
 

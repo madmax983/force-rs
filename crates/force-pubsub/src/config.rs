@@ -70,9 +70,11 @@ impl Default for BackoffConfig {
 impl BackoffConfig {
     /// Compute the delay for a given attempt number (0-indexed).
     #[must_use]
+    #[allow(clippy::cast_possible_truncation)]
+    #[allow(clippy::cast_possible_wrap)]
     pub fn delay_for(&self, attempt: u32) -> Duration {
-        let multiplied = self.initial_delay.as_secs_f64()
-            * self.multiplier.powi(i32::try_from(attempt).unwrap_or(i32::MAX));
+        let exp = attempt.min(63) as i32;
+        let multiplied = self.initial_delay.as_secs_f64() * self.multiplier.powi(exp);
         let capped = multiplied.min(self.max_delay.as_secs_f64());
         Duration::from_secs_f64(capped)
     }

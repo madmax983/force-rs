@@ -7,7 +7,8 @@ pub struct ReplayId(pub(crate) Vec<u8>);
 impl ReplayId {
     /// Construct from raw bytes (e.g., from a FetchResponse).
     #[must_use]
-    pub const fn from_bytes(bytes: Vec<u8>) -> Self {
+    #[allow(clippy::missing_const_for_fn)]
+    pub fn from_bytes(bytes: Vec<u8>) -> Self {
         Self(bytes)
     }
 
@@ -38,7 +39,7 @@ pub struct EventMessage<T> {
 }
 
 /// Items yielded by the subscribe stream.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum PubSubEvent<T> {
     /// A decoded event.
     Event(EventMessage<T>),

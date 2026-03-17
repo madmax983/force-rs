@@ -16,7 +16,7 @@ pub mod config;
 pub mod error;
 pub mod types;
 
-pub(crate) mod schema_cache;
+pub mod schema_cache;
 
 pub use config::{BackoffConfig, PubSubConfig, ReconnectPolicy, ReplayPreset};
 pub use error::{PubSubError, Result};
