@@ -53,11 +53,11 @@ Demonstrates how to use the Query Plan API (`explain`) to inspect query performa
 - Analyze SOQL queries before execution
 - Inspect cost, cardinality, and operation types (TableScan vs IndexScan)
 - View optimization notes and warnings
-- **Requires:** `nova` feature enabled
+- **Requires:** `rest` feature enabled (default)
 
 **Run:**
 ```bash
-cargo run --example query_plan --features nova
+ cargo run --example query_plan
 ```
 
 **Use this example to:**
@@ -190,6 +190,57 @@ cargo run --example describe
 - Generate dynamic UIs
 - Create data dictionaries
 - Implement field validation
+
+---
+
+### 8. Data Dictionary Generation (`data_dictionary.rs`)
+
+Generate Markdown schema documentation directly from Salesforce describe metadata.
+
+**Features:**
+- Export a readable data dictionary for a target SObject
+- Optionally include field-usage scanner statistics
+- Produce documentation suitable for audits and internal references
+- **Requires:** `schema` feature enabled
+
+**Run:**
+```bash
+cargo run --example data_dictionary --features schema
+```
+
+---
+
+### 9. Struct Generator (`generate_struct.rs`)
+
+Generate Rust structs from Salesforce object metadata for typed application code.
+
+**Features:**
+- Convert describe metadata into serde-ready Rust structs
+- Map Salesforce field types to practical Rust types
+- Support live metadata generation and fallback demo mode
+- **Requires:** `schema` feature enabled
+
+**Run:**
+```bash
+cargo run --example generate_struct --features schema
+```
+
+---
+
+### 10. SOQL Mass Operations (`soql_mass_op.rs`)
+
+Use SOQL plus Composite Batch to update or delete many records with less boilerplate.
+
+**Features:**
+- Query target records once and batch follow-up operations automatically
+- Update or delete records in composite-sized chunks
+- Track success and failure counts across the run
+- **Requires:** `composite` feature enabled
+
+**Run:**
+```bash
+cargo run --example soql_mass_op --features composite
+```
 
 ---
 

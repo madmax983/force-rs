@@ -1,0 +1,46 @@
+name: Live Contract Tests
+
+on:
+  schedule:
+    - cron: "0 4 * * *"
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  live-contract:
+    name: Salesforce Live Contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SF_ACCESS_TOKEN: ${{ secrets.SF_ACCESS_TOKEN }}
+      SF_INSTANCE_URL: ${{ secrets.SF_INSTANCE_URL }}
+      SF_API_VERSION: ${{ vars.SF_API_VERSION || 'v60.0' }}
+      SF_LIVE_TEST_TIMEOUT_SECS: ${{ vars.SF_LIVE_TEST_TIMEOUT_SECS || '180' }}
+      SF_LIVE_BULK_POLL_MAX_ATTEMPTS: ${{ vars.SF_LIVE_BULK_POLL_MAX_ATTEMPTS || '12' }}
+      SF_LIVE_BULK_POLL_INITIAL_BACKOFF_MS: ${{ vars.SF_LIVE_BULK_POLL_INITIAL_BACKOFF_MS || '1000' }}
+      SF_LIVE_BULK_POLL_MAX_BACKOFF_MS: ${{ vars.SF_LIVE_BULK_POLL_MAX_BACKOFF_MS || '30000' }}
+      SF_LIVE_BULK_QUERY_ROW_LIMIT: ${{ vars.SF_LIVE_BULK_QUERY_ROW_LIMIT || '5' }}
+      SF_LIVE_RUN_PARTIAL_FAILURE: ${{ vars.SF_LIVE_RUN_PARTIAL_FAILURE || '0' }}
+      SF_LIVE_RUN_THROTTLE: ${{ vars.SF_LIVE_RUN_THROTTLE || '0' }}
+      SF_LIVE_THROTTLE_MAX_REQUESTS: ${{ vars.SF_LIVE_THROTTLE_MAX_REQUESTS || '5000' }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate required secrets
+        run: |
+          test -n "$SF_ACCESS_TOKEN" || (echo "Missing SF_ACCESS_TOKEN" && exit 1)
+          test -n "$SF_INSTANCE_URL" || (echo "Missing SF_INSTANCE_URL" && exit 1)
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Run ignored live tests
+        run: cargo test -p force --all-features --test live_salesforce -- --ignored --test-threads=1
+

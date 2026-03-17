@@ -226,8 +226,11 @@ impl<'a, A: crate::auth::Authenticator> SmartIngest<'a, A> {
         let size = csv_data.len();
 
         // Upload
-        let base_url = self.handler.base_url().await?;
-        let url = format!("{}/{}/batches", base_url, job_id);
+        let url = self
+            .handler
+            .inner
+            .resolve_url(&format!("jobs/ingest/{}/batches", job_id))
+            .await?;
 
         let mut headers = reqwest::header::HeaderMap::new();
         headers.insert(

@@ -123,6 +123,16 @@ cargo fmt
 3. Address any feedback or requested changes
 4. Maintainer will merge once approved
 
+## CI and Release Gates
+
+The project uses layered CI lanes:
+
+- Fast lane: formatting, clippy (`-D warnings`), and unit-focused tests.
+- Full lane: broader feature/test matrix.
+- Nightly live-contract lane: ignored live Salesforce tests against real org credentials.
+
+All PRs must pass lint/test gates before merge.
+
 ## Project Structure
 
 ```
@@ -265,3 +275,32 @@ If you have questions about contributing:
 - Review the `examples/` directory for usage patterns
 
 Thank you for contributing to `force-rs`!
+
+## Live Contract Testing
+
+Live tests are in `crates/force/tests/live_salesforce.rs` and use `#[ignore]` by default.
+
+Required environment:
+
+- `SF_ACCESS_TOKEN`
+- `SF_INSTANCE_URL`
+- optional `SF_API_VERSION` (default `v60.0`)
+
+Optional runtime tuning:
+
+- `SF_LIVE_TEST_TIMEOUT_SECS`
+- `SF_LIVE_BULK_POLL_MAX_ATTEMPTS`
+- `SF_LIVE_BULK_POLL_INITIAL_BACKOFF_MS`
+- `SF_LIVE_BULK_POLL_MAX_BACKOFF_MS`
+- `SF_LIVE_BULK_QUERY_ROW_LIMIT`
+
+Optional gated scenarios:
+
+- `SF_LIVE_RUN_PARTIAL_FAILURE=1`
+- `SF_LIVE_RUN_THROTTLE=1`
+
+Run manually:
+
+```bash
+cargo test -p force --all-features --test live_salesforce -- --ignored --test-threads=1
+```

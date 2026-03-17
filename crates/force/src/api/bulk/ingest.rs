@@ -538,7 +538,10 @@ impl<A: Authenticator> BulkHandler<A> {
     /// println!("Job state: {:?}", job.state);
     /// ```
     pub async fn get_job(&self, job_id: &str) -> Result<JobInfo> {
-        let url = format!("{}/{}", self.base_url().await?, job_id);
+        let url = self
+            .inner
+            .resolve_url(&format!("jobs/ingest/{}", job_id))
+            .await?;
         let request = self
             .inner
             .get(&url)
@@ -584,7 +587,10 @@ impl<A: Authenticator> BulkHandler<A> {
     /// assert_eq!(job.state, JobState::UploadComplete);
     /// ```
     pub async fn update_job(&self, job_id: &str, request: UpdateJobRequest) -> Result<JobInfo> {
-        let url = format!("{}/{}", self.base_url().await?, job_id);
+        let url = self
+            .inner
+            .resolve_url(&format!("jobs/ingest/{}", job_id))
+            .await?;
         let request = self
             .inner
             .patch(&url)
@@ -622,7 +628,10 @@ impl<A: Authenticator> BulkHandler<A> {
     /// client.bulk().delete_job("750xx0000000001AAA").await?;
     /// ```
     pub async fn delete_job(&self, job_id: &str) -> Result<()> {
-        let url = format!("{}/{}", self.base_url().await?, job_id);
+        let url = self
+            .inner
+            .resolve_url(&format!("jobs/ingest/{}", job_id))
+            .await?;
         let request = self
             .inner
             .delete(&url)

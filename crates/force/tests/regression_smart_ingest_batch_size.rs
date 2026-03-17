@@ -7,8 +7,8 @@
 #[allow(clippy::unwrap_used)]
 mod tests {
     use async_trait::async_trait;
-    use force::api::bulk::smart_ingest::SmartIngest;
-    use force::api::bulk::types::JobOperation;
+    use force::api::bulk::JobOperation;
+    use force::api::bulk::SmartIngest;
     use force::auth::{AccessToken, Authenticator, TokenResponse};
     use force::client::{ForceClient, builder};
     use force::error::Result as ForceResult;

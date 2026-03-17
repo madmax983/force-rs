@@ -57,7 +57,7 @@ impl BulkQueryRequest {
     /// # Examples
     ///
     /// ```
-    /// use force::api::bulk::query::BulkQueryRequest;
+    /// use force::api::bulk::BulkQueryRequest;
     ///
     /// let request = BulkQueryRequest::new("SELECT Id, Name FROM Account WHERE CreatedDate > TODAY");
     /// ```
@@ -158,6 +158,7 @@ impl<T, A: crate::auth::Authenticator> BulkQueryStream<T, A> {
     /// - Authentication fails
     /// - The HTTP request fails
     /// - CSV deserialization fails
+    #[allow(clippy::future_not_send)]
     pub async fn next(&mut self) -> Result<Option<T>>
     where
         T: for<'de> Deserialize<'de>,
@@ -177,7 +178,28 @@ impl<T, A: crate::auth::Authenticator> BulkQueryStream<T, A> {
             return Ok(None);
         }
 
-        // Fetch results from the API
+        self.fetch_next_page().await?;
+
+        if self.records.is_empty() {
+            self.exhausted = true;
+            return Ok(None);
+        }
+
+        Ok(self.records.pop_front())
+    }
+
+    #[allow(clippy::future_not_send)]
+    async fn fetch_next_page(&mut self) -> Result<()>
+    where
+        T: for<'de> Deserialize<'de>,
+    {
+        let response = self.execute_fetch_request().await?;
+        self.update_locator(&response);
+        self.deserialize_csv(response).await
+    }
+
+    #[allow(clippy::future_not_send)]
+    async fn execute_fetch_request(&self) -> Result<reqwest::Response> {
         let base_url = self
             .inner
             .resolve_url(&format!("jobs/query/{}/results", self.job_id))
@@ -187,10 +209,10 @@ impl<T, A: crate::auth::Authenticator> BulkQueryStream<T, A> {
             request_builder = request_builder.query(&[("locator", locator)]);
         }
 
-        let response = request_builder
+        let request = request_builder
             .build()
             .map_err(crate::error::HttpError::from)?;
-        let response = self.inner.execute_request(response).await?;
+        let response = self.inner.execute_request(request).await?;
 
         if !response.status().is_success() {
             return Err(crate::http::response_to_force_error(
@@ -199,8 +221,10 @@ impl<T, A: crate::auth::Authenticator> BulkQueryStream<T, A> {
             )
             .await);
         }
+        Ok(response)
+    }
 
-        // Get CSV text
+    fn update_locator(&mut self, response: &reqwest::Response) {
         let locator_header = response
             .headers()
             .get("Sforce-Locator")
@@ -211,14 +235,18 @@ impl<T, A: crate::auth::Authenticator> BulkQueryStream<T, A> {
             Some("null") | None => None,
             Some(value) => Some(value.to_string()),
         };
+    }
 
+    #[allow(clippy::future_not_send)]
+    async fn deserialize_csv(&mut self, response: reqwest::Response) -> Result<()>
+    where
+        T: for<'de> Deserialize<'de>,
+    {
         let csv_bytes = response
             .bytes()
             .await
             .map_err(crate::error::HttpError::from)?;
 
-        // Parse CSV
-        // Zero-cost abstraction: Use bytes directly to avoid String allocation and UTF-8 validation
         let mut reader = csv::Reader::from_reader(csv_bytes.as_ref());
         let mut records = VecDeque::new();
 
@@ -230,15 +258,8 @@ impl<T, A: crate::auth::Authenticator> BulkQueryStream<T, A> {
             records.push_back(record);
         }
 
-        // If no records, we're done
-        if records.is_empty() {
-            self.exhausted = true;
-            return Ok(None);
-        }
-
-        // Store records and return the first one
         self.records = records;
-        Ok(self.records.pop_front())
+        Ok(())
     }
 
     /// Converts this query stream into a `futures::Stream`.
@@ -304,7 +325,7 @@ impl<A: crate::auth::Authenticator> super::BulkHandler<A> {
     /// # Examples
     ///
     /// ```ignore
-    /// use force::api::bulk::query::BulkQueryRequest;
+    /// use force::api::bulk::BulkQueryRequest;
     ///
     /// let request = BulkQueryRequest::new("SELECT Id, Name FROM Account");
     /// let job = client.bulk().create_query_job(request).await?;
@@ -346,7 +367,10 @@ impl<A: crate::auth::Authenticator> super::BulkHandler<A> {
     /// println!("Job state: {:?}", job.state);
     /// ```
     pub async fn get_query_job(&self, job_id: &str) -> Result<BulkQueryJobInfo> {
-        let url = format!("{}/{}", self.query_base_url().await?, job_id);
+        let url = self
+            .inner()
+            .resolve_url(&format!("jobs/query/{}", job_id))
+            .await?;
         let inner = self.inner();
         let request = inner
             .get(&url)
@@ -384,7 +408,10 @@ impl<A: crate::auth::Authenticator> super::BulkHandler<A> {
     /// client.bulk().abort_query_job("750xx0000000001AAA").await?;
     /// ```
     pub async fn abort_query_job(&self, job_id: &str) -> Result<BulkQueryJobInfo> {
-        let url = format!("{}/{}", self.query_base_url().await?, job_id);
+        let url = self
+            .inner()
+            .resolve_url(&format!("jobs/query/{}", job_id))
+            .await?;
         let inner = self.inner();
 
         let update_request = super::types::UpdateJobRequest {
@@ -426,7 +453,10 @@ impl<A: crate::auth::Authenticator> super::BulkHandler<A> {
     /// client.bulk().delete_query_job("750xx0000000001AAA").await?;
     /// ```
     pub async fn delete_query_job(&self, job_id: &str) -> Result<()> {
-        let url = format!("{}/{}", self.query_base_url().await?, job_id);
+        let url = self
+            .inner()
+            .resolve_url(&format!("jobs/query/{}", job_id))
+            .await?;
         let inner = self.inner();
         let request = inner
             .delete(&url)

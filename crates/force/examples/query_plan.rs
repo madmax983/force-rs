@@ -1,10 +1,10 @@
-//! Query Plan API example (requires "nova" feature).
+//! Query Plan API example (requires the "rest" feature).
 //!
 //! This example demonstrates how to use the Query Plan API (`explain`)
 //! to analyze the performance cost of SOQL queries.
 //!
 //! Run with:
-//! cargo run --example `query_plan` --features nova
+//! cargo run --example `query_plan`
 
 use force::auth::ClientCredentials;
 use force::client::ForceClientBuilder;
