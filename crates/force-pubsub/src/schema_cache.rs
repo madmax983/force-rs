@@ -3,8 +3,10 @@
 use apache_avro::Schema;
 use dashmap::DashMap;
 use std::sync::Arc;
+use tonic::transport::Channel;
 
 use crate::error::{PubSubError, Result};
+use crate::proto::eventbus_v1::{SchemaRequest, pub_sub_client::PubSubClient};
 
 /// Fetches and caches Avro schemas by schema ID.
 ///
@@ -63,6 +65,41 @@ impl SchemaCache {
             .map_err(|e| PubSubError::Avro(format!("failed to parse schema {schema_id}: {e}")))?;
         self.inner.cache.insert(schema_id, schema.clone());
         Ok(schema)
+    }
+
+    /// Return the schema for `schema_id` from cache, or fetch it via the `GetSchema` RPC.
+    ///
+    /// On a cache miss, calls `GetSchema` using the provided gRPC client and
+    /// authentication metadata. The fetched schema is parsed, inserted into the
+    /// cache, and returned.
+    ///
+    /// # Errors
+    ///
+    /// - [`PubSubError::Transport`] if the `GetSchema` RPC fails (e.g. schema not found).
+    /// - [`PubSubError::Avro`] if the returned schema JSON cannot be parsed.
+    pub async fn get_or_fetch(
+        &self,
+        schema_id: &str,
+        channel: &Channel,
+        metadata: tonic::metadata::MetadataMap,
+    ) -> Result<Schema> {
+        // Fast path: lock-free cache hit.
+        if let Some(schema) = self.get(schema_id) {
+            return Ok(schema);
+        }
+
+        // Cache miss — call GetSchema RPC.
+        let mut req = tonic::Request::new(SchemaRequest {
+            schema_id: schema_id.to_string(),
+        });
+        *req.metadata_mut() = metadata;
+
+        let resp = PubSubClient::new(channel.clone())
+            .get_schema(req)
+            .await?
+            .into_inner();
+
+        self.parse_and_insert(resp.schema_id, &resp.schema_json)
     }
 }
 

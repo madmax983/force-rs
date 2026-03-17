@@ -72,6 +72,15 @@ impl<A: Authenticator> SubscribeState<A> {
             .map_err(PubSubError::Auth)
     }
 
+    /// Fetch a schema by ID from the cache or from the GetSchema RPC on miss.
+    async fn fetch_schema(&self, schema_id: &str) -> Result<apache_avro::Schema> {
+        let token = self.get_token().await?;
+        let meta = interceptor::build_metadata(&token, token.instance_url(), &self.tenant_id)?;
+        self.schema_cache
+            .get_or_fetch(schema_id, &self.channel, meta)
+            .await
+    }
+
     /// Open a new bidirectional Subscribe stream.
     async fn open_stream(
         &self,
@@ -128,28 +137,20 @@ async fn subscribe_loop<A: Authenticator + Send + Sync + 'static>(
                         break 'outer;
                     }
                 } else {
-                    let mut consecutive_schema_misses = 0u32;
-
                     for event in &response.events {
                         let Some(header) = &event.event else { continue };
                         let schema_id = &header.schema_id;
                         let replay_id = ReplayId::from_bytes(header.replay_id.clone());
 
-                        let schema = if let Some(s) = state.schema_cache.get(schema_id) {
-                            consecutive_schema_misses = 0;
-                            s
-                        } else {
-                            consecutive_schema_misses += 1;
-                            let _ = tx
-                                .send(Err(PubSubError::SchemaNotFound {
-                                    schema_id: schema_id.clone(),
-                                }))
-                                .await;
-                            if consecutive_schema_misses >= 3 {
-                                // Permanent schema gap — break out to avoid infinite spin
-                                break 'outer;
+                        // Fetch schema from cache or via GetSchema RPC on miss.
+                        let schema = match state.fetch_schema(schema_id).await {
+                            Ok(s) => s,
+                            Err(e) => {
+                                if tx.send(Err(e)).await.is_err() {
+                                    break 'outer;
+                                }
+                                continue;
                             }
-                            continue;
                         };
 
                         match decode_avro(&schema, &event.payload) {
@@ -164,7 +165,6 @@ async fn subscribe_loop<A: Authenticator + Send + Sync + 'static>(
                                     break 'outer;
                                 }
                                 reconnect_count = 0; // reset on success
-                                consecutive_schema_misses = 0;
                             }
                             Err(e) => {
                                 if tx.send(Err(e)).await.is_err() {

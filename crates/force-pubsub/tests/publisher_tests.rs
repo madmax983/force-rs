@@ -9,7 +9,7 @@ use common::mock_server::{MockPubSubService, start_mock_server, start_userinfo_m
 use force::auth::{AccessToken, Authenticator, TokenResponse};
 use force::client::builder;
 use force::error::Result as ForceResult;
-use force_pubsub::{PubSubConfig, PubSubError, PubSubHandler, ReconnectPolicy};
+use force_pubsub::{PubSubConfig, PubSubHandler, ReconnectPolicy};
 use wiremock::MockServer;
 
 const SCHEMA_JSON: &str =
@@ -72,15 +72,10 @@ async fn test_publish_returns_response() {
     let url = start_mock_server(MockPubSubService::default()).await;
     let (handler, _userinfo) = make_handler(url).await;
 
-    // Pre-populate schema cache so publish can encode events
-    handler
-        .schema_cache
-        .parse_and_insert(SCHEMA_ID.to_string(), SCHEMA_JSON)
-        .unwrap();
-
+    // publish() now auto-resolves the schema via GetTopic + GetSchema.
     let payload = serde_json::json!({"id": "evt-001"});
     let resp = handler
-        .publish(SCHEMA_ID, "/event/Test__e", vec![payload])
+        .publish("/event/Test__e", vec![payload])
         .await
         .unwrap();
     assert_eq!(resp.topic_name, "test");
@@ -90,31 +85,51 @@ async fn test_publish_returns_response() {
 async fn test_publish_empty_events_succeeds() {
     let url = start_mock_server(MockPubSubService::default()).await;
     let (handler, _userinfo) = make_handler(url).await;
-    handler
-        .schema_cache
-        .parse_and_insert(SCHEMA_ID.to_string(), SCHEMA_JSON)
-        .unwrap();
 
     let resp = handler
-        .publish::<serde_json::Value>(SCHEMA_ID, "/event/Test__e", vec![])
+        .publish::<serde_json::Value>("/event/Test__e", vec![])
         .await
         .unwrap();
     assert!(resp.all_succeeded());
 }
 
 #[tokio::test]
-async fn test_publish_schema_not_in_cache_returns_error() {
+async fn test_publish_schema_cached_is_reused() {
     let url = start_mock_server(MockPubSubService::default()).await;
     let (handler, _userinfo) = make_handler(url).await;
-    // schema_cache is empty — don't insert anything
 
-    let payload = serde_json::json!({"id": "evt-001"});
-    let result = handler
-        .publish(SCHEMA_ID, "/event/Test__e", vec![payload])
-        .await;
-    assert!(result.is_err());
-    assert!(matches!(
-        result.unwrap_err(),
-        PubSubError::SchemaNotFound { .. }
-    ));
+    // Pre-populate the cache — publish() should use the cached schema without
+    // making a GetSchema RPC call.
+    handler
+        .schema_cache
+        .parse_and_insert(SCHEMA_ID.to_string(), SCHEMA_JSON)
+        .unwrap();
+
+    let payload = serde_json::json!({"id": "cached-evt"});
+    let resp = handler
+        .publish("/event/Test__e", vec![payload])
+        .await
+        .unwrap();
+    assert_eq!(resp.topic_name, "test");
+    // Schema was already in cache — len should still be 1.
+    assert_eq!(handler.schema_cache.len(), 1);
+}
+
+#[tokio::test]
+async fn test_publish_populates_schema_cache_on_miss() {
+    let url = start_mock_server(MockPubSubService::default()).await;
+    let (handler, _userinfo) = make_handler(url).await;
+
+    // Cache is empty before publish.
+    assert!(handler.schema_cache.is_empty());
+
+    let payload = serde_json::json!({"id": "new-evt"});
+    handler
+        .publish("/event/Test__e", vec![payload])
+        .await
+        .unwrap();
+
+    // publish() fetched and cached the schema.
+    assert_eq!(handler.schema_cache.len(), 1);
+    assert!(handler.schema_cache.get(SCHEMA_ID).is_some());
 }

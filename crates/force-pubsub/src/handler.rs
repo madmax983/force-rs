@@ -214,21 +214,30 @@ impl<A: Authenticator> PubSubHandler<A> {
 impl<A: Authenticator + Send + Sync + 'static> PubSubHandler<A> {
     /// Publish events to a topic via the unary Publish RPC.
     ///
-    /// `schema_id` must be pre-loaded in the schema cache via `get_schema()`.
-    /// Events are Avro-encoded using the cached schema.
+    /// Automatically resolves the Avro schema for `topic` by calling `GetTopic`
+    /// to obtain the schema ID, then fetching the schema via `GetSchema` if it
+    /// is not already cached.
     ///
     /// # Errors
     ///
-    /// Returns `PubSubError::SchemaNotFound` if the schema is not in the cache.
+    /// Returns `PubSubError::Transport` if the `GetTopic` or `GetSchema` RPC fails.
     /// Returns `PubSubError::Avro` if encoding fails.
-    /// Returns `PubSubError::Transport` if the gRPC call fails.
     pub async fn publish<T: Serialize + Send>(
         &self,
-        schema_id: &str,
         topic: &str,
         events: Vec<T>,
     ) -> Result<PublishResponse> {
+        let topic_info = self.get_topic(topic).await?;
+        let schema_id = &topic_info.schema_id;
+
+        // Ensure the schema is in the cache (fetches from GetSchema if not).
+        let token = self.session.token_manager().token().await?;
         let tenant_id = self.get_tenant_id().await?.to_string();
+        let meta = interceptor::build_metadata(&token, token.instance_url(), &tenant_id)?;
+        self.schema_cache
+            .get_or_fetch(schema_id, &self.channel, meta)
+            .await?;
+
         publish_unary(
             &self.session,
             &self.channel,
