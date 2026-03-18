@@ -11,6 +11,7 @@ use crate::client::ForceClient;
 use crate::error::Result;
 use crate::experimental::scanner::FieldUsageScanner;
 use std::collections::HashMap;
+use std::fmt::Write;
 
 /// Generator for SObject data dictionaries in Markdown format.
 #[derive(Debug)]
@@ -53,9 +54,12 @@ impl<'a, A: Authenticator> DataDictionary<'a, A> {
 
         let mut md = String::with_capacity(1024);
 
-        md.push_str(&format!("# Data Dictionary: {}\n", describe.label));
-        md.push_str(&format!("**API Name:** `{}`\n", describe.name));
-        md.push_str(&format!("**Custom:** {}\n\n", describe.custom));
+        // ⚡ Bolt: Use `writeln!` directly to the `md` buffer instead of `format!` and `push_str`
+        // to avoid intermediate String heap allocations for the header and each table row.
+        let _ = writeln!(md, "# Data Dictionary: {}", describe.label);
+        let _ = writeln!(md, "**API Name:** `{}`", describe.name);
+        let _ = writeln!(md, "**Custom:** {}", describe.custom);
+        md.push('\n');
 
         md.push_str("## Fields\n\n");
 
@@ -77,28 +81,30 @@ impl<'a, A: Authenticator> DataDictionary<'a, A> {
                 "No"
             };
 
-            let type_str = format!("{:?}", field.type_);
+            let _ = write!(
+                md,
+                "| {} | `{}` | {:?} | {} | ",
+                field.label, field.name, field.type_, required
+            );
 
-            let ref_to = if field.reference_to.is_empty() {
-                String::new()
-            } else {
-                field.reference_to.join(", ")
-            };
+            // ⚡ Bolt: Write reference_to directly without allocating a `join(", ")` String.
+            let mut first = true;
+            for r in &field.reference_to {
+                if !first {
+                    md.push_str(", ");
+                }
+                md.push_str(r);
+                first = false;
+            }
 
             if include_usage {
-                let usage_str = usage_map
-                    .get(&field.name)
-                    .map_or_else(|| "N/A".to_string(), |u| format!("{:.1}%", u.percentage));
-
-                md.push_str(&format!(
-                    "| {} | `{}` | {} | {} | {} | {} |\n",
-                    field.label, field.name, type_str, required, ref_to, usage_str
-                ));
+                if let Some(usage) = usage_map.get(&field.name) {
+                    let _ = writeln!(md, " | {:.1}% |", usage.percentage);
+                } else {
+                    md.push_str(" | N/A |\n");
+                }
             } else {
-                md.push_str(&format!(
-                    "| {} | `{}` | {} | {} | {} |\n",
-                    field.label, field.name, type_str, required, ref_to
-                ));
+                md.push_str(" |\n");
             }
         }
 
