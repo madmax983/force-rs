@@ -38,7 +38,15 @@ fn preset_to_proto(preset: &ReplayPreset) -> i32 {
 }
 
 /// Build a [`FetchRequest`] from config and replay preset.
-pub fn build_fetch_request(topic: &str, preset: &ReplayPreset, batch_size: i32) -> FetchRequest {
+///
+/// Visibility is `pub` so tests in the child `tests` module can call it
+/// directly. The `pub(crate) mod subscriber` declaration in `lib.rs` ensures
+/// this function cannot escape the crate boundary.
+pub fn build_fetch_request(
+    topic: &str,
+    preset: &ReplayPreset,
+    batch_size: i32,
+) -> FetchRequest {
     let replay_id = match preset {
         ReplayPreset::Custom(id) => id.as_bytes().to_vec(),
         _ => vec![],
@@ -164,7 +172,11 @@ async fn subscribe_loop<A: Authenticator + Send + Sync + 'static>(
                                 if tx.send(Ok(PubSubEvent::Event(msg))).await.is_err() {
                                     break 'outer;
                                 }
-                                reconnect_count = 0; // reset on success
+                                // Reset on successful event decode — connection-level success,
+                                // not decode-level success. A successfully decoded event proves
+                                // the current stream is healthy; the reconnect counter measures
+                                // consecutive stream drops, not individual decode failures.
+                                reconnect_count = 0;
                             }
                             Err(e) => {
                                 if tx.send(Err(e)).await.is_err() {

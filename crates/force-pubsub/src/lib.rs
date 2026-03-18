@@ -10,7 +10,6 @@
 // tonic::Status is 176 bytes; suppressed crate-wide rather than boxing
 // through every From impl and call site.
 #![allow(clippy::result_large_err)]
-#![allow(dead_code)] // Phase in progress — handler fields used by subscribe/publish tasks
 
 pub mod codec;
 pub mod config;

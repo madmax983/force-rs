@@ -43,7 +43,13 @@ The crate:
 | `GetSchema` | `PubSubHandler::get_schema` | Fetch Avro schema by ID |
 | `Subscribe` | `PubSubHandler::subscribe` / `subscribe_typed` | Bidirectional streaming event consumption |
 | `Publish` | `PubSubHandler::publish` | Unary publish of Avro-encoded events |
-| `PublishStream` | (publisher module) | Streaming publish for high-throughput scenarios |
+| `PublishStream` | `PubSubHandler::publish_stream` → `PublishSink<T>` | Streaming publish for high-throughput scenarios |
+
+`PublishSink<T>` is the concrete type returned by `publish_stream`. It wraps the bidirectional
+`PublishStream` gRPC channel and exposes three methods: `send(schema_id, events)` encodes a batch
+of `T: Serialize` events to Avro and writes them to the open stream; `responses()` returns a
+reference to the server acknowledgement stream; and `close()` drops the sender and drains any
+remaining acknowledgements so the gRPC stream shuts down cleanly.
 
 ### Key Design Choices
 
@@ -56,11 +62,20 @@ configurable `max_retries`, `initial_delay`, `max_delay`, and `multiplier`. The 
 automatically resumes from the last seen `ReplayId` after a stream drop, making transient
 disconnects transparent to application code.
 
-**Schema caching is lazy.** The `SchemaCache` is populated on first event receipt per schema ID.
-Subsequent events with the same schema ID are decoded without a gRPC round-trip.
+**Schema caching is lazy via `SchemaCache::get_or_fetch`.** On a cache miss, `get_or_fetch`
+issues a `GetSchema` RPC, parses the returned Avro schema JSON, stores the result in the
+`DashMap`, and returns the parsed schema — all in one call. Subsequent calls with the same
+`schema_id` return the cached entry without any gRPC round-trip. The cache is shared across all
+subscribe streams and `PublishSink` instances that originate from the same `PubSubHandler`.
 
 **`ReplayPreset` controls cursor placement.** Consumers choose `Latest` (events after subscribe
 time), `Earliest` (72-hour retention window), or `Custom(ReplayId)` (resume from a checkpoint).
+
+**Auth headers are centralised in the `interceptor` module.** Every RPC call — `Subscribe`,
+`Publish`, `PublishStream`, `GetSchema`, and `GetTopic` — requires three gRPC metadata headers:
+`accesstoken`, `instanceurl`, and `tenantid` (the 18-char org ID). The `interceptor::build_metadata`
+function constructs this `MetadataMap` in one place; `handler`, `subscriber`, and `publisher`
+all call it, ensuring consistent header injection with no duplication.
 
 ## Consequences
 

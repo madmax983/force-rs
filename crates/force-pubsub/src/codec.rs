@@ -28,7 +28,19 @@ pub fn decode_avro(schema: &Schema, bytes: &[u8]) -> Result<Value> {
     from_value::<Value>(&value).map_err(|e| PubSubError::Avro(e.to_string()))
 }
 
-/// Decode Avro-binary bytes into a typed struct `T` using the given schema.
+/// Decode Avro-binary bytes directly into a typed struct `T` using the given schema.
+///
+/// This is a **single-step** Avro → `T` decode. It is a public utility for callers
+/// who already hold a schema and bytes and want to avoid the two-step
+/// (`decode_avro` → `serde_json::from_value`) path used internally by the typed
+/// subscribe stream. Both produce identical results; this variant is marginally
+/// cheaper because it skips the intermediate [`serde_json::Value`] allocation.
+///
+/// The typed subscribe stream (`subscribe_typed` / `subscribe_typed_dynamic`) does
+/// not use this function because it is built on top of the dynamic stream
+/// (which decodes to `Value` first) so that both variants share one subscribe
+/// loop implementation. Callers who own raw event bytes and want zero-overhead
+/// typed decoding should prefer this function.
 ///
 /// # Errors
 ///
