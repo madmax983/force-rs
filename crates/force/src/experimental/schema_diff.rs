@@ -1,6 +1,6 @@
 //! Salesforce Schema Diff Utility.
 //!
-//! This module provides the `SchemaDiff` utility to compare two `SObjectDescribe`
+//! This module provides the `compare_schemas` utility function to compare two `SObjectDescribe`
 //! payloads. It identifies added fields, removed fields, and fields that have
 //! changed types. This is useful for tracking schema evolution over time.
 //!
@@ -8,7 +8,7 @@
 //!
 //! ```no_run
 //! # use force::client::ForceClientBuilder;
-//! # use force::experimental::SchemaDiff;
+//! # use force::experimental::compare_schemas;
 //! # use force::auth::ClientCredentials;
 //! # #[tokio::main]
 //! # async fn main() -> anyhow::Result<()> {
@@ -19,7 +19,7 @@
 //! // ... time passes, schema changes ...
 //! let describe_v2 = client.rest().describe("Account").await?;
 //!
-//! let diff = SchemaDiff::compare(&describe_v1, &describe_v2);
+//! let diff = compare_schemas(&describe_v1, &describe_v2);
 //!
 //! println!("Added fields: {:?}", diff.added_fields.len());
 //! println!("Removed fields: {:?}", diff.removed_fields.len());
@@ -64,66 +64,63 @@ impl SchemaDiffResult {
     }
 }
 
-/// Utility for comparing SObject schemas.
-#[derive(Debug)]
-pub struct SchemaDiff;
+/// Compares two `SObjectDescribe` payloads and returns a `SchemaDiffResult`.
+///
+/// # Arguments
+///
+/// * `old_schema` - The original SObject describe payload.
+/// * `new_schema` - The updated SObject describe payload.
+///
+/// # Returns
+///
+/// A `SchemaDiffResult` containing added, removed, and changed fields.
+#[must_use]
+pub fn compare_schemas(
+    old_schema: &SObjectDescribe,
+    new_schema: &SObjectDescribe,
+) -> SchemaDiffResult {
+    let mut result = SchemaDiffResult::default();
 
-impl SchemaDiff {
-    /// Compares two `SObjectDescribe` payloads and returns a `SchemaDiffResult`.
-    ///
-    /// # Arguments
-    ///
-    /// * `old_schema` - The original SObject describe payload.
-    /// * `new_schema` - The updated SObject describe payload.
-    ///
-    /// # Returns
-    ///
-    /// A `SchemaDiffResult` containing added, removed, and changed fields.
-    #[must_use]
-    pub fn compare(old_schema: &SObjectDescribe, new_schema: &SObjectDescribe) -> SchemaDiffResult {
-        let mut result = SchemaDiffResult::default();
+    let old_fields: HashMap<&str, &FieldDescribe> = old_schema
+        .fields
+        .iter()
+        .map(|f| (f.name.as_str(), f))
+        .collect();
 
-        let old_fields: HashMap<&str, &FieldDescribe> = old_schema
-            .fields
-            .iter()
-            .map(|f| (f.name.as_str(), f))
-            .collect();
+    let new_fields: HashMap<&str, &FieldDescribe> = new_schema
+        .fields
+        .iter()
+        .map(|f| (f.name.as_str(), f))
+        .collect();
 
-        let new_fields: HashMap<&str, &FieldDescribe> = new_schema
-            .fields
-            .iter()
-            .map(|f| (f.name.as_str(), f))
-            .collect();
-
-        // Find added and changed fields
-        for (name, new_field) in &new_fields {
-            if let Some(old_field) = old_fields.get(name) {
-                if old_field.type_ != new_field.type_ {
-                    result.changed_fields.push(FieldChange {
-                        name: (*name).to_string(),
-                        old_type: old_field.type_.clone(),
-                        new_type: new_field.type_.clone(),
-                    });
-                }
-            } else {
-                result.added_fields.push((*new_field).clone());
+    // Find added and changed fields
+    for (name, new_field) in &new_fields {
+        if let Some(old_field) = old_fields.get(name) {
+            if old_field.type_ != new_field.type_ {
+                result.changed_fields.push(FieldChange {
+                    name: (*name).to_string(),
+                    old_type: old_field.type_.clone(),
+                    new_type: new_field.type_.clone(),
+                });
             }
+        } else {
+            result.added_fields.push((*new_field).clone());
         }
-
-        // Find removed fields
-        for (name, old_field) in old_fields {
-            if !new_fields.contains_key(name) {
-                result.removed_fields.push((*old_field).clone());
-            }
-        }
-
-        // Sort to ensure deterministic output
-        result.added_fields.sort_by(|a, b| a.name.cmp(&b.name));
-        result.removed_fields.sort_by(|a, b| a.name.cmp(&b.name));
-        result.changed_fields.sort_by(|a, b| a.name.cmp(&b.name));
-
-        result
     }
+
+    // Find removed fields
+    for (name, old_field) in old_fields {
+        if !new_fields.contains_key(name) {
+            result.removed_fields.push((*old_field).clone());
+        }
+    }
+
+    // Sort to ensure deterministic output
+    result.added_fields.sort_by(|a, b| a.name.cmp(&b.name));
+    result.removed_fields.sort_by(|a, b| a.name.cmp(&b.name));
+    result.changed_fields.sort_by(|a, b| a.name.cmp(&b.name));
+
+    result
 }
 #[cfg(test)]
 mod tests {
@@ -178,7 +175,7 @@ mod tests {
             mock_field("Name", "string")
         ]));
 
-        let diff = SchemaDiff::compare(&old_schema, &new_schema);
+        let diff = compare_schemas(&old_schema, &new_schema);
 
         assert!(diff.is_empty());
         assert_eq!(diff.added_fields.len(), 0);
@@ -196,7 +193,7 @@ mod tests {
             mock_field("Website", "url")
         ]));
 
-        let diff = SchemaDiff::compare(&old_schema, &new_schema);
+        let diff = compare_schemas(&old_schema, &new_schema);
 
         assert!(!diff.is_empty());
         assert_eq!(diff.added_fields.len(), 2);
@@ -217,7 +214,7 @@ mod tests {
 
         let new_schema = create_mock_describe(&json!([mock_field("Id", "id")]));
 
-        let diff = SchemaDiff::compare(&old_schema, &new_schema);
+        let diff = compare_schemas(&old_schema, &new_schema);
 
         assert!(!diff.is_empty());
         assert_eq!(diff.added_fields.len(), 0);
@@ -238,7 +235,7 @@ mod tests {
             mock_field("Age", "double")
         ]));
 
-        let diff = SchemaDiff::compare(&old_schema, &new_schema);
+        let diff = compare_schemas(&old_schema, &new_schema);
 
         assert!(!diff.is_empty());
         assert_eq!(diff.added_fields.len(), 0);

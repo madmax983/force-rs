@@ -16,3 +16,14 @@
 **Avoid `.clone()` in `Arc::new()`**
 **Learning:** Initializing an `Arc` by cloning the source variable (`Arc::new(val.clone())`) instead of moving it (`Arc::new(val)`) causes a completely unnecessary deep copy and heap allocation.
 **Action:** When transferring ownership of a newly created object to an `Arc` where the original variable is no longer needed, pass ownership directly without calling `.clone()`.
+
+**[Removing String Allocations in Telemetry Hooks]**
+**Learning:** Returning an owned `String` inside a telemetry event payload (e.g. `RequestCompletion` and `RetryEvent`) causes an allocation on *every* request, even when the telemetry hook only needs to synchronously read the values.
+**Action:** Use lifetimes and `&'a str` for temporary payload structures passed to closure hooks instead of `.clone().unwrap_or_default()`. To handle the async borrow checker in tests that need to store the events, create an owned version locally in the test and clone only when necessary.
+
+**[Optimize CSV Deserialization Memory Allocation]**
+**Learning:** Manually pushing deserialized `csv::Reader` results into a `Vec::new()` is an anti-pattern. While `csv::Reader` doesn't know the exact size upfront,  utilizes internal iterator optimizations and chunked re-allocations better than a naïve manual push loop, saving memory allocation overhead.
+**Action:** Always prefer  over  and  for fallible iterator collections to leverage standard library optimizations.
+**[Optimize CSV Deserialization Memory Allocation]**
+**Learning:** Manually pushing deserialized `csv::Reader` results into a `Vec::new()` is an anti-pattern. While `csv::Reader` doesn't know the exact size upfront, `.collect()` utilizes internal iterator optimizations and chunked re-allocations better than a naïve manual push loop, saving memory allocation overhead.
+**Action:** Always prefer `.collect()` over `Vec::new()` and manual `for` loops for fallible iterator collections to leverage standard library optimizations.

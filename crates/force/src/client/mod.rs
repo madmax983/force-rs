@@ -88,7 +88,7 @@ impl<A: crate::auth::authenticator::Authenticator> ForceClient<A> {
     #[cfg(feature = "bulk")]
     #[must_use]
     pub fn bulk(&self) -> crate::api::bulk::BulkHandler<A> {
-        crate::api::bulk::BulkHandler::new(Default::default())
+        crate::api::bulk::BulkHandler::new(Arc::clone(&self.inner))
     }
 
     /// Creates a Composite API handler for this client.

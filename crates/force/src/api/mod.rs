@@ -15,3 +15,6 @@ pub mod composite;
 pub mod soql;
 
 pub(crate) mod path_utils;
+
+#[cfg(any(feature = "composite", feature = "composite_graph"))]
+pub(crate) mod url_encoded_writer;

@@ -44,3 +44,6 @@
 **[Future Not Send in Extracted Helpers]**
 **Learning:** Extracting private asynchronous helper methods that hold `&mut self` across await points in generic structs can trigger `clippy::future_not_send` if the generic parameter `T` is not bound by `Send`.
 **Action:** Apply `#[allow(clippy::future_not_send)]` to such internal helper methods to ensure they pass strict `clippy -D warnings` checks without altering the public trait bounds.
+**Extract UrlEncodedWriter to Common Utils**
+**Learning:** Both `batch.rs` and `graph.rs` duplicated the `UrlEncodedWriter` struct and its `std::fmt::Write` implementation for avoiding memory allocations during URL construction. This creates unnecessary DRY violations for a pure utility type.
+**Action:** Extract `UrlEncodedWriter` into `crates/force/src/api/url_encoded_writer.rs` and re-use it across composite API implementations to keep the logic unified and DRY.

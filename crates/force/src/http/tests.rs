@@ -5,7 +5,7 @@ mod integration_tests {
     use crate::auth::{AccessToken, TokenResponse};
     use crate::error::ForceError;
     use crate::http::{
-        HttpExecutor, RequestCompletion, RequestRetryClass, RetryEvent, RetryPolicy, TelemetryHooks,
+        HttpExecutor, RequestErrorKind, RequestRetryClass, RetryEvent, RetryPolicy, TelemetryHooks,
     };
     use crate::test_support::Must;
     use std::sync::Arc;
@@ -350,12 +350,22 @@ mod integration_tests {
         let _ = result.must();
     }
 
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    struct OwnedRequestCompletion {
+        method: String,
+        path: String,
+        request_class: &'static str,
+        status_code: Option<u16>,
+        error_kind: Option<RequestErrorKind>,
+        retries: u32,
+        elapsed_ms: u128,
+    }
     #[tokio::test]
     async fn test_telemetry_hooks_capture_retry_and_completion() {
         let mock_server = MockServer::start().await;
         let token = create_test_token();
         let retries = Arc::new(AtomicU32::new(0));
-        let completions: Arc<Mutex<Vec<RequestCompletion>>> = Arc::new(Mutex::new(Vec::new()));
+        let completions: Arc<Mutex<Vec<OwnedRequestCompletion>>> = Arc::new(Mutex::new(Vec::new()));
         let retries_clone = Arc::clone(&retries);
         let completions_clone = Arc::clone(&completions);
 
@@ -369,7 +379,15 @@ mod integration_tests {
             })
             .on_complete(move |completion| {
                 if let Ok(mut guard) = completions_clone.lock() {
-                    guard.push(completion.clone());
+                    guard.push(OwnedRequestCompletion {
+                        method: completion.method.to_string(),
+                        path: completion.path.to_string(),
+                        request_class: completion.request_class,
+                        status_code: completion.status_code,
+                        error_kind: completion.error_kind,
+                        retries: completion.retries,
+                        elapsed_ms: completion.elapsed_ms,
+                    });
                 } else {
                     panic!("completion lock poisoned");
                 }
