@@ -42,11 +42,7 @@ fn preset_to_proto(preset: &ReplayPreset) -> i32 {
 /// Visibility is `pub` so tests in the child `tests` module can call it
 /// directly. The `pub(crate) mod subscriber` declaration in `lib.rs` ensures
 /// this function cannot escape the crate boundary.
-pub fn build_fetch_request(
-    topic: &str,
-    preset: &ReplayPreset,
-    batch_size: i32,
-) -> FetchRequest {
+pub fn build_fetch_request(topic: &str, preset: &ReplayPreset, batch_size: i32) -> FetchRequest {
     let replay_id = match preset {
         ReplayPreset::Custom(id) => id.as_bytes().to_vec(),
         _ => vec![],
