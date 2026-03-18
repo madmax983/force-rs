@@ -59,6 +59,15 @@ impl<A: crate::auth::authenticator::Authenticator> ForceClient<A> {
         &self.inner
     }
 
+    /// Returns the shared session state for use by extension crates.
+    ///
+    /// This allows extension crates like `force-pubsub` to access the same
+    /// authentication and HTTP state without duplicating auth logic.
+    #[must_use]
+    pub fn session(&self) -> Arc<crate::session::Session<A>> {
+        Arc::clone(&self.inner)
+    }
+
     /// Creates a REST API handler for this client.
     ///
     /// The REST handler provides access to CRUD operations, queries, and metadata.

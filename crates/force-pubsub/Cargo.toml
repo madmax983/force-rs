@@ -1,0 +1,44 @@
+[package]
+name = "force-pubsub"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Salesforce Pub/Sub API (gRPC) client for force-rs"
+keywords = ["salesforce", "pubsub", "grpc", "streaming", "events"]
+categories = ["api-bindings", "web-programming"]
+
+[lints]
+workspace = true
+
+[dependencies]
+force = { path = "../force" }
+reqwest = { workspace = true }
+tonic = { workspace = true, features = ["tls", "tls-roots"] }
+prost = { workspace = true }
+apache-avro = { workspace = true }
+tokio = { workspace = true }
+tokio-stream = { workspace = true }
+futures = { workspace = true }
+thiserror = { workspace = true }
+dashmap = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+async-trait = { workspace = true }
+
+[build-dependencies]
+tonic-build = { workspace = true }
+prost-build = { workspace = true }
+protoc-bin-vendored = { workspace = true }
+
+[dev-dependencies]
+tokio-test = "0.4"
+tokio-stream = { workspace = true, features = ["net"] }
+anyhow = { workspace = true }
+async-trait = { workspace = true }
+force = { path = "../force" }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+wiremock = { workspace = true }
+futures = { workspace = true }
