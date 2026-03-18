@@ -171,3 +171,12 @@ match result {
 **Finding:** The original test `test_schema_analyzer` provided only 6 total fields, meaning that the `total_fields / 10` division resulted in `0`. This made the test blind to mutants replacing division `/` with multiplication `*` (`6 * 10 = 60`), which caused false confidence. Additionally, the existing test inputs did not robustly exercise all `+` and `*` operators in the `complexity_score` calculation.
 **Evidence:** `cargo mutants` revealed that multiple logic mutants in `SchemaAnalyzer::analyze` replacing `*` with `+` or `/`, and `/` with `*` survived, indicating that the test suite was insufficiently sensitive to mathematical logic errors and edge cases in the scoring heuristic.
 **Recommendation:** Added `test_schema_analyzer_complexity_math` with exactly 12 fields (so `12 / 10 = 1`) and non-zero counts for custom, formula, and relationship fields to ensure all mathematical operations `*`, `/`, and `+` produce meaningful, non-identity/non-zero outcomes that effectively kill the mathematical mutants.
+
+### [Strengthened] `crates/force/src/api/rest/search.rs`
+
+**Module:** `crates/force/src/api/rest/search.rs`
+**Severity:** 🟡 Suspect
+**Finding:** The `SearchQueryBuilder::in_sidebar_fields` method lacked dedicated tests to verify that it correctly modified the `search_scope` property and correctly formatted the resultant SOSL query. This allowed a mutant substituting the body of the function with `Default::default()` to survive unnoticed.
+**Evidence:**
+- `cargo mutants` output showing a single surviving mutant: `replace SearchQueryBuilder::in_sidebar_fields -> Self with Default::default()`.
+**Recommendation:** Added `test_search_query_builder_sidebar_fields` to construct a query explicitly invoking `.in_sidebar_fields()` and verified its output matched the expected string exactly, killing the remaining mutant and closing the testing gap.
