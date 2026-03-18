@@ -35,3 +35,6 @@
 **Doc Tests for Public API**
 **Learning:** Added doc tests to SoqlQueryBuilder methods to improve coverage and provide usage examples.
 **Action:** Use doc tests for public API methods to ensure they compile and serve as documentation.
+## [Graph API Validation Robustness]
+**Learning:** Added exhaustive table-driven tests for `validate_reference_id` and `validate_graph_id`.
+**Action:** Always test boundary validation helpers against a full table of invalid characters instead of relying on narrow single-character cases.

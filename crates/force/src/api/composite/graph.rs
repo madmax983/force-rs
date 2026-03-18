@@ -564,4 +564,82 @@ mod tests {
             ),
         }
     }
+
+    #[test]
+    fn test_validate_reference_id_table() {
+        let valid_ids = vec!["ref1", "Ref_2", "A", "1", "valid_ref_id_123"];
+        let invalid_ids = vec![
+            "", "ref-1", "ref 1", "ref!1", "ref@1", "ref#1", "ref$1", "ref%1", "ref^1", "ref&1",
+            "ref*1", "ref(1", "ref)1", "ref+1", "ref=1", "ref{1", "ref}1", "ref[1", "ref]1",
+            "ref|1", "ref\\1", "ref:1", "ref;1", "ref\"1", "ref'1", "ref<1", "ref>1", "ref,1",
+            "ref.1", "ref?1", "ref/1",
+        ];
+
+        for id in valid_ids {
+            assert!(
+                validate_reference_id(id).is_ok(),
+                "Expected {} to be valid",
+                id
+            );
+        }
+
+        for id in invalid_ids {
+            let result = validate_reference_id(id);
+            assert!(result.is_err(), "Expected {} to be invalid", id);
+            match result {
+                Err(ForceError::InvalidInput(msg)) => {
+                    if id.is_empty() {
+                        assert_eq!(msg, "Reference ID cannot be empty");
+                    } else {
+                        assert!(msg.contains("Reference ID contains invalid characters:"));
+                    }
+                }
+                _ => panic!("Expected InvalidInput error for {}", id),
+            }
+        }
+    }
+
+    #[test]
+    fn test_graph_request_body() {
+        let req = GraphRequest::new("POST", "sobjects/Account", "ref1")
+            .body(serde_json::json!({"Name": "Test"}));
+        assert_eq!(req.body.must()["Name"], "Test");
+    }
+
+    #[test]
+    fn test_validate_graph_id_table() {
+        let valid_ids = vec!["001000000000000AAA", "@{ref1.id}"];
+        let invalid_ids = vec![
+            "",
+            "../../../etc/passwd",
+            "../something",
+            "path\\to",
+            "path/to",
+            "id?param=1",
+        ];
+
+        for id in valid_ids {
+            // validate_graph_id is a private helper, but we can test it indirectly
+            // by calling graph.get() which uses it.
+            let graph = Graph::new("graph1");
+            let result = graph.get("Account", id, "ref1");
+            assert!(result.is_ok(), "Expected {} to be valid graph id", id);
+        }
+
+        for id in invalid_ids {
+            let graph = Graph::new("graph1");
+            let result = graph.get("Account", id, "ref1");
+            assert!(result.is_err(), "Expected {} to be invalid graph id", id);
+            match result {
+                Err(ForceError::InvalidInput(msg)) => {
+                    if id.is_empty() {
+                        assert_eq!(msg, "ID cannot be empty");
+                    } else {
+                        assert!(msg.contains("ID contains invalid path traversal characters:"));
+                    }
+                }
+                _ => panic!("Expected InvalidInput error for {}", id),
+            }
+        }
+    }
 }
