@@ -68,6 +68,7 @@ pub fn encode_avro<T: Serialize>(schema: &Schema, value: &T) -> Result<Vec<u8>> 
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
     use apache_avro::Schema;

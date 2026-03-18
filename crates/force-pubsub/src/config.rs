@@ -96,6 +96,7 @@ pub enum ReplayPreset {
 }
 
 #[cfg(test)]
+#[allow(clippy::no_effect_underscore_binding)]
 mod tests {
     use super::*;
 
