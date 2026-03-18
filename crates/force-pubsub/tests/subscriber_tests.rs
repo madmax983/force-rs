@@ -114,9 +114,7 @@ async fn test_subscribe_stream_ends_on_no_reconnect() {
     let mut count = 0usize;
     while let Some(_item) = stream.next().await {
         count += 1;
-        if count > 10 {
-            panic!("stream did not terminate as expected");
-        }
+        assert!(count <= 10, "stream did not terminate as expected");
     }
     // Stream ended (None returned), which is correct for ReconnectPolicy::None
 }

@@ -1,6 +1,7 @@
-//! Integration tests for the bidirectional PublishStream RPC.
+//! Integration tests for the bidirectional `PublishStream` RPC.
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::expect_used)]
+#![allow(clippy::significant_drop_tightening)]
 
 mod common;
 

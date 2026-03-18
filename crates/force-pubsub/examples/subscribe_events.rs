@@ -18,6 +18,7 @@
 //!   cargo run --example subscribe_events
 //! ```
 
+use std::fmt::Write;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -89,7 +90,6 @@ async fn main() -> anyhow::Result<()> {
         match item {
             Ok(PubSubEvent::Event(msg)) => {
                 event_count += 1;
-                use std::fmt::Write;
                 let replay_hex =
                     msg.replay_id
                         .as_bytes()
