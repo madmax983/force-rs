@@ -42,3 +42,6 @@
 **2024-03-26 - [Unenforced unwrap_or_panic caught by missing test]
 **Learning:** Found a missing test gap for a custom `unwrap_or_panic` implementation on `SoqlQueryBuilder::select` handling invalid characters.
 **Action:** Check that untested execution paths using helper methods like `unwrap_or_panic` or `unwrap_or_else` contain proper explicit tests using `#[should_panic]`. Always append `>>` to memory.
+>> **2024-03-27 - [SearchQueryBuilder Missing Panic Tests]**
+**Learning:** The `SearchQueryBuilder::build` and `SearchQueryBuilder::returning` methods implement custom `unwrap_or_panic` error handling similar to `SoqlQueryBuilder`. However, these paths were untested, meaning `unwrap_or_else(|e| panic!(...))` code was executed without test coverage verifying the panic behaviour/messaging on invalid states.
+**Action:** When encountering a builder pattern containing `try_x` (Result) alongside `x` (panicking) methods wrapping `unwrap_or_panic()`, always verify that both the success `Result` path and the panic wrapper path are explicitly tested with `#[should_panic]` to maintain safety guarantees.

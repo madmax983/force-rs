@@ -659,6 +659,43 @@ mod tests {
         let _ = SearchQueryBuilder::new().find("Test").build();
     }
 
+    // Test unwrap_or_panic logic by calling panicking methods on invalid states directly.
+    #[test]
+    #[should_panic(expected = "Invalid input in build: invalid input: search text cannot be empty")]
+    fn test_build_panics_on_empty_search_text() {
+        let _ = SearchQueryBuilder::new()
+            .returning("Account", &["Id"])
+            .build();
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "Invalid input in build: invalid input: at least one object must be specified in RETURNING"
+    )]
+    fn test_build_panics_on_missing_returning() {
+        let _ = SearchQueryBuilder::new().find("Test").build();
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "Invalid input in returning: invalid input: SObject name contains invalid characters: Invalid;DROP"
+    )]
+    fn test_returning_panics_on_invalid_sobject() {
+        let _ = SearchQueryBuilder::new()
+            .find("Test")
+            .returning("Invalid;DROP", &["Id"]);
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "Invalid input in returning: invalid input: field name contains invalid character outside quotes: ';' in \"Invalid;Field\""
+    )]
+    fn test_returning_panics_on_invalid_field() {
+        let _ = SearchQueryBuilder::new()
+            .find("Test")
+            .returning("Account", &["Invalid;Field"]);
+    }
+
     #[test]
     fn test_search_query_builder_try_build_errors() {
         let result = SearchQueryBuilder::new()
