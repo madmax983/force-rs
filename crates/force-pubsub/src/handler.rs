@@ -15,6 +15,7 @@ use tokio_stream::Stream;
 use crate::config::{PubSubConfig, ReplayPreset};
 use crate::error::{PubSubError, Result};
 use crate::interceptor;
+use crate::publish_sink::{PublishSink, open_publish_stream};
 use crate::publisher::publish_unary;
 use crate::schema_cache::SchemaCache;
 use crate::subscriber::{subscribe_dynamic, subscribe_typed_dynamic};
@@ -298,5 +299,34 @@ impl<A: Authenticator + Send + Sync + 'static> PubSubHandler<A> {
             replay,
             tenant_id,
         ))
+    }
+
+    /// Open a bidirectional streaming `PublishStream` RPC and return a [`PublishSink`].
+    ///
+    /// The returned sink allows callers to send multiple batches of events to
+    /// `topic` without the per-call overhead of the unary [`Self::publish`] RPC.
+    /// The server streams back [`PublishResponse`] acknowledgements, which are
+    /// accessible via [`PublishSink::responses`].
+    ///
+    /// # Errors
+    ///
+    /// - [`PubSubError::Config`] if the tenant ID cannot be fetched.
+    /// - [`PubSubError::Transport`] if the gRPC stream cannot be opened.
+    pub async fn publish_stream<T: Serialize + Send + 'static>(
+        &self,
+        topic: &str,
+    ) -> Result<PublishSink<T>> {
+        let token = self.session.token_manager().token().await?;
+        let tenant_id = self.get_tenant_id().await?.to_string();
+
+        open_publish_stream(
+            Arc::clone(&self.session),
+            self.channel.clone(),
+            self.schema_cache.clone(),
+            tenant_id,
+            topic.to_string(),
+            &token,
+        )
+        .await
     }
 }

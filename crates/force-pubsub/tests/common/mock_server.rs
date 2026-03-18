@@ -11,7 +11,7 @@ use wiremock::{Mock, MockServer, ResponseTemplate};
 
 use force_pubsub::proto::eventbus_v1::{
     FetchRequest, FetchResponse, PublishRequest, PublishResponse as ProtoPublishResponse,
-    SchemaInfo, SchemaRequest, TopicInfo, TopicRequest,
+    PublishResult as ProtoPublishResult, SchemaInfo, SchemaRequest, TopicInfo, TopicRequest,
     pub_sub_server::{PubSub, PubSubServer},
 };
 
@@ -93,6 +93,142 @@ impl PubSub for MockPubSubService {
         drop(tx);
         Ok(Response::new(ReceiverStream::new(rx)))
     }
+}
+
+/// A mock Pub/Sub service that echoes `PublishStream` requests back as responses.
+///
+/// For every `PublishRequest` received on the input stream, it sends back a
+/// `PublishResponse` with one `PublishResult` per event, carrying a trivial
+/// replay ID of `[1]`.
+pub struct EchoPublishStreamService {
+    /// Schema ID returned by GetTopic / GetSchema.
+    pub topic_schema_id: String,
+    /// Avro schema JSON.
+    pub schema_json: String,
+}
+
+impl Default for EchoPublishStreamService {
+    fn default() -> Self {
+        Self {
+            topic_schema_id: "schema-test-001".to_string(),
+            schema_json:
+                r#"{"type":"record","name":"TestEvent","fields":[{"name":"id","type":"string"}]}"#
+                    .to_string(),
+        }
+    }
+}
+
+#[tonic::async_trait]
+impl PubSub for EchoPublishStreamService {
+    type SubscribeStream = ReceiverStream<Result<FetchResponse, Status>>;
+    type PublishStreamStream = ReceiverStream<Result<ProtoPublishResponse, Status>>;
+
+    async fn get_topic(&self, req: Request<TopicRequest>) -> Result<Response<TopicInfo>, Status> {
+        let name = req.into_inner().topic_name;
+        Ok(Response::new(TopicInfo {
+            topic_name: name.clone(),
+            topic_uri: name,
+            can_publish: true,
+            can_subscribe: true,
+            schema_id: self.topic_schema_id.clone(),
+        }))
+    }
+
+    async fn get_schema(
+        &self,
+        req: Request<SchemaRequest>,
+    ) -> Result<Response<SchemaInfo>, Status> {
+        let id = req.into_inner().schema_id;
+        if id == self.topic_schema_id {
+            Ok(Response::new(SchemaInfo {
+                schema_id: id,
+                schema_json: self.schema_json.clone(),
+            }))
+        } else {
+            Err(Status::not_found(format!("schema {id} not found")))
+        }
+    }
+
+    async fn subscribe(
+        &self,
+        _req: Request<tonic::Streaming<FetchRequest>>,
+    ) -> Result<Response<Self::SubscribeStream>, Status> {
+        let (tx, rx) = tokio::sync::mpsc::channel(1);
+        drop(tx);
+        Ok(Response::new(ReceiverStream::new(rx)))
+    }
+
+    async fn publish(
+        &self,
+        req: Request<PublishRequest>,
+    ) -> Result<Response<ProtoPublishResponse>, Status> {
+        let inner = req.into_inner();
+        let results = inner
+            .events
+            .iter()
+            .map(|_| ProtoPublishResult {
+                replay_id: vec![1u8],
+                error: None,
+            })
+            .collect();
+        Ok(Response::new(ProtoPublishResponse {
+            topic_name: inner.topic_name,
+            results,
+            rpc_id: None,
+        }))
+    }
+
+    async fn publish_stream(
+        &self,
+        req: Request<tonic::Streaming<PublishRequest>>,
+    ) -> Result<Response<Self::PublishStreamStream>, Status> {
+        let (resp_tx, resp_rx) = tokio::sync::mpsc::channel(32);
+        let mut in_stream = req.into_inner();
+
+        tokio::spawn(async move {
+            use tokio_stream::StreamExt as _;
+            while let Some(Ok(publish_req)) = in_stream.next().await {
+                let results = publish_req
+                    .events
+                    .iter()
+                    .map(|_| ProtoPublishResult {
+                        replay_id: vec![1u8],
+                        error: None,
+                    })
+                    .collect();
+                let response = ProtoPublishResponse {
+                    topic_name: publish_req.topic_name,
+                    results,
+                    rpc_id: None,
+                };
+                if resp_tx.send(Ok(response)).await.is_err() {
+                    break;
+                }
+            }
+        });
+
+        Ok(Response::new(ReceiverStream::new(resp_rx)))
+    }
+}
+
+/// Start an in-process echo publish-stream mock server.
+/// Returns the base URL (e.g., `http://127.0.0.1:PORT`).
+pub async fn start_echo_stream_server(service: EchoPublishStreamService) -> String {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr: SocketAddr = listener.local_addr().unwrap();
+    let stream = TcpListenerStream::new(listener);
+
+    tokio::spawn(async move {
+        if let Err(e) = Server::builder()
+            .add_service(PubSubServer::new(service))
+            .serve_with_incoming(stream)
+            .await
+        {
+            eprintln!("echo stream Pub/Sub server error: {e}");
+        }
+    });
+
+    format!("http://{addr}")
 }
 
 /// Start an in-process mock server. Returns the base URL (e.g., `http://127.0.0.1:12345`).

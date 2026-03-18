@@ -19,6 +19,7 @@ pub mod handler;
 pub(crate) mod interceptor;
 pub mod types;
 
+pub(crate) mod publish_sink;
 pub(crate) mod publisher;
 pub mod schema_cache;
 pub(crate) mod subscriber;
@@ -26,6 +27,7 @@ pub(crate) mod subscriber;
 pub use config::{BackoffConfig, PubSubConfig, ReconnectPolicy, ReplayPreset};
 pub use error::{PubSubError, Result};
 pub use handler::{PubSubHandler, SchemaInfo, TopicInfo};
+pub use publish_sink::PublishSink;
 pub use schema_cache::SchemaCache;
 pub use types::{EventMessage, PubSubEvent, PublishResponse, PublishResult, ReplayId};
 
