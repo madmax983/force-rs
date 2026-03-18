@@ -5,6 +5,7 @@
 
 pub(crate) mod crud;
 pub(crate) mod describe;
+#[cfg(feature = "nova")]
 pub(crate) mod explain;
 pub(crate) mod limits;
 pub(crate) mod query;
@@ -16,6 +17,8 @@ pub use describe::{
     ChildRelationship, FieldDescribe, FieldType, FilteredLookupInfo, GlobalDescribe,
     GlobalSObjectDescribe, PicklistValue, RecordTypeInfo, SObjectDescribe,
 };
+#[cfg(feature = "nova")]
+pub use explain::{ExplainResponse, PlanNote, QueryPlan};
 pub use limits::{LimitInfo, OrgLimits};
 pub use query_stream::QueryStream;
 pub use search::{SearchAttributes, SearchQueryBuilder, SearchRecords, SearchResult};
@@ -335,7 +338,8 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
     /// - Authentication fails
     /// - The HTTP request fails
     /// - The response cannot be deserialized
-    pub async fn explain(&self, soql: &str) -> Result<explain::ExplainResponse> {
+    #[cfg(feature = "nova")]
+    pub async fn explain(&self, soql: &str) -> Result<ExplainResponse> {
         self.execute_get(
             "/query",
             Some(&[("explain", soql)]),
