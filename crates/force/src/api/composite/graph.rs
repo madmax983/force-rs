@@ -159,10 +159,14 @@ impl Graph {
     /// # Arguments
     ///
     /// * `request` - The subrequest to add
-    #[must_use]
-    pub fn add_request(mut self, request: GraphRequest) -> Self {
+    pub fn add_request(mut self, request: GraphRequest) -> Result<Self> {
+        if self.composite_request.len() >= 500 {
+            return Err(ForceError::InvalidInput(
+                "Graph size limit of 500 requests exceeded".to_string(),
+            ));
+        }
         self.composite_request.push(request);
-        self
+        Ok(self)
     }
 
     /// Adds a GET request to the graph.
@@ -176,11 +180,11 @@ impl Graph {
         validator::validate_sobject_name(sobject)?;
         validate_graph_id(id)?;
         validate_reference_id(reference_id)?;
-        Ok(self.add_request(GraphRequest::new(
+        self.add_request(GraphRequest::new(
             "GET",
             crate::api::path_utils::format_sobject_path(sobject, Some(id)),
             reference_id,
-        )))
+        ))
     }
 
     /// Adds a POST (Create) request to the graph.
@@ -193,14 +197,14 @@ impl Graph {
     pub fn post(self, sobject: &str, body: Value, reference_id: &str) -> Result<Self> {
         validator::validate_sobject_name(sobject)?;
         validate_reference_id(reference_id)?;
-        Ok(self.add_request(
+        self.add_request(
             GraphRequest::new(
                 "POST",
                 crate::api::path_utils::format_sobject_path(sobject, None),
                 reference_id,
             )
             .body(body),
-        ))
+        )
     }
 
     /// Adds a PATCH (Update) request to the graph.
@@ -215,14 +219,14 @@ impl Graph {
         validator::validate_sobject_name(sobject)?;
         validate_graph_id(id)?;
         validate_reference_id(reference_id)?;
-        Ok(self.add_request(
+        self.add_request(
             GraphRequest::new(
                 "PATCH",
                 crate::api::path_utils::format_sobject_path(sobject, Some(id)),
                 reference_id,
             )
             .body(body),
-        ))
+        )
     }
 
     /// Adds a DELETE request to the graph.
@@ -236,11 +240,11 @@ impl Graph {
         validator::validate_sobject_name(sobject)?;
         validate_graph_id(id)?;
         validate_reference_id(reference_id)?;
-        Ok(self.add_request(GraphRequest::new(
+        self.add_request(GraphRequest::new(
             "DELETE",
             crate::api::path_utils::format_sobject_path(sobject, Some(id)),
             reference_id,
-        )))
+        ))
     }
 
     /// Adds a SOQL query request to the graph.
@@ -282,7 +286,7 @@ impl Graph {
             }
         }
 
-        Ok(self.add_request(GraphRequest::new("GET", url, reference_id)))
+        self.add_request(GraphRequest::new("GET", url, reference_id))
     }
 }
 
