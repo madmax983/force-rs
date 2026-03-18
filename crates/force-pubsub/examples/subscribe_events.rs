@@ -80,6 +80,7 @@ async fn main() -> anyhow::Result<()> {
         .subscribe(&topic, ReplayPreset::Latest)
         .await
         .context("Failed to subscribe")?;
+    drop(handler);
 
     println!("Waiting for events (will stop after 10)...\n");
 
@@ -88,12 +89,15 @@ async fn main() -> anyhow::Result<()> {
         match item {
             Ok(PubSubEvent::Event(msg)) => {
                 event_count += 1;
-                let replay_hex: String = msg
-                    .replay_id
-                    .as_bytes()
-                    .iter()
-                    .map(|b| format!("{b:02x}"))
-                    .collect();
+                use std::fmt::Write;
+                let replay_hex =
+                    msg.replay_id
+                        .as_bytes()
+                        .iter()
+                        .fold(String::new(), |mut acc, b| {
+                            let _ = write!(acc, "{b:02x}");
+                            acc
+                        });
                 println!(
                     "[{event_count:>2}] event_id={} replay_id=0x{replay_hex}",
                     msg.event_id

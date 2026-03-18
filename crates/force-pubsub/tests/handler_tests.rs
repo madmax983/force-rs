@@ -1,6 +1,8 @@
-//! Integration tests for `PubSubHandler` — GetTopic and GetSchema RPCs.
+//! Integration tests for `PubSubHandler` — `GetTopic` and `GetSchema` RPCs.
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::expect_used)]
+#![allow(clippy::significant_drop_tightening)]
+#![allow(clippy::redundant_clone)]
 
 mod common;
 
