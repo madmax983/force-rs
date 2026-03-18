@@ -38,3 +38,13 @@
 ## [Graph API Validation Robustness]
 **Learning:** Added exhaustive table-driven tests for `validate_reference_id` and `validate_graph_id`.
 **Action:** Always test boundary validation helpers against a full table of invalid characters instead of relying on narrow single-character cases.
+
+**[Composite Graph ID and Reference Validation]**
+**Learning:** `test_havoc_path_traversal` and `test_havoc_invalid_reference_id` failed because `validate_graph_id` and `validate_reference_id` in the Composite Graph API were not properly validating their inputs against path traversal and invalid characters.
+**Action:** When inspecting API endpoints that take parameters like `id` and `reference_id`, always verify that the validation logic rejects path traversal elements (`/`, `..`, `\`, `?`) and invalid character sequences to prevent vulnerabilities. Ensure explicit unit tests exist for all internal validation helpers.
+**2024-03-26 - [Unenforced unwrap_or_panic caught by missing test]
+**Learning:** Found a missing test gap for a custom `unwrap_or_panic` implementation on `SoqlQueryBuilder::select` handling invalid characters.
+**Action:** Check that untested execution paths using helper methods like `unwrap_or_panic` or `unwrap_or_else` contain proper explicit tests using `#[should_panic]`. Always append `>>` to memory.
+>> **2024-03-27 - [SearchQueryBuilder Missing Panic Tests]**
+**Learning:** The `SearchQueryBuilder::build` and `SearchQueryBuilder::returning` methods implement custom `unwrap_or_panic` error handling similar to `SoqlQueryBuilder`. However, these paths were untested, meaning `unwrap_or_else(|e| panic!(...))` code was executed without test coverage verifying the panic behaviour/messaging on invalid states.
+**Action:** When encountering a builder pattern containing `try_x` (Result) alongside `x` (panicking) methods wrapping `unwrap_or_panic()`, always verify that both the success `Result` path and the panic wrapper path are explicitly tested with `#[should_panic]` to maintain safety guarantees.

@@ -272,18 +272,7 @@ impl Graph {
         url.push_str("query?q=");
 
         {
-            // We use a custom writer adapter to encode directly into the URL string.
-            // This is identical to how `batch.rs` does it, to avoid intermediate allocations.
-            struct UrlEncodedWriter<'a>(&'a mut String);
-
-            impl std::fmt::Write for UrlEncodedWriter<'_> {
-                fn write_str(&mut self, s: &str) -> std::fmt::Result {
-                    self.0
-                        .extend(url::form_urlencoded::byte_serialize(s.as_bytes()));
-                    Ok(())
-                }
-            }
-
+            use crate::api::url_encoded_writer::UrlEncodedWriter;
             let mut writer = UrlEncodedWriter(&mut url);
             if let Err(e) = query_builder.write_query(&mut writer) {
                 return Err(ForceError::InvalidInput(format!(
@@ -524,10 +513,30 @@ mod tests {
     }
 
     #[test]
+    fn test_validate_reference_id() {
+        assert!(validate_reference_id("valid_id_123").is_ok());
+        assert!(validate_reference_id("validId").is_ok());
+        assert!(validate_reference_id("").is_err());
+        assert!(validate_reference_id("invalid ref id! @#$").is_err());
+        assert!(validate_reference_id("invalid-ref").is_err());
+    }
+
+    #[test]
+    fn test_validate_graph_id() {
+        assert!(validate_graph_id("001000000000000").is_ok());
+        assert!(validate_graph_id("@{ref.id}").is_ok());
+        assert!(validate_graph_id("validId").is_ok());
+        assert!(validate_graph_id("").is_err());
+        assert!(validate_graph_id("some/path").is_err());
+        assert!(validate_graph_id("..").is_err());
+        assert!(validate_graph_id("path\\test").is_err());
+        assert!(validate_graph_id("path?query").is_err());
+    }
+
+    #[test]
     fn test_havoc_path_traversal() {
         let graph = Graph::new("graph1");
 
-        // This should fail validation but currently doesn't!
         let result = graph.get("Account", "../../../../../etc/passwd", "ref1");
 
         let Err(err) = result else {
@@ -548,7 +557,6 @@ mod tests {
     fn test_havoc_invalid_reference_id() {
         let graph = Graph::new("graph1");
 
-        // This should fail validation but currently doesn't!
         let result = graph.get("Account", "001xx000003DHP0AAO", "invalid ref id! @#$");
 
         let Err(err) = result else {

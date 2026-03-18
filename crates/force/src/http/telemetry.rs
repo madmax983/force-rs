@@ -16,12 +16,15 @@ pub enum RequestErrorKind {
 }
 
 /// Redaction-safe retry telemetry event.
+///
+/// ⚡ Bolt: Uses `&'a str` instead of `String` for `method` and `path` to eliminate
+/// heap allocations during high-frequency HTTP request retries.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RetryEvent {
+pub struct RetryEvent<'a> {
     /// HTTP method.
-    pub method: String,
+    pub method: &'a str,
     /// URL path only (query excluded).
-    pub path: String,
+    pub path: &'a str,
     /// Request safety class.
     pub request_class: &'static str,
     /// Retry attempt number (0-based).
@@ -33,12 +36,15 @@ pub struct RetryEvent {
 }
 
 /// Redaction-safe request completion telemetry event.
+///
+/// ⚡ Bolt: Uses `&'a str` instead of `String` for `method` and `path` to eliminate
+/// heap allocations during high-frequency HTTP request completions.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RequestCompletion {
+pub struct RequestCompletion<'a> {
     /// HTTP method.
-    pub method: String,
+    pub method: &'a str,
     /// URL path only (query excluded).
-    pub path: String,
+    pub path: &'a str,
     /// Request safety class.
     pub request_class: &'static str,
     /// Final status code if response was received.
@@ -52,8 +58,8 @@ pub struct RequestCompletion {
 }
 
 /// Optional telemetry hooks for retry and completion events.
-type RetryHook = Arc<dyn Fn(&RetryEvent) + Send + Sync>;
-type CompletionHook = Arc<dyn Fn(&RequestCompletion) + Send + Sync>;
+type RetryHook = Arc<dyn for<'a> Fn(&RetryEvent<'a>) + Send + Sync>;
+type CompletionHook = Arc<dyn for<'a> Fn(&RequestCompletion<'a>) + Send + Sync>;
 
 /// Optional telemetry hooks for retry and completion events.
 #[derive(Clone, Default)]
@@ -85,7 +91,7 @@ impl TelemetryHooks {
     #[must_use]
     pub fn on_retry<F>(mut self, hook: F) -> Self
     where
-        F: Fn(&RetryEvent) + Send + Sync + 'static,
+        F: for<'a> Fn(&RetryEvent<'a>) + Send + Sync + 'static,
     {
         self.on_retry = Some(Arc::new(hook));
         self
@@ -95,7 +101,7 @@ impl TelemetryHooks {
     #[must_use]
     pub fn on_complete<F>(mut self, hook: F) -> Self
     where
-        F: Fn(&RequestCompletion) + Send + Sync + 'static,
+        F: for<'a> Fn(&RequestCompletion<'a>) + Send + Sync + 'static,
     {
         self.on_complete = Some(Arc::new(hook));
         self
@@ -142,10 +148,10 @@ impl TelemetryContext {
         status_code: Option<u16>,
         error_kind: Option<RequestErrorKind>,
         retries: u32,
-    ) -> RequestCompletion {
+    ) -> RequestCompletion<'_> {
         RequestCompletion {
-            method: self.method.clone().unwrap_or_default(),
-            path: self.path.clone().unwrap_or_default(),
+            method: self.method.as_deref().unwrap_or_default(),
+            path: self.path.as_deref().unwrap_or_default(),
             request_class: self.request_class,
             status_code,
             error_kind,
@@ -159,10 +165,10 @@ impl TelemetryContext {
         attempt: u32,
         status_code: u16,
         backoff_ms: u128,
-    ) -> RetryEvent {
+    ) -> RetryEvent<'_> {
         RetryEvent {
-            method: self.method.clone().unwrap_or_default(),
-            path: self.path.clone().unwrap_or_default(),
+            method: self.method.as_deref().unwrap_or_default(),
+            path: self.path.as_deref().unwrap_or_default(),
             request_class: self.request_class,
             attempt,
             status_code,
