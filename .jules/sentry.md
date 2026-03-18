@@ -35,6 +35,9 @@
 **Doc Tests for Public API**
 **Learning:** Added doc tests to SoqlQueryBuilder methods to improve coverage and provide usage examples.
 **Action:** Use doc tests for public API methods to ensure they compile and serve as documentation.
+## [Graph API Validation Robustness]
+**Learning:** Added exhaustive table-driven tests for `validate_reference_id` and `validate_graph_id`.
+**Action:** Always test boundary validation helpers against a full table of invalid characters instead of relying on narrow single-character cases.
 
 **[Composite Graph ID and Reference Validation]**
 **Learning:** `test_havoc_path_traversal` and `test_havoc_invalid_reference_id` failed because `validate_graph_id` and `validate_reference_id` in the Composite Graph API were not properly validating their inputs against path traversal and invalid characters.
