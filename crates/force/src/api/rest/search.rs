@@ -606,6 +606,20 @@ mod tests {
     }
 
     #[test]
+    fn test_search_query_builder_sidebar_fields() {
+        let query = SearchQueryBuilder::new()
+            .find("test@example.com")
+            .in_sidebar_fields()
+            .returning("Contact", &["Id", "Email"])
+            .build();
+
+        assert_eq!(
+            query,
+            "FIND {test@example.com} IN SIDEBAR FIELDS RETURNING Contact(Id, Email)"
+        );
+    }
+
+    #[test]
     fn test_search_query_builder_email_fields() {
         let query = SearchQueryBuilder::new()
             .find("test@example.com")
