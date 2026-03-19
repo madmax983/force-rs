@@ -100,7 +100,6 @@ fn map_field_type(field_type: &FieldType, length: i32) -> String {
                 "VARCHAR(255)".to_string()
             }
         }
-        FieldType::Textarea | FieldType::Encryptedstring | FieldType::Base64 => "TEXT".to_string(),
         FieldType::Boolean => "BOOLEAN".to_string(),
         FieldType::Int => "INTEGER".to_string(),
         FieldType::Double | FieldType::Currency | FieldType::Percent => {
