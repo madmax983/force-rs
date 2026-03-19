@@ -3,6 +3,7 @@
 //! This module provides a utility to query records and perform batch operations on them.
 //! It handles pagination and batch execution automatically.
 
+use crate::api::rest_operation::RestOperation;
 use crate::auth::Authenticator;
 #[cfg(feature = "composite")]
 use crate::client::ForceClient;

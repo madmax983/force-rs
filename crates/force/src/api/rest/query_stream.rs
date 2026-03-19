@@ -18,6 +18,7 @@
 //! ```
 
 use super::RestHandler;
+use crate::api::rest_operation::RestOperation;
 use crate::auth::Authenticator;
 use crate::error::Result;
 use crate::types::QueryResult;

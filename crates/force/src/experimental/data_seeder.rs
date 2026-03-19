@@ -4,6 +4,7 @@
 //! powers of `DataFaker` with the efficiency of `BatchBuilder` to generate and
 //! insert hundreds of valid, mock records into Salesforce in a few seconds.
 
+use crate::api::rest_operation::RestOperation;
 use crate::auth::Authenticator;
 use crate::client::ForceClient;
 use crate::error::Result;

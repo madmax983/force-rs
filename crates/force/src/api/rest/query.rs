@@ -1,114 +1,17 @@
 //! SOQL query execution.
 //!
-//! This module provides typed and dynamic SOQL query execution.
-//! For large result sets, use the `nextRecordsUrl` field from `QueryResult`
-//! to manually fetch additional pages.
-
-use crate::api::rest_operation::resolve_next_records_url;
-use crate::error::ForceError;
-use crate::types::QueryResult;
-use serde::de::DeserializeOwned;
-
-impl<A: crate::auth::Authenticator> super::RestHandler<A> {
-    /// Executes a SOQL query and returns the first page of results.
-    ///
-    /// This method performs a single query and returns only the first page.
-    /// Use `query_more()` to fetch additional pages using the `nextRecordsUrl`.
-    ///
-    /// # Security Warning
-    ///
-    /// This method accepts a raw SOQL string. **Do not construct queries using `format!`
-    /// with untrusted input**, as this leads to SOQL injection vulnerabilities.
-    /// Instead, use [`SoqlQueryBuilder`](crate::api::soql::SoqlQueryBuilder) or
-    /// [`escape_soql`](crate::api::rest::escape_soql).
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if:
-    /// - The query is malformed
-    /// - Network/authentication failures occur
-    /// - Deserialization fails
-    ///
-    /// # Examples
-    ///
-    /// ```ignore
-    /// use force::types::DynamicSObject;
-    /// use force::api::soql::SoqlQueryBuilder;
-    ///
-    /// // Safe query construction
-    /// let query = SoqlQueryBuilder::new()
-    ///     .select(&["Id", "Name"])
-    ///     .from("Account")
-    ///     .where_eq("Name", "Acme Corp")
-    ///     .limit(10)
-    ///     .build();
-    ///
-    /// let result = client.rest().query::<DynamicSObject>(&query).await?;
-    /// println!("Total: {}", result.total_size);
-    /// ```
-    pub async fn query<T>(&self, soql: &str) -> Result<QueryResult<T>, ForceError>
-    where
-        T: DeserializeOwned,
-    {
-        // Use the common helper `execute_get` which handles URL resolution and decoding
-        self.execute_get("/query", Some(&[("q", soql)]), "SOQL query failed")
-            .await
-    }
-
-    /// Fetches the next page of query results using a `nextRecordsUrl`.
-    ///
-    /// When a query returns `done: false`, use the `nextRecordsUrl` from the
-    /// previous result to fetch the next page.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if:
-    /// - The locator URL is invalid
-    /// - Network/authentication failures occur
-    /// - Deserialization fails
-    ///
-    /// # Examples
-    ///
-    /// ```ignore
-    /// use force::types::DynamicSObject;
-    ///
-    /// let mut result = client.rest().query::<DynamicSObject>("SELECT Id, Name FROM Account").await?;
-    /// while !result.is_done() {
-    ///     if let Some(next_url) = result.next_records_url.as_ref() {
-    ///         result = client.rest().query_more(next_url).await?;
-    ///         // Process result.records...
-    ///     }
-    /// }
-    /// ```
-    pub async fn query_more<T>(&self, next_records_url: &str) -> Result<QueryResult<T>, ForceError>
-    where
-        T: DeserializeOwned,
-    {
-        // Get instance URL directly from session
-        let instance_url = self.inner.instance_url().await?;
-
-        // Construct and validate full URL
-        let url = resolve_next_records_url(&instance_url, next_records_url)?;
-
-        // Execute query
-        let request = self
-            .inner
-            .get(&url)
-            .build()
-            .map_err(crate::error::HttpError::from)?;
-
-        self.inner
-            .send_request_and_decode(request, "Query pagination failed")
-            .await
-    }
-}
+//! Query and query_more operations are provided by the
+//! [`RestOperation`](crate::api::rest_operation::RestOperation) trait, which
+//! `RestHandler` implements. This module retains the integration tests that
+//! exercise those operations through the handler.
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::api::rest_operation::RestOperation;
     use crate::client::builder;
+    use crate::error::ForceError;
     use crate::test_support::{MockAuthenticator, Must};
-    use crate::types::DynamicSObject;
+    use crate::types::{DynamicSObject, QueryResult};
     use serde::{Deserialize, Serialize};
     use serde_json::json;
     use wiremock::matchers::{header, method, path, query_param};
