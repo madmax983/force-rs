@@ -50,6 +50,26 @@ impl<A: Authenticator> TokenManager<A> {
         }
     }
 
+    /// Helper to update the token state in a thread-safe manner, returning the most up-to-date token.
+    async fn update_token_state(
+        &self,
+        arc_token: Arc<AccessToken>,
+        is_initial_auth: bool,
+    ) -> Arc<AccessToken> {
+        let mut state = self.state.write().await;
+
+        if let Some(current) = &state.token {
+            if current.issued_at() >= arc_token.issued_at() {
+                return current.clone();
+            }
+            state.token = Some(arc_token.clone());
+        } else if is_initial_auth {
+            state.token = Some(arc_token.clone());
+        }
+
+        arc_token
+    }
+
     /// Returns the current access token as an Arc reference, refreshing if necessary.
     ///
     /// This is an internal method to avoid cloning the token for internal use.
@@ -106,26 +126,7 @@ impl<A: Authenticator> TokenManager<A> {
             // ⚡ Bolt: Moving `new_token` directly into `Arc` avoids an unnecessary `.clone()` allocation
             // when transferring ownership, saving one heap allocation per token refresh/auth.
             let arc_token = Arc::new(new_token);
-            {
-                let mut state = self.state.write().await;
-
-                // Check if a concurrent operation already updated the token to a newer one
-                if let Some(current) = &state.token {
-                    if current.issued_at() >= arc_token.issued_at() {
-                        return Ok(current.clone());
-                    }
-                    state.token = Some(arc_token.clone());
-                } else {
-                    // State is `None`.
-                    // If we just authenticated (`has_token` is false), it's correct to store it.
-                    // If we just refreshed (`has_token` is true), it means `clear()` was called
-                    // concurrently during our refresh. We must NOT store it to avoid resurrection.
-                    if !has_token {
-                        state.token = Some(arc_token.clone());
-                    }
-                }
-            }
-            Ok(arc_token)
+            Ok(self.update_token_state(arc_token, !has_token).await)
         } else if let Some(valid_token) = current_token {
             // Soft expired. We have a valid token (valid_token).
             // Try to acquire refresh lock.
@@ -139,20 +140,7 @@ impl<A: Authenticator> TokenManager<A> {
                         // ⚡ Bolt: Moving `new_token` directly into `Arc` avoids an unnecessary `.clone()` allocation
                         // when transferring ownership, saving one heap allocation per token refresh.
                         let arc_token = Arc::new(new_token);
-                        let mut state = self.state.write().await;
-
-                        // Check if a concurrent operation already updated the token to a newer one
-                        if let Some(current) = &state.token {
-                            if current.issued_at() >= arc_token.issued_at() {
-                                return Ok(current.clone());
-                            }
-                            state.token = Some(arc_token.clone());
-                        } else {
-                            // If the state is `None`, it means `clear()` was called concurrently during our refresh.
-                            // We should NOT store the refreshed token to avoid resurrecting a cleared session.
-                        }
-
-                        Ok(arc_token)
+                        Ok(self.update_token_state(arc_token, false).await)
                     }
                     Err(_) => {
                         // Refresh failed. Return the old token which is still valid (soft expired).
@@ -215,25 +203,8 @@ impl<A: Authenticator> TokenManager<A> {
         // ⚡ Bolt: Moving `new_token` directly into `Arc` avoids an unnecessary `.clone()` allocation
         // when transferring ownership, saving one heap allocation per force refresh.
         let arc_token = Arc::new(new_token);
-
-        {
-            let mut state = self.state.write().await;
-
-            // Check if current token is newer than the one we just got.
-            // This protects against race conditions where a concurrent `get_token` call
-            // might have refreshed the token while we were waiting for the refresh.
-            if let Some(current) = &state.token {
-                if current.issued_at() >= arc_token.issued_at() {
-                    return Ok(current.as_ref().clone());
-                }
-                state.token = Some(arc_token.clone());
-            } else {
-                // If the state is `None`, it means `clear()` was called concurrently during our refresh.
-                // We should NOT store the refreshed token to avoid resurrecting a cleared session.
-            }
-        } // Write lock dropped here
-
-        Ok((*arc_token).clone())
+        let final_token = self.update_token_state(arc_token, false).await;
+        Ok((*final_token).clone())
     }
 
     /// Clears the current token, forcing re-authentication on next access.
