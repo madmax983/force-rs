@@ -5,6 +5,7 @@ use crate::experimental::scanner::FieldUsageScanner;
 use crate::experimental::schema_analyzer::analyze_schema;
 use crate::experimental::schema_graph::SchemaGraph;
 use std::collections::HashMap;
+use std::fmt::Write;
 
 /// A utility to generate a comprehensive Markdown report of an SObject schema.
 ///
@@ -44,63 +45,57 @@ impl<'a, A: Authenticator> SchemaVisualizer<'a, A> {
 
         let mut md = String::with_capacity(2048);
 
-        md.push_str(&format!("# Schema Report: {}\n\n", describe.label));
-        md.push_str(&format!("**API Name:** `{}`\n", describe.name));
-        md.push_str(&format!("**Custom:** {}\n\n", describe.custom));
+        // ⚡ Bolt: Use `writeln!` directly to the `md` buffer instead of `format!` and `push_str`
+        // to avoid intermediate String heap allocations for the report output.
+        let _ = writeln!(md, "# Schema Report: {}\n", describe.label);
+        let _ = writeln!(md, "**API Name:** `{}`", describe.name);
+        let _ = writeln!(md, "**Custom:** {}\n", describe.custom);
 
-        md.push_str("## Schema Insights\n\n");
-        md.push_str(&format!(
-            "*   **Complexity Score:** {}\n",
+        let _ = writeln!(md, "## Schema Insights\n");
+        let _ = writeln!(
+            md,
+            "*   **Complexity Score:** {}",
             insights.complexity_score
-        ));
-        md.push_str(&format!(
-            "*   **Total Fields:** {}\n",
-            insights.total_fields
-        ));
-        md.push_str(&format!(
-            "*   **Standard Fields:** {}\n",
+        );
+        let _ = writeln!(md, "*   **Total Fields:** {}", insights.total_fields);
+        let _ = writeln!(
+            md,
+            "*   **Standard Fields:** {}",
             insights.standard_field_count
-        ));
-        md.push_str(&format!(
-            "*   **Custom Fields:** {}\n",
-            insights.custom_field_count
-        ));
-        md.push_str(&format!(
-            "*   **Required Fields:** {}\n\n",
+        );
+        let _ = writeln!(md, "*   **Custom Fields:** {}", insights.custom_field_count);
+        let _ = writeln!(
+            md,
+            "*   **Required Fields:** {}\n",
             insights.required_field_count
-        ));
+        );
 
-        md.push_str("## Entity-Relationship Diagram\n\n");
-        md.push_str("```mermaid\n");
+        let _ = writeln!(md, "## Entity-Relationship Diagram\n");
+        let _ = writeln!(md, "```mermaid");
         md.push_str(&mermaid);
-        md.push_str("```\n\n");
+        let _ = writeln!(md, "```\n");
 
         if include_usage {
             let scanner = FieldUsageScanner::new(self.client);
             let usages = scanner.scan(sobject).await?;
-            let mut usage_map = HashMap::new();
+            let mut usage_map = HashMap::with_capacity(usages.len());
             for usage in usages {
-                usage_map.insert(usage.name.clone(), usage);
+                usage_map.insert(usage.name, usage.percentage);
             }
 
-            md.push_str("## Field Usage Statistics\n\n");
-            md.push_str("| Label | API Name | Populated % |\n");
-            md.push_str("|---|---|---|\n");
+            let _ = writeln!(md, "## Field Usage Statistics\n");
+            let _ = writeln!(md, "| Label | API Name | Populated % |");
+            let _ = writeln!(md, "|---|---|---|");
 
             let mut fields = describe.fields;
             fields.sort_by(|a, b| a.name.cmp(&b.name));
 
             for field in &fields {
-                let pop_pct = if let Some(u) = usage_map.get(&field.name) {
-                    format!("{:.1}%", u.percentage)
+                if let Some(pct) = usage_map.get(&field.name) {
+                    let _ = writeln!(md, "| {} | `{}` | {:.1}% |", field.label, field.name, pct);
                 } else {
-                    "N/A".to_string()
-                };
-
-                md.push_str(&format!(
-                    "| {} | `{}` | {} |\n",
-                    field.label, field.name, pop_pct
-                ));
+                    let _ = writeln!(md, "| {} | `{}` | N/A |", field.label, field.name);
+                }
             }
         }
 
