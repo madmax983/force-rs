@@ -653,6 +653,54 @@ mod tests {
     }
 
     #[test]
+    #[should_panic(
+        expected = "Invalid input in where_eq: invalid input: invalid input: Field name contains invalid character ';': Invalid;Field"
+    )]
+    fn test_where_eq_panics_on_invalid_field() {
+        let _ = SoqlQueryBuilder::new().where_eq("Invalid;Field", "Value");
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "Invalid input in where_ne: invalid input: invalid input: Field name contains invalid character ';': Invalid;Field"
+    )]
+    fn test_where_ne_panics_on_invalid_field() {
+        let _ = SoqlQueryBuilder::new().where_ne("Invalid;Field", "Value");
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "Invalid input in where_in: invalid input: invalid input: Field name contains invalid character ';': Invalid;Field"
+    )]
+    fn test_where_in_panics_on_invalid_field() {
+        let _ = SoqlQueryBuilder::new().where_in("Invalid;Field", &["Value"]);
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "Invalid input in where_like: invalid input: invalid input: Field name contains invalid character ';': Invalid;Field"
+    )]
+    fn test_where_like_panics_on_invalid_field() {
+        let _ = SoqlQueryBuilder::new().where_like("Invalid;Field", "Value");
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "Invalid input in order_by: invalid input: invalid input: Field name contains invalid character ';': Invalid;Field"
+    )]
+    fn test_order_by_panics_on_invalid_field() {
+        let _ = SoqlQueryBuilder::new().order_by("Invalid;Field");
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "Invalid input in order_by_desc: invalid input: invalid input: Field name contains invalid character ';': Invalid;Field"
+    )]
+    fn test_order_by_desc_panics_on_invalid_field() {
+        let _ = SoqlQueryBuilder::new().order_by_desc("Invalid;Field");
+    }
+
+    #[test]
     fn test_where_condition_raw() {
         let query = SoqlQueryBuilder::new()
             .select(&["Id", "Amount"])
