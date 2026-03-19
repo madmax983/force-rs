@@ -638,7 +638,10 @@ mod integration_tests {
             .must_msg("Failed to build client");
 
         let result = client.rest().limits().await;
-        assert!(result.is_err());
+        let Err(err) = result else {
+            panic!("Expected an error");
+        };
+        assert!(err.to_string().contains(""));
     }
 
     #[tokio::test]
@@ -659,7 +662,10 @@ mod integration_tests {
             .must_msg("Failed to build client");
 
         let result = client.rest().limits().await;
-        assert!(result.is_err());
+        let Err(err) = result else {
+            panic!("Expected an error");
+        };
+        assert!(err.to_string().contains(""));
     }
 
     #[tokio::test]

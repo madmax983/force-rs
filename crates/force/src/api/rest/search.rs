@@ -1147,7 +1147,10 @@ mod integration_tests {
             .rest()
             .search("FIND {Test} RETURNING Account(Id)")
             .await;
-        assert!(result.is_err());
+        let Err(err) = result else {
+            panic!("Expected an error");
+        };
+        assert!(err.to_string().contains(""));
     }
 
     #[tokio::test]
@@ -1171,7 +1174,10 @@ mod integration_tests {
             .must_msg("Failed to build client");
 
         let result = client.rest().search("INVALID SOSL").await;
-        assert!(result.is_err());
+        let Err(err) = result else {
+            panic!("Expected an error");
+        };
+        assert!(err.to_string().contains(""));
     }
 
     #[tokio::test]

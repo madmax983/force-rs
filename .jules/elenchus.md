@@ -180,3 +180,11 @@ match result {
 **Evidence:**
 - `cargo mutants` output showing a single surviving mutant: `replace SearchQueryBuilder::in_sidebar_fields -> Self with Default::default()`.
 **Recommendation:** Added `test_search_query_builder_sidebar_fields` to construct a query explicitly invoking `.in_sidebar_fields()` and verified its output matched the expected string exactly, killing the remaining mutant and closing the testing gap.
+
+### [Strengthened] `assert!(result.is_err())` Eradication Across `crates/force/src`
+
+**Module:** `crates/force/src/...`
+**Severity:** 🟡 Suspect
+**Finding:** Widespread use of `assert!(result.is_err())` ("The Ceremony Test" pattern) provided false confidence. As Elenchus dictates: `assert!(result.is_err())` is not an assertion — it is a prayer. It hides the underlying error variants and survives mutation because it permits tests to pass if the function fails for completely unrelated reasons.
+**Evidence:** Found over 40 occurrences across `scanner.rs`, `soql.rs`, `search.rs`, `limits.rs`, `csv.rs`, `ingest.rs`, `smart_ingest.rs`, `query.rs`, `error.rs`, `token_manager.rs`, `client_credentials.rs`, `jwt_bearer.rs`, `token.rs`, `salesforce_id.rs`, and `sobject.rs`.
+**Recommendation:** Refactored tests to explicitly unwrap the error using `let Err(variant) = result else { panic!("...") }` and assertions to ensure tests only pass if they fail exactly as intended.

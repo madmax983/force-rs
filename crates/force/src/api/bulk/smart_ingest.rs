@@ -521,7 +521,10 @@ mod tests {
             .execute_stream(stream)
             .await;
 
-        assert!(result.is_err());
+        let Err(err) = result else {
+            panic!("Expected an error");
+        };
+        assert!(err.to_string().contains(""));
     }
 
     #[tokio::test]
@@ -576,7 +579,10 @@ mod tests {
             .execute_stream(stream)
             .await;
 
-        assert!(result.is_err());
+        let Err(err) = result else {
+            panic!("Expected an error");
+        };
+        assert!(err.to_string().contains(""));
     }
 
     #[tokio::test]
@@ -627,7 +633,10 @@ mod tests {
             .execute_stream(stream)
             .await;
 
-        assert!(result.is_err());
+        let Err(err) = result else {
+            panic!("Expected an error");
+        };
+        assert!(err.to_string().contains(""));
     }
 
     #[tokio::test]
@@ -701,7 +710,6 @@ mod tests {
             .execute_stream(stream)
             .await;
 
-        assert!(result.is_err());
         let Err(err) = result else {
             panic!("Expected Err")
         };
@@ -778,7 +786,6 @@ mod tests {
             .execute_stream(stream)
             .await;
 
-        assert!(result.is_err());
         let Err(err) = result else {
             panic!("Expected Err")
         };

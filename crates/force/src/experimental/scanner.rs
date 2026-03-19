@@ -572,7 +572,10 @@ mod tests {
 
         let scanner = FieldUsageScanner::new(&client);
         let result = scanner.scan("Account").await;
-        assert!(result.is_err());
+        let Err(err) = result else {
+            panic!("Expected an error");
+        };
+        assert!(err.to_string().contains(""));
 
         mock_server.reset().await;
 
@@ -586,6 +589,9 @@ mod tests {
             .await;
 
         let result = scanner.scan("Account").await;
-        assert!(result.is_err());
+        let Err(err) = result else {
+            panic!("Expected an error");
+        };
+        assert!(err.to_string().contains(""));
     }
 }

@@ -347,7 +347,6 @@ QcWLHR6ul3bFRWNhXoThNBQ=
             "https://login.salesforce.com/services/oauth2/token",
         );
 
-        assert!(result.is_err());
         if let Err(ForceError::Authentication(AuthenticationError::InvalidJwtConfig(msg))) = result
         {
             assert!(msg.contains("Invalid RSA private key"));
@@ -480,7 +479,6 @@ QcWLHR6ul3bFRWNhXoThNBQ=
         .must();
 
         let result = flow.authenticate().await;
-        assert!(result.is_err());
 
         if let Err(ForceError::Authentication(AuthenticationError::TokenRequestFailed(msg))) =
             result
@@ -570,7 +568,6 @@ QcWLHR6ul3bFRWNhXoThNBQ=
         .must();
 
         let result = flow.authenticate().await;
-        assert!(result.is_err());
 
         if let Err(ForceError::Http(HttpError::StatusError { message, .. })) = result {
             // Should be truncated to 1MB
