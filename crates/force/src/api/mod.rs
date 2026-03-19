@@ -12,6 +12,7 @@ pub mod bulk;
 #[cfg(feature = "composite")]
 pub mod composite;
 
+pub mod rest_operation;
 pub mod soql;
 
 pub(crate) mod path_utils;

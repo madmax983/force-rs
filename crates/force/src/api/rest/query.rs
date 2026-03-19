@@ -4,6 +4,7 @@
 //! For large result sets, use the `nextRecordsUrl` field from `QueryResult`
 //! to manually fetch additional pages.
 
+use crate::api::rest_operation::resolve_next_records_url;
 use crate::error::ForceError;
 use crate::types::QueryResult;
 use serde::de::DeserializeOwned;
@@ -100,43 +101,6 @@ impl<A: crate::auth::Authenticator> super::RestHandler<A> {
             .send_request_and_decode(request, "Query pagination failed")
             .await
     }
-}
-/// Helper to resolve and validate the next records URL.
-///
-/// Ensures that absolute URLs match the instance origin to prevent
-/// token leakage to third-party domains.
-fn resolve_next_records_url(
-    instance_url: &str,
-    next_records_url: &str,
-) -> Result<String, ForceError> {
-    if !next_records_url.starts_with("http") {
-        return Ok(format!("{}{}", instance_url, next_records_url));
-    }
-
-    // Security check: If URL is absolute, ensure it matches the instance host
-    let next_parsed = url::Url::parse(next_records_url)
-        .map_err(|e| ForceError::InvalidInput(format!("Invalid nextRecordsUrl: {}", e)))?;
-    let instance_parsed = url::Url::parse(instance_url)
-        .map_err(|e| ForceError::InvalidInput(format!("Invalid instance URL in token: {}", e)))?;
-
-    // Compare schemes and hosts, and ensure no credentials are embedded
-    if next_parsed.scheme() != instance_parsed.scheme()
-        || next_parsed.host_str() != instance_parsed.host_str()
-        || next_parsed.port_or_known_default() != instance_parsed.port_or_known_default()
-        || !next_parsed.username().is_empty()
-        || next_parsed.password().is_some()
-    {
-        return Err(ForceError::InvalidInput(format!(
-            "Security Error: nextRecordsUrl origin ({:?}://{:?}:{:?}) does not match instance origin ({:?}://{:?}:{:?})",
-            next_parsed.scheme(),
-            next_parsed.host_str(),
-            next_parsed.port_or_known_default(),
-            instance_parsed.scheme(),
-            instance_parsed.host_str(),
-            instance_parsed.port_or_known_default()
-        )));
-    }
-    Ok(next_records_url.to_string())
 }
 
 #[cfg(test)]
