@@ -57,3 +57,7 @@
 **[The Facade: Eliminating Empty Static Structs]**
 **Tangle:** Several experimental utilities (`SchemaAnalyzer`, `SchemaDiff`, `SchemaChangelogGenerator`) were implemented as empty, stateless structs with methods (e.g., `pub struct SchemaAnalyzer; impl SchemaAnalyzer { pub fn analyze(...) }`). This is a Java-style object-oriented anti-pattern in Rust that introduces unnecessary namespacing, obfuscates intent, and requires boilerplate instantiations.
 **Blueprint:** Refactored these structs into simple module-level free functions (`analyze_schema`, `compare_schemas`, `generate_changelog`). This aligns with idiomatic Rust, enforces simplicity (KISS), and cleans up the public API by removing empty structs that carry no data.
+
+**[The Facade: Eliminating Empty Static Struct in sql_exporter]**
+**Tangle:** The `sql_exporter` module was exposing an empty static struct `SqlExporter` which acts as a namespace instead of data. Also, `sql_exporter` was `pub mod` which leaked internal boundaries.
+**Blueprint:** Refactored `SqlExporter` into `generate_ddl` free function. Changed `sql_exporter` to `pub(crate) mod` and exported `generate_ddl` via `pub use` in `experimental/mod.rs`.

@@ -9,7 +9,7 @@
 //!
 //! ```no_run
 //! # use force::client::ForceClientBuilder;
-//! # use force::experimental::sql_exporter::SqlExporter;
+//! # use force::experimental::generate_ddl;
 //! # use force::auth::ClientCredentials;
 //! # #[tokio::main]
 //! # async fn main() -> anyhow::Result<()> {
@@ -17,7 +17,7 @@
 //! # let client = ForceClientBuilder::new().authenticate(auth).build().await?;
 //! let describe = client.rest().describe("Account").await?;
 //!
-//! let ddl = SqlExporter::generate_ddl(&describe);
+//! let ddl = generate_ddl(&describe);
 //! println!("{}", ddl);
 //! // CREATE TABLE Account (
 //! //     Id VARCHAR(18) PRIMARY KEY,
@@ -30,94 +30,85 @@
 
 use crate::api::rest::describe::{FieldType, SObjectDescribe};
 
-/// Exporter that converts Salesforce describe metadata into SQL DDL statements.
-#[derive(Debug, Default)]
-pub struct SqlExporter;
+/// Generates a `CREATE TABLE` SQL statement for the given SObject describe metadata.
+///
+/// The generated SQL uses standard types that are generally compatible with
+/// PostgreSQL and SQLite. The primary key is automatically set to the `Id` field
+/// if it exists.
+#[must_use]
+pub fn generate_ddl(describe: &SObjectDescribe) -> String {
+    use std::fmt::Write;
 
-impl SqlExporter {
-    /// Generates a `CREATE TABLE` SQL statement for the given SObject describe metadata.
-    ///
-    /// The generated SQL uses standard types that are generally compatible with
-    /// PostgreSQL and SQLite. The primary key is automatically set to the `Id` field
-    /// if it exists.
-    #[must_use]
-    pub fn generate_ddl(describe: &SObjectDescribe) -> String {
-        use std::fmt::Write;
+    let mut ddl = String::with_capacity(1024);
+    let _ = writeln!(ddl, "CREATE TABLE {} (", describe.name);
 
-        let mut ddl = String::with_capacity(1024);
-        let _ = writeln!(ddl, "CREATE TABLE {} (", describe.name);
-
-        // Sort fields alphabetically to ensure deterministic output,
-        // but always put 'Id' first if it exists.
-        // ⚡ Bolt: Collecting references to fields instead of deep cloning the entire `describe.fields` Vec avoids significant heap allocation per field.
-        let mut fields: Vec<&_> = describe.fields.iter().collect();
-        fields.sort_by(|a, b| {
-            if a.name == "Id" {
-                std::cmp::Ordering::Less
-            } else if b.name == "Id" {
-                std::cmp::Ordering::Greater
-            } else {
-                a.name.cmp(&b.name)
-            }
-        });
-
-        // ⚡ Bolt: Append directly to `ddl` buffer instead of collecting into an intermediate `field_defs` Vec and calling `.join(",\n")`.
-        let mut first = true;
-        for field in fields {
-            if !first {
-                ddl.push_str(",\n");
-            }
-            first = false;
-
-            let sql_type = Self::map_field_type(&field.type_, field.length);
-
-            let _ = write!(ddl, "    {} {}", field.name, sql_type);
-
-            if field.name == "Id" {
-                ddl.push_str(" PRIMARY KEY");
-            } else if !field.nillable && !field.defaulted_on_create {
-                // If it's required and doesn't have a default on create, it should probably be NOT NULL
-                // However, standard Salesforce behavior often allows inserts when a trigger sets the value,
-                // but for SQL consistency we can add NOT NULL for strict mappings.
-                ddl.push_str(" NOT NULL");
-            }
+    // Sort fields alphabetically to ensure deterministic output,
+    // but always put 'Id' first if it exists.
+    // ⚡ Bolt: Collecting references to fields instead of deep cloning the entire `describe.fields` Vec avoids significant heap allocation per field.
+    let mut fields: Vec<&_> = describe.fields.iter().collect();
+    fields.sort_by(|a, b| {
+        if a.name == "Id" {
+            std::cmp::Ordering::Less
+        } else if b.name == "Id" {
+            std::cmp::Ordering::Greater
+        } else {
+            a.name.cmp(&b.name)
         }
+    });
 
-        ddl.push_str("\n);");
+    // ⚡ Bolt: Append directly to `ddl` buffer instead of collecting into an intermediate `field_defs` Vec and calling `.join(",\n")`.
+    let mut first = true;
+    for field in fields {
+        if !first {
+            ddl.push_str(",\n");
+        }
+        first = false;
 
-        ddl
+        let sql_type = map_field_type(&field.type_, field.length);
+
+        let _ = write!(ddl, "    {} {}", field.name, sql_type);
+
+        if field.name == "Id" {
+            ddl.push_str(" PRIMARY KEY");
+        } else if !field.nillable && !field.defaulted_on_create {
+            // If it's required and doesn't have a default on create, it should probably be NOT NULL
+            // However, standard Salesforce behavior often allows inserts when a trigger sets the value,
+            // but for SQL consistency we can add NOT NULL for strict mappings.
+            ddl.push_str(" NOT NULL");
+        }
     }
 
-    /// Maps a Salesforce `FieldType` to a standard SQL data type.
-    fn map_field_type(field_type: &FieldType, length: i32) -> String {
-        match field_type {
-            FieldType::Id | FieldType::Reference => "VARCHAR(18)".to_string(),
-            FieldType::String
-            | FieldType::Email
-            | FieldType::Phone
-            | FieldType::Url
-            | FieldType::Picklist
-            | FieldType::Multipicklist
-            | FieldType::Combobox => {
-                if length > 0 {
-                    format!("VARCHAR({})", length)
-                } else {
-                    "VARCHAR(255)".to_string()
-                }
+    ddl.push_str("\n);");
+
+    ddl
+}
+
+/// Maps a Salesforce `FieldType` to a standard SQL data type.
+fn map_field_type(field_type: &FieldType, length: i32) -> String {
+    match field_type {
+        FieldType::Id | FieldType::Reference => "VARCHAR(18)".to_string(),
+        FieldType::String
+        | FieldType::Email
+        | FieldType::Phone
+        | FieldType::Url
+        | FieldType::Picklist
+        | FieldType::Multipicklist
+        | FieldType::Combobox => {
+            if length > 0 {
+                format!("VARCHAR({})", length)
+            } else {
+                "VARCHAR(255)".to_string()
             }
-            FieldType::Textarea | FieldType::Encryptedstring | FieldType::Base64 => {
-                "TEXT".to_string()
-            }
-            FieldType::Boolean => "BOOLEAN".to_string(),
-            FieldType::Int => "INTEGER".to_string(),
-            FieldType::Double | FieldType::Currency | FieldType::Percent => {
-                "DOUBLE PRECISION".to_string()
-            }
-            FieldType::Date => "DATE".to_string(),
-            FieldType::Datetime => "TIMESTAMP".to_string(),
-            FieldType::Time => "TIME".to_string(),
-            _ => "TEXT".to_string(), // Fallback for complex/unknown types
         }
+        FieldType::Boolean => "BOOLEAN".to_string(),
+        FieldType::Int => "INTEGER".to_string(),
+        FieldType::Double | FieldType::Currency | FieldType::Percent => {
+            "DOUBLE PRECISION".to_string()
+        }
+        FieldType::Date => "DATE".to_string(),
+        FieldType::Datetime => "TIMESTAMP".to_string(),
+        FieldType::Time => "TIME".to_string(),
+        _ => "TEXT".to_string(), // Fallback for complex/unknown types
     }
 }
 
@@ -231,7 +222,7 @@ mod tests {
             ],
         };
 
-        let ddl = SqlExporter::generate_ddl(&describe);
+        let ddl = generate_ddl(&describe);
 
         let expected = "CREATE TABLE Account (\n    Id VARCHAR(18) PRIMARY KEY,\n    AnnualRevenue DOUBLE PRECISION,\n    IsActive BOOLEAN,\n    Name VARCHAR(255) NOT NULL,\n    NumberOfEmployees INTEGER\n);";
         assert_eq!(ddl, expected);
