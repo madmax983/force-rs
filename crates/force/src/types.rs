@@ -5,6 +5,7 @@
 
 pub(crate) mod api_version;
 pub(crate) mod common;
+pub mod describe;
 pub(crate) mod query;
 pub(crate) mod salesforce_id;
 pub(crate) mod sobject;
@@ -13,6 +14,10 @@ pub(crate) mod validator;
 pub use crate::error::ApiError;
 pub use api_version::{ApiVersion, ApiVersionSupportTier};
 pub use common::{CreateResponse, DeleteResponse, UpdateResponse, UpsertResponse};
+pub use describe::{
+    ChildRelationship, FieldDescribe, FieldType, FilteredLookupInfo, GlobalDescribe,
+    GlobalSObjectDescribe, PicklistValue, RecordTypeInfo, SObjectDescribe,
+};
 pub use query::{QueryIterator, QueryLocator, QueryResult};
 pub use salesforce_id::SalesforceId;
 pub use sobject::{Attributes, DynamicSObject};
