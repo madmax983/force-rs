@@ -521,7 +521,10 @@ mod tests {
             .execute_stream(stream)
             .await;
 
-        let Err(err) = result else { panic!("Expected an error"); }; assert!(err.to_string().contains(""));
+        let Err(err) = result else {
+            panic!("Expected an error");
+        };
+        assert!(err.to_string().contains(""));
     }
 
     #[tokio::test]
@@ -576,7 +579,10 @@ mod tests {
             .execute_stream(stream)
             .await;
 
-        let Err(err) = result else { panic!("Expected an error"); }; assert!(err.to_string().contains(""));
+        let Err(err) = result else {
+            panic!("Expected an error");
+        };
+        assert!(err.to_string().contains(""));
     }
 
     #[tokio::test]
@@ -627,7 +633,10 @@ mod tests {
             .execute_stream(stream)
             .await;
 
-        let Err(err) = result else { panic!("Expected an error"); }; assert!(err.to_string().contains(""));
+        let Err(err) = result else {
+            panic!("Expected an error");
+        };
+        assert!(err.to_string().contains(""));
     }
 
     #[tokio::test]
@@ -700,7 +709,6 @@ mod tests {
         let result = SmartIngest::new(&handler, "Account", JobOperation::Insert)
             .execute_stream(stream)
             .await;
-
 
         let Err(err) = result else {
             panic!("Expected Err")
@@ -777,7 +785,6 @@ mod tests {
         let result = SmartIngest::new(&handler, "Account", JobOperation::Insert)
             .execute_stream(stream)
             .await;
-
 
         let Err(err) = result else {
             panic!("Expected Err")

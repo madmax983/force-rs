@@ -1019,7 +1019,10 @@ mod tests {
         };
 
         let result = handler.create_job(request).await;
-        let Err(err) = result else { panic!("Expected an error"); }; assert!(err.to_string().contains(""));
+        let Err(err) = result else {
+            panic!("Expected an error");
+        };
+        assert!(err.to_string().contains(""));
     }
 
     #[cfg(feature = "bulk")]
@@ -1068,7 +1071,10 @@ mod tests {
         let handler = client.bulk();
 
         let result = handler.get_job("750xx0000000999AAA").await;
-        let Err(err) = result else { panic!("Expected an error"); }; assert!(err.to_string().contains(""));
+        let Err(err) = result else {
+            panic!("Expected an error");
+        };
+        assert!(err.to_string().contains(""));
     }
 
     #[cfg(feature = "bulk")]
@@ -1124,7 +1130,10 @@ mod tests {
         };
 
         let result = handler.update_job("750xx0000000001AAA", request).await;
-        let Err(err) = result else { panic!("Expected an error"); }; assert!(err.to_string().contains(""));
+        let Err(err) = result else {
+            panic!("Expected an error");
+        };
+        assert!(err.to_string().contains(""));
     }
 
     #[cfg(feature = "bulk")]
@@ -1161,7 +1170,10 @@ mod tests {
         let handler = client.bulk();
 
         let result = handler.delete_job("750xx0000000999AAA").await;
-        let Err(err) = result else { panic!("Expected an error"); }; assert!(err.to_string().contains(""));
+        let Err(err) = result else {
+            panic!("Expected an error");
+        };
+        assert!(err.to_string().contains(""));
     }
 
     #[cfg(feature = "bulk")]
@@ -1618,7 +1630,10 @@ mod tests {
         }];
 
         let result = handler.bulk_insert("Account", &records).await;
-        let Err(err) = result else { panic!("Expected an error"); }; assert!(err.to_string().contains(""));
+        let Err(err) = result else {
+            panic!("Expected an error");
+        };
+        assert!(err.to_string().contains(""));
     }
 
     // Include existing tests as well to avoid regression

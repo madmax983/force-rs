@@ -760,7 +760,10 @@ mod tests {
         let request = BulkQueryRequest::new("SELECT InvalidField FROM Account");
         let result = handler.create_query_job(request).await;
 
-        let Err(err) = result else { panic!("Expected an error"); }; assert!(err.to_string().contains(""));
+        let Err(err) = result else {
+            panic!("Expected an error");
+        };
+        assert!(err.to_string().contains(""));
     }
 
     #[tokio::test]
@@ -832,7 +835,10 @@ mod tests {
         let handler = client.bulk();
 
         let result = handler.get_query_job("750xx0000000999AAA").await;
-        let Err(err) = result else { panic!("Expected an error"); }; assert!(err.to_string().contains(""));
+        let Err(err) = result else {
+            panic!("Expected an error");
+        };
+        assert!(err.to_string().contains(""));
     }
 
     #[tokio::test]
@@ -879,7 +885,10 @@ mod tests {
         let handler = client.bulk();
 
         let result = handler.abort_query_job("750xx0000000001AAA").await;
-        let Err(err) = result else { panic!("Expected an error"); }; assert!(err.to_string().contains(""));
+        let Err(err) = result else {
+            panic!("Expected an error");
+        };
+        assert!(err.to_string().contains(""));
     }
 
     #[tokio::test]
@@ -914,7 +923,10 @@ mod tests {
         let handler = client.bulk();
 
         let result = handler.delete_query_job("750xx0000000999AAA").await;
-        let Err(err) = result else { panic!("Expected an error"); }; assert!(err.to_string().contains(""));
+        let Err(err) = result else {
+            panic!("Expected an error");
+        };
+        assert!(err.to_string().contains(""));
     }
 
     #[tokio::test]
@@ -1283,7 +1295,10 @@ mod tests {
 
         let soql = "SELECT Id FROM InvalidObject";
         let result = handler.bulk_query::<Account>(soql).await;
-        let Err(err) = result else { panic!("Expected an error"); }; assert!(err.to_string().contains(""));
+        let Err(err) = result else {
+            panic!("Expected an error");
+        };
+        assert!(err.to_string().contains(""));
     }
 
     #[cfg(feature = "bulk")]
@@ -1405,6 +1420,9 @@ mod tests {
             .bulk_query_with_policy::<Account>("SELECT Id FROM Account LIMIT 1", policy)
             .await;
 
-        let Err(err) = result else { panic!("Expected an error"); }; assert!(err.to_string().contains(""));
+        let Err(err) = result else {
+            panic!("Expected an error");
+        };
+        assert!(err.to_string().contains(""));
     }
 }

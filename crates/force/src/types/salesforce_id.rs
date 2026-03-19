@@ -325,7 +325,9 @@ mod tests {
     fn test_try_from_string_invalid() {
         let id_str = "invalid".to_string();
         let result = SalesforceId::try_from(id_str);
-        let Err(err) = result else { panic!("Expected an error"); };
+        let Err(err) = result else {
+            panic!("Expected an error");
+        };
         assert!(matches!(err, SalesforceIdError::InvalidLength(_)));
     }
 

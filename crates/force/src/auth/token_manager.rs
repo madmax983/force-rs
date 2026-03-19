@@ -461,7 +461,6 @@ mod tests {
 
         let result = manager.token().await;
 
-
         if let Err(crate::error::ForceError::Authentication(
             crate::error::AuthenticationError::InvalidCredentials(msg),
         )) = result
@@ -488,7 +487,6 @@ mod tests {
         }
 
         let result = manager.token().await;
-
 
         if let Err(crate::error::ForceError::Authentication(
             crate::error::AuthenticationError::TokenRefreshFailed(msg),

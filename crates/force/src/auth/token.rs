@@ -418,7 +418,10 @@ mod tests {
     fn test_parse_issued_at_invalid() {
         let timestamp = "not_a_number";
         let result = parse_issued_at(timestamp);
-        let Err(err) = result else { panic!("Expected an error"); }; assert!(err.to_string().contains(""));
+        let Err(err) = result else {
+            panic!("Expected an error");
+        };
+        assert!(err.to_string().contains(""));
     }
 
     #[test]
