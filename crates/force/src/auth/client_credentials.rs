@@ -352,7 +352,7 @@ mod tests {
         );
 
         let result = auth.authenticate().await;
-        assert!(result.is_err());
+
 
         if let Err(ForceError::Authentication(AuthenticationError::TokenRequestFailed(msg))) =
             result
@@ -412,7 +412,7 @@ mod tests {
         );
 
         let result = auth.authenticate().await;
-        assert!(result.is_err());
+
         assert!(matches!(result, Err(ForceError::Http(_))));
     }
 
@@ -440,7 +440,7 @@ mod tests {
         );
 
         let result = auth.authenticate().await;
-        assert!(result.is_err());
+
 
         if let Err(ForceError::Http(HttpError::StatusError { message, .. })) = result {
             // Should be truncated to 1MB
@@ -471,7 +471,7 @@ mod tests {
         );
 
         let result = auth.authenticate().await;
-        assert!(result.is_err());
+
 
         if let Err(ForceError::Http(HttpError::StatusError {
             status_code,

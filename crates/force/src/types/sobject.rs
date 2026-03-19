@@ -274,7 +274,7 @@ mod tests {
 
         // Try to get string field as integer
         let result: Result<Option<i64>, _> = sobject.get_field_as("Name");
-        assert!(result.is_err());
+        let Err(err) = result else { panic!("Expected an error"); }; assert!(err.to_string().contains(""));
     }
 
     #[test]

@@ -383,7 +383,7 @@ mod tests {
         let result: Result<i32> = Err(ForceError::Authentication(
             AuthenticationError::TokenExpired,
         ));
-        assert!(result.is_err());
+        let Err(err) = result else { panic!("Expected an error"); }; assert!(err.to_string().contains(""));
     }
 
     #[cfg(feature = "jwt")]

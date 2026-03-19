@@ -724,7 +724,7 @@ mod tests {
 
         // Invalid field name
         let result = builder.clone().try_select(&["Valid", "Invalid;DROP"]);
-        assert!(result.is_err());
+
         if let Err(ForceError::InvalidInput(msg)) = result {
             assert!(msg.contains("invalid character"));
         } else {
@@ -733,7 +733,7 @@ mod tests {
 
         // Invalid SObject name
         let result = builder.try_from("Invalid SObject");
-        assert!(result.is_err());
+
         if let Err(ForceError::InvalidInput(msg)) = result {
             assert!(msg.contains("invalid characters"));
         } else {

@@ -325,7 +325,8 @@ mod tests {
     fn test_try_from_string_invalid() {
         let id_str = "invalid".to_string();
         let result = SalesforceId::try_from(id_str);
-        assert!(result.is_err());
+        let Err(err) = result else { panic!("Expected an error"); };
+        assert!(matches!(err, SalesforceIdError::InvalidLength(_)));
     }
 
     #[test]
@@ -402,10 +403,10 @@ mod tests {
             fn prop_invalid_length_rejects(id_str in invalid_length_string()) {
                 let result = SalesforceId::new(&id_str);
 
-                prop_assert!(result.is_err());
-                if let Err(SalesforceIdError::InvalidLength(len)) = result {
-                    prop_assert_eq!(len, id_str.len());
-                }
+                let Err(SalesforceIdError::InvalidLength(len)) = result else {
+                    panic!("Expected InvalidLength error");
+                };
+                prop_assert_eq!(len, id_str.len());
             }
 
             // Property 5: IDs with non-alphanumeric chars reject

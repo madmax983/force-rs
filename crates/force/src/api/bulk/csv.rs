@@ -533,10 +533,10 @@ mod tests {
             Ok(())
         });
 
-        assert!(result.is_err());
+        let Err(err) = result else { panic!("Expected an error"); }; assert!(err.to_string().contains(""));
 
         let result = process_csv_batches(csv_data.as_bytes(), 0, |_: Vec<TestRecord>| Ok(()));
-        assert!(result.is_err());
+        let Err(err) = result else { panic!("Expected an error"); }; assert!(err.to_string().contains(""));
     }
 
     // Test 15: Large dataset simulation

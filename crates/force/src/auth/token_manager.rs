@@ -460,7 +460,7 @@ mod tests {
         let manager = TokenManager::new(auth);
 
         let result = manager.token().await;
-        assert!(result.is_err());
+
 
         if let Err(crate::error::ForceError::Authentication(
             crate::error::AuthenticationError::InvalidCredentials(msg),
@@ -488,7 +488,7 @@ mod tests {
         }
 
         let result = manager.token().await;
-        assert!(result.is_err());
+
 
         if let Err(crate::error::ForceError::Authentication(
             crate::error::AuthenticationError::TokenRefreshFailed(msg),
