@@ -36,7 +36,9 @@ pub(crate) mod schema_analyzer;
 pub(crate) mod schema_visualizer;
 
 #[cfg(feature = "data_utility")]
-pub mod sql_exporter;
+pub(crate) mod sql_exporter;
+#[cfg(feature = "data_utility")]
+pub use sql_exporter::generate_ddl;
 
 #[cfg(feature = "composite")]
 pub(crate) mod soql_mass_op;
