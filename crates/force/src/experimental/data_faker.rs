@@ -9,7 +9,7 @@
 //!
 //! ```no_run
 //! # use force::client::ForceClientBuilder;
-//! # use force::experimental::DataFaker;
+//! # use force::experimental::generate_mock_record;
 //! # use force::auth::ClientCredentials;
 //! # #[tokio::main]
 //! # async fn main() -> anyhow::Result<()> {
@@ -19,8 +19,8 @@
 //! let describe = client.rest().describe("Account").await?;
 //!
 //! // Generate a fake record that conforms to the schema
-//! let faker = DataFaker::new();
-//! let fake_account = faker.generate_mock_record(&describe);
+//!
+//! let fake_account = generate_mock_record(&describe);
 //!
 //! println!("Generated Account: {:?}", fake_account);
 //! # Ok(())
@@ -31,110 +31,100 @@ use crate::api::rest::describe::{FieldType, SObjectDescribe};
 use crate::types::{Attributes, DynamicSObject, SalesforceId};
 
 /// Utility for generating mock data based on Salesforce schema metadata.
-#[derive(Debug, Default)]
-pub struct DataFaker;
+///
+/// Generates a mock `DynamicSObject` populated with fake data.
+///
+/// It iterates through all the fields defined in the `SObjectDescribe`
+/// payload. If a field is `createable`, not `auto_number`, and not
+/// `calculated`, it assigns a sensible default mock value based on the
+/// field's `FieldType`.
+///
+/// # Arguments
+///
+/// * `describe` - The metadata describing the SObject's fields.
+///
+/// # Returns
+///
+/// A `DynamicSObject` containing mock values for createable fields.
+#[must_use]
+pub fn generate_mock_record(describe: &SObjectDescribe) -> DynamicSObject {
+    // Create standard attributes with a dummy ID (for cases where you might upsert or just need an ID).
+    // Since it's a new record creation payload normally it wouldn't have an ID,
+    // but DynamicSObject requires Attributes to initialize.
+    // We'll use a valid-looking 18 character dummy ID.
+    let dummy_id = SalesforceId::new("001000000000000AAA").unwrap_or_else(|_| unreachable!());
+    let attrs = Attributes::new(describe.name.clone(), &dummy_id, "v60.0");
+    let mut record = DynamicSObject::new(attrs);
 
-impl DataFaker {
-    /// Creates a new `DataFaker` instance.
-    #[must_use]
-    pub fn new() -> Self {
-        Self
-    }
+    for field in &describe.fields {
+        // Only generate data for fields that we can actually create/insert.
+        if !field.createable || field.auto_number || field.calculated {
+            continue;
+        }
 
-    /// Generates a mock `DynamicSObject` populated with fake data.
-    ///
-    /// It iterates through all the fields defined in the `SObjectDescribe`
-    /// payload. If a field is `createable`, not `auto_number`, and not
-    /// `calculated`, it assigns a sensible default mock value based on the
-    /// field's `FieldType`.
-    ///
-    /// # Arguments
-    ///
-    /// * `describe` - The metadata describing the SObject's fields.
-    ///
-    /// # Returns
-    ///
-    /// A `DynamicSObject` containing mock values for createable fields.
-    #[must_use]
-    pub fn generate_mock_record(&self, describe: &SObjectDescribe) -> DynamicSObject {
-        // Create standard attributes with a dummy ID (for cases where you might upsert or just need an ID).
-        // Since it's a new record creation payload normally it wouldn't have an ID,
-        // but DynamicSObject requires Attributes to initialize.
-        // We'll use a valid-looking 18 character dummy ID.
-        let dummy_id = SalesforceId::new("001000000000000AAA").unwrap_or_else(|_| unreachable!());
-        let attrs = Attributes::new(describe.name.clone(), &dummy_id, "v60.0");
-        let mut record = DynamicSObject::new(attrs);
-
-        for field in &describe.fields {
-            // Only generate data for fields that we can actually create/insert.
-            if !field.createable || field.auto_number || field.calculated {
-                continue;
+        // Generate a sensible default mock value based on the field type
+        match field.type_ {
+            FieldType::String | FieldType::Id | FieldType::Reference | FieldType::AnyType => {
+                record.set_field(&field.name, format!("Mock {}", field.label));
             }
-
-            // Generate a sensible default mock value based on the field type
-            match field.type_ {
-                FieldType::String | FieldType::Id | FieldType::Reference | FieldType::AnyType => {
-                    record.set_field(&field.name, format!("Mock {}", field.label));
-                }
-                FieldType::Textarea | FieldType::Encryptedstring => {
-                    record.set_field(
-                        &field.name,
-                        format!("Detailed mock description for {}", field.label),
-                    );
-                }
-                FieldType::Int => {
-                    record.set_field(&field.name, 42);
-                }
-                FieldType::Double | FieldType::Currency | FieldType::Percent => {
-                    record.set_field(&field.name, 42.42);
-                }
-                FieldType::Boolean => {
-                    record.set_field(&field.name, true);
-                }
-                FieldType::Date => {
-                    record.set_field(&field.name, "2024-01-01");
-                }
-                FieldType::Datetime => {
-                    record.set_field(&field.name, "2024-01-01T12:00:00.000+0000");
-                }
-                FieldType::Time => {
-                    record.set_field(&field.name, "12:00:00.000Z");
-                }
-                FieldType::Email => {
-                    record.set_field(&field.name, "mock@example.com");
-                }
-                FieldType::Phone => {
-                    record.set_field(&field.name, "555-0100");
-                }
-                FieldType::Url => {
-                    record.set_field(&field.name, "https://example.com");
-                }
-                FieldType::Picklist | FieldType::Multipicklist | FieldType::Combobox => {
-                    // Try to use the first available picklist value if it exists
-                    if let Some(ref values) = field.picklist_values {
-                        if let Some(first_active) = values.iter().find(|v| v.active) {
-                            record.set_field(&field.name, &first_active.value);
-                        } else if let Some(first) = values.first() {
-                            record.set_field(&field.name, &first.value);
-                        } else {
-                            record.set_field(&field.name, "Mock Selection");
-                        }
+            FieldType::Textarea | FieldType::Encryptedstring => {
+                record.set_field(
+                    &field.name,
+                    format!("Detailed mock description for {}", field.label),
+                );
+            }
+            FieldType::Int => {
+                record.set_field(&field.name, 42);
+            }
+            FieldType::Double | FieldType::Currency | FieldType::Percent => {
+                record.set_field(&field.name, 42.42);
+            }
+            FieldType::Boolean => {
+                record.set_field(&field.name, true);
+            }
+            FieldType::Date => {
+                record.set_field(&field.name, "2024-01-01");
+            }
+            FieldType::Datetime => {
+                record.set_field(&field.name, "2024-01-01T12:00:00.000+0000");
+            }
+            FieldType::Time => {
+                record.set_field(&field.name, "12:00:00.000Z");
+            }
+            FieldType::Email => {
+                record.set_field(&field.name, "mock@example.com");
+            }
+            FieldType::Phone => {
+                record.set_field(&field.name, "555-0100");
+            }
+            FieldType::Url => {
+                record.set_field(&field.name, "https://example.com");
+            }
+            FieldType::Picklist | FieldType::Multipicklist | FieldType::Combobox => {
+                // Try to use the first available picklist value if it exists
+                if let Some(ref values) = field.picklist_values {
+                    if let Some(first_active) = values.iter().find(|v| v.active) {
+                        record.set_field(&field.name, &first_active.value);
+                    } else if let Some(first) = values.first() {
+                        record.set_field(&field.name, &first.value);
                     } else {
                         record.set_field(&field.name, "Mock Selection");
                     }
-                }
-                // Handle unsupported or complex types gracefully by ignoring them
-                FieldType::Base64
-                | FieldType::Datacategorygroupreference
-                | FieldType::Location
-                | FieldType::Address => {
-                    continue;
+                } else {
+                    record.set_field(&field.name, "Mock Selection");
                 }
             }
+            // Handle unsupported or complex types gracefully by ignoring them
+            FieldType::Base64
+            | FieldType::Datacategorygroupreference
+            | FieldType::Location
+            | FieldType::Address => {
+                continue;
+            }
         }
-
-        record
     }
+
+    record
 }
 
 #[cfg(test)]
@@ -200,8 +190,7 @@ mod tests {
             mock_field("AutoNum", "string", true, true, false)
         ]));
 
-        let faker = DataFaker::new();
-        let record = faker.generate_mock_record(&describe);
+        let record = generate_mock_record(&describe);
 
         // Id should not be present as it's not createable
         assert!(!record.has_field("Id"));
@@ -243,8 +232,7 @@ mod tests {
             mock_field("Birthdate", "date", true, false, false)
         ]));
 
-        let faker = DataFaker::new();
-        let record = faker.generate_mock_record(&describe);
+        let record = generate_mock_record(&describe);
 
         assert_eq!(
             record.get_field("Email").and_then(|v| v.as_str()),

@@ -7,14 +7,13 @@
 use crate::auth::Authenticator;
 use crate::client::ForceClient;
 use crate::error::Result;
-use crate::experimental::data_faker::DataFaker;
+use crate::experimental::data_faker::generate_mock_record;
 use serde_json::Value;
 
 /// Mass operations processor using SOQL and Composite Batch API.
 #[derive(Debug)]
 pub struct DataSeeder<'a, A: Authenticator> {
     client: &'a ForceClient<A>,
-    faker: DataFaker,
     halt_on_error: bool,
 }
 
@@ -28,7 +27,6 @@ impl<'a, A: Authenticator> DataSeeder<'a, A> {
     pub fn new(client: &'a ForceClient<A>) -> Self {
         Self {
             client,
-            faker: DataFaker::new(),
             halt_on_error: false,
         }
     }
@@ -66,7 +64,7 @@ impl<'a, A: Authenticator> DataSeeder<'a, A> {
         let mut current_batch = self.client.composite().batch().halt_on_error(self.halt_on_error);
 
         for i in 0..count {
-            let record = self.faker.generate_mock_record(&describe);
+            let record = generate_mock_record(&describe);
             let value = serde_json::to_value(&record.fields).unwrap_or(Value::Null);
 
             current_batch = current_batch.post(sobject, value)?;

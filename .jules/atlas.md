@@ -61,3 +61,7 @@
 **[The Facade: Eliminating Empty Static Struct in sql_exporter]**
 **Tangle:** The `sql_exporter` module was exposing an empty static struct `SqlExporter` which acts as a namespace instead of data. Also, `sql_exporter` was `pub mod` which leaked internal boundaries.
 **Blueprint:** Refactored `SqlExporter` into `generate_ddl` free function. Changed `sql_exporter` to `pub(crate) mod` and exported `generate_ddl` via `pub use` in `experimental/mod.rs`.
+
+**[The Facade: Eliminating Empty Static Struct in data_faker]**
+**Tangle:** The `DataFaker` struct was an empty static struct used only as a namespace for `generate_mock_record`.
+**Blueprint:** Refactored `DataFaker` into the free function `generate_mock_record`.
