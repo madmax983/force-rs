@@ -683,6 +683,7 @@ pub fn resolve_next_records_url(instance_url: &str, next_records_url: &str) -> R
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::Must;
 
     // ── resolve_next_records_url unit tests ──────────────────────────
 
@@ -692,7 +693,7 @@ mod tests {
             "https://na1.salesforce.com",
             "/services/data/v60.0/query/01g-2000",
         )
-        .unwrap();
+        .must();
         assert_eq!(
             result,
             "https://na1.salesforce.com/services/data/v60.0/query/01g-2000"
@@ -705,7 +706,7 @@ mod tests {
             "https://na1.salesforce.com",
             "https://na1.salesforce.com/services/data/v60.0/query/01g-2000",
         )
-        .unwrap();
+        .must();
         assert_eq!(
             result,
             "https://na1.salesforce.com/services/data/v60.0/query/01g-2000"
@@ -718,9 +719,10 @@ mod tests {
             "https://na1.salesforce.com",
             "https://attacker.com/services/data/v60.0/query/leak",
         );
-        assert!(result.is_err());
-        let err = result.unwrap_err().to_string();
-        assert!(err.contains("Security Error"));
+        let Err(err) = result else {
+            panic!("Expected Err");
+        };
+        assert!(err.to_string().contains("Security Error"));
     }
 
     #[test]
@@ -729,9 +731,10 @@ mod tests {
             "https://na1.salesforce.com",
             "http://na1.salesforce.com/services/data/v60.0/query/01g",
         );
-        assert!(result.is_err());
-        let err = result.unwrap_err().to_string();
-        assert!(err.contains("Security Error"));
+        let Err(err) = result else {
+            panic!("Expected Err");
+        };
+        assert!(err.to_string().contains("Security Error"));
     }
 
     #[test]
@@ -740,9 +743,10 @@ mod tests {
             "https://na1.salesforce.com",
             "https://na1.salesforce.com:9999/services/data/v60.0/query/01g",
         );
-        assert!(result.is_err());
-        let err = result.unwrap_err().to_string();
-        assert!(err.contains("Security Error"));
+        let Err(err) = result else {
+            panic!("Expected Err");
+        };
+        assert!(err.to_string().contains("Security Error"));
     }
 
     #[test]
@@ -751,9 +755,10 @@ mod tests {
             "https://na1.salesforce.com",
             "https://attacker@na1.salesforce.com/services/data/v60.0/query/01g",
         );
-        assert!(result.is_err());
-        let err = result.unwrap_err().to_string();
-        assert!(err.contains("Security Error"));
+        let Err(err) = result else {
+            panic!("Expected Err");
+        };
+        assert!(err.to_string().contains("Security Error"));
     }
 
     #[test]
@@ -762,9 +767,10 @@ mod tests {
             "https://na1.salesforce.com",
             "https://user:pass@na1.salesforce.com/services/data/v60.0/query/01g",
         );
-        assert!(result.is_err());
-        let err = result.unwrap_err().to_string();
-        assert!(err.contains("Security Error"));
+        let Err(err) = result else {
+            panic!("Expected Err");
+        };
+        assert!(err.to_string().contains("Security Error"));
     }
 
     // ── resolve_api_path unit tests ─────────────────────────────────
@@ -776,6 +782,7 @@ mod tests {
         fn session(&self) -> &Arc<Session<crate::test_support::MockAuthenticator>> {
             unimplemented!("not needed for path tests")
         }
+        #[allow(clippy::unnecessary_literal_bound)]
         fn path_prefix(&self) -> &str {
             ""
         }
@@ -788,6 +795,7 @@ mod tests {
         fn session(&self) -> &Arc<Session<crate::test_support::MockAuthenticator>> {
             unimplemented!("not needed for path tests")
         }
+        #[allow(clippy::unnecessary_literal_bound)]
         fn path_prefix(&self) -> &str {
             "tooling"
         }

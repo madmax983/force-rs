@@ -113,7 +113,7 @@ mod tests {
     async fn test_tooling_handler_is_cloneable() {
         let client = create_test_client().await;
         let h1 = client.tooling();
-        let _h2 = h1.clone();
+        let _h2 = Clone::clone(&h1);
     }
 
     #[tokio::test]
