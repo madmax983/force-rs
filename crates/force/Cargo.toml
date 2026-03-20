@@ -84,3 +84,7 @@ required-features = ["schema"]
 [[example]]
 name = "soql_mass_op"
 required-features = ["composite"]
+
+[[example]]
+name = "tooling"
+required-features = ["tooling"]
