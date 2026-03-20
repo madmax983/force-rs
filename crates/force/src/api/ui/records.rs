@@ -309,7 +309,9 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)]
     use super::*;
+    use crate::api::ui::types::{LayoutType, Mode};
     use crate::client::builder;
     use crate::test_support::{MockAuthenticator, Must};
     use serde_json::json;
@@ -395,7 +397,6 @@ mod tests {
             .mount(&server)
             .await;
 
-        use crate::api::ui::types::{LayoutType, Mode};
         let result = client
             .ui()
             .record_ui(&[VALID_ID], Some(&[LayoutType::Full]), Some(&[Mode::View]))
@@ -739,14 +740,6 @@ mod tests {
     async fn test_create_defaults_success() {
         let server = MockServer::start().await;
         let client = make_client(&server).await;
-
-        let response_body = json!({
-            "layout": {},
-            "objectInfo": {},
-            "record": minimal_record_json(serde_json::Value::Null
-                .as_str()
-                .unwrap_or("null"))
-        });
 
         // Build a record with no ID for defaults
         let defaults_record = json!({

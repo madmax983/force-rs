@@ -3,7 +3,7 @@
 //! Demonstrates using the Salesforce UI API for layout-aware record operations,
 //! object metadata, list views, lookups, and favorites.
 //!
-//! Unlike the REST API (which returns raw SObject data), the UI API returns
+//! Unlike the REST API (which returns raw `SObject` data), the UI API returns
 //! presentation-ready structures — field display values, layout sections,
 //! list view columns — exactly what a front-end needs to render a record page.
 //!
@@ -29,6 +29,7 @@ mod example {
     use force::client::ForceClientBuilder;
     use std::env;
 
+    #[allow(clippy::too_many_lines)]
     pub async fn run() -> Result<()> {
         let client_id = env::var("SF_CLIENT_ID").context("SF_CLIENT_ID not set")?;
         let client_secret = env::var("SF_CLIENT_SECRET").context("SF_CLIENT_SECRET not set")?;

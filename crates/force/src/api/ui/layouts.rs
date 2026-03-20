@@ -133,6 +133,7 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)]
     use super::*;
     use crate::api::ui::types::{LayoutType, Mode};
     use crate::client::builder;

@@ -168,7 +168,7 @@ impl<A: crate::auth::Authenticator> UiHandler<A> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    #![allow(clippy::unwrap_used)]
     use crate::client::{ForceClient, builder};
     use crate::test_support::{MockAuthenticator, Must, MustMsg};
 
