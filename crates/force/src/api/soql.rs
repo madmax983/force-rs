@@ -245,11 +245,19 @@ impl SoqlQueryBuilder {
 
     /// Adds a simple WHERE condition (helper).
     fn try_add_condition(mut self, field: &str, op: &str, value: &str) -> Result<Self, ForceError> {
+        use std::fmt::Write;
+
         validate_field_name(field).map_err(|e| ForceError::InvalidInput(e.to_string()))?;
         // Optimization: Use escape_soql_cow to avoid allocation if escape not needed
         let escaped_value = escape_soql_cow(value);
-        self.where_clauses
-            .push(format!("{} {} '{}'", field, op, escaped_value));
+
+        // ⚡ Bolt: Avoid intermediate `format!` allocation by writing directly to a pre-allocated buffer.
+        let capacity = field.len() + op.len() + escaped_value.len() + 4; // 2 spaces + 2 quotes
+        let mut buffer = String::with_capacity(capacity);
+        write!(buffer, "{} {} '{}'", field, op, escaped_value)
+            .unwrap_or_else(|_| unreachable!("writing to String is infallible"));
+
+        self.where_clauses.push(buffer);
         Ok(self)
     }
 
@@ -294,7 +302,11 @@ impl SoqlQueryBuilder {
 
         validate_field_name(field).map_err(|e| ForceError::InvalidInput(e.to_string()))?;
         if values.is_empty() {
-            self.where_clauses.push(format!("{} IN ()", field));
+            // ⚡ Bolt: Avoid intermediate `format!` allocation.
+            let mut buffer = String::with_capacity(field.len() + 7);
+            buffer.push_str(field);
+            buffer.push_str(" IN ()");
+            self.where_clauses.push(buffer);
             return Ok(self);
         }
 
