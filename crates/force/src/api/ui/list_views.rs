@@ -121,10 +121,7 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
     /// # Errors
     ///
     /// Returns an error if the list view is not found or the request fails.
-    pub async fn list_ui(
-        &self,
-        list_view_id: &str,
-    ) -> crate::error::Result<ListUiRepresentation> {
+    pub async fn list_ui(&self, list_view_id: &str) -> crate::error::Result<ListUiRepresentation> {
         let path = format!("list-ui/{list_view_id}");
         self.get(&path, None, "Failed to fetch list UI").await
     }

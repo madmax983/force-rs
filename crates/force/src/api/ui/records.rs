@@ -226,7 +226,8 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
             Some(params.as_slice())
         };
 
-        self.get(&path, query, "Failed to fetch records batch").await
+        self.get(&path, query, "Failed to fetch records batch")
+            .await
     }
 
     /// Creates a new Salesforce record via the UI API.
@@ -283,7 +284,8 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
         object: &str,
     ) -> crate::error::Result<RecordDefaultsRepresentation> {
         let path = format!("record-defaults/create/{object}");
-        self.get(&path, None, "Failed to fetch create defaults").await
+        self.get(&path, None, "Failed to fetch create defaults")
+            .await
     }
 
     /// Returns default field values pre-populated from an existing record (clone).
@@ -298,7 +300,8 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
         id: &str,
     ) -> crate::error::Result<RecordDefaultsRepresentation> {
         let path = format!("record-defaults/clone/{id}");
-        self.get(&path, None, "Failed to fetch clone defaults").await
+        self.get(&path, None, "Failed to fetch clone defaults")
+            .await
     }
 }
 
@@ -362,11 +365,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let result = client
-            .ui()
-            .record_ui(&[VALID_ID], None, None)
-            .await
-            .must();
+        let result = client.ui().record_ui(&[VALID_ID], None, None).await.must();
 
         assert!(result.records.contains_key(VALID_ID));
     }
@@ -472,9 +471,7 @@ mod tests {
             .and(path(format!(
                 "/services/data/v60.0/ui-api/records/{VALID_ID}"
             )))
-            .respond_with(
-                ResponseTemplate::new(200).set_body_json(minimal_record_json(VALID_ID)),
-            )
+            .respond_with(ResponseTemplate::new(200).set_body_json(minimal_record_json(VALID_ID)))
             .expect(1)
             .mount(&server)
             .await;
@@ -494,9 +491,7 @@ mod tests {
                 "/services/data/v60.0/ui-api/records/{VALID_ID}"
             )))
             .and(query_param("fields", "Account.Name,Account.Phone"))
-            .respond_with(
-                ResponseTemplate::new(200).set_body_json(minimal_record_json(VALID_ID)),
-            )
+            .respond_with(ResponseTemplate::new(200).set_body_json(minimal_record_json(VALID_ID)))
             .expect(1)
             .mount(&server)
             .await;
@@ -603,9 +598,7 @@ mod tests {
 
         Mock::given(method("POST"))
             .and(path("/services/data/v60.0/ui-api/records"))
-            .respond_with(
-                ResponseTemplate::new(200).set_body_json(minimal_record_json(VALID_ID)),
-            )
+            .respond_with(ResponseTemplate::new(200).set_body_json(minimal_record_json(VALID_ID)))
             .expect(1)
             .mount(&server)
             .await;
@@ -658,9 +651,7 @@ mod tests {
             .and(path(format!(
                 "/services/data/v60.0/ui-api/records/{VALID_ID}"
             )))
-            .respond_with(
-                ResponseTemplate::new(200).set_body_json(minimal_record_json(VALID_ID)),
-            )
+            .respond_with(ResponseTemplate::new(200).set_body_json(minimal_record_json(VALID_ID)))
             .expect(1)
             .mount(&server)
             .await;
@@ -774,7 +765,9 @@ mod tests {
         });
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/ui-api/record-defaults/create/Account"))
+            .and(path(
+                "/services/data/v60.0/ui-api/record-defaults/create/Account",
+            ))
             .respond_with(ResponseTemplate::new(200).set_body_json(&response))
             .expect(1)
             .mount(&server)

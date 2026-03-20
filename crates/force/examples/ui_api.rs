@@ -32,8 +32,8 @@ mod example {
     pub async fn run() -> Result<()> {
         let client_id = env::var("SF_CLIENT_ID").context("SF_CLIENT_ID not set")?;
         let client_secret = env::var("SF_CLIENT_SECRET").context("SF_CLIENT_SECRET not set")?;
-        let record_id = env::var("SF_RECORD_ID")
-            .unwrap_or_else(|_| "001000000000001AAA".to_string());
+        let record_id =
+            env::var("SF_RECORD_ID").unwrap_or_else(|_| "001000000000001AAA".to_string());
 
         let auth = ClientCredentials::new_production(client_id, client_secret);
         let client = ForceClientBuilder::new()

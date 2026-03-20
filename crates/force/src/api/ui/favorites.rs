@@ -74,7 +74,8 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
     ///
     /// Returns an error if the request fails.
     pub async fn get_favorites(&self) -> crate::error::Result<FavoritesRepresentation> {
-        self.get("favorites", None, "Failed to fetch favorites").await
+        self.get("favorites", None, "Failed to fetch favorites")
+            .await
     }
 
     /// Creates a new favorite for the current user.
@@ -88,7 +89,8 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
         &self,
         input: &FavoriteInput,
     ) -> crate::error::Result<FavoriteRepresentation> {
-        self.post("favorites", input, "Failed to create favorite").await
+        self.post("favorites", input, "Failed to create favorite")
+            .await
     }
 
     /// Updates an existing favorite.

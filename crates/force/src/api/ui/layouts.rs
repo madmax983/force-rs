@@ -191,9 +191,7 @@ mod tests {
 
         Mock::given(method("GET"))
             .and(path("/services/data/v60.0/ui-api/layout/Account"))
-            .respond_with(
-                ResponseTemplate::new(200).set_body_json(minimal_layout_json()),
-            )
+            .respond_with(ResponseTemplate::new(200).set_body_json(minimal_layout_json()))
             .expect(1)
             .mount(&server)
             .await;

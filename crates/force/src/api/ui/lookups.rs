@@ -65,7 +65,8 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
     ) -> crate::error::Result<LookupResultsRepresentation> {
         let path = format!("lookups/{object}/{field}");
         let params = &[("q", query)];
-        self.get(&path, Some(params), "Failed to perform lookup").await
+        self.get(&path, Some(params), "Failed to perform lookup")
+            .await
     }
 
     /// Searches for records matching a type-ahead query for a lookup field,
@@ -137,7 +138,9 @@ mod tests {
         });
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/ui-api/lookups/Opportunity/AccountId"))
+            .and(path(
+                "/services/data/v60.0/ui-api/lookups/Opportunity/AccountId",
+            ))
             .and(query_param("q", "Acme"))
             .respond_with(ResponseTemplate::new(200).set_body_json(&response_body))
             .expect(1)
@@ -168,7 +171,9 @@ mod tests {
         });
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/ui-api/lookups/Contact/AccountId"))
+            .and(path(
+                "/services/data/v60.0/ui-api/lookups/Contact/AccountId",
+            ))
             .and(query_param("q", "ZZZnonexistent"))
             .respond_with(ResponseTemplate::new(200).set_body_json(&response_body))
             .expect(1)

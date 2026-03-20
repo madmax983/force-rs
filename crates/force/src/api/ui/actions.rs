@@ -59,7 +59,8 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
     ) -> crate::error::Result<RecordActionRepresentation> {
         let ids_str = ids.join(",");
         let path = format!("actions/record/{ids_str}");
-        self.get(&path, None, "Failed to fetch record actions").await
+        self.get(&path, None, "Failed to fetch record actions")
+            .await
     }
 }
 

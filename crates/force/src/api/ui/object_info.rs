@@ -184,9 +184,7 @@ mod tests {
 
         Mock::given(method("GET"))
             .and(path("/services/data/v60.0/ui-api/object-info/Account"))
-            .respond_with(
-                ResponseTemplate::new(200).set_body_json(account_object_info_json()),
-            )
+            .respond_with(ResponseTemplate::new(200).set_body_json(account_object_info_json()))
             .expect(1)
             .mount(&server)
             .await;

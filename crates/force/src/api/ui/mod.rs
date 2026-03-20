@@ -39,23 +39,23 @@ pub mod records;
 pub mod types;
 
 // Re-export shared types at module level
-pub use types::{FieldValueRepresentation, LayoutType, Mode};
-pub use records::{
-    BatchResultRepresentation, CreateRecordInput, RecordDefaultsRepresentation,
-    RecordRepresentation, RecordUiRepresentation, UpdateRecordInput,
-};
+pub use actions::{ActionRepresentation, RecordActionRepresentation};
+pub use favorites::{FavoriteInput, FavoriteRepresentation, FavoritesRepresentation};
+pub use layouts::{LayoutItem, LayoutRow, LayoutSection, RecordLayoutRepresentation};
 pub use list_views::{
-    ListInfoRepresentation, ListRecordsRepresentation, ListUiRepresentation,
-    ListViewSummary, ListViewSummaryCollection,
+    ListInfoRepresentation, ListRecordsRepresentation, ListUiRepresentation, ListViewSummary,
+    ListViewSummaryCollection,
 };
+pub use lookups::{LookupResult, LookupResultsRepresentation};
 pub use object_info::{
     BatchObjectInfoRepresentation, FieldInfoRepresentation, ObjectInfoRepresentation,
     ReferenceToInfoRepresentation,
 };
-pub use layouts::{LayoutItem, LayoutRow, LayoutSection, RecordLayoutRepresentation};
-pub use actions::{ActionRepresentation, RecordActionRepresentation};
-pub use lookups::{LookupResult, LookupResultsRepresentation};
-pub use favorites::{FavoriteInput, FavoriteRepresentation, FavoritesRepresentation};
+pub use records::{
+    BatchResultRepresentation, CreateRecordInput, RecordDefaultsRepresentation,
+    RecordRepresentation, RecordUiRepresentation, UpdateRecordInput,
+};
+pub use types::{FieldValueRepresentation, LayoutType, Mode};
 
 use crate::error::Result;
 use std::sync::Arc;
@@ -211,7 +211,10 @@ mod tests {
     async fn test_resolve_ui_url_with_path() {
         let client = test_client().await;
         let handler = client.ui();
-        let url = handler.resolve_ui_url("records/001000000000001AAA").await.must();
+        let url = handler
+            .resolve_ui_url("records/001000000000001AAA")
+            .await
+            .must();
         assert!(url.contains("ui-api/records/001000000000001AAA"));
     }
 
