@@ -74,3 +74,7 @@ pub(crate) mod schema_changelog;
 
 #[cfg(feature = "schema")]
 pub use schema_changelog::generate_changelog;
+#[cfg(feature = "schema")]
+pub(crate) mod typescript_generator;
+#[cfg(feature = "schema")]
+pub use typescript_generator::TypescriptGenerator;
