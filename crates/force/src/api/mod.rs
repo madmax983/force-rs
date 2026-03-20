@@ -15,6 +15,9 @@ pub mod composite;
 #[cfg(feature = "tooling")]
 pub mod tooling;
 
+#[cfg(feature = "ui")]
+pub mod ui;
+
 pub mod rest_operation;
 pub mod soql;
 

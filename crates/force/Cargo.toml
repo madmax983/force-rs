@@ -65,8 +65,11 @@ jwt = ["dep:jsonwebtoken"]
 # Testing utilities
 mock = ["dep:wiremock"]
 
+# UI API surface
+ui = []
+
 # Meta features
-full = ["rest", "bulk", "composite", "tooling", "jwt"]
+full = ["rest", "bulk", "composite", "tooling", "jwt", "ui"]
 all = ["full", "schema", "data_utility", "composite_graph"]
 
 [[example]]
@@ -88,3 +91,7 @@ required-features = ["composite"]
 [[example]]
 name = "tooling"
 required-features = ["tooling"]
+
+[[example]]
+name = "ui_api"
+required-features = ["ui"]

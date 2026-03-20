@@ -135,6 +135,24 @@ impl<A: crate::auth::authenticator::Authenticator> ForceClient<A> {
     pub fn composite(&self) -> crate::api::composite::CompositeHandler<A> {
         crate::api::composite::CompositeHandler::new(Arc::clone(&self.inner))
     }
+
+    /// Creates a UI API handler for this client.
+    ///
+    /// The UI handler provides layout-aware record data, object metadata,
+    /// list views, actions, lookups, and favorites.
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// let client = builder().authenticate(auth).build().await?;
+    /// let ui = client.ui();
+    /// let record_ui = ui.record_ui(&["001000000000001AAA"], None, None).await?;
+    /// ```
+    #[cfg(feature = "ui")]
+    #[must_use]
+    pub fn ui(&self) -> crate::api::ui::UiHandler<A> {
+        crate::api::ui::UiHandler::new(Arc::clone(&self.inner))
+    }
 }
 
 #[cfg(test)]
