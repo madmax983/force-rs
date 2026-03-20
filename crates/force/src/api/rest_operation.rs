@@ -1,0 +1,822 @@
+//! Shared REST operation trait for Salesforce API handlers.
+//!
+//! This module defines the [`RestOperation`] trait which provides default
+//! implementations for CRUD, Query, and Describe operations. Both `RestHandler`
+//! (REST API) and `ToolingHandler` (Tooling API) implement this trait, differing
+//! only in their path prefix:
+//!
+//! - **REST API**: `sobjects/Account` (no prefix)
+//! - **Tooling API**: `tooling/sobjects/Account` (prefix: `"tooling"`)
+//!
+//! Implementors need only supply [`session()`](RestOperation::session) and
+//! [`path_prefix()`](RestOperation::path_prefix); all HTTP operations are
+//! provided as default methods.
+
+use crate::auth::Authenticator;
+use crate::error::{ForceError, Result};
+use crate::session::Session;
+use crate::types::common::{CreateResponse, DeleteResponse, UpdateResponse, UpsertResponse};
+use crate::types::describe::{GlobalDescribe, SObjectDescribe};
+use crate::types::validator::{validate_external_id_field, validate_sobject_name};
+use crate::types::{QueryResult, SalesforceId};
+use percent_encoding::{AsciiSet, NON_ALPHANUMERIC, utf8_percent_encode};
+use serde::de::DeserializeOwned;
+use std::sync::Arc;
+
+/// Custom encode set for External ID values in upsert paths.
+/// Preserves safe path characters (`-`, `_`, `.`, `~`) as per RFC 3986.
+const UPSERT_ENCODE_SET: &AsciiSet = &NON_ALPHANUMERIC
+    .remove(b'-')
+    .remove(b'_')
+    .remove(b'.')
+    .remove(b'~');
+
+/// Trait providing default REST operation implementations for Salesforce API handlers.
+///
+/// Both `RestHandler` and `ToolingHandler` implement this trait. The only difference
+/// between handlers is the value returned by [`path_prefix()`](Self::path_prefix),
+/// which controls whether requests are routed to the standard REST API or the
+/// Tooling API.
+///
+/// # URL Construction
+///
+/// All methods construct URLs using the chain:
+///
+/// 1. [`resolve_api_path()`](Self::resolve_api_path) prepends the path prefix
+///    (e.g., `"sobjects/Account"` becomes `"tooling/sobjects/Account"` for
+///    the Tooling API).
+/// 2. [`Session::resolve_url()`] constructs the full URL:
+///    `{instance_url}/services/data/{api_version}/{path}`.
+///
+/// # Examples
+///
+/// ```ignore
+/// // REST API (prefix = "")
+/// client.rest().create("Account", &data).await?;
+/// // => POST {instance}/services/data/v60.0/sobjects/Account
+///
+/// // Tooling API (prefix = "tooling")
+/// client.tooling().create("ApexClass", &data).await?;
+/// // => POST {instance}/services/data/v60.0/tooling/sobjects/ApexClass
+/// ```
+#[allow(async_fn_in_trait)] // Intentional: trait is used internally, Send bound not needed
+pub trait RestOperation<A: Authenticator> {
+    /// Returns the shared session state containing the HTTP client, token manager,
+    /// and configuration.
+    fn session(&self) -> &Arc<Session<A>>;
+
+    /// Returns the path prefix for this handler.
+    ///
+    /// - `""` (empty string) for the standard REST API
+    /// - `"tooling"` for the Tooling API
+    fn path_prefix(&self) -> &str;
+
+    /// Resolves a relative API path by prepending the handler's path prefix.
+    ///
+    /// If `path_prefix()` is empty, the path is returned as-is. Otherwise the
+    /// prefix is prepended with a `/` separator.
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// // REST (prefix = ""):  "sobjects/Account" → "sobjects/Account"
+    /// // Tooling (prefix = "tooling"):  "sobjects/Account" → "tooling/sobjects/Account"
+    /// ```
+    fn resolve_api_path(&self, relative_path: &str) -> String {
+        let prefix = self.path_prefix();
+        if prefix.is_empty() {
+            relative_path.to_string()
+        } else {
+            format!("{}/{}", prefix, relative_path)
+        }
+    }
+
+    // ── CRUD Operations ──────────────────────────────────────────────
+
+    /// Creates a new record in Salesforce.
+    ///
+    /// # Arguments
+    ///
+    /// * `sobject` - The API name of the SObject type (e.g., `"Account"`, `"Contact"`)
+    /// * `data` - JSON object containing field values to set
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The SObject name is invalid
+    /// - Authentication fails
+    /// - Required fields are missing
+    /// - The HTTP request fails
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// use serde_json::json;
+    ///
+    /// let response = handler.create("Account", &json!({
+    ///     "Name": "Acme Corporation"
+    /// })).await?;
+    /// println!("Created: {}", response.id.unwrap());
+    /// ```
+    async fn create(&self, sobject: &str, data: &serde_json::Value) -> Result<CreateResponse> {
+        validate_sobject_name(sobject)?;
+        let relative = crate::api::path_utils::format_sobject_path(sobject, None);
+        let api_path = self.resolve_api_path(&relative);
+        let url = self.session().resolve_url(&api_path).await?;
+
+        let request = self
+            .session()
+            .post(&url)
+            .json(data)
+            .build()
+            .map_err(crate::error::HttpError::from)?;
+
+        self.session()
+            .send_request_and_decode(request, "Create request failed")
+            .await
+    }
+
+    /// Retrieves a record by its Salesforce ID.
+    ///
+    /// # Arguments
+    ///
+    /// * `sobject` - The API name of the SObject type
+    /// * `id` - The Salesforce ID of the record to retrieve
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The SObject name is invalid
+    /// - Authentication fails
+    /// - The record does not exist (404)
+    /// - The HTTP request fails
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// let id = SalesforceId::new("001xx000003DHP0AAO")?;
+    /// let account = handler.get("Account", &id).await?;
+    /// println!("Name: {}", account["Name"]);
+    /// ```
+    async fn get(&self, sobject: &str, id: &SalesforceId) -> Result<serde_json::Value> {
+        validate_sobject_name(sobject)?;
+        let relative = crate::api::path_utils::format_sobject_path(sobject, Some(id.as_str()));
+        let api_path = self.resolve_api_path(&relative);
+        let url = self.session().resolve_url(&api_path).await?;
+
+        let request = self
+            .session()
+            .get(&url)
+            .build()
+            .map_err(crate::error::HttpError::from)?;
+
+        self.session()
+            .send_request_and_decode(request, "Get request failed")
+            .await
+    }
+
+    /// Updates an existing record.
+    ///
+    /// # Arguments
+    ///
+    /// * `sobject` - The API name of the SObject type
+    /// * `id` - The Salesforce ID of the record to update
+    /// * `data` - JSON object containing field values to update
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The SObject name is invalid
+    /// - Authentication fails
+    /// - The record does not exist (404)
+    /// - The HTTP request fails
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// use serde_json::json;
+    ///
+    /// let id = SalesforceId::new("001xx000003DHP0AAO")?;
+    /// handler.update("Account", &id, &json!({"Phone": "555-0100"})).await?;
+    /// ```
+    async fn update(
+        &self,
+        sobject: &str,
+        id: &SalesforceId,
+        data: &serde_json::Value,
+    ) -> Result<UpdateResponse> {
+        validate_sobject_name(sobject)?;
+        let relative = crate::api::path_utils::format_sobject_path(sobject, Some(id.as_str()));
+        let api_path = self.resolve_api_path(&relative);
+        let url = self.session().resolve_url(&api_path).await?;
+
+        let request = self
+            .session()
+            .patch(&url)
+            .json(data)
+            .build()
+            .map_err(crate::error::HttpError::from)?;
+
+        let response = self.session().execute_request(request).await?;
+
+        if response.status().is_success() {
+            Ok(UpdateResponse::success())
+        } else {
+            Err(crate::http::response_to_force_error(response, "Update request failed").await)
+        }
+    }
+
+    /// Deletes a record.
+    ///
+    /// # Arguments
+    ///
+    /// * `sobject` - The API name of the SObject type
+    /// * `id` - The Salesforce ID of the record to delete
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The SObject name is invalid
+    /// - Authentication fails
+    /// - The record does not exist (404)
+    /// - The HTTP request fails
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// let id = SalesforceId::new("001xx000003DHP0AAO")?;
+    /// handler.delete("Account", &id).await?;
+    /// ```
+    async fn delete(&self, sobject: &str, id: &SalesforceId) -> Result<DeleteResponse> {
+        validate_sobject_name(sobject)?;
+        let relative = crate::api::path_utils::format_sobject_path(sobject, Some(id.as_str()));
+        let api_path = self.resolve_api_path(&relative);
+        let url = self.session().resolve_url(&api_path).await?;
+
+        let request = self
+            .session()
+            .delete(&url)
+            .build()
+            .map_err(crate::error::HttpError::from)?;
+
+        let response = self.session().execute_request(request).await?;
+
+        if response.status().is_success() {
+            Ok(DeleteResponse::success())
+        } else {
+            Err(crate::http::response_to_force_error(response, "Delete request failed").await)
+        }
+    }
+
+    /// Upserts a record using an external ID field.
+    ///
+    /// If a record with the given external ID exists, it will be updated.
+    /// Otherwise, a new record will be created.
+    ///
+    /// Uses the default `Mutation` retry class (non-idempotent, no retry on 503).
+    ///
+    /// # Arguments
+    ///
+    /// * `sobject` - The API name of the SObject type
+    /// * `external_id_field` - The API name of the external ID field
+    /// * `external_id_value` - The value of the external ID
+    /// * `data` - JSON object containing field values
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The SObject name or external ID field is invalid
+    /// - Authentication fails
+    /// - The HTTP request fails
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// use serde_json::json;
+    ///
+    /// let response = handler.upsert(
+    ///     "Account", "ExternalId__c", "ACME-001",
+    ///     &json!({"Name": "Acme Corp"})
+    /// ).await?;
+    /// ```
+    async fn upsert(
+        &self,
+        sobject: &str,
+        external_id_field: &str,
+        external_id_value: &str,
+        data: &serde_json::Value,
+    ) -> Result<UpsertResponse> {
+        self.upsert_with_retry_class(
+            sobject,
+            external_id_field,
+            external_id_value,
+            data,
+            crate::http::RequestRetryClass::Mutation,
+        )
+        .await
+    }
+
+    /// Upserts a record with idempotent retry semantics.
+    ///
+    /// This method is intended for writes that are safe to retry when transient
+    /// infrastructure errors occur (e.g., 503). It routes through the HTTP
+    /// executor's `IdempotentMutation` retry class, enabling automatic retry
+    /// on transient failures.
+    ///
+    /// # Arguments
+    ///
+    /// * `sobject` - The API name of the SObject type
+    /// * `external_id_field` - The API name of the external ID field
+    /// * `external_id_value` - The value of the external ID
+    /// * `data` - JSON object containing field values
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The SObject name or external ID field is invalid
+    /// - Authentication fails
+    /// - The HTTP request fails after retries are exhausted
+    async fn upsert_idempotent(
+        &self,
+        sobject: &str,
+        external_id_field: &str,
+        external_id_value: &str,
+        data: &serde_json::Value,
+    ) -> Result<UpsertResponse> {
+        self.upsert_with_retry_class(
+            sobject,
+            external_id_field,
+            external_id_value,
+            data,
+            crate::http::RequestRetryClass::IdempotentMutation,
+        )
+        .await
+    }
+
+    // ── Query Operations ─────────────────────────────────────────────
+
+    /// Executes a SOQL query and returns the first page of results.
+    ///
+    /// Use [`query_more()`](Self::query_more) to fetch subsequent pages when
+    /// the result set is paginated.
+    ///
+    /// # Security Warning
+    ///
+    /// This method accepts a raw SOQL string. **Do not construct queries using
+    /// `format!` with untrusted input**, as this leads to SOQL injection
+    /// vulnerabilities.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The query is malformed
+    /// - Authentication fails
+    /// - The HTTP request fails
+    /// - Deserialization fails
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// use force::types::DynamicSObject;
+    ///
+    /// let result = handler.query::<DynamicSObject>(
+    ///     "SELECT Id, Name FROM Account LIMIT 10"
+    /// ).await?;
+    /// println!("Total: {}", result.total_size);
+    /// ```
+    async fn query<T>(&self, soql: &str) -> Result<QueryResult<T>>
+    where
+        T: DeserializeOwned,
+    {
+        let api_path = self.resolve_api_path("query");
+        let url = self.session().resolve_url(&api_path).await?;
+
+        let request = self
+            .session()
+            .get(&url)
+            .query(&[("q", soql)])
+            .build()
+            .map_err(crate::error::HttpError::from)?;
+
+        self.session()
+            .send_request_and_decode(request, "SOQL query failed")
+            .await
+    }
+
+    /// Fetches the next page of query results using a `nextRecordsUrl`.
+    ///
+    /// When a query returns `done: false`, use the `nextRecordsUrl` from the
+    /// previous result to fetch the next page.
+    ///
+    /// # Security
+    ///
+    /// Absolute URLs are validated against the instance origin to prevent
+    /// token leakage to third-party domains.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The locator URL is invalid
+    /// - The URL origin does not match the instance (security check)
+    /// - Authentication fails
+    /// - The HTTP request fails
+    /// - Deserialization fails
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// let mut result = handler.query::<serde_json::Value>("SELECT Id FROM Account").await?;
+    /// while !result.is_done() {
+    ///     if let Some(next_url) = result.next_records_url.as_ref() {
+    ///         result = handler.query_more(next_url).await?;
+    ///     }
+    /// }
+    /// ```
+    async fn query_more<T>(&self, next_records_url: &str) -> Result<QueryResult<T>>
+    where
+        T: DeserializeOwned,
+    {
+        let instance_url = self.session().instance_url().await?;
+        let url = resolve_next_records_url(&instance_url, next_records_url)?;
+
+        let request = self
+            .session()
+            .get(&url)
+            .build()
+            .map_err(crate::error::HttpError::from)?;
+
+        self.session()
+            .send_request_and_decode(request, "Query pagination failed")
+            .await
+    }
+
+    // ── Describe Operations ──────────────────────────────────────────
+
+    /// Retrieves global describe information.
+    ///
+    /// Returns metadata for all available SObjects in the organization.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Authentication fails
+    /// - The HTTP request fails
+    /// - The response cannot be deserialized
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// let global = handler.describe_global().await?;
+    /// for sobject in &global.sobjects {
+    ///     println!("{}: {}", sobject.name, sobject.label);
+    /// }
+    /// ```
+    async fn describe_global(&self) -> Result<GlobalDescribe> {
+        let api_path = self.resolve_api_path("sobjects");
+        let url = self.session().resolve_url(&api_path).await?;
+
+        let request = self
+            .session()
+            .get(&url)
+            .build()
+            .map_err(crate::error::HttpError::from)?;
+
+        self.session()
+            .send_request_and_decode(request, "Global describe request failed")
+            .await
+    }
+
+    /// Retrieves detailed metadata for a specific SObject.
+    ///
+    /// Returns comprehensive information including all fields, relationships,
+    /// record types, and other metadata for the specified object.
+    ///
+    /// # Arguments
+    ///
+    /// * `sobject_type` - The API name of the SObject (e.g., `"Account"`, `"Contact"`)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Authentication fails
+    /// - The HTTP request fails
+    /// - The SObject does not exist
+    /// - The response cannot be deserialized
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// let describe = handler.describe("Account").await?;
+    /// println!("Object: {} ({})", describe.name, describe.label);
+    /// for field in &describe.fields {
+    ///     println!("  {} - {:?}", field.name, field.type_);
+    /// }
+    /// ```
+    async fn describe(&self, sobject_type: &str) -> Result<SObjectDescribe> {
+        let relative = format!(
+            "{}/describe",
+            crate::api::path_utils::format_sobject_path(sobject_type, None)
+        );
+        let api_path = self.resolve_api_path(&relative);
+        let url = self.session().resolve_url(&api_path).await?;
+
+        let request = self
+            .session()
+            .get(&url)
+            .build()
+            .map_err(crate::error::HttpError::from)?;
+
+        self.session()
+            .send_request_and_decode(
+                request,
+                &format!("Describe request for {} failed", sobject_type),
+            )
+            .await
+    }
+}
+
+// ── Private helper methods ───────────────────────────────────────────
+
+/// Internal helper shared by [`RestOperation::upsert`] and
+/// [`RestOperation::upsert_idempotent`].
+///
+/// Extracted as a standalone async function rather than a default trait method
+/// to keep the public trait surface clean while avoiding code duplication.
+async fn upsert_with_retry_class_impl<A: Authenticator>(
+    session: &Arc<Session<A>>,
+    api_path_prefix: &str,
+    sobject: &str,
+    external_id_field: &str,
+    external_id_value: &str,
+    data: &serde_json::Value,
+    retry_class: crate::http::RequestRetryClass,
+) -> Result<UpsertResponse> {
+    validate_sobject_name(sobject)?;
+    validate_external_id_field(external_id_field)?;
+
+    let encoded_value = utf8_percent_encode(external_id_value, UPSERT_ENCODE_SET).to_string();
+
+    let relative = format!(
+        "sobjects/{}/{}/{}",
+        sobject, external_id_field, encoded_value
+    );
+    let api_path = if api_path_prefix.is_empty() {
+        relative
+    } else {
+        format!("{}/{}", api_path_prefix, relative)
+    };
+    let url = session.resolve_url(&api_path).await?;
+
+    let request = session
+        .patch(&url)
+        .json(data)
+        .build()
+        .map_err(crate::error::HttpError::from)?;
+
+    let response = session
+        .execute_request_with_retry_class(request, retry_class)
+        .await?;
+
+    match response.status().as_u16() {
+        204 => {
+            // 204 No Content means an existing record was updated
+            // But the response does not include the record ID
+            Err(ForceError::NotImplemented(
+                "Upsert update (204) response does not include record ID - use query to retrieve"
+                    .to_string(),
+            ))
+        }
+        _ if response.status().is_success() => {
+            // Success codes (201 Created, 200 OK) - parse as upsert response
+            response
+                .json::<UpsertResponse>()
+                .await
+                .map_err(|e| crate::error::HttpError::from(e).into())
+        }
+        _ => Err(crate::http::response_to_force_error(response, "Upsert request failed").await),
+    }
+}
+
+/// Default implementation for the upsert_with_retry_class helper on the trait.
+///
+/// This is a private trait method that delegates to the standalone function.
+/// It exists so that `upsert` and `upsert_idempotent` can share logic without
+/// being public on the trait.
+impl<A: Authenticator, T: RestOperation<A> + ?Sized> RestOperationExt<A> for T {}
+
+/// Extension trait providing the private `upsert_with_retry_class` method.
+///
+/// This keeps the helper out of the public API while letting `upsert` and
+/// `upsert_idempotent` share code.
+#[allow(async_fn_in_trait)]
+trait RestOperationExt<A: Authenticator>: RestOperation<A> {
+    async fn upsert_with_retry_class(
+        &self,
+        sobject: &str,
+        external_id_field: &str,
+        external_id_value: &str,
+        data: &serde_json::Value,
+        retry_class: crate::http::RequestRetryClass,
+    ) -> Result<UpsertResponse> {
+        upsert_with_retry_class_impl(
+            self.session(),
+            self.path_prefix(),
+            sobject,
+            external_id_field,
+            external_id_value,
+            data,
+            retry_class,
+        )
+        .await
+    }
+}
+
+/// Resolves and validates the `nextRecordsUrl` for query pagination.
+///
+/// Ensures that absolute URLs match the instance origin to prevent
+/// token leakage to third-party domains.
+///
+/// # Security
+///
+/// - Relative URLs (e.g., `/services/data/v60.0/query/01g-2000`) are
+///   prefixed with the instance URL.
+/// - Absolute URLs are validated: scheme, host, port must match the instance,
+///   and no embedded credentials are allowed.
+///
+/// # Errors
+///
+/// Returns [`ForceError::InvalidInput`] if:
+/// - The URL cannot be parsed
+/// - The origin does not match the instance
+/// - Credentials are embedded in the URL
+pub fn resolve_next_records_url(instance_url: &str, next_records_url: &str) -> Result<String> {
+    if !next_records_url.starts_with("http") {
+        return Ok(format!("{}{}", instance_url, next_records_url));
+    }
+
+    // Security check: absolute URL must match the instance host
+    let next_parsed = url::Url::parse(next_records_url)
+        .map_err(|e| ForceError::InvalidInput(format!("Invalid nextRecordsUrl: {}", e)))?;
+    let instance_parsed = url::Url::parse(instance_url)
+        .map_err(|e| ForceError::InvalidInput(format!("Invalid instance URL in token: {}", e)))?;
+
+    // Compare schemes and hosts, reject embedded credentials
+    if next_parsed.scheme() != instance_parsed.scheme()
+        || next_parsed.host_str() != instance_parsed.host_str()
+        || next_parsed.port_or_known_default() != instance_parsed.port_or_known_default()
+        || !next_parsed.username().is_empty()
+        || next_parsed.password().is_some()
+    {
+        return Err(ForceError::InvalidInput(format!(
+            "Security Error: nextRecordsUrl origin ({:?}://{:?}:{:?}) does not match instance origin ({:?}://{:?}:{:?})",
+            next_parsed.scheme(),
+            next_parsed.host_str(),
+            next_parsed.port_or_known_default(),
+            instance_parsed.scheme(),
+            instance_parsed.host_str(),
+            instance_parsed.port_or_known_default()
+        )));
+    }
+    Ok(next_records_url.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_support::Must;
+
+    // ── resolve_next_records_url unit tests ──────────────────────────
+
+    #[test]
+    fn test_resolve_relative_url() {
+        let result = resolve_next_records_url(
+            "https://na1.salesforce.com",
+            "/services/data/v60.0/query/01g-2000",
+        )
+        .must();
+        assert_eq!(
+            result,
+            "https://na1.salesforce.com/services/data/v60.0/query/01g-2000"
+        );
+    }
+
+    #[test]
+    fn test_resolve_absolute_url_same_origin() {
+        let result = resolve_next_records_url(
+            "https://na1.salesforce.com",
+            "https://na1.salesforce.com/services/data/v60.0/query/01g-2000",
+        )
+        .must();
+        assert_eq!(
+            result,
+            "https://na1.salesforce.com/services/data/v60.0/query/01g-2000"
+        );
+    }
+
+    #[test]
+    fn test_resolve_absolute_url_different_host_rejected() {
+        let result = resolve_next_records_url(
+            "https://na1.salesforce.com",
+            "https://attacker.com/services/data/v60.0/query/leak",
+        );
+        let Err(err) = result else {
+            panic!("Expected Err");
+        };
+        assert!(err.to_string().contains("Security Error"));
+    }
+
+    #[test]
+    fn test_resolve_absolute_url_scheme_mismatch_rejected() {
+        let result = resolve_next_records_url(
+            "https://na1.salesforce.com",
+            "http://na1.salesforce.com/services/data/v60.0/query/01g",
+        );
+        let Err(err) = result else {
+            panic!("Expected Err");
+        };
+        assert!(err.to_string().contains("Security Error"));
+    }
+
+    #[test]
+    fn test_resolve_absolute_url_port_mismatch_rejected() {
+        let result = resolve_next_records_url(
+            "https://na1.salesforce.com",
+            "https://na1.salesforce.com:9999/services/data/v60.0/query/01g",
+        );
+        let Err(err) = result else {
+            panic!("Expected Err");
+        };
+        assert!(err.to_string().contains("Security Error"));
+    }
+
+    #[test]
+    fn test_resolve_absolute_url_with_username_rejected() {
+        let result = resolve_next_records_url(
+            "https://na1.salesforce.com",
+            "https://attacker@na1.salesforce.com/services/data/v60.0/query/01g",
+        );
+        let Err(err) = result else {
+            panic!("Expected Err");
+        };
+        assert!(err.to_string().contains("Security Error"));
+    }
+
+    #[test]
+    fn test_resolve_absolute_url_with_credentials_rejected() {
+        let result = resolve_next_records_url(
+            "https://na1.salesforce.com",
+            "https://user:pass@na1.salesforce.com/services/data/v60.0/query/01g",
+        );
+        let Err(err) = result else {
+            panic!("Expected Err");
+        };
+        assert!(err.to_string().contains("Security Error"));
+    }
+
+    // ── resolve_api_path unit tests ─────────────────────────────────
+
+    /// Minimal test implementor with no prefix (REST API).
+    struct TestRestOp;
+
+    impl RestOperation<crate::test_support::MockAuthenticator> for TestRestOp {
+        fn session(&self) -> &Arc<Session<crate::test_support::MockAuthenticator>> {
+            unimplemented!("not needed for path tests")
+        }
+        #[allow(clippy::unnecessary_literal_bound)]
+        fn path_prefix(&self) -> &str {
+            ""
+        }
+    }
+
+    /// Minimal test implementor with "tooling" prefix.
+    struct TestToolingOp;
+
+    impl RestOperation<crate::test_support::MockAuthenticator> for TestToolingOp {
+        fn session(&self) -> &Arc<Session<crate::test_support::MockAuthenticator>> {
+            unimplemented!("not needed for path tests")
+        }
+        #[allow(clippy::unnecessary_literal_bound)]
+        fn path_prefix(&self) -> &str {
+            "tooling"
+        }
+    }
+
+    #[test]
+    fn test_resolve_api_path_no_prefix() {
+        let op = TestRestOp;
+        assert_eq!(op.resolve_api_path("sobjects/Account"), "sobjects/Account");
+        assert_eq!(op.resolve_api_path("query"), "query");
+        assert_eq!(op.resolve_api_path("sobjects"), "sobjects");
+    }
+
+    #[test]
+    fn test_resolve_api_path_with_prefix() {
+        let op = TestToolingOp;
+        assert_eq!(
+            op.resolve_api_path("sobjects/Account"),
+            "tooling/sobjects/Account"
+        );
+        assert_eq!(op.resolve_api_path("query"), "tooling/query");
+        assert_eq!(op.resolve_api_path("sobjects"), "tooling/sobjects");
+    }
+}

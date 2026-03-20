@@ -50,6 +50,7 @@ default = ["rest"]
 
 # Platform API surfaces
 rest = []
+tooling = []
 bulk = ["dep:csv"]
 composite = ["rest"]
 composite_graph = ["composite"]
@@ -65,7 +66,7 @@ jwt = ["dep:jsonwebtoken"]
 mock = ["dep:wiremock"]
 
 # Meta features
-full = ["rest", "bulk", "composite", "jwt"]
+full = ["rest", "bulk", "composite", "tooling", "jwt"]
 all = ["full", "schema", "data_utility", "composite_graph"]
 
 [[example]]
@@ -83,3 +84,7 @@ required-features = ["schema"]
 [[example]]
 name = "soql_mass_op"
 required-features = ["composite"]
+
+[[example]]
+name = "tooling"
+required-features = ["tooling"]

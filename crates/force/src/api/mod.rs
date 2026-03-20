@@ -12,6 +12,10 @@ pub mod bulk;
 #[cfg(feature = "composite")]
 pub mod composite;
 
+#[cfg(feature = "tooling")]
+pub mod tooling;
+
+pub mod rest_operation;
 pub mod soql;
 
 pub(crate) mod path_utils;

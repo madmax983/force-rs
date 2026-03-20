@@ -3,6 +3,7 @@
 
 #![allow(clippy::too_many_lines)]
 
+use force::api::rest_operation::RestOperation;
 use force::auth::ClientCredentials;
 use force::client::ForceClientBuilder;
 use std::env;

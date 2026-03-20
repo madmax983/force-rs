@@ -100,6 +100,26 @@ impl<A: crate::auth::authenticator::Authenticator> ForceClient<A> {
         crate::api::bulk::BulkHandler::new(Arc::clone(&self.inner))
     }
 
+    /// Creates a Tooling API handler for this client.
+    ///
+    /// The Tooling handler provides access to CRUD operations, queries,
+    /// and metadata for Salesforce development objects (`ApexClass`,
+    /// `ApexTrigger`, etc.).
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// use force::api::rest_operation::RestOperation;
+    ///
+    /// let client = builder().authenticate(auth).build().await?;
+    /// let tooling = client.tooling();
+    /// ```
+    #[cfg(feature = "tooling")]
+    #[must_use]
+    pub fn tooling(&self) -> crate::api::tooling::ToolingHandler<A> {
+        crate::api::tooling::ToolingHandler::new(Arc::clone(&self.inner))
+    }
+
     /// Creates a Composite API handler for this client.
     ///
     /// The Composite handler provides access to batch and graph operations.

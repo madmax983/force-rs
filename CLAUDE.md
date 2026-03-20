@@ -85,12 +85,12 @@ graph TB
 ### 1. Feature-Gated Zero-Cost Abstractions
 Only compile what you use. Each API surface is behind a feature flag:
 - `rest` (default) - REST API
+- `tooling` - Tooling API (independent of `rest`)
 - `bulk` - Bulk API 2.0
 - `composite` - Composite API
 - `jwt` - JWT Bearer authentication flow
-- `pub_sub` - gRPC Pub/Sub API
-- `soap` - SOAP API
-- `full` - All common features
+- `pub_sub` - gRPC Pub/Sub API (separate `force-pubsub` crate)
+- `full` - All common features (rest + tooling + bulk + composite + jwt)
 - `all` - Everything including specialized APIs
 
 ### 2. Compile-Time Auth Safety (Phantom Type State Pattern)
@@ -112,9 +112,15 @@ See [ADR-005](docs/adr/005-compile-time-auth-safety.md) for phantom type design 
 ### 3. Handler Pattern for API Organization
 API operations are accessed through lightweight handler objects for clear namespacing:
 ```rust
+use force::api::rest_operation::RestOperation; // Required for CRUD/Query/Describe
+
 // REST API operations
 let accounts = client.rest().query("SELECT Id FROM Account").await?;
 let contact_id = client.rest().create("Contact", &data).await?;
+
+// Tooling API operations (feature: tooling) - same trait, different URL prefix
+let classes = client.tooling().query("SELECT Id FROM ApexClass").await?;
+let result = client.tooling().execute_anonymous("System.debug('hi');").await?;
 
 // Bulk API operations (feature: bulk)
 let job = client.bulk().query("SELECT Id FROM Contact").await?;
@@ -123,6 +129,7 @@ let job = client.bulk().query("SELECT Id FROM Contact").await?;
 let result = client.composite().request(composite_req).await?;
 ```
 See [ADR-006](docs/adr/006-handler-pattern.md) for handler pattern rationale.
+See [ADR-019](docs/adr/019-tooling-api-design.md) for the `RestOperation` trait extraction.
 
 ### 4. TDD RED-GREEN-REFACTOR
 Every feature follows strict test-driven development:
@@ -329,7 +336,11 @@ use force::testing::{MockForceClient, MockAuthenticator};
 ### Phase 4: Advanced APIs
 - [ ] Bulk API 2.0 (feature: bulk)
 - [ ] Composite API (feature: composite)
-- [ ] Tooling API (feature: tooling)
+- [x] Tooling API (feature: tooling) - See [ADR-019](docs/adr/019-tooling-api-design.md)
+  - [x] `RestOperation` trait extraction (shared CRUD/Query/Describe)
+  - [x] Execute Anonymous Apex
+  - [x] Run Tests (sync + async)
+  - [x] Code Completions
 - [ ] GraphQL API (feature: graphql)
 
 ### Phase 5: Specialized Features
@@ -445,6 +456,13 @@ The `examples/` directory contains complete, runnable examples demonstrating bes
    SF_CLIENT_ID=xxx SF_CLIENT_SECRET=yyy cargo run --example describe
    ```
 
+### Tooling API Examples
+
+7. **`tooling.rs`** - Apex class queries, anonymous execution, completions, and test running
+   ```bash
+   SF_CLIENT_ID=xxx SF_CLIENT_SECRET=yyy cargo run --example tooling --features tooling
+   ```
+
 ### Quick Start
 
 ```rust
@@ -523,6 +541,7 @@ Significant architectural decisions are documented in `docs/adr/`:
 - [ADR-005](docs/adr/005-compile-time-auth-safety.md) - Compile-time authentication safety with phantom types
 - [ADR-006](docs/adr/006-handler-pattern.md) - Handler pattern for API organization
 - [ADR-007](docs/adr/007-rest-api-design.md) - REST API design decisions and type patterns
+- [ADR-019](docs/adr/019-tooling-api-design.md) - RestOperation trait and Tooling API design
 
 ## Contributing
 

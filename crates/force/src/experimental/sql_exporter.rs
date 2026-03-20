@@ -8,6 +8,7 @@
 //! # Example
 //!
 //! ```no_run
+//! # use force::api::rest_operation::RestOperation;
 //! # use force::client::ForceClientBuilder;
 //! # use force::experimental::generate_ddl;
 //! # use force::auth::ClientCredentials;

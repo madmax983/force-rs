@@ -1,3 +1,4 @@
+use crate::api::rest_operation::RestOperation;
 use crate::auth::Authenticator;
 use crate::client::ForceClient;
 use crate::error::Result;
