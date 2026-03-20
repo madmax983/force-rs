@@ -59,7 +59,7 @@ pub use type_generator::StructGenerator;
 pub use schema_diff::{FieldChange, SchemaDiffResult, compare_schemas};
 
 #[cfg(feature = "data_utility")]
-pub use data_faker::DataFaker;
+pub use data_faker::generate_mock_record;
 
 #[cfg(feature = "schema")]
 pub use schema_analyzer::{SchemaInsights, analyze_schema};
