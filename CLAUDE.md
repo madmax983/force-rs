@@ -191,6 +191,16 @@ crates/force/src/
     ├── bulk/              # Feature: bulk
     ├── composite/         # Feature: composite
     ├── tooling/           # Feature: tooling
+    ├── ui/                # Feature: ui
+    │   ├── mod.rs         # UiHandler + HTTP helpers
+    │   ├── types.rs       # FieldValueRepresentation, LayoutType, Mode
+    │   ├── records.rs     # record_ui, get/create/update/delete_record, defaults
+    │   ├── object_info.rs # object_info, object_infos_batch
+    │   ├── layouts.rs     # layout
+    │   ├── list_views.rs  # list_ui, list_views, list_records, list_info
+    │   ├── actions.rs     # record_actions
+    │   ├── lookups.rs     # lookup, filtered_lookup
+    │   └── favorites.rs   # get/create/update/delete favorites
     └── ...                # Other API surfaces
 ```
 
@@ -334,13 +344,21 @@ use force::testing::{MockForceClient, MockAuthenticator};
   - [ ] Describe SObject
 
 ### Phase 4: Advanced APIs
-- [ ] Bulk API 2.0 (feature: bulk)
-- [ ] Composite API (feature: composite)
+- [x] Bulk API 2.0 (feature: bulk)
+- [x] Composite API (feature: composite)
 - [x] Tooling API (feature: tooling) - See [ADR-019](docs/adr/019-tooling-api-design.md)
   - [x] `RestOperation` trait extraction (shared CRUD/Query/Describe)
   - [x] Execute Anonymous Apex
   - [x] Run Tests (sync + async)
   - [x] Code Completions
+- [x] UI API (feature: ui) - See [ADR-020](docs/adr/020-ui-api-design.md)
+  - [x] Record CRUD + record-ui aggregation + defaults (8 endpoints)
+  - [x] Object metadata (2 endpoints)
+  - [x] Page layouts (1 endpoint)
+  - [x] List views (4 endpoints)
+  - [x] Record actions (1 endpoint)
+  - [x] Lookup type-ahead (2 endpoints)
+  - [x] Favorites CRUD (4 endpoints)
 - [ ] GraphQL API (feature: graphql)
 
 ### Phase 5: Specialized Features
@@ -542,6 +560,7 @@ Significant architectural decisions are documented in `docs/adr/`:
 - [ADR-006](docs/adr/006-handler-pattern.md) - Handler pattern for API organization
 - [ADR-007](docs/adr/007-rest-api-design.md) - REST API design decisions and type patterns
 - [ADR-019](docs/adr/019-tooling-api-design.md) - RestOperation trait and Tooling API design
+- [ADR-020](docs/adr/020-ui-api-design.md) - UI API handler design (separate from RestOperation)
 
 ## Contributing
 
