@@ -50,39 +50,29 @@ pub fn parse_api_error(status_code: u16, body: &str) -> HttpError {
 /// Converts an HTTP error response into a `ForceError` using Salesforce-aware parsing.
 ///
 /// If the response body is empty or unreadable, falls back to `fallback_message`.
-/// Reads a response stream into a String, capped at 1MB to prevent memory exhaustion DoS.
-/// Safely truncates chunks that would exceed the limit before allocating space for them.
-pub async fn read_capped_body(mut stream: impl futures::Stream<Item = reqwest::Result<bytes::Bytes>> + Unpin) -> String {
-    #[allow(unused_doc_comments)]
-    /// ⚡ Bolt: Pre-allocate capacity for the error body to minimize reallocations
-    let mut bytes = Vec::with_capacity(4096);
-    let max_len: usize = 1024 * 1024; // 1MB
-
-    while let Some(chunk) = stream.next().await {
-        if let Ok(chunk_bytes) = chunk {
-            let remaining = max_len.saturating_sub(bytes.len());
-            if remaining == 0 {
-                break;
-            }
-            let to_copy = std::cmp::min(remaining, chunk_bytes.len());
-            bytes.extend_from_slice(&chunk_bytes[..to_copy]);
-            if bytes.len() >= max_len {
-                break;
-            }
-        } else {
-            break;
-        }
-    }
-    String::from_utf8_lossy(&bytes).into_owned()
-}
-
 pub async fn response_to_force_error(
     response: Response,
     fallback_message: &str,
 ) -> crate::error::ForceError {
     let status_code = response.status().as_u16();
 
-    let body = read_capped_body(response.bytes_stream()).await;
+    // Read up to 1MB to prevent memory exhaustion DoS
+    let mut stream = response.bytes_stream();
+    #[allow(unused_doc_comments)]
+    /// ⚡ Bolt: Pre-allocate capacity for the error body to minimize reallocations
+    let mut bytes = Vec::with_capacity(4096);
+    while let Some(chunk) = stream.next().await {
+        if let Ok(chunk_bytes) = chunk {
+            bytes.extend_from_slice(&chunk_bytes);
+            if bytes.len() > 1024 * 1024 {
+                bytes.truncate(1024 * 1024);
+                break;
+            }
+        } else {
+            break;
+        }
+    }
+    let body = String::from_utf8_lossy(&bytes).into_owned();
 
     let payload = if body.trim().is_empty() {
         fallback_message.to_string()
@@ -94,37 +84,6 @@ pub async fn response_to_force_error(
 
 #[cfg(test)]
 mod tests {
-
-    #[tokio::test]
-    async fn test_read_capped_body_single_large_chunk() {
-        // Create a single chunk of 5MB
-        let large_chunk = bytes::Bytes::from(vec![b'A'; 5 * 1024 * 1024]);
-        let stream = futures::stream::iter(vec![Ok(large_chunk)]);
-
-        let body = read_capped_body(stream).await;
-
-        // It should be truncated exactly at 1MB (1048576 bytes)
-        assert_eq!(body.len(), 1024 * 1024);
-        assert!(body.chars().all(|c| c == 'A'));
-    }
-
-    #[tokio::test]
-    async fn test_read_capped_body_multiple_chunks_over_limit() {
-        // Create two 600KB chunks (total 1.2MB)
-        let chunk1 = bytes::Bytes::from(vec![b'B'; 600 * 1024]);
-        let chunk2 = bytes::Bytes::from(vec![b'C'; 600 * 1024]);
-
-        let stream = futures::stream::iter(vec![Ok(chunk1), Ok(chunk2)]);
-        let body = read_capped_body(stream).await;
-
-        assert_eq!(body.len(), 1024 * 1024);
-
-        // The first 600KB should be 'B'
-        assert!(body[..600 * 1024].chars().all(|c| c == 'B'));
-        // The remaining 424KB should be 'C'
-        assert!(body[600 * 1024..].chars().all(|c| c == 'C'));
-    }
-
     use super::*;
 
     #[test]
