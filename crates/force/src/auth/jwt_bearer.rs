@@ -33,7 +33,6 @@ use crate::error::{AuthenticationError, ForceError, HttpError, Result};
 #[cfg(feature = "jwt")]
 use async_trait::async_trait;
 #[cfg(feature = "jwt")]
-use futures::StreamExt;
 #[cfg(feature = "jwt")]
 use jsonwebtoken::{EncodingKey, Header, encode};
 #[cfg(feature = "jwt")]
@@ -237,23 +236,7 @@ impl Authenticator for JwtBearerFlow {
 
         if !response.status().is_success() {
             let status = response.status();
-            // Read up to 1MB to prevent memory exhaustion DoS
-            let mut stream = response.bytes_stream();
-            #[allow(unused_doc_comments)]
-            /// ⚡ Bolt: Pre-allocate capacity for the error body to minimize reallocations
-            let mut bytes = Vec::with_capacity(4096);
-            while let Some(chunk) = stream.next().await {
-                if let Ok(chunk_bytes) = chunk {
-                    bytes.extend_from_slice(&chunk_bytes);
-                    if bytes.len() > 1024 * 1024 {
-                        bytes.truncate(1024 * 1024);
-                        break;
-                    }
-                } else {
-                    break;
-                }
-            }
-            let body = String::from_utf8_lossy(&bytes).into_owned();
+            let body = crate::http::error::read_capped_body(response.bytes_stream()).await;
 
             let error_text = if body.trim().is_empty() {
                 "Unknown error".to_string()
