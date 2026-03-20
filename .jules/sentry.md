@@ -48,3 +48,6 @@
 >> **2024-03-27 - [SearchQueryBuilder Missing Panic Tests]**
 **Learning:** The `SearchQueryBuilder::build` and `SearchQueryBuilder::returning` methods implement custom `unwrap_or_panic` error handling similar to `SoqlQueryBuilder`. However, these paths were untested, meaning `unwrap_or_else(|e| panic!(...))` code was executed without test coverage verifying the panic behaviour/messaging on invalid states.
 **Action:** When encountering a builder pattern containing `try_x` (Result) alongside `x` (panicking) methods wrapping `unwrap_or_panic()`, always verify that both the success `Result` path and the panic wrapper path are explicitly tested with `#[should_panic]` to maintain safety guarantees.
+**Testing Inner Wrapper Panic Guards**
+**Learning:** We rely heavily on centralizing wrapper helpers (`unwrap_or_panic`) within Builders to map underlying validation error outputs (`try_` functions) into unified panic strings for invalid API usage.
+**Action:** Always make sure the shared panic formatting utility functions are covered by at least one explicit test using `#[should_panic(expected = "...")]` to guarantee consistency inside these developer convenience paths and avoid obscure regressions during string mapping refactoring.
