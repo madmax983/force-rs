@@ -61,6 +61,7 @@ data_utility = ["rest"]
 
 # Auth flows
 jwt = ["dep:jsonwebtoken"]
+username_password = []
 
 # Testing utilities
 mock = ["dep:wiremock"]

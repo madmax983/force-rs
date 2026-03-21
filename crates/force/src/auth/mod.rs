@@ -20,6 +20,8 @@ pub(crate) mod data_cloud;
 pub(crate) mod jwt_bearer;
 pub(crate) mod token;
 pub(crate) mod token_manager;
+#[cfg(feature = "username_password")]
+pub(crate) mod username_password;
 
 pub use authenticator::Authenticator;
 pub use client_credentials::ClientCredentials;
@@ -29,3 +31,5 @@ pub use data_cloud::{DataCloudAuthenticator, DataCloudConfig};
 pub use jwt_bearer::JwtBearerFlow;
 pub use token::{AccessToken, TokenResponse};
 pub use token_manager::TokenManager;
+#[cfg(feature = "username_password")]
+pub use username_password::UsernamePassword;
