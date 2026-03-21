@@ -41,6 +41,11 @@ pub enum ForceError {
     /// Feature not yet implemented.
     #[error("not implemented: {0}")]
     NotImplemented(String),
+
+    /// GraphQL API errors (feature-gated).
+    #[cfg(feature = "graphql")]
+    #[error("GraphQL error: {0}")]
+    GraphQL(#[from] crate::api::graphql::GraphqlErrorResponse),
 }
 
 /// Authentication-related errors.

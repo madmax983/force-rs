@@ -88,9 +88,11 @@ Only compile what you use. Each API surface is behind a feature flag:
 - `tooling` - Tooling API (independent of `rest`)
 - `bulk` - Bulk API 2.0
 - `composite` - Composite API
+- `ui` - UI API (layout-aware records, metadata, list views, favorites)
+- `graphql` - GraphQL API (queries, mutations, variables)
 - `jwt` - JWT Bearer authentication flow
 - `pub_sub` - gRPC Pub/Sub API (separate `force-pubsub` crate)
-- `full` - All common features (rest + tooling + bulk + composite + jwt)
+- `full` - All common features (rest + tooling + bulk + composite + jwt + ui + graphql)
 - `all` - Everything including specialized APIs
 
 ### 2. Compile-Time Auth Safety (Phantom Type State Pattern)
@@ -201,6 +203,10 @@ crates/force/src/
     │   ├── actions.rs     # record_actions
     │   ├── lookups.rs     # lookup, filtered_lookup
     │   └── favorites.rs   # get/create/update/delete favorites
+    ├── graphql/           # Feature: graphql
+    │   ├── mod.rs         # GraphqlHandler + query methods + URL resolver
+    │   ├── types.rs       # GraphqlRequest, GraphqlResponse, GraphqlError
+    │   └── error.rs       # GraphqlErrorResponse wrapper
     └── ...                # Other API surfaces
 ```
 
@@ -326,22 +332,22 @@ use force::testing::{MockForceClient, MockAuthenticator};
 - [ ] Username/password flow
 - [ ] Refresh token flow
 
-### Phase 3: REST API (Default Feature) - Current Focus
+### Phase 3: REST API (Default Feature) - COMPLETE
 - [x] RestHandler foundation
 - [x] Org Limits API (see `examples/org_limits.rs`)
 - [x] Query types (QueryResult, DynamicSObject)
-- [ ] Query (SOQL) - See `examples/soql_query.rs` for intended API
-- [ ] QueryMore (pagination) - See `examples/soql_query.rs`
-- [ ] CRUD operations - See `examples/basic_crud.rs` for intended API
-  - [ ] Create
-  - [ ] Read (Get)
-  - [ ] Update
-  - [ ] Delete
-  - [ ] Upsert
-- [ ] Search (SOSL) - See `examples/search.rs` for intended API
-- [ ] Describe (metadata) - See `examples/describe.rs` for intended API
-  - [ ] Describe Global
-  - [ ] Describe SObject
+- [x] Query (SOQL) - See `examples/soql_query.rs`
+- [x] QueryMore (pagination)
+- [x] CRUD operations - See `examples/basic_crud.rs`
+  - [x] Create
+  - [x] Read (Get)
+  - [x] Update
+  - [x] Delete
+  - [x] Upsert
+- [x] Search (SOSL) - See `examples/search.rs`
+- [x] Describe (metadata) - See `examples/describe.rs`
+  - [x] Describe Global
+  - [x] Describe SObject
 
 ### Phase 4: Advanced APIs
 - [x] Bulk API 2.0 (feature: bulk)
@@ -359,7 +365,13 @@ use force::testing::{MockForceClient, MockAuthenticator};
   - [x] Record actions (1 endpoint)
   - [x] Lookup type-ahead (2 endpoints)
   - [x] Favorites CRUD (4 endpoints)
-- [ ] GraphQL API (feature: graphql)
+- [x] GraphQL API (feature: graphql) - See [ADR-021](docs/adr/021-graphql-api-design.md)
+  - [x] GraphqlHandler with custom deserialization pipeline
+  - [x] query<T> (typed, errors-as-Result)
+  - [x] query_with_errors<T> (full envelope for partial success)
+  - [x] query_raw (convenience string → Value)
+  - [x] GraphqlRequest builder (new + with_variables + with_operation_name)
+  - [x] GraphqlErrorResponse → ForceError::GraphQL conversion
 
 ### Phase 5: Specialized Features
 - [ ] Pub/Sub API via gRPC (feature: pub_sub)
@@ -561,6 +573,7 @@ Significant architectural decisions are documented in `docs/adr/`:
 - [ADR-007](docs/adr/007-rest-api-design.md) - REST API design decisions and type patterns
 - [ADR-019](docs/adr/019-tooling-api-design.md) - RestOperation trait and Tooling API design
 - [ADR-020](docs/adr/020-ui-api-design.md) - UI API handler design (separate from RestOperation)
+- [ADR-021](docs/adr/021-graphql-api-design.md) - GraphQL API error handling and dual query API design
 
 ## Contributing
 

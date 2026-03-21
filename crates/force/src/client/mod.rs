@@ -153,6 +153,26 @@ impl<A: crate::auth::authenticator::Authenticator> ForceClient<A> {
     pub fn ui(&self) -> crate::api::ui::UiHandler<A> {
         crate::api::ui::UiHandler::new(Arc::clone(&self.inner))
     }
+
+    /// Creates a GraphQL API handler for this client.
+    ///
+    /// The GraphQL handler provides access to the Salesforce GraphQL API,
+    /// which supports queries and mutations via a single POST endpoint.
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// use force::api::graphql::GraphqlRequest;
+    ///
+    /// let client = builder().authenticate(auth).build().await?;
+    /// let gql = client.graphql();
+    /// let data = gql.query_raw("{ uiapi { query { Account { edges { node { Id } } } } } }", None).await?;
+    /// ```
+    #[cfg(feature = "graphql")]
+    #[must_use]
+    pub fn graphql(&self) -> crate::api::graphql::GraphqlHandler<A> {
+        crate::api::graphql::GraphqlHandler::new(Arc::clone(&self.inner))
+    }
 }
 
 #[cfg(test)]

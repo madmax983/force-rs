@@ -18,6 +18,9 @@ pub mod tooling;
 #[cfg(feature = "ui")]
 pub mod ui;
 
+#[cfg(feature = "graphql")]
+pub mod graphql;
+
 pub mod rest_operation;
 pub mod soql;
 
