@@ -17,12 +17,17 @@ use std::sync::Arc;
 #[derive(Debug)]
 pub struct ForceClient<A: crate::auth::authenticator::Authenticator> {
     inner: Arc<Session<A>>,
+    /// Optional Data Cloud session (created when `.with_data_cloud()` is called on the builder).
+    #[cfg(feature = "data_cloud")]
+    dc_session: Option<Arc<Session<crate::auth::DataCloudAuthenticator<A>>>>,
 }
 
 impl<A: crate::auth::authenticator::Authenticator> Clone for ForceClient<A> {
     fn clone(&self) -> Self {
         Self {
             inner: Arc::clone(&self.inner),
+            #[cfg(feature = "data_cloud")]
+            dc_session: self.dc_session.clone(),
         }
     }
 }
@@ -172,6 +177,42 @@ impl<A: crate::auth::authenticator::Authenticator> ForceClient<A> {
     #[must_use]
     pub fn graphql(&self) -> crate::api::graphql::GraphqlHandler<A> {
         crate::api::graphql::GraphqlHandler::new(Arc::clone(&self.inner))
+    }
+
+    /// Creates a Data Cloud API handler for this client.
+    ///
+    /// The Data Cloud handler provides access to the Salesforce Data Cloud
+    /// REST Connect API, which uses a separate tenant endpoint and
+    /// token exchange flow.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ConfigError::MissingValue` if the client was not built with
+    /// `.with_data_cloud()`.
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// use force::auth::DataCloudConfig;
+    ///
+    /// let client = builder()
+    ///     .authenticate(auth)
+    ///     .with_data_cloud(DataCloudConfig::default())
+    ///     .build()
+    ///     .await?;
+    ///
+    /// let dc = client.data_cloud()?;
+    /// ```
+    #[cfg(feature = "data_cloud")]
+    pub fn data_cloud(&self) -> crate::error::Result<crate::api::data_cloud::DataCloudHandler<A>> {
+        let dc = self.dc_session.as_ref().ok_or_else(|| {
+            crate::error::ForceError::Config(crate::error::ConfigError::MissingValue(
+                "Data Cloud not configured — call .with_data_cloud() on the builder".into(),
+            ))
+        })?;
+        Ok(crate::api::data_cloud::DataCloudHandler::new(Arc::clone(
+            dc,
+        )))
     }
 }
 

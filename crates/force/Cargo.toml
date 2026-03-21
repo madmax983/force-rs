@@ -71,8 +71,11 @@ ui = []
 # GraphQL API surface
 graphql = []
 
+# Data Cloud API surface
+data_cloud = []
+
 # Meta features
-full = ["rest", "bulk", "composite", "tooling", "jwt", "ui", "graphql"]
+full = ["rest", "bulk", "composite", "tooling", "jwt", "ui", "graphql", "data_cloud"]
 all = ["full", "schema", "data_utility", "composite_graph"]
 
 [[example]]

@@ -21,6 +21,9 @@ pub mod ui;
 #[cfg(feature = "graphql")]
 pub mod graphql;
 
+#[cfg(feature = "data_cloud")]
+pub mod data_cloud;
+
 pub mod rest_operation;
 pub mod soql;
 
