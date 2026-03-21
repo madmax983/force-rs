@@ -168,7 +168,8 @@ mod tests {
     async fn test_data_cloud_handler_is_cloneable() {
         let client = test_dc_client().await;
         let h1 = client.data_cloud().must();
-        let _h2 = h1.clone();
+        #[allow(clippy::redundant_clone)]
+        let _h2 = h1.clone(); // Intentional: verifies Clone impl works
     }
 
     #[tokio::test]
@@ -193,8 +194,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_client_clone_preserves_dc_session() {
-        let client = test_dc_client().await;
-        let cloned = client.clone();
+        #[allow(clippy::redundant_clone)]
+        let cloned = test_dc_client().await.clone(); // Intentional: verifies Clone preserves DC session
         assert!(cloned.data_cloud().is_ok());
     }
 

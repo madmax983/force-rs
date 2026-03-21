@@ -453,9 +453,7 @@ mod tests {
         use wiremock::{Mock, MockServer, ResponseTemplate};
 
         /// Helper: create a `DataCloudAuthenticator` pointing at the given mock server.
-        async fn dc_auth_for(
-            mock_server: &MockServer,
-        ) -> DataCloudAuthenticator<MockAuthenticator> {
+        fn dc_auth_for(mock_server: &MockServer) -> DataCloudAuthenticator<MockAuthenticator> {
             let platform_auth = MockAuthenticator::new("platform_token", &mock_server.uri());
             let tm = Arc::new(TokenManager::new(platform_auth));
             DataCloudAuthenticator::new(
@@ -486,7 +484,7 @@ mod tests {
                 .mount(&mock_server)
                 .await;
 
-            let auth = dc_auth_for(&mock_server).await;
+            let auth = dc_auth_for(&mock_server);
             let token = auth.authenticate().await.must();
 
             assert_eq!(token.as_str(), "dc_token_abc");
@@ -510,7 +508,7 @@ mod tests {
                 .mount(&mock_server)
                 .await;
 
-            let auth = dc_auth_for(&mock_server).await;
+            let auth = dc_auth_for(&mock_server);
             let result = auth.authenticate().await;
 
             if let Err(ForceError::Authentication(AuthenticationError::TokenRequestFailed(msg))) =
@@ -534,7 +532,7 @@ mod tests {
                 .mount(&mock_server)
                 .await;
 
-            let auth = dc_auth_for(&mock_server).await;
+            let auth = dc_auth_for(&mock_server);
             let result = auth.authenticate().await;
 
             if let Err(ForceError::Http(HttpError::StatusError {
@@ -560,7 +558,7 @@ mod tests {
                 .mount(&mock_server)
                 .await;
 
-            let auth = dc_auth_for(&mock_server).await;
+            let auth = dc_auth_for(&mock_server);
             let result = auth.authenticate().await;
 
             if let Err(ForceError::Http(HttpError::StatusError {
@@ -593,7 +591,7 @@ mod tests {
                 .mount(&mock_server)
                 .await;
 
-            let auth = dc_auth_for(&mock_server).await;
+            let auth = dc_auth_for(&mock_server);
 
             let token1 = auth.authenticate().await.must();
             assert_eq!(token1.as_str(), "refreshed_dc_token");
@@ -639,7 +637,7 @@ mod tests {
                 .mount(&mock_server)
                 .await;
 
-            let auth = dc_auth_for(&mock_server).await;
+            let auth = dc_auth_for(&mock_server);
             let token = auth.authenticate().await.must();
 
             // DC token instance_url should be the tenant URL, NOT the platform URL

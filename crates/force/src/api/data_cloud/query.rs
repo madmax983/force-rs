@@ -128,7 +128,6 @@ mod tests {
 
     #[cfg(feature = "mock")]
     mod integration {
-        use super::*;
         use crate::auth::DataCloudConfig;
         use crate::client::builder;
         use crate::test_support::{MockAuthenticator, Must};
