@@ -33,6 +33,9 @@ pub struct ForceClientBuilder<Auth = NoAuth> {
 pub struct AuthenticatedBuilder<A: Authenticator> {
     config: Option<ClientConfig>,
     authenticator: A,
+    /// Optional Data Cloud configuration (feature-gated).
+    #[cfg(feature = "data_cloud")]
+    dc_config: Option<crate::auth::DataCloudConfig>,
 }
 
 impl ForceClientBuilder<NoAuth> {
@@ -59,6 +62,8 @@ impl ForceClientBuilder<NoAuth> {
         AuthenticatedBuilder {
             config: self.config,
             authenticator,
+            #[cfg(feature = "data_cloud")]
+            dc_config: None,
         }
     }
 }
@@ -74,6 +79,29 @@ impl<A: Authenticator> AuthenticatedBuilder<A> {
     #[must_use]
     pub fn config(mut self, config: ClientConfig) -> Self {
         self.config = Some(config);
+        self
+    }
+
+    /// Enables Data Cloud API access with the given configuration.
+    ///
+    /// This creates a secondary session with a `DataCloudAuthenticator`
+    /// that performs the two-step token exchange.
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// use force::auth::DataCloudConfig;
+    ///
+    /// let client = ForceClient::builder()
+    ///     .authenticate(auth)
+    ///     .with_data_cloud(DataCloudConfig::default())
+    ///     .build()
+    ///     .await?;
+    /// ```
+    #[cfg(feature = "data_cloud")]
+    #[must_use]
+    pub fn with_data_cloud(mut self, config: crate::auth::DataCloudConfig) -> Self {
+        self.dc_config = Some(config);
         self
     }
 
@@ -106,6 +134,40 @@ impl<A: Authenticator> AuthenticatedBuilder<A> {
         // Create token manager with the authenticator
         let token_manager = Arc::new(TokenManager::new(self.authenticator));
 
+        // Optionally create the Data Cloud session
+        #[cfg(feature = "data_cloud")]
+        let dc_session = self.dc_config.map(|dc_config| {
+            // Resolve DC-specific API version (or inherit platform)
+            let dc_api_version = dc_config
+                .api_version
+                .clone()
+                .unwrap_or_else(|| config.api_version.clone());
+
+            let dc_client_config = ClientConfig {
+                api_version: dc_api_version,
+                ..config.clone()
+            };
+
+            let dc_auth = crate::auth::DataCloudAuthenticator::new(
+                Arc::clone(&token_manager),
+                http_client.clone(),
+                dc_config,
+            );
+            let dc_token_manager = Arc::new(TokenManager::new(dc_auth));
+            let dc_http_executor = crate::http::HttpExecutor::with_client(
+                http_client.clone(),
+                dc_client_config.max_retries,
+                dc_client_config.timeout,
+            );
+
+            Arc::new(Session {
+                config: dc_client_config,
+                http_client: http_client.clone(),
+                http_executor: dc_http_executor,
+                token_manager: dc_token_manager,
+            })
+        });
+
         let session = Session {
             config,
             http_client,
@@ -115,6 +177,8 @@ impl<A: Authenticator> AuthenticatedBuilder<A> {
 
         Ok(ForceClient {
             inner: Arc::new(session),
+            #[cfg(feature = "data_cloud")]
+            dc_session,
         })
     }
 }

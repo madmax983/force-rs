@@ -90,9 +90,10 @@ Only compile what you use. Each API surface is behind a feature flag:
 - `composite` - Composite API
 - `ui` - UI API (layout-aware records, metadata, list views, favorites)
 - `graphql` - GraphQL API (queries, mutations, variables)
+- `data_cloud` - Data Cloud REST Connect API (SQL queries, two-step token exchange)
 - `jwt` - JWT Bearer authentication flow
 - `pub_sub` - gRPC Pub/Sub API (separate `force-pubsub` crate)
-- `full` - All common features (rest + tooling + bulk + composite + jwt + ui + graphql)
+- `full` - All common features (rest + tooling + bulk + composite + jwt + ui + graphql + data_cloud)
 - `all` - Everything including specialized APIs
 
 ### 2. Compile-Time Auth Safety (Phantom Type State Pattern)
@@ -207,6 +208,10 @@ crates/force/src/
     │   ├── mod.rs         # GraphqlHandler + query methods + URL resolver
     │   ├── types.rs       # GraphqlRequest, GraphqlResponse, GraphqlError
     │   └── error.rs       # GraphqlErrorResponse wrapper
+    ├── data_cloud/        # Feature: data_cloud
+    │   ├── mod.rs         # DataCloudHandler + URL resolution (ssot/) + HTTP helpers
+    │   ├── types.rs       # SqlQueryRequest, DataCloudRecord, ColumnMetadata
+    │   └── query.rs       # SQL query endpoint (query_sql)
     └── ...                # Other API surfaces
 ```
 
@@ -372,6 +377,11 @@ use force::testing::{MockForceClient, MockAuthenticator};
   - [x] query_raw (convenience string → Value)
   - [x] GraphqlRequest builder (new + with_variables + with_operation_name)
   - [x] GraphqlErrorResponse → ForceError::GraphQL conversion
+- [x] Data Cloud REST Connect API (feature: data_cloud) - See [ADR-022](docs/adr/022-data-cloud-api-design.md)
+  - [x] DataCloudAuthenticator decorator (two-step token exchange)
+  - [x] DataCloudHandler with `ssot/` URL prefix
+  - [x] SQL Query endpoint (query_sql)
+  - [x] Builder integration (.with_data_cloud())
 
 ### Phase 5: Specialized Features
 - [ ] Pub/Sub API via gRPC (feature: pub_sub)
@@ -574,6 +584,7 @@ Significant architectural decisions are documented in `docs/adr/`:
 - [ADR-019](docs/adr/019-tooling-api-design.md) - RestOperation trait and Tooling API design
 - [ADR-020](docs/adr/020-ui-api-design.md) - UI API handler design (separate from RestOperation)
 - [ADR-021](docs/adr/021-graphql-api-design.md) - GraphQL API error handling and dual query API design
+- [ADR-022](docs/adr/022-data-cloud-api-design.md) - Data Cloud API decorator authenticator and token exchange design
 
 ## Contributing
 
