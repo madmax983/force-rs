@@ -1,3 +1,0 @@
- INFO Waiting for lock on /app/mutants.out/lock.json ...: Resource temporarily unavailable (os error 11)
-ERROR interrupted
-Error: interrupted
