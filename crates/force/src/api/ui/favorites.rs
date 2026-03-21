@@ -264,7 +264,16 @@ mod tests {
         };
 
         let result = client.ui().create_favorite(&input).await;
-        assert!(result.is_err());
+        let Err(err) = result else {
+            panic!("Expected an error");
+        };
+        assert!(
+            matches!(
+                err,
+                crate::error::ForceError::Api(_) | crate::error::ForceError::Http(_)
+            ),
+            "Expected Api or Http error, got: {err}"
+        );
     }
 
     // ── update_favorite success ───────────────────────────────────────────────
@@ -317,7 +326,16 @@ mod tests {
             .await;
 
         let result = client.ui().update_favorite(FAV_ID, &make_input()).await;
-        assert!(result.is_err());
+        let Err(err) = result else {
+            panic!("Expected an error");
+        };
+        assert!(
+            matches!(
+                err,
+                crate::error::ForceError::Api(_) | crate::error::ForceError::Http(_)
+            ),
+            "Expected Api or Http error, got: {err}"
+        );
     }
 
     // ── delete_favorite success (204) ─────────────────────────────────────────
@@ -359,7 +377,16 @@ mod tests {
             .await;
 
         let result = client.ui().delete_favorite(FAV_ID).await;
-        assert!(result.is_err());
+        let Err(err) = result else {
+            panic!("Expected an error");
+        };
+        assert!(
+            matches!(
+                err,
+                crate::error::ForceError::Api(_) | crate::error::ForceError::Http(_)
+            ),
+            "Expected Api or Http error, got: {err}"
+        );
     }
 
     // ── unit: FavoriteInput serialization ────────────────────────────────────

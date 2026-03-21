@@ -196,3 +196,12 @@ match result {
 **Finding:** The tests in `test_schema_analyzer` and `test_schema_analyzer_complexity_math` did not effectively exercise mathematical logic limits (`total_fields / 10`) yielding non-zero values or permutations of conditions (`&&` to `||`).
 **Evidence:** `cargo mutants` revealed that mutants modifying mathematical operators and boolean logic went uncaught.
 **Recommendation:** Refactored tests by introducing `test_schema_analyzer_exhaustive_mutants` to strictly define 21 distinct fields. This ensures all mathematical formulas (e.g. division resulting in non-zero values) and combinations of `custom`, `nillable`, and `reference` logic are fully exercised.
+
+
+### [Strengthened] `assert!(result.is_err())` Eradication Across `crates/force/src/api/` and `crates/force-pubsub/`
+
+**Module:** `crates/force/src/api/` and `crates/force-pubsub/`
+**Severity:** 🟡 Suspect
+**Finding:** "The Ceremony Test" pattern `assert!(result.is_err())` was found in multiple UI, tooling, GraphQL, and pubsub tests. This provides false confidence because tests could falsely pass if the function fails for completely unrelated reasons.
+**Evidence:** Found over 30 occurrences across `graphql/mod.rs`, `ui/favorites.rs`, `ui/lookups.rs`, `ui/list_views.rs`, `ui/actions.rs`, `ui/layouts.rs`, `ui/object_info.rs`, `ui/records.rs`, `tooling/execute_anonymous.rs`, `tooling/run_tests.rs`, `tooling/completions.rs`, `force-pubsub/src/codec.rs`, `force-pubsub/src/schema_cache.rs`, and `force-pubsub/tests/handler_tests.rs`.
+**Recommendation:** Refactored tests to explicitly unwrap the error using `let Err(err) = result else { panic!("Expected an error"); };` and assertions to ensure tests only pass if they fail exactly as intended.

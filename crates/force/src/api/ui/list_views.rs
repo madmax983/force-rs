@@ -289,7 +289,16 @@ mod tests {
             .await;
 
         let result = client.ui().list_ui(LIST_VIEW_ID).await;
-        assert!(result.is_err());
+        let Err(err) = result else {
+            panic!("Expected an error");
+        };
+        assert!(
+            matches!(
+                err,
+                crate::error::ForceError::Api(_) | crate::error::ForceError::Http(_)
+            ),
+            "Expected Api or Http error, got: {err}"
+        );
     }
 
     // ── list_views ────────────────────────────────────────────────────────────
@@ -503,7 +512,16 @@ mod tests {
             .ui()
             .list_records(LIST_VIEW_ID, Some(9999), None)
             .await;
-        assert!(result.is_err());
+        let Err(err) = result else {
+            panic!("Expected an error");
+        };
+        assert!(
+            matches!(
+                err,
+                crate::error::ForceError::Api(_) | crate::error::ForceError::Http(_)
+            ),
+            "Expected Api or Http error, got: {err}"
+        );
     }
 
     // ── list_info ─────────────────────────────────────────────────────────────
@@ -560,7 +578,16 @@ mod tests {
             .await;
 
         let result = client.ui().list_info(LIST_VIEW_ID).await;
-        assert!(result.is_err());
+        let Err(err) = result else {
+            panic!("Expected an error");
+        };
+        assert!(
+            matches!(
+                err,
+                crate::error::ForceError::Api(_) | crate::error::ForceError::Http(_)
+            ),
+            "Expected Api or Http error, got: {err}"
+        );
     }
 
     // ── type deserialization unit tests ───────────────────────────────────────

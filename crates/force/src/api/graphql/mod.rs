@@ -377,8 +377,9 @@ mod integration_tests {
         let req = GraphqlRequest::new("{ bad query }");
         let result: crate::error::Result<Value> = handler.query(&req).await;
 
-        assert!(result.is_err());
-        let err = result.unwrap_err();
+        let Err(err) = result else {
+            panic!("Expected an error");
+        };
         let err_msg = err.to_string();
         assert!(
             err_msg.contains("Cannot query field 'Foo'"),
@@ -444,7 +445,16 @@ mod integration_tests {
 
         let req = GraphqlRequest::new("{ query }");
         let result: crate::error::Result<Value> = handler.query(&req).await;
-        assert!(result.is_err());
+        let Err(err) = result else {
+            panic!("Expected an error");
+        };
+        assert!(
+            matches!(
+                err,
+                crate::error::ForceError::Api(_) | crate::error::ForceError::Http(_)
+            ),
+            "Expected Api or Http error, got: {err}"
+        );
     }
 
     #[tokio::test]
@@ -522,8 +532,10 @@ mod integration_tests {
 
         let req = GraphqlRequest::new("{ query }");
         let result: crate::error::Result<Value> = handler.query(&req).await;
-        assert!(result.is_err());
-        let err = result.unwrap_err().to_string();
+        let Err(err_val) = result else {
+            panic!("Expected an error");
+        };
+        let err = err_val.to_string();
         assert!(err.contains("neither data nor errors"), "Got: {err}");
     }
 

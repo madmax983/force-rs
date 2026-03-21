@@ -126,7 +126,9 @@ mod tests {
         let schema = Schema::parse_str(SIMPLE_SCHEMA).expect("valid schema");
         let garbage = vec![0xFF, 0xFE, 0xFD];
         let result = decode_avro(&schema, &garbage);
-        assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), PubSubError::Avro(_)));
+        let Err(err) = result else {
+            panic!("Expected an error");
+        };
+        assert!(matches!(err, PubSubError::Avro(_)));
     }
 }

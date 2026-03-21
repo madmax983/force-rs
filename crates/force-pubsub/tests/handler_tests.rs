@@ -91,8 +91,10 @@ async fn test_get_schema_not_found_returns_error() {
     let (handler, _userinfo) = make_handler(url).await;
 
     let result = handler.get_schema("nonexistent-schema").await;
-    assert!(result.is_err());
-    assert!(matches!(result.unwrap_err(), PubSubError::Transport(_)));
+    let Err(err) = result else {
+        panic!("Expected an error");
+    };
+    assert!(matches!(err, PubSubError::Transport(_)));
 }
 
 #[tokio::test]
@@ -113,8 +115,10 @@ async fn test_connect_rejects_invalid_batch_size_zero() {
         ..PubSubConfig::default()
     };
     let result = PubSubHandler::connect(client.session(), config).await;
-    assert!(result.is_err());
-    let err = result.err().unwrap();
+    let Err(err) = result else {
+        panic!("Expected an error");
+    };
+
     assert!(matches!(err, PubSubError::Config(_)));
 }
 
@@ -129,8 +133,10 @@ async fn test_connect_rejects_invalid_batch_size_over_100() {
         ..PubSubConfig::default()
     };
     let result = PubSubHandler::connect(client.session(), config).await;
-    assert!(result.is_err());
-    let err = result.err().unwrap();
+    let Err(err) = result else {
+        panic!("Expected an error");
+    };
+
     assert!(matches!(err, PubSubError::Config(_)));
 }
 

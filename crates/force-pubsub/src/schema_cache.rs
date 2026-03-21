@@ -153,8 +153,10 @@ mod tests {
     fn test_parse_invalid_schema_returns_error() {
         let cache = SchemaCache::new();
         let result = cache.parse_and_insert("bad".to_string(), "{ not valid avro }");
-        assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), PubSubError::Avro(_)));
+        let Err(err) = result else {
+            panic!("Expected an error");
+        };
+        assert!(matches!(err, PubSubError::Avro(_)));
         assert!(cache.is_empty());
     }
 
