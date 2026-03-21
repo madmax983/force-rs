@@ -53,7 +53,7 @@ pub use schema_graph::SchemaGraph;
 pub use data_dictionary::DataDictionary;
 
 #[cfg(feature = "schema")]
-pub use type_generator::StructGenerator;
+pub use type_generator::generate_rust_struct;
 
 #[cfg(feature = "schema")]
 pub use schema_diff::{FieldChange, SchemaDiffResult, compare_schemas};
@@ -77,4 +77,4 @@ pub use schema_changelog::generate_changelog;
 #[cfg(feature = "schema")]
 pub(crate) mod typescript_generator;
 #[cfg(feature = "schema")]
-pub use typescript_generator::TypescriptGenerator;
+pub use typescript_generator::generate_typescript_interface;
