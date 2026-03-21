@@ -41,6 +41,7 @@ impl std::error::Error for CpqErrorResponse {}
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::Must;
 
     #[test]
     fn test_cpq_error_deserialize_with_code() {
@@ -49,7 +50,7 @@ mod tests {
             "errorCode": "ENTITY_NOT_FOUND"
         });
 
-        let err: CpqErrorResponse = serde_json::from_value(json).unwrap();
+        let err: CpqErrorResponse = serde_json::from_value(json).must();
         assert_eq!(err.message, "Quote not found");
         assert_eq!(err.error_code.as_deref(), Some("ENTITY_NOT_FOUND"));
     }
@@ -60,7 +61,7 @@ mod tests {
             "message": "Internal error occurred"
         });
 
-        let err: CpqErrorResponse = serde_json::from_value(json).unwrap();
+        let err: CpqErrorResponse = serde_json::from_value(json).must();
         assert_eq!(err.message, "Internal error occurred");
         assert!(err.error_code.is_none());
     }
@@ -74,7 +75,7 @@ mod tests {
             "statusCode": 400
         });
 
-        let err: CpqErrorResponse = serde_json::from_value(json).unwrap();
+        let err: CpqErrorResponse = serde_json::from_value(json).must();
         assert!(err.extra.contains_key("fields"));
         assert!(err.extra.contains_key("statusCode"));
     }

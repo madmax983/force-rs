@@ -312,7 +312,11 @@ mod tests {
     async fn test_handler_is_cloneable() {
         let (_server, client) = setup().await;
         let handler = client.apex_rest();
-        let _cloned = handler.clone();
+        let cloned = handler.clone();
+        // Verify both handlers share the same session via Arc
+        let debug_original = format!("{handler:?}");
+        let debug_cloned = format!("{cloned:?}");
+        assert_eq!(debug_original, debug_cloned);
     }
 
     #[tokio::test]

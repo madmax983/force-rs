@@ -392,6 +392,7 @@ impl GenerateDocumentRequest {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::Must;
 
     // ── QuoteModel tests ─────────────────────────────────────────────
 
@@ -407,7 +408,7 @@ mod tests {
             "lineItems": []
         });
 
-        let quote: QuoteModel = serde_json::from_value(json).unwrap();
+        let quote: QuoteModel = serde_json::from_value(json).must();
         assert_eq!(quote.id.as_deref(), Some("a0x000000000001AAA"));
         assert_eq!(quote.status.as_deref(), Some("Draft"));
         assert_eq!(quote.net_amount, Some(1500.0));
@@ -427,7 +428,7 @@ mod tests {
             "AnotherCustom__c": 42
         });
 
-        let quote: QuoteModel = serde_json::from_value(json).unwrap();
+        let quote: QuoteModel = serde_json::from_value(json).must();
         assert_eq!(quote.extra["CustomField__c"], "custom_value");
         assert_eq!(quote.extra["AnotherCustom__c"], 42);
     }
@@ -448,7 +449,7 @@ mod tests {
             ]
         });
 
-        let quote: QuoteModel = serde_json::from_value(json).unwrap();
+        let quote: QuoteModel = serde_json::from_value(json).must();
         assert_eq!(quote.line_items.len(), 1);
         let line = &quote.line_items[0];
         assert_eq!(line.id.as_deref(), Some("a0y000000000001AAA"));
@@ -476,15 +477,15 @@ mod tests {
             extra: HashMap::new(),
         };
 
-        let json = serde_json::to_string(&original).unwrap();
-        let deserialized: QuoteModel = serde_json::from_str(&json).unwrap();
+        let json = serde_json::to_string(&original).must();
+        let deserialized: QuoteModel = serde_json::from_str(&json).must();
         assert_eq!(original, deserialized);
     }
 
     #[test]
     fn test_quote_model_default_line_items() {
         let json = serde_json::json!({"Id": "a0x000000000001AAA"});
-        let quote: QuoteModel = serde_json::from_value(json).unwrap();
+        let quote: QuoteModel = serde_json::from_value(json).must();
         assert!(quote.line_items.is_empty());
     }
 
@@ -504,7 +505,7 @@ mod tests {
             "SBQQ__Quote__c": "a0x000000000001AAA"
         });
 
-        let line: QuoteLineModel = serde_json::from_value(json).unwrap();
+        let line: QuoteLineModel = serde_json::from_value(json).must();
         assert_eq!(line.quantity, Some(5.0));
         assert_eq!(line.discount, Some(10.0));
         assert_eq!(line.optional, Some(false));
@@ -518,7 +519,7 @@ mod tests {
             "CustomLineField__c": "extra_data"
         });
 
-        let line: QuoteLineModel = serde_json::from_value(json).unwrap();
+        let line: QuoteLineModel = serde_json::from_value(json).must();
         assert_eq!(line.extra["CustomLineField__c"], "extra_data");
     }
 
@@ -533,7 +534,7 @@ mod tests {
             "options": [{"id": "opt1"}]
         });
 
-        let product: ProductModel = serde_json::from_value(json).unwrap();
+        let product: ProductModel = serde_json::from_value(json).must();
         assert!(product.record.is_some());
         assert_eq!(product.feature_categories.len(), 1);
         assert!(product.features.is_empty());
@@ -551,7 +552,7 @@ mod tests {
             "validationMessages": []
         });
 
-        let config: ConfigurationModel = serde_json::from_value(json).unwrap();
+        let config: ConfigurationModel = serde_json::from_value(json).must();
         assert_eq!(
             config.configured_product_id.as_deref(),
             Some("01t000000000001AAA")
@@ -570,7 +571,7 @@ mod tests {
             "validationMessages": ["Required option missing", "Minimum quantity not met"]
         });
 
-        let config: ConfigurationModel = serde_json::from_value(json).unwrap();
+        let config: ConfigurationModel = serde_json::from_value(json).must();
         assert_eq!(config.valid, Some(false));
         assert_eq!(config.validation_messages.len(), 2);
     }
@@ -580,20 +581,20 @@ mod tests {
     #[test]
     fn test_service_router_request_new() {
         let model = serde_json::json!({"quoteId": "a0x000000000001AAA"});
-        let req = ServiceRouterRequest::new("SBQQ.QuoteAPI.QuoteReader", &model).unwrap();
+        let req = ServiceRouterRequest::new("SBQQ.QuoteAPI.QuoteReader", &model).must();
 
         assert_eq!(req.saver, "SBQQ.QuoteAPI.QuoteReader");
         // model should be a JSON string, not an object
-        let parsed: serde_json::Value = serde_json::from_str(&req.model).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&req.model).must();
         assert_eq!(parsed["quoteId"], "a0x000000000001AAA");
     }
 
     #[test]
     fn test_service_router_request_serializes_double_json() {
         let model = serde_json::json!({"quoteId": "a0x000000000001AAA"});
-        let req = ServiceRouterRequest::new("SBQQ.QuoteAPI.QuoteReader", &model).unwrap();
+        let req = ServiceRouterRequest::new("SBQQ.QuoteAPI.QuoteReader", &model).must();
 
-        let serialized = serde_json::to_value(&req).unwrap();
+        let serialized = serde_json::to_value(&req).must();
         // The outer "model" value must be a string, not an object
         assert!(serialized["model"].is_string());
     }

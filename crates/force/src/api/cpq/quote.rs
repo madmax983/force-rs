@@ -213,8 +213,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let quote: crate::api::cpq::QuoteModel =
-            serde_json::from_value(sample_quote_json()).unwrap();
+        let quote: crate::api::cpq::QuoteModel = serde_json::from_value(sample_quote_json()).must();
 
         let saved = client.cpq().save_quote(&quote).await.must();
         assert_eq!(saved.id.as_deref(), Some("a0x000000000001AAA"));
@@ -247,8 +246,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let quote: crate::api::cpq::QuoteModel =
-            serde_json::from_value(sample_quote_json()).unwrap();
+        let quote: crate::api::cpq::QuoteModel = serde_json::from_value(sample_quote_json()).must();
 
         let calculated = client.cpq().calculate_quote(&quote).await.must();
         assert_eq!(calculated.net_amount, Some(1350.0));
@@ -306,8 +304,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let quote: crate::api::cpq::QuoteModel =
-            serde_json::from_value(sample_quote_json()).unwrap();
+        let quote: crate::api::cpq::QuoteModel = serde_json::from_value(sample_quote_json()).must();
 
         let result = client.cpq().save_quote(&quote).await;
         assert!(result.is_err());
@@ -324,8 +321,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let quote: crate::api::cpq::QuoteModel =
-            serde_json::from_value(sample_quote_json()).unwrap();
+        let quote: crate::api::cpq::QuoteModel = serde_json::from_value(sample_quote_json()).must();
 
         let result = client.cpq().calculate_quote(&quote).await;
         assert!(result.is_err());
