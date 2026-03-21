@@ -571,7 +571,9 @@ mod tests {
         Mock::given(method("POST"))
             .and(path("/services/oauth2/token"))
             .and(body_string_contains("grant_type=refresh_token"))
-            .and(body_string_contains("refresh_token=fake_refresh_token_for_testing"))
+            .and(body_string_contains(
+                "refresh_token=fake_refresh_token_for_testing",
+            ))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "access_token": "refreshed_access_token",
                 "instance_url": "https://test.my.salesforce.com",
