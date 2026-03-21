@@ -179,6 +179,43 @@ impl<A: crate::auth::authenticator::Authenticator> ForceClient<A> {
         crate::api::graphql::GraphqlHandler::new(Arc::clone(&self.inner))
     }
 
+    /// Creates an Apex REST API handler for this client.
+    ///
+    /// The Apex REST handler provides generic HTTP access to any custom Apex
+    /// REST endpoint at `/services/apexrest/{path}`.
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// let client = builder().authenticate(auth).build().await?;
+    /// let result: serde_json::Value = client.apex_rest()
+    ///     .post("MyNamespace/MyEndpoint", &body)
+    ///     .await?;
+    /// ```
+    #[cfg(feature = "apex_rest")]
+    #[must_use]
+    pub fn apex_rest(&self) -> crate::api::apex_rest::ApexRestHandler<A> {
+        crate::api::apex_rest::ApexRestHandler::new(Arc::clone(&self.inner))
+    }
+
+    /// Creates a Salesforce CPQ API handler for this client.
+    ///
+    /// The CPQ handler provides typed access to the Salesforce CPQ
+    /// ServiceRouter for quote lifecycle, product configuration,
+    /// document generation, and contract amendment operations.
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// let client = builder().authenticate(auth).build().await?;
+    /// let quote = client.cpq().read_quote("a0x000000000001").await?;
+    /// ```
+    #[cfg(feature = "cpq")]
+    #[must_use]
+    pub fn cpq(&self) -> crate::api::cpq::CpqHandler<A> {
+        crate::api::cpq::CpqHandler::new(Arc::clone(&self.inner))
+    }
+
     /// Creates a Data Cloud API handler for this client.
     ///
     /// The Data Cloud handler provides access to the Salesforce Data Cloud
