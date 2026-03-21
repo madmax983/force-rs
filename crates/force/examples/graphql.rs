@@ -22,11 +22,52 @@
 #[cfg(feature = "graphql")]
 mod example {
     use anyhow::{Context, Result};
-    use force::api::graphql::{GraphqlRequest, GraphqlResponse};
+    use force::api::graphql::{GraphqlHandler, GraphqlRequest, GraphqlResponse};
     use force::auth::ClientCredentials;
     use force::client::ForceClientBuilder;
     use serde::Deserialize;
     use serde_json::{Value, json};
+
+    // Typed deserialization structs for Salesforce GraphQL responses.
+    #[derive(Debug, Deserialize)]
+    struct UiApi {
+        uiapi: UiApiQuery,
+    }
+
+    #[derive(Debug, Deserialize)]
+    struct UiApiQuery {
+        query: AccountQuery,
+    }
+
+    #[derive(Debug, Deserialize)]
+    #[serde(rename_all = "PascalCase")]
+    struct AccountQuery {
+        account: Connection,
+    }
+
+    #[derive(Debug, Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Connection {
+        edges: Vec<Edge>,
+        total_count: u32,
+    }
+
+    #[derive(Debug, Deserialize)]
+    struct Edge {
+        node: AccountNode,
+    }
+
+    #[derive(Debug, Deserialize)]
+    #[serde(rename_all = "PascalCase")]
+    struct AccountNode {
+        id: String,
+        name: FieldValue,
+    }
+
+    #[derive(Debug, Deserialize)]
+    struct FieldValue {
+        value: Option<String>,
+    }
 
     pub async fn run() -> Result<()> {
         let client_id = std::env::var("SF_CLIENT_ID").context("SF_CLIENT_ID not set")?;
@@ -44,11 +85,21 @@ mod example {
         let gql = client.graphql();
         println!("Authentication successful\n");
 
-        // ── 1. Simple Raw Query ─────────────────────────────────────────
+        raw_query_example(&gql).await?;
+        variables_example(&gql).await?;
+        typed_query_example(&gql).await?;
+        partial_success_example(&gql).await?;
+        error_handling_example(&gql).await?;
+
+        println!("\nGraphQL API example complete.");
+        Ok(())
+    }
+
+    async fn raw_query_example(gql: &GraphqlHandler<ClientCredentials>) -> Result<()> {
         println!("=== Simple Query (raw Value) ===");
         let data = gql
             .query_raw(
-                r#"{
+                r"{
                     uiapi {
                         query {
                             Account(first: 5) {
@@ -63,7 +114,7 @@ mod example {
                             }
                         }
                     }
-                }"#,
+                }",
                 None,
             )
             .await?;
@@ -81,11 +132,13 @@ mod example {
             }
         }
         println!();
+        Ok(())
+    }
 
-        // ── 2. Query with Variables ──────────────────────────────────────
+    async fn variables_example(gql: &GraphqlHandler<ClientCredentials>) -> Result<()> {
         println!("=== Query with Variables ===");
         let req = GraphqlRequest::new(
-            r#"query GetAccounts($limit: Int) {
+            r"query GetAccounts($limit: Int) {
                 uiapi {
                     query {
                         Account(first: $limit) {
@@ -102,7 +155,7 @@ mod example {
                         }
                     }
                 }
-            }"#,
+            }",
         )
         .with_variables(json!({"limit": 3}))
         .with_operation_name("GetAccounts");
@@ -114,52 +167,13 @@ mod example {
             page_info["hasNextPage"].as_bool().unwrap_or(false)
         );
         println!();
+        Ok(())
+    }
 
-        // ── 3. Typed Deserialization ─────────────────────────────────────
+    async fn typed_query_example(gql: &GraphqlHandler<ClientCredentials>) -> Result<()> {
         println!("=== Typed Query ===");
-
-        #[derive(Debug, Deserialize)]
-        struct UiApi {
-            uiapi: UiApiQuery,
-        }
-
-        #[derive(Debug, Deserialize)]
-        struct UiApiQuery {
-            query: AccountQuery,
-        }
-
-        #[derive(Debug, Deserialize)]
-        #[serde(rename_all = "PascalCase")]
-        struct AccountQuery {
-            account: Connection,
-        }
-
-        #[derive(Debug, Deserialize)]
-        #[serde(rename_all = "camelCase")]
-        struct Connection {
-            edges: Vec<Edge>,
-            total_count: u32,
-        }
-
-        #[derive(Debug, Deserialize)]
-        struct Edge {
-            node: AccountNode,
-        }
-
-        #[derive(Debug, Deserialize)]
-        #[serde(rename_all = "PascalCase")]
-        struct AccountNode {
-            id: String,
-            name: FieldValue,
-        }
-
-        #[derive(Debug, Deserialize)]
-        struct FieldValue {
-            value: Option<String>,
-        }
-
         let req = GraphqlRequest::new(
-            r#"{
+            r"{
                 uiapi {
                     query {
                         Account(first: 3) {
@@ -173,7 +187,7 @@ mod example {
                         }
                     }
                 }
-            }"#,
+            }",
         );
 
         let typed: UiApi = gql.query(&req).await?;
@@ -186,11 +200,13 @@ mod example {
             );
         }
         println!();
+        Ok(())
+    }
 
-        // ── 4. Partial Success Handling ──────────────────────────────────
+    async fn partial_success_example(gql: &GraphqlHandler<ClientCredentials>) -> Result<()> {
         println!("=== Partial Success (query_with_errors) ===");
         let req = GraphqlRequest::new(
-            r#"{
+            r"{
                 uiapi {
                     query {
                         Account(first: 1) {
@@ -203,7 +219,7 @@ mod example {
                         }
                     }
                 }
-            }"#,
+            }",
         );
 
         let envelope: GraphqlResponse<Value> = gql.query_with_errors(&req).await?;
@@ -220,16 +236,16 @@ mod example {
         if envelope.data.is_some() {
             println!("  Data received successfully");
         }
+        Ok(())
+    }
 
-        // ── 5. Error Handling ────────────────────────────────────────────
+    async fn error_handling_example(gql: &GraphqlHandler<ClientCredentials>) -> Result<()> {
         println!("\n=== Error Handling ===");
         let bad_req = GraphqlRequest::new("{ invalid { query } }");
         match gql.query::<Value>(&bad_req).await {
             Ok(_) => println!("  Query succeeded (unexpected)"),
             Err(e) => println!("  Expected error: {e}"),
         }
-
-        println!("\nGraphQL API example complete.");
         Ok(())
     }
 }

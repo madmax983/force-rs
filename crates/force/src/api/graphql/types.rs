@@ -123,6 +123,8 @@ pub struct GraphqlErrorLocation {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)]
+
     use super::*;
     use serde_json::json;
 
@@ -228,7 +230,7 @@ mod tests {
 
     #[test]
     fn test_response_neither_data_nor_errors() {
-        let json_str = r#"{}"#;
+        let json_str = r"{}";
         let resp: GraphqlResponse = serde_json::from_str(json_str).unwrap();
 
         assert!(resp.data.is_none());

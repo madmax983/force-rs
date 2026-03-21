@@ -174,6 +174,8 @@ impl<A: crate::auth::Authenticator> GraphqlHandler<A> {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)]
+
     use crate::client::{ForceClient, builder};
     use crate::test_support::{MockAuthenticator, Must, MustMsg};
 
@@ -240,6 +242,8 @@ mod tests {
 
 #[cfg(test)]
 mod integration_tests {
+    #![allow(clippy::unwrap_used, clippy::items_after_statements)]
+
     use super::*;
     use crate::client::builder;
     use crate::test_support::{MockAuthenticator, Must};
