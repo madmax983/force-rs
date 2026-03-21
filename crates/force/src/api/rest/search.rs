@@ -459,8 +459,24 @@ fn validate_field_syntax(field: &str) {
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
     use crate::test_support::Must;
+
+    #[test]
+    #[should_panic(expected = "Invalid input in returning: invalid input: field name contains invalid character: '@' in \"Invalid@Field\"")]
+    fn test_returning_invalid_character_fallback() {
+        let _ = SearchQueryBuilder::new()
+            .find("test")
+            .returning("Account", &["Invalid@Field"])
+            .build();
+    }
+
+    #[test]
+    #[should_panic(expected = "field name contains invalid character outside quotes: ';' in \"Invalid;Field\"")]
+    fn test_validate_field_syntax_panics() {
+        validate_field_syntax("Invalid;Field");
+    }
 
     // RED PHASE - Write failing tests first
 
