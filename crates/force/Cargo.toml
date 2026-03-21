@@ -68,8 +68,11 @@ mock = ["dep:wiremock"]
 # UI API surface
 ui = []
 
+# GraphQL API surface
+graphql = []
+
 # Meta features
-full = ["rest", "bulk", "composite", "tooling", "jwt", "ui"]
+full = ["rest", "bulk", "composite", "tooling", "jwt", "ui", "graphql"]
 all = ["full", "schema", "data_utility", "composite_graph"]
 
 [[example]]
@@ -95,3 +98,7 @@ required-features = ["tooling"]
 [[example]]
 name = "ui_api"
 required-features = ["ui"]
+
+[[example]]
+name = "graphql"
+required-features = ["graphql"]

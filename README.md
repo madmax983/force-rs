@@ -7,7 +7,7 @@
 
 **A canonical Salesforce Platform API client for Rust** — built with production-grade safety, performance, and developer ergonomics.
 
-force-rs provides idiomatic Rust bindings to the Salesforce Platform APIs, enabling you to build high-performance integrations, data pipelines, and automation tools. With comprehensive REST and Bulk API 2.0 support, compile-time safe workflows, and memory-efficient streaming, force-rs is designed for real-world enterprise workloads.
+force-rs provides idiomatic Rust bindings to the Salesforce Platform APIs, enabling you to build high-performance integrations, data pipelines, and automation tools. With comprehensive coverage of 7 API surfaces, compile-time safe workflows, and memory-efficient streaming, force-rs is designed for real-world enterprise workloads.
 
 ## Features
 
@@ -19,18 +19,41 @@ force-rs provides idiomatic Rust bindings to the Salesforce Platform APIs, enabl
 - **Relationship Support** - Query parent-child and lookup relationships seamlessly
 
 ### Bulk API 2.0
-- **Compile-Time Safety** - Strict guarantees for job lifecycle (Open → Upload → InProgress → Complete)
+- **Compile-Time Safety** - Strict guarantees for job lifecycle (Open -> Upload -> InProgress -> Complete)
 - **Ingest Jobs** - Insert, update, upsert, and delete millions of records efficiently
 - **Query Jobs** - Execute bulk queries with streaming CSV results
 - **Memory Efficient** - Stream large datasets without loading entire payloads into RAM
 - **Error Handling** - Comprehensive job monitoring and failure analysis
+
+### Composite API
+- **Batch Requests** - Combine up to 25 subrequests in a single HTTP call
+- **Graph Requests** - Up to 500 nodes with dependency ordering (feature: `composite_graph`)
+- **Reduced API Consumption** - Minimize round trips and stay within governor limits
+
+### Tooling API
+- **Apex Management** - Query and manage Apex classes, triggers, and components
+- **Execute Anonymous** - Run Apex code on the fly with full result inspection
+- **Test Execution** - Run Apex tests synchronously or asynchronously
+- **Code Completions** - IDE-style completions for Apex and Visualforce
+
+### UI API
+- **Layout-Aware Records** - Get presentation-ready data with display values and field visibility
+- **Object Metadata** - Retrieve field info, picklist values, and record type mappings
+- **List Views** - Access list view definitions, columns, and paginated records
+- **Lookups & Favorites** - Type-ahead search and user favorite management
+
+### GraphQL API
+- **Unified Queries** - Request specific fields and nested relationships in a single call
+- **Typed Results** - Deserialize into custom Rust structs or use dynamic `Value`
+- **Variables & Operations** - Parameterized queries with named operations
+- **Partial Success Handling** - Inspect both data and errors when both are present
 
 ### Core Features
 - **Multiple Auth Flows** - JWT bearer, OAuth 2.0 client credentials
 - **Feature-Gated** - Enable only the APIs you need for minimal binary size
 - **Async/Await** - Built on Tokio for high-concurrency workloads
 - **Type-Safe Errors** - Structured error types with context for debugging
-- **Production Ready** - 339 tests, zero clippy warnings, comprehensive examples
+- **Production Ready** - 870+ tests, zero clippy warnings, comprehensive examples
 
 ## Installation
 
@@ -101,6 +124,44 @@ async fn main() -> anyhow::Result<()> {
 
 ## Advanced Examples
 
+### GraphQL Query
+
+Query specific fields and nested relationships in a single request:
+
+```rust
+// Requires the "graphql" feature: force = { version = "0.1", features = ["graphql"] }
+use force::api::graphql::GraphqlRequest;
+use force::auth::ClientCredentials;
+use force::client::ForceClientBuilder;
+use serde_json::json;
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    let auth = ClientCredentials::new_production("client-id", "client-secret");
+    let client = ForceClientBuilder::new().authenticate(auth).build().await?;
+    let gql = client.graphql();
+
+    // Simple raw query
+    let data = gql.query_raw(
+        r#"{ uiapi { query { Account(first: 5) {
+            edges { node { Id Name { value } } }
+            totalCount
+        } } } }"#,
+        None,
+    ).await?;
+
+    println!("Total: {}", data["uiapi"]["query"]["Account"]["totalCount"]);
+
+    // Query with variables
+    let req = GraphqlRequest::new("query($limit: Int) { uiapi { query { Account(first: $limit) { edges { node { Id } } } } } }")
+        .with_variables(json!({"limit": 10}))
+        .with_operation_name("GetAccounts");
+    let data: serde_json::Value = gql.query(&req).await?;
+
+    Ok(())
+}
+```
+
 ### Bulk Insert with Compile-Time Safety
 
 The Bulk API uses Rust's type system to enforce the correct job lifecycle at compile time:
@@ -133,7 +194,7 @@ async fn main() -> anyhow::Result<()> {
         Account { name: "Global Ltd".into(), industry: "Manufacturing".into() },
     ];
 
-    // Convenience method handles: create job → upload CSV → close → poll
+    // Convenience method handles: create job -> upload CSV -> close -> poll
     let job_info = client.bulk().insert("Account", &accounts).await?;
 
     println!("Processed: {}, Failed: {}",
@@ -194,48 +255,51 @@ async fn main() -> anyhow::Result<()> {
 
 The [`examples/`](crates/force/examples) directory contains comprehensive demonstrations:
 
-| Example | Description |
-|---------|-------------|
-| [`basic_crud.rs`](crates/force/examples/basic_crud.rs) | Complete CRUD lifecycle (create, read, update, delete) |
-| [`soql_query.rs`](crates/force/examples/soql_query.rs) | Typed queries with pagination and relationships |
-| [`dynamic_query.rs`](crates/force/examples/dynamic_query.rs) | Dynamic queries without predefined types |
-| [`search.rs`](crates/force/examples/search.rs) | SOSL full-text search with builder pattern |
-| [`describe.rs`](crates/force/examples/describe.rs) | Object and field metadata introspection |
-| [`org_limits.rs`](crates/force/examples/org_limits.rs) | API limits and usage monitoring |
-| [`bulk_insert.rs`](crates/force/examples/bulk_insert.rs) | Bulk insert with job monitoring |
-| [`bulk_query.rs`](crates/force/examples/bulk_query.rs) | Bulk query with streaming results |
-| [`bulk_update.rs`](crates/force/examples/bulk_update.rs) | Bulk update operations |
-| [`bulk_delete.rs`](crates/force/examples/bulk_delete.rs) | Bulk delete with error handling |
+| Example | Feature | Description |
+|---------|---------|-------------|
+| [`basic_crud.rs`](crates/force/examples/basic_crud.rs) | `rest` | Complete CRUD lifecycle (create, read, update, delete) |
+| [`soql_query.rs`](crates/force/examples/soql_query.rs) | `rest` | Typed queries with pagination and relationships |
+| [`dynamic_query.rs`](crates/force/examples/dynamic_query.rs) | `rest` | Dynamic queries without predefined types |
+| [`search.rs`](crates/force/examples/search.rs) | `rest` | SOSL full-text search with builder pattern |
+| [`describe.rs`](crates/force/examples/describe.rs) | `rest` | Object and field metadata introspection |
+| [`org_limits.rs`](crates/force/examples/org_limits.rs) | `rest` | API limits and usage monitoring |
+| [`bulk_insert.rs`](crates/force/examples/bulk_insert.rs) | `bulk` | Bulk insert with job monitoring |
+| [`bulk_query.rs`](crates/force/examples/bulk_query.rs) | `bulk` | Bulk query with streaming results |
+| [`bulk_update.rs`](crates/force/examples/bulk_update.rs) | `bulk` | Bulk update operations |
+| [`bulk_delete.rs`](crates/force/examples/bulk_delete.rs) | `bulk` | Bulk delete with error handling |
+| [`tooling.rs`](crates/force/examples/tooling.rs) | `tooling` | Apex classes, anonymous execution, completions, tests |
+| [`ui_api.rs`](crates/force/examples/ui_api.rs) | `ui` | Layout-aware records, object info, list views, favorites |
+| [`graphql.rs`](crates/force/examples/graphql.rs) | `graphql` | GraphQL queries, typed results, variables, error handling |
+| [`soql_mass_op.rs`](crates/force/examples/soql_mass_op.rs) | `composite` | Composite batch operations |
+| [`query_plan.rs`](crates/force/examples/query_plan.rs) | `rest` | SOQL query plan inspection |
 
 Run any example with:
 
 ```bash
 cargo run --example soql_query
 cargo run --example bulk_insert --features bulk
+cargo run --example graphql --features graphql
 ```
 
 ## Features Reference
 
 force-rs uses feature flags to minimize dependencies and binary size:
 
-| Feature | Description |
-|---------|-------------|
-| `rest` | REST API (CRUD, SOQL, SOSL, describe, limits) — enabled by default |
-| `bulk` | Bulk API 2.0 (ingest and query jobs) |
-| `jwt` | JWT bearer token authentication |
-| `composite` | Composite API (batch requests) |
-| `tooling` | Tooling API (Apex, metadata) |
-| `metadata` | Metadata API (deployment, retrieval) |
-| `graphql` | GraphQL API support |
-| `pub_sub` | Pub/Sub API (Change Data Capture, Platform Events) |
-| `streaming` | Streaming API (Push Topics, Generic Streaming) |
-| `analytics` | Analytics REST API |
-| `connect` | Chatter REST API |
-| `soap` | SOAP API support |
-| `mock` | Wiremock utilities for testing |
-| `full` | All APIs except experimental (`pub_sub`, `streaming`, `soap`) |
-| `all` | Everything including experimental features |
-| `nova` | Enables the Query Plan API (`explain`) |
+| Feature | Description | Status |
+|---------|-------------|--------|
+| `rest` | REST API (CRUD, SOQL, SOSL, describe, limits) | Default |
+| `bulk` | Bulk API 2.0 (ingest and query jobs) | Stable |
+| `composite` | Composite API (batch requests) | Stable |
+| `composite_graph` | Composite Graph API (dependency-ordered nodes) | Stable |
+| `tooling` | Tooling API (Apex, execute anonymous, tests, completions) | Stable |
+| `ui` | UI API (layout-aware records, object info, list views, favorites) | Stable |
+| `graphql` | GraphQL API (queries, mutations, variables) | Stable |
+| `jwt` | JWT bearer token authentication | Stable |
+| `schema` | Schema utilities (data dictionary, struct generation) | Experimental |
+| `data_utility` | Data utilities (field usage scanning) | Experimental |
+| `mock` | Wiremock utilities for testing | Stable |
+| `full` | All stable APIs (`rest` + `bulk` + `composite` + `tooling` + `ui` + `graphql` + `jwt`) | Meta |
+| `all` | Everything including experimental features | Meta |
 
 **Recommendation:** Start with `default` features, then add `bulk` and `jwt` as needed.
 
@@ -245,20 +309,14 @@ The `force` crate includes experimental features that are not yet stable but are
 
 ### Query Plan API (`nova` feature)
 
-> **⚠️ REQUIRES FEATURE: `nova`**
->
-> You must enable the `nova` feature in your `Cargo.toml` to use this API.
+> **Requires feature: `nova`**
 
 The Query Plan API allows you to inspect the performance cost of a SOQL query before executing it. This is useful for identifying inefficient queries (e.g., table scans) in CI/CD pipelines.
-
-To use it, enable the `nova` feature in `Cargo.toml`:
 
 ```toml
 [dependencies]
 force = { version = "0.1", features = ["nova"] }
 ```
-
-Example usage:
 
 ```rust
 // Requires the "nova" feature: force = { version = "0.1", features = ["nova"] }
@@ -267,11 +325,7 @@ use force::auth::ClientCredentials;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // For Sandbox, use: ClientCredentials::new_sandbox("client-id", "client-secret")
-    let auth = ClientCredentials::new_production(
-        "client-id",
-        "client-secret",
-    );
+    let auth = ClientCredentials::new_production("client-id", "client-secret");
     let client = ForceClientBuilder::new().authenticate(auth).build().await?;
 
     let soql = "SELECT Id FROM Account WHERE Name LIKE 'A%'";
@@ -296,20 +350,40 @@ The `force::experimental` module contains utilities that are being incubated:
 
 These are available by default but are located in the `experimental` module to indicate their stability level.
 
-## Roadmap
+## Architecture
 
-force-rs v0.1.0 provides production-ready REST and Bulk API support. Future releases will add:
+force-rs is built around a handler pattern where each API surface gets its own feature-gated handler type:
 
-- **v0.2.0** - Composite API for batch operations
-- **v0.3.0** - Tooling API for Apex and metadata operations
-- **v0.4.0** - Metadata API for deployment and retrieval
-- **v0.5.0** - Pub/Sub API for Change Data Capture and Platform Events
-- **v1.0.0** - Complete Salesforce Platform API coverage with stability guarantees
+```
+ForceClient<A>
+  |-- .rest()       -> RestHandler<A>       (feature: rest)
+  |-- .bulk()       -> BulkHandler<A>       (feature: bulk)
+  |-- .composite()  -> CompositeHandler<A>  (feature: composite)
+  |-- .tooling()    -> ToolingHandler<A>    (feature: tooling)
+  |-- .ui()         -> UiHandler<A>         (feature: ui)
+  |-- .graphql()    -> GraphqlHandler<A>    (feature: graphql)
+```
 
+All handlers share a common `Session<A>` (via `Arc`) containing the HTTP client, token manager, and configuration. This ensures zero-cost handler creation and shared authentication state.
+
+Architectural decisions are documented in [`docs/adr/`](docs/adr/):
+
+| ADR | Decision |
+|-----|----------|
+| [001](docs/adr/001-workspace-structure.md) | Workspace structure and module organization |
+| [002](docs/adr/002-authentication-strategy.md) | Authentication trait design and flow support |
+| [003](docs/adr/003-error-handling.md) | Error hierarchy with thiserror |
+| [004](docs/adr/004-feature-gates.md) | Feature flag strategy for API surfaces |
+| [005](docs/adr/005-compile-time-auth-safety.md) | Compile-time auth safety with phantom types |
+| [006](docs/adr/006-handler-pattern.md) | Handler pattern for API organization |
+| [007](docs/adr/007-rest-api-design.md) | REST API design decisions |
+| [019](docs/adr/019-tooling-api-design.md) | RestOperation trait and Tooling API |
+| [020](docs/adr/020-ui-api-design.md) | UI API handler design |
+| [021](docs/adr/021-graphql-api-design.md) | GraphQL API error handling strategy |
 
 ## Testing
 
-force-rs has comprehensive test coverage (339 tests) using wiremock for HTTP mocking:
+force-rs has comprehensive test coverage (870+ tests) using wiremock for HTTP mocking:
 
 ```bash
 # Run all tests
@@ -318,8 +392,9 @@ cargo test --all-features
 # Run with logging
 RUST_LOG=debug cargo test --all-features
 
-# Run specific test
-cargo test --test rest_crud_tests --features rest
+# Run specific API surface tests
+cargo test --features graphql -- graphql
+cargo test --features bulk -- bulk
 ```
 
 Nightly live-contract tests (ignored by default in local runs) are available in CI and can be run manually with org credentials.
@@ -350,7 +425,7 @@ The crate-level compatibility and feature-flag guarantees are documented in:
 
 Contributions are welcome! force-rs follows strict TDD discipline and quality standards:
 
-- **Test-Driven Development** - All features require failing tests first (RED → GREEN → REFACTOR)
+- **Test-Driven Development** - All features require failing tests first (RED -> GREEN -> REFACTOR)
 - **Code Quality** - `cargo fmt` and `cargo clippy -- -D warnings` must pass
 - **Documentation** - All public APIs require doc comments with examples
 - **Architecture** - ADRs (Architecture Decision Records) for significant changes
@@ -372,4 +447,4 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 
 ---
 
-**Built with ❤️ by the force-rs contributors** | [Documentation](https://docs.rs/force) | [Examples](crates/force/examples) | [Issues](https://github.com/markm/force-rs/issues)
+**Built by the force-rs contributors** | [Documentation](https://docs.rs/force) | [Examples](crates/force/examples) | [Issues](https://github.com/markm/force-rs/issues)
