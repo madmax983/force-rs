@@ -464,7 +464,9 @@ mod tests {
     use crate::test_support::Must;
 
     #[test]
-    #[should_panic(expected = "Invalid input in returning: invalid input: field name contains invalid character: '@' in \"Invalid@Field\"")]
+    #[should_panic(
+        expected = "Invalid input in returning: invalid input: field name contains invalid character: '@' in \"Invalid@Field\""
+    )]
     fn test_returning_invalid_character_fallback() {
         let _ = SearchQueryBuilder::new()
             .find("test")
@@ -473,7 +475,9 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "field name contains invalid character outside quotes: ';' in \"Invalid;Field\"")]
+    #[should_panic(
+        expected = "field name contains invalid character outside quotes: ';' in \"Invalid;Field\""
+    )]
     fn test_validate_field_syntax_panics() {
         validate_field_syntax("Invalid;Field");
     }
