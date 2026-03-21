@@ -188,3 +188,11 @@ match result {
 **Finding:** Widespread use of `assert!(result.is_err())` ("The Ceremony Test" pattern) provided false confidence. As Elenchus dictates: `assert!(result.is_err())` is not an assertion — it is a prayer. It hides the underlying error variants and survives mutation because it permits tests to pass if the function fails for completely unrelated reasons.
 **Evidence:** Found over 40 occurrences across `scanner.rs`, `soql.rs`, `search.rs`, `limits.rs`, `csv.rs`, `ingest.rs`, `smart_ingest.rs`, `query.rs`, `error.rs`, `token_manager.rs`, `client_credentials.rs`, `jwt_bearer.rs`, `token.rs`, `salesforce_id.rs`, and `sobject.rs`.
 **Recommendation:** Refactored tests to explicitly unwrap the error using `let Err(variant) = result else { panic!("...") }` and assertions to ensure tests only pass if they fail exactly as intended.
+
+### [Strengthened] `crates/force/src/experimental/schema_analyzer.rs`
+
+**Module:** `crates/force/src/experimental/schema_analyzer.rs`
+**Severity:** 🔴 Critical
+**Finding:** The tests in `test_schema_analyzer` and `test_schema_analyzer_complexity_math` did not effectively exercise mathematical logic limits (`total_fields / 10`) yielding non-zero values or permutations of conditions (`&&` to `||`).
+**Evidence:** `cargo mutants` revealed that mutants modifying mathematical operators and boolean logic went uncaught.
+**Recommendation:** Refactored tests by introducing `test_schema_analyzer_exhaustive_mutants` to strictly define 21 distinct fields. This ensures all mathematical formulas (e.g. division resulting in non-zero values) and combinations of `custom`, `nillable`, and `reference` logic are fully exercised.
