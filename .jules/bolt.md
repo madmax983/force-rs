@@ -1,3 +1,3 @@
-**⚡ Bolt: Optimize Data Dictionary Generator String Allocations**
-**Learning:** Replaced `format!` and `.join()` calls with `writeln!` and `write!` directly to a pre-allocated `String` buffer. Avoided temporary string heap allocations when generating Markdown table rows.
-**Action:** Use `std::fmt::Write` to build large strings iteratively instead of concatenating multiple `String` allocations.
+**⚡ Bolt: Refactored `compare_schemas` in `crates/force/src/experimental/schema_diff.rs`**
+**Learning:** Instead of allocating a `HashMap` for both the old and new schema fields when calculating a diff, we can allocate just one for the `old_schema`. By iterating over `new_schema` fields directly and using `.remove()` on the `old_schema` map, we can avoid a second `HashMap` allocation and easily identify removed fields as those remaining in the map.
+**Action:** When computing diffs between two lists, only index one of them into a `HashMap` to avoid unnecessary heap allocations.
