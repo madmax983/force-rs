@@ -1,7 +1,13 @@
 # 🔭 Vantage: Spec for Pub/Sub API (gRPC Event Streaming)
 
-**What business problem does this solve?**
+**Business problem:**
 Salesforce data changes rapidly, and polling the REST API for updates consumes org limits and introduces latency. Enterprise integrations need real-time event streaming to trigger downstream workflows (e.g., updating a local database or notifying external services) instantly when Salesforce records are created or modified.
+
+**Gap Analysis:**
+Currently, developers must rely on constant REST API polling (which hits governor limits) or legacy CometD libraries (which lack type safety and are hard to maintain in Rust). We need a lightweight, native gRPC client that provides high-performance, real-time streaming directly from Salesforce.
+
+**Success metric:**
+Success = Ability to receive 1,000 events per minute with < 500ms latency without unexpected connection drops.
 
 👤 **User Story:**
 As an Enterprise Integration Engineer, I want to subscribe to Salesforce Change Data Capture (CDC) and Platform Events via a gRPC stream, so that I can process data changes in real-time without polling and hitting API limits.
@@ -10,7 +16,6 @@ As an Enterprise Integration Engineer, I want to subscribe to Salesforce Change 
 - Must establish a secure, authenticated gRPC connection to the Salesforce Pub/Sub API.
 - Must support subscribing to standard and custom topics (e.g., `/data/ChangeEvents`).
 - Must automatically handle authentication token refreshing and connection reconnects if the stream drops.
-- Success = Ability to receive 1,000 events per minute with < 500ms latency without unexpected connection drops.
 
 🚫 **Out of Scope:**
 - Publishing events back to Salesforce (Phase 2).
