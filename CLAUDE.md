@@ -91,10 +91,12 @@ Only compile what you use. Each API surface is behind a feature flag:
 - `ui` - UI API (layout-aware records, metadata, list views, favorites)
 - `graphql` - GraphQL API (queries, mutations, variables)
 - `data_cloud` - Data Cloud REST Connect API (SQL queries, two-step token exchange)
+- `apex_rest` - Generic Apex REST API (custom `/services/apexrest/` endpoints)
+- `cpq` - Salesforce CPQ API (quote lifecycle, product config, documents, amendments)
 - `jwt` - JWT Bearer authentication flow
 - `pub_sub` - gRPC Pub/Sub API (separate `force-pubsub` crate)
-- `full` - All common features (rest + tooling + bulk + composite + jwt + ui + graphql + data_cloud)
-- `all` - Everything including specialized APIs
+- `full` - All common features (rest + tooling + bulk + composite + jwt + ui + graphql + data_cloud + apex_rest)
+- `all` - Everything including specialized APIs (+ cpq)
 
 ### 2. Compile-Time Auth Safety (Phantom Type State Pattern)
 The builder uses phantom types to enforce authentication at compile time:
@@ -130,9 +132,17 @@ let job = client.bulk().query("SELECT Id FROM Contact").await?;
 
 // Composite API operations (feature: composite)
 let result = client.composite().request(composite_req).await?;
+
+// Apex REST operations (feature: apex_rest) - custom Apex REST endpoints
+let data: Value = client.apex_rest().post("MyNamespace/MyEndpoint", &body).await?;
+
+// CPQ operations (feature: cpq) - typed Salesforce CPQ API
+let quote = client.cpq().read_quote("a0x000000000001AAA").await?;
+let calculated = client.cpq().calculate_quote(&quote).await?;
 ```
 See [ADR-006](docs/adr/006-handler-pattern.md) for handler pattern rationale.
 See [ADR-019](docs/adr/019-tooling-api-design.md) for the `RestOperation` trait extraction.
+See [ADR-023](docs/adr/023-apex-rest-cpq-design.md) for the Apex REST + CPQ layered design.
 
 ### 4. TDD RED-GREEN-REFACTOR
 Every feature follows strict test-driven development:
@@ -212,6 +222,17 @@ crates/force/src/
     │   ├── mod.rs         # DataCloudHandler + URL resolution (ssot/) + HTTP helpers
     │   ├── types.rs       # SqlQueryRequest, DataCloudRecord, ColumnMetadata
     │   └── query.rs       # SQL query endpoint (query_sql)
+    ├── apex_rest/         # Feature: apex_rest
+    │   └── mod.rs         # ApexRestHandler + resolve_apex_rest_url + HTTP methods
+    ├── cpq/               # Feature: cpq (depends on apex_rest)
+    │   ├── mod.rs         # CpqHandler + ServiceRouter dispatch helpers
+    │   ├── types.rs       # QuoteModel, QuoteLineModel, ProductModel, ConfigurationModel
+    │   ├── error.rs       # CpqErrorResponse
+    │   ├── quote.rs       # read_quote, save_quote, calculate_quote, add_products
+    │   ├── product.rs     # load_product
+    │   ├── config.rs      # load_config, validate_config
+    │   ├── document.rs    # generate_document
+    │   └── contract.rs    # amend_contract
     └── ...                # Other API surfaces
 ```
 
@@ -382,6 +403,19 @@ use force::testing::{MockForceClient, MockAuthenticator};
   - [x] DataCloudHandler with `ssot/` URL prefix
   - [x] SQL Query endpoint (query_sql)
   - [x] Builder integration (.with_data_cloud())
+- [x] Apex REST API (feature: apex_rest) - See [ADR-023](docs/adr/023-apex-rest-cpq-design.md)
+  - [x] ApexRestHandler with public GET/POST/PATCH/PUT/DELETE methods
+  - [x] `resolve_apex_rest_url` on Session (version-less URL construction)
+  - [x] Generic access to any `/services/apexrest/{path}` endpoint
+- [x] CPQ API (feature: cpq, depends on apex_rest) - See [ADR-023](docs/adr/023-apex-rest-cpq-design.md)
+  - [x] CpqHandler with ServiceRouter dispatch (POST + PATCH)
+  - [x] Quote lifecycle: read_quote, save_quote, calculate_quote, add_products
+  - [x] Product loading: load_product
+  - [x] Configuration: load_config, validate_config
+  - [x] Document generation: generate_document
+  - [x] Contract amendment: amend_contract
+  - [x] Typed models: QuoteModel, QuoteLineModel, ProductModel, ConfigurationModel
+  - [x] ServiceRouterRequest with double-serialized JSON envelope
 
 ### Phase 5: Specialized Features
 - [ ] Pub/Sub API via gRPC (feature: pub_sub)
@@ -585,6 +619,7 @@ Significant architectural decisions are documented in `docs/adr/`:
 - [ADR-020](docs/adr/020-ui-api-design.md) - UI API handler design (separate from RestOperation)
 - [ADR-021](docs/adr/021-graphql-api-design.md) - GraphQL API error handling and dual query API design
 - [ADR-022](docs/adr/022-data-cloud-api-design.md) - Data Cloud API decorator authenticator and token exchange design
+- [ADR-023](docs/adr/023-apex-rest-cpq-design.md) - Apex REST and CPQ API layered design
 
 ## Contributing
 

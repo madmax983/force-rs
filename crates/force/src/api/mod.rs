@@ -24,6 +24,12 @@ pub mod graphql;
 #[cfg(feature = "data_cloud")]
 pub mod data_cloud;
 
+#[cfg(feature = "apex_rest")]
+pub mod apex_rest;
+
+#[cfg(feature = "cpq")]
+pub mod cpq;
+
 pub mod rest_operation;
 pub mod soql;
 

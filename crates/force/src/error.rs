@@ -46,6 +46,11 @@ pub enum ForceError {
     #[cfg(feature = "graphql")]
     #[error("GraphQL error: {0}")]
     GraphQL(#[from] crate::api::graphql::GraphqlErrorResponse),
+
+    /// CPQ API errors (feature-gated).
+    #[cfg(feature = "cpq")]
+    #[error("CPQ error: {0}")]
+    Cpq(#[from] crate::api::cpq::CpqErrorResponse),
 }
 
 /// Authentication-related errors.

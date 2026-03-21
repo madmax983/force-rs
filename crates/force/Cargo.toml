@@ -74,9 +74,15 @@ graphql = []
 # Data Cloud API surface
 data_cloud = []
 
+# Apex REST API surface (custom Apex REST endpoints)
+apex_rest = []
+
+# Salesforce CPQ API surface
+cpq = ["apex_rest"]
+
 # Meta features
-full = ["rest", "bulk", "composite", "tooling", "jwt", "ui", "graphql", "data_cloud"]
-all = ["full", "schema", "data_utility", "composite_graph"]
+full = ["rest", "bulk", "composite", "tooling", "jwt", "ui", "graphql", "data_cloud", "apex_rest"]
+all = ["full", "schema", "data_utility", "composite_graph", "cpq"]
 
 [[example]]
 name = "query_plan"
