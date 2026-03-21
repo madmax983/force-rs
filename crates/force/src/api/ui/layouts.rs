@@ -293,7 +293,16 @@ mod tests {
             .await;
 
         let result = client.ui().layout("NoSuchObject", None, None).await;
-        assert!(result.is_err());
+        let Err(err) = result else {
+            panic!("Expected an error");
+        };
+        assert!(
+            matches!(
+                err,
+                crate::error::ForceError::Api(_) | crate::error::ForceError::Http(_)
+            ),
+            "Expected Api or Http error, got: {err}"
+        );
     }
 
     // ── unit / deserialization tests ─────────────────────────────────────────

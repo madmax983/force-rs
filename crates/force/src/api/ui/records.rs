@@ -458,7 +458,16 @@ mod tests {
             .await;
 
         let result = client.ui().record_ui(&[VALID_ID], None, None).await;
-        assert!(result.is_err());
+        let Err(err) = result else {
+            panic!("Expected an error");
+        };
+        assert!(
+            matches!(
+                err,
+                crate::error::ForceError::Api(_) | crate::error::ForceError::Http(_)
+            ),
+            "Expected Api or Http error, got: {err}"
+        );
     }
 
     // ── get_record ───────────────────────────────────────────────────────────
@@ -523,7 +532,16 @@ mod tests {
             .await;
 
         let result = client.ui().get_record(VALID_ID, None).await;
-        assert!(result.is_err());
+        let Err(err) = result else {
+            panic!("Expected an error");
+        };
+        assert!(
+            matches!(
+                err,
+                crate::error::ForceError::Api(_) | crate::error::ForceError::Http(_)
+            ),
+            "Expected Api or Http error, got: {err}"
+        );
     }
 
     // ── get_records_batch ────────────────────────────────────────────────────
@@ -638,7 +656,16 @@ mod tests {
         };
 
         let result = client.ui().create_record(&input).await;
-        assert!(result.is_err());
+        let Err(err) = result else {
+            panic!("Expected an error");
+        };
+        assert!(
+            matches!(
+                err,
+                crate::error::ForceError::Api(_) | crate::error::ForceError::Http(_)
+            ),
+            "Expected Api or Http error, got: {err}"
+        );
     }
 
     // ── update_record ────────────────────────────────────────────────────────
@@ -691,7 +718,16 @@ mod tests {
         };
 
         let result = client.ui().update_record(VALID_ID, &input).await;
-        assert!(result.is_err());
+        let Err(err) = result else {
+            panic!("Expected an error");
+        };
+        assert!(
+            matches!(
+                err,
+                crate::error::ForceError::Api(_) | crate::error::ForceError::Http(_)
+            ),
+            "Expected Api or Http error, got: {err}"
+        );
     }
 
     // ── delete_record ────────────────────────────────────────────────────────
@@ -731,7 +767,16 @@ mod tests {
             .await;
 
         let result = client.ui().delete_record(VALID_ID).await;
-        assert!(result.is_err());
+        let Err(err) = result else {
+            panic!("Expected an error");
+        };
+        assert!(
+            matches!(
+                err,
+                crate::error::ForceError::Api(_) | crate::error::ForceError::Http(_)
+            ),
+            "Expected Api or Http error, got: {err}"
+        );
     }
 
     // ── create_defaults ──────────────────────────────────────────────────────
@@ -788,7 +833,16 @@ mod tests {
             .await;
 
         let result = client.ui().create_defaults("NoSuchObject").await;
-        assert!(result.is_err());
+        let Err(err) = result else {
+            panic!("Expected an error");
+        };
+        assert!(
+            matches!(
+                err,
+                crate::error::ForceError::Api(_) | crate::error::ForceError::Http(_)
+            ),
+            "Expected Api or Http error, got: {err}"
+        );
     }
 
     // ── clone_defaults ───────────────────────────────────────────────────────
@@ -850,7 +904,16 @@ mod tests {
             .await;
 
         let result = client.ui().clone_defaults(VALID_ID).await;
-        assert!(result.is_err());
+        let Err(err) = result else {
+            panic!("Expected an error");
+        };
+        assert!(
+            matches!(
+                err,
+                crate::error::ForceError::Api(_) | crate::error::ForceError::Http(_)
+            ),
+            "Expected Api or Http error, got: {err}"
+        );
     }
 
     // ── type deserialization ─────────────────────────────────────────────────
