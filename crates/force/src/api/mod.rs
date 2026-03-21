@@ -30,6 +30,9 @@ pub mod apex_rest;
 #[cfg(feature = "cpq")]
 pub mod cpq;
 
+#[cfg(feature = "consent")]
+pub mod consent;
+
 pub mod rest_operation;
 pub mod soql;
 
