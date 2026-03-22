@@ -216,6 +216,24 @@ impl<A: crate::auth::authenticator::Authenticator> ForceClient<A> {
         crate::api::cpq::CpqHandler::new(Arc::clone(&self.inner))
     }
 
+    /// Creates a Consent & Portability API handler for this client.
+    ///
+    /// The Consent handler provides access to consent status checks
+    /// and GDPR/CCPA data portability requests.
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// let client = builder().authenticate(auth).build().await?;
+    /// let consent = client.consent();
+    /// let result = consent.read_consent("email", &["001xx000003GYk1"]).await?;
+    /// ```
+    #[cfg(feature = "consent")]
+    #[must_use]
+    pub fn consent(&self) -> crate::api::consent::ConsentHandler<A> {
+        crate::api::consent::ConsentHandler::new(Arc::clone(&self.inner))
+    }
+
     /// Creates a Data Cloud API handler for this client.
     ///
     /// The Data Cloud handler provides access to the Salesforce Data Cloud

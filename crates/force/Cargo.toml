@@ -81,8 +81,11 @@ apex_rest = []
 # Salesforce CPQ API surface
 cpq = ["apex_rest"]
 
+# Consent & Portability API surface (GDPR/CCPA)
+consent = []
+
 # Meta features
-full = ["rest", "bulk", "composite", "tooling", "jwt", "ui", "graphql", "data_cloud", "apex_rest"]
+full = ["rest", "bulk", "composite", "tooling", "jwt", "ui", "graphql", "data_cloud", "apex_rest", "consent"]
 all = ["full", "schema", "data_utility", "composite_graph", "cpq"]
 
 [[example]]

@@ -93,6 +93,7 @@ Only compile what you use. Each API surface is behind a feature flag:
 - `data_cloud` - Data Cloud REST Connect API (SQL queries, two-step token exchange)
 - `apex_rest` - Generic Apex REST API (custom `/services/apexrest/` endpoints)
 - `cpq` - Salesforce CPQ API (quote lifecycle, product config, documents, amendments)
+- `consent` - Consent & Portability API (GDPR/CCPA consent checks, data export)
 - `jwt` - JWT Bearer authentication flow
 - `username_password` - Username-password flow (deprecated by Salesforce, feature-gated as speed bump)
 - `pub_sub` - gRPC Pub/Sub API (separate `force-pubsub` crate)
@@ -140,6 +141,9 @@ let data: Value = client.apex_rest().post("MyNamespace/MyEndpoint", &body).await
 // CPQ operations (feature: cpq) - typed Salesforce CPQ API
 let quote = client.cpq().read_quote("a0x000000000001AAA").await?;
 let calculated = client.cpq().calculate_quote(&quote).await?;
+
+// Consent operations (feature: consent) - GDPR/CCPA compliance
+let consent = client.consent().read_consent("email", &["001xx..."]).await?;
 ```
 See [ADR-006](docs/adr/006-handler-pattern.md) for handler pattern rationale.
 See [ADR-019](docs/adr/019-tooling-api-design.md) for the `RestOperation` trait extraction.
@@ -234,6 +238,11 @@ crates/force/src/
     │   ├── config.rs      # load_config, validate_config
     │   ├── document.rs    # generate_document
     │   └── contract.rs    # amend_contract
+    ├── consent/           # Feature: consent
+    │   ├── mod.rs         # ConsentHandler + URL resolvers
+    │   ├── types.rs       # ConsentValue, ConsentRecord, PortabilityRequest/Response
+    │   ├── action.rs      # read_consent, read_consent_multi
+    │   └── portability.rs # request_portability, check_portability_status
     └── ...                # Other API surfaces
 ```
 
@@ -420,6 +429,11 @@ use force::testing::{MockForceClient, MockAuthenticator};
   - [x] Contract amendment: amend_contract
   - [x] Typed models: QuoteModel, QuoteLineModel, ProductModel, ConfigurationModel
   - [x] ServiceRouterRequest with double-serialized JSON envelope
+- [x] Consent & Portability API (feature: consent) - See [ADR-024](docs/adr/024-consent-portability-api-design.md)
+  - [x] ConsentHandler with consent + portability URL resolution
+  - [x] Consent reads: read_consent (single action), read_consent_multi (multiple actions)
+  - [x] Portability: request_portability, check_portability_status
+  - [x] Typed ConsentValue enum (Yes/No/Unknown) with fail-safe deserialization
 
 ### Phase 5: Specialized Features
 - [ ] Pub/Sub API via gRPC (feature: pub_sub)

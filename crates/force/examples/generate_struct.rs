@@ -11,7 +11,7 @@ use std::env;
 #[cfg(feature = "schema")]
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    use force::experimental::StructGenerator;
+    use force::experimental::generate_rust_struct;
 
     let client_id =
         env::var("SALESFORCE_CLIENT_ID").unwrap_or_else(|_| "your-client-id".to_string());
@@ -53,7 +53,7 @@ async fn main() -> anyhow::Result<()> {
     println!("GENERATED RUST CODE FOR {}", sobject_name.to_uppercase());
     println!("==========================================\n");
 
-    let generated_code = StructGenerator::generate(&describe);
+    let generated_code = generate_rust_struct(&describe);
     println!("{generated_code}");
 
     Ok(())
@@ -62,7 +62,7 @@ async fn main() -> anyhow::Result<()> {
 #[cfg(feature = "schema")]
 fn fallback_demonstration() -> anyhow::Result<()> {
     use force::api::rest::SObjectDescribe;
-    use force::experimental::StructGenerator;
+    use force::experimental::generate_rust_struct;
 
     println!("\nFallback demonstration mode:\n");
 
@@ -185,7 +185,7 @@ fn fallback_demonstration() -> anyhow::Result<()> {
     }"#;
 
     let describe: SObjectDescribe = serde_json::from_str(json)?;
-    println!("{}", StructGenerator::generate(&describe));
+    println!("{}", generate_rust_struct(&describe));
     Ok(())
 }
 

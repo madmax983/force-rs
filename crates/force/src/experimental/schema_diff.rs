@@ -82,38 +82,30 @@ pub fn compare_schemas(
 ) -> SchemaDiffResult {
     let mut result = SchemaDiffResult::default();
 
-    let old_fields: HashMap<&str, &FieldDescribe> = old_schema
-        .fields
-        .iter()
-        .map(|f| (f.name.as_str(), f))
-        .collect();
-
-    let new_fields: HashMap<&str, &FieldDescribe> = new_schema
+    let mut old_fields: HashMap<&str, &FieldDescribe> = old_schema
         .fields
         .iter()
         .map(|f| (f.name.as_str(), f))
         .collect();
 
     // Find added and changed fields
-    for (name, new_field) in &new_fields {
-        if let Some(old_field) = old_fields.get(name) {
+    for new_field in &new_schema.fields {
+        if let Some(old_field) = old_fields.remove(new_field.name.as_str()) {
             if old_field.type_ != new_field.type_ {
                 result.changed_fields.push(FieldChange {
-                    name: (*name).to_string(),
+                    name: new_field.name.clone(),
                     old_type: old_field.type_.clone(),
                     new_type: new_field.type_.clone(),
                 });
             }
         } else {
-            result.added_fields.push((*new_field).clone());
+            result.added_fields.push(new_field.clone());
         }
     }
 
     // Find removed fields
-    for (name, old_field) in old_fields {
-        if !new_fields.contains_key(name) {
-            result.removed_fields.push((*old_field).clone());
-        }
+    for old_field in old_fields.into_values() {
+        result.removed_fields.push(old_field.clone());
     }
 
     // Sort to ensure deterministic output

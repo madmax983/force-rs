@@ -65,3 +65,7 @@
 **[The Facade: Eliminating Empty Static Struct in data_faker]**
 **Tangle:** The `DataFaker` struct was an empty static struct used only as a namespace for `generate_mock_record`.
 **Blueprint:** Refactored `DataFaker` into the free function `generate_mock_record`.
+
+**[The Facade: Eliminating Empty Static Structs for Type Generators]**
+**Tangle:** The `type_generator` and `typescript_generator` modules were exposing empty static structs `StructGenerator` and `TypescriptGenerator`, which acted merely as namespaces for `generate` functions. This is a Java-style object-oriented anti-pattern in Rust that introduces unnecessary namespacing and obfuscates intent.
+**Blueprint:** Refactored `StructGenerator` into the `generate_rust_struct` free function and `TypescriptGenerator` into the `generate_typescript_interface` free function. Removed the empty structs and their `impl` blocks. Exported the free functions via `pub use` in `experimental/mod.rs` to present a clean, idiomatic Rust API.
