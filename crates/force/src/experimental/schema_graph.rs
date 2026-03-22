@@ -31,6 +31,7 @@ use crate::auth::Authenticator;
 use crate::client::ForceClient;
 use crate::error::Result;
 use std::collections::{HashMap, HashSet};
+use std::fmt::Write;
 
 /// A node in the schema graph representing an SObject.
 #[derive(Debug, Clone)]
@@ -107,7 +108,7 @@ impl<'a, A: Authenticator> SchemaGraph<'a, A> {
         // 1. Define entities and fields
         for name in &node_names {
             let node = &self.nodes[*name];
-            mermaid.push_str(&format!("    {} {{\n", node.name));
+            let _ = writeln!(mermaid, "    {} {{", node.name);
 
             for field in &node.fields {
                 let type_str = match field.type_ {
@@ -121,7 +122,7 @@ impl<'a, A: Authenticator> SchemaGraph<'a, A> {
                     FieldType::Picklist => "picklist",
                     _ => "string", // Simplify other types for visualization
                 };
-                mermaid.push_str(&format!("        {} {}\n", type_str, field.name));
+                let _ = writeln!(mermaid, "        {} {}", type_str, field.name);
             }
             mermaid.push_str("    }\n\n");
         }
@@ -136,10 +137,11 @@ impl<'a, A: Authenticator> SchemaGraph<'a, A> {
                         if self.nodes.contains_key(target) {
                             // Relationship: Target ||--o{ Source : FieldName
                             // Example: Account ||--o{ Contact : AccountId
-                            mermaid.push_str(&format!(
-                                "    {} ||--o{{ {} : \"{}\"\n",
+                            let _ = writeln!(
+                                mermaid,
+                                "    {} ||--o{{ {} : \"{}\"",
                                 target, node.name, field.name
-                            ));
+                            );
                         }
                     }
                 }
