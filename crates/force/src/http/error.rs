@@ -49,30 +49,47 @@ pub fn parse_api_error(status_code: u16, body: &str) -> HttpError {
 
 /// Converts an HTTP error response into a `ForceError` using Salesforce-aware parsing.
 ///
-/// If the response body is empty or unreadable, falls back to `fallback_message`.
+/// Reads the body of an HTTP response up to a specified byte limit.
+/// This prevents memory exhaustion (DoS) attacks from maliciously large error responses.
+///
+/// It strictly caps the internal allocation and reads chunk by chunk.
+pub async fn read_capped_body(response: Response, limit_bytes: usize) -> String {
+    let mut stream = response.bytes_stream();
+
+    // ⚡ Bolt: Pre-allocate a reasonable capacity, up to max limit.
+    // If limit is smaller than default, use limit. Default 4096.
+    let init_cap = std::cmp::min(limit_bytes, 4096);
+    let mut bytes = Vec::with_capacity(init_cap);
+
+    while let Some(chunk) = stream.next().await {
+        if let Ok(chunk_bytes) = chunk {
+            // Check remaining capacity before extending
+            let remaining = limit_bytes.saturating_sub(bytes.len());
+
+            if remaining == 0 {
+                break;
+            }
+
+            if chunk_bytes.len() > remaining {
+                bytes.extend_from_slice(&chunk_bytes[..remaining]);
+                break;
+            }
+            bytes.extend_from_slice(&chunk_bytes);
+        } else {
+            break;
+        }
+    }
+
+    String::from_utf8_lossy(&bytes).into_owned()
+}
+
 pub async fn response_to_force_error(
     response: Response,
     fallback_message: &str,
 ) -> crate::error::ForceError {
     let status_code = response.status().as_u16();
 
-    // Read up to 1MB to prevent memory exhaustion DoS
-    let mut stream = response.bytes_stream();
-    #[allow(unused_doc_comments)]
-    /// ⚡ Bolt: Pre-allocate capacity for the error body to minimize reallocations
-    let mut bytes = Vec::with_capacity(4096);
-    while let Some(chunk) = stream.next().await {
-        if let Ok(chunk_bytes) = chunk {
-            bytes.extend_from_slice(&chunk_bytes);
-            if bytes.len() > 1024 * 1024 {
-                bytes.truncate(1024 * 1024);
-                break;
-            }
-        } else {
-            break;
-        }
-    }
-    let body = String::from_utf8_lossy(&bytes).into_owned();
+    let body = read_capped_body(response, 1024 * 1024).await;
 
     let payload = if body.trim().is_empty() {
         fallback_message.to_string()
