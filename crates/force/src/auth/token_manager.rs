@@ -85,9 +85,10 @@ impl<A: Authenticator> TokenManager<A> {
         }; // Read lock dropped here
 
         // Fast path: check if current token is valid (not soft expired)
-        if !is_soft_expired && !is_hard_expired && current_token.is_some() {
-            #[allow(clippy::unwrap_used)]
-            return Ok(current_token.unwrap());
+        if let Some(token) = current_token.as_ref() {
+            if !is_soft_expired && !is_hard_expired {
+                return Ok(token.clone());
+            }
         }
 
         if is_hard_expired {
