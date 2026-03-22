@@ -78,3 +78,8 @@ pub use schema_changelog::generate_changelog;
 pub(crate) mod typescript_generator;
 #[cfg(feature = "schema")]
 pub use typescript_generator::generate_typescript_interface;
+
+#[cfg(feature = "schema")]
+pub(crate) mod openapi_generator;
+#[cfg(feature = "schema")]
+pub use openapi_generator::OpenApiGenerator;
