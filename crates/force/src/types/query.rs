@@ -630,4 +630,16 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn test_query_iterator_empty_middle_page() {
+        let page1: QueryResult<i32> = QueryResult::with_next_page(5, vec![1, 2], "/next1".into());
+        let page2: QueryResult<i32> = QueryResult::with_next_page(5, vec![], "/next2".into());
+        let page3: QueryResult<i32> = QueryResult::new(5, true, vec![4, 5]);
+
+        let iter = QueryIterator::new(vec![page1, page2, page3]);
+        let collected: Vec<i32> = iter.collect();
+
+        assert_eq!(collected, vec![1, 2, 4, 5]);
+    }
 }

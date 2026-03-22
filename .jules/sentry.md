@@ -51,3 +51,6 @@
 **Testing Inner Wrapper Panic Guards**
 **Learning:** We rely heavily on centralizing wrapper helpers (`unwrap_or_panic`) within Builders to map underlying validation error outputs (`try_` functions) into unified panic strings for invalid API usage.
 **Action:** Always make sure the shared panic formatting utility functions are covered by at least one explicit test using `#[should_panic(expected = "...")]` to guarantee consistency inside these developer convenience paths and avoid obscure regressions during string mapping refactoring.
+**QueryStream and QueryIterator Edge Cases**
+**Learning:** `QueryStream` and `QueryIterator` have complex state machines around `done`, `exhausted`, and empty pages, which were untested. `QueryResult` can theoretically represent invalid states (e.g. `done: true` but `next_records_url: Some(...)`) and the iterator needs to handle them safely.
+**Action:** Added dedicated tests to verify safe iteration through empty middle pages, graceful handling of error propagation within streams, and proper exhaustion checks to prevent infinite loops.
