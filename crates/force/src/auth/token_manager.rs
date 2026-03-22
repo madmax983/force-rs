@@ -78,7 +78,11 @@ impl<A: Authenticator> TokenManager<A> {
         let (is_soft_expired, is_hard_expired, current_token) = {
             let state = self.state.read().await;
             if let Some(token) = &state.token {
-                (token.is_soft_expired(), token.is_hard_expired(), Some(token.clone()))
+                (
+                    token.is_soft_expired(),
+                    token.is_hard_expired(),
+                    Some(token.clone()),
+                )
             } else {
                 (false, true, None)
             }
