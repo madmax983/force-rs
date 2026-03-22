@@ -179,14 +179,15 @@ impl SearchQueryBuilder {
         let sobject = sobject.into();
         validate_sobject_name(&sobject)?;
 
-        let mut safe_fields = Vec::with_capacity(fields.len());
-        for f in fields {
-            let f_str = f.as_ref();
-            if let Err(e) = validate_field_syntax_safe(f_str) {
-                return Err(crate::error::ForceError::InvalidInput(e));
-            }
-            safe_fields.push(f_str.to_string());
-        }
+        let safe_fields = fields
+            .iter()
+            .map(|f| {
+                let f_str = f.as_ref();
+                validate_field_syntax_safe(f_str)
+                    .map(|()| f_str.to_string())
+                    .map_err(crate::error::ForceError::InvalidInput)
+            })
+            .collect::<Result<Vec<_>, crate::error::ForceError>>()?;
 
         self.returning.push((sobject, safe_fields));
         Ok(self)
@@ -255,12 +256,10 @@ impl SearchQueryBuilder {
         query.push_str(" RETURNING ");
 
         // ⚡ Bolt: Write RETURNING clauses directly to the `query` buffer, avoiding a temporary `.collect::<Vec<_>>()` and `.join(", ")` allocation.
-        let mut first = true;
-        for (sobject, fields) in self.returning {
-            if !first {
+        for (i, (sobject, fields)) in self.returning.into_iter().enumerate() {
+            if i > 0 {
                 query.push_str(", ");
             }
-            first = false;
 
             query.push_str(&sobject);
             if !fields.is_empty() {
@@ -268,12 +267,10 @@ impl SearchQueryBuilder {
                 #[allow(unused_doc_comments)]
                 /// ⚡ Bolt: Iterating over fields directly pushes them to the `query` string buffer.
                 /// This avoids the intermediate heap allocation that would occur if `fields.join(", ")` was used.
-                let mut first_field = true;
-                for field in fields {
-                    if !first_field {
+                for (i, field) in fields.into_iter().enumerate() {
+                    if i > 0 {
                         query.push_str(", ");
                     }
-                    first_field = false;
                     query.push_str(&field);
                 }
                 query.push(')');
