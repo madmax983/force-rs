@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize};
 /// # Examples
 ///
 /// ```
-/// use force::api::tooling::run_tests::{RunTestsRequest, TestItem};
+/// use force::api::tooling::{RunTestsRequest, TestItem};
 ///
 /// let request = RunTestsRequest {
 ///     tests: vec![
@@ -153,7 +153,7 @@ impl<A: crate::auth::Authenticator> super::ToolingHandler<A> {
     /// # Examples
     ///
     /// ```ignore
-    /// use force::api::tooling::run_tests::{RunTestsRequest, TestItem};
+    /// use force::api::tooling::{RunTestsRequest, TestItem};
     ///
     /// let request = RunTestsRequest {
     ///     tests: vec![TestItem {
@@ -208,7 +208,7 @@ impl<A: crate::auth::Authenticator> super::ToolingHandler<A> {
     /// # Examples
     ///
     /// ```ignore
-    /// use force::api::tooling::run_tests::{RunTestsRequest, TestItem};
+    /// use force::api::tooling::{RunTestsRequest, TestItem};
     ///
     /// let request = RunTestsRequest {
     ///     tests: vec![TestItem {

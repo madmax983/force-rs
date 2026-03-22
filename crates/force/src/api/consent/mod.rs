@@ -25,9 +25,9 @@
 //! let resp = consent.request_portability(&req).await?;
 //! ```
 
-pub mod action;
-pub mod portability;
-pub mod types;
+pub(crate) mod action;
+pub(crate) mod portability;
+pub(crate) mod types;
 
 // Re-export primary types at module level.
 pub use types::{

@@ -11,9 +11,9 @@
 //! - `tooling/query?q=SELECT ...` (SOQL)
 //! - `tooling/sobjects` (Describe Global)
 
-pub mod completions;
-pub mod execute_anonymous;
-pub mod run_tests;
+pub(crate) mod completions;
+pub(crate) mod execute_anonymous;
+pub(crate) mod run_tests;
 
 pub use completions::{CompletionsResult, CompletionsType};
 pub use execute_anonymous::ExecuteAnonymousResult;

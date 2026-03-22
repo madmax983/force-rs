@@ -31,8 +31,8 @@
 //! let result = dc.query_sql("SELECT * FROM UnifiedProfile__dlm LIMIT 10").await?;
 //! ```
 
-pub mod query;
-pub mod types;
+pub(crate) mod query;
+pub(crate) mod types;
 
 pub use query::SqlQueryResponse;
 pub use types::{DataCloudRecord, SqlQueryRequest};

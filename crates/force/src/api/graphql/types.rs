@@ -13,7 +13,7 @@ use std::collections::HashMap;
 /// # Examples
 ///
 /// ```
-/// use force::api::graphql::types::GraphqlRequest;
+/// use force::api::graphql::GraphqlRequest;
 /// use serde_json::json;
 ///
 /// let req = GraphqlRequest::new("{ uiapi { query { Account { edges { node { Id } } } } } }");
