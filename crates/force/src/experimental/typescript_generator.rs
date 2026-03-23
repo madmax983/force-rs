@@ -1,6 +1,7 @@
 //! TypeScript interface generator for Salesforce SObject Describe metadata.
 #[cfg(feature = "schema")]
 use crate::api::rest::describe::{FieldType, SObjectDescribe};
+use std::fmt::Write;
 
 /// Experimental utility to generate TypeScript interfaces from SObject describe metadata.
 #[cfg(feature = "schema")]
@@ -9,9 +10,9 @@ pub fn generate_typescript_interface(describe: &SObjectDescribe) -> String {
     let mut out = String::with_capacity(describe.fields.len() * 128);
 
     out.push_str("/**\n");
-    out.push_str(&format!(" * {}\n", describe.label));
+    let _ = writeln!(out, " * {}", describe.label);
     out.push_str(" */\n");
-    out.push_str(&format!("export interface {} {{\n", describe.name));
+    let _ = writeln!(out, "export interface {} {{", describe.name);
 
     // Sort fields alphabetically, Id first
     let mut fields: Vec<&_> = describe.fields.iter().collect();
@@ -27,9 +28,9 @@ pub fn generate_typescript_interface(describe: &SObjectDescribe) -> String {
 
     for field in fields {
         out.push_str("  /**\n");
-        out.push_str(&format!("   * {}\n", field.label));
+        let _ = writeln!(out, "   * {}", field.label);
         if let Some(help) = &field.inline_help_text {
-            out.push_str(&format!("   * {}\n", help));
+            let _ = writeln!(out, "   * {}", help);
         }
         if !field.updateable {
             out.push_str("   * @readonly\n");
@@ -39,7 +40,7 @@ pub fn generate_typescript_interface(describe: &SObjectDescribe) -> String {
         let ts_type = map_type(&field.type_);
         let optional = if field.nillable { "?" } else { "" };
 
-        out.push_str(&format!("  {}{}: {};\n", field.name, optional, ts_type));
+        let _ = writeln!(out, "  {}{}: {};", field.name, optional, ts_type);
     }
 
     out.push_str("}\n");
