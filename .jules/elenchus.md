@@ -205,3 +205,11 @@ match result {
 **Finding:** "The Ceremony Test" pattern `assert!(result.is_err())` was found in multiple UI, tooling, GraphQL, and pubsub tests. This provides false confidence because tests could falsely pass if the function fails for completely unrelated reasons.
 **Evidence:** Found over 30 occurrences across `graphql/mod.rs`, `ui/favorites.rs`, `ui/lookups.rs`, `ui/list_views.rs`, `ui/actions.rs`, `ui/layouts.rs`, `ui/object_info.rs`, `ui/records.rs`, `tooling/execute_anonymous.rs`, `tooling/run_tests.rs`, `tooling/completions.rs`, `force-pubsub/src/codec.rs`, `force-pubsub/src/schema_cache.rs`, and `force-pubsub/tests/handler_tests.rs`.
 **Recommendation:** Refactored tests to explicitly unwrap the error using `let Err(err) = result else { panic!("Expected an error"); };` and assertions to ensure tests only pass if they fail exactly as intended.
+
+### [Strengthened] `crates/force/src/experimental/schema_analyzer.rs`
+
+**Module:** `crates/force/src/experimental/schema_analyzer.rs`
+**Severity:** 🔴 Critical
+**Finding:** 30 mutants survived the `test_schema_analyzer_exhaustive_mutants` test due to mathematical overlaps. Because certain counts equaled each other or evaluated equally under different operators (e.g. `2*2=4` vs `2+2=4`, `2/10=0` vs `2%10=0`), `cargo mutants` demonstrated the test was blind to logic flaws and mathematical operator changes (`*` swapped with `/`, `+`, `-`, and `=` swapped with `!=`).
+**Evidence:** `cargo mutants -d crates/force -f crates/force/src/experimental/schema_analyzer.rs -F schema` reported 30 missed logic mutants spanning mathematical replacements and boolean condition flips (`&&` to `||`, `!x` to `x`).
+**Recommendation:** Completely rewrote the mock SObject definition within `test_schema_analyzer_exhaustive_mutants`. Set field counts to exact, non-overlapping values (`custom=9`, `formula=2`, `reference=4`, `required=3`, `total=21`, `standard=12`) that break all mathematical tautologies (e.g. `3*2=6` vs `3+2=5`). Tested every permutation of the `!nillable && !defaulted_on_create && name != "Id"` conditional to ensure that mutants mutating boolean operators (`&&`, `!`) are successfully killed. Verified 0 logic mutants survive.

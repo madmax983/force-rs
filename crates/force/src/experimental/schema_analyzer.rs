@@ -103,50 +103,92 @@ mod tests {
     #[test]
     fn test_schema_analyzer_exhaustive_mutants() {
         let describe = create_mock_describe(&json!([
-            mock_field("Id", "id", false, false, true, false), // 1
-            mock_field("Name", "string", false, false, false, false), // 2: Required
-            mock_field("Nillable", "string", false, true, false, false), // 3
-            mock_field("Defaulted", "string", false, false, true, false), // 4
-            mock_field("Standard", "string", false, true, true, false), // 5
-            mock_field("Custom1__c", "string", true, true, true, false), // 6: Custom
-            mock_field("Custom2__c", "string", true, true, true, false), // 7: Custom
-            mock_field("Custom3__c", "string", true, true, true, false), // 8: Custom
-            mock_field("Formula1__c", "double", true, true, true, true), // 9: Custom, Formula
-            mock_field("Formula2__c", "double", true, true, true, true), // 10: Custom, Formula
-            mock_field("Rel1__c", "reference", true, true, true, false), // 11: Custom, Reference
-            mock_field("Rel2__c", "reference", true, true, true, false), // 12: Custom, Reference
-            mock_field("StandardRel", "reference", false, true, true, false), // 13: Reference
-            mock_field("StandardRel2", "reference", false, true, true, false), // 14: Reference
-            mock_field("ReqCustom1", "string", true, false, false, false), // 15: Required, Custom
-            mock_field("ReqCustom2", "string", true, false, false, false), // 16: Required, Custom
-            mock_field("Padding1", "string", false, true, true, false), // 17
-            mock_field("Padding2", "string", false, true, true, false), // 18
-            mock_field("Padding3", "string", false, true, true, false), // 19
-            mock_field("Padding4", "string", false, true, true, false), // 20
-            mock_field("Padding5", "string", false, true, true, false)  // 21
+            // Standard, Not Required
+            mock_field("Id", "id", false, false, true, false), // 1. name=Id (Standard, !req)
+            mock_field("Name", "string", false, false, false, false), // 2. name!=Id, Required (!nillable, !default)
+            mock_field("Nillable", "string", false, true, false, false), // 3. nillable, !default
+            mock_field("Defaulted", "string", false, false, true, false), // 4. !nillable, default
+            mock_field("Standard", "string", false, true, true, false), // 5. nillable, default
+            // Custom fields (Need exactly 9 to ensure count > 1 and unique)
+            mock_field("Custom1__c", "string", true, true, true, false), // 6 (Custom)
+            mock_field("Custom2__c", "string", true, true, true, false), // 7 (Custom)
+            mock_field("Custom3__c", "string", true, true, true, false), // 8 (Custom)
+            mock_field("Custom4__c", "string", true, true, true, false), // 9 (Custom)
+            mock_field("Custom5__c", "string", true, true, true, false), // 10 (Custom)
+            mock_field("Custom6__c", "string", true, true, true, false), // 11 (Custom)
+            mock_field("Custom7__c", "string", true, true, true, false), // 12 (Custom)
+            // Formula fields (Need exactly 2 to ensure count > 1 and unique)
+            mock_field("Formula1__c", "double", true, true, true, true), // 13 (Custom, Formula)
+            mock_field("Formula2__c", "double", true, true, true, true), // 14 (Custom, Formula)
+            // Reference fields (Need exactly 4 to ensure count > 1 and unique)
+            mock_field("Rel1", "reference", false, true, true, false), // 15 (Reference)
+            mock_field("Rel2", "reference", false, true, true, false), // 16 (Reference)
+            mock_field("Rel3", "reference", false, true, true, false), // 17 (Reference)
+            mock_field("Rel4", "reference", false, true, true, false), // 18 (Reference)
+            // Additional required fields to ensure req count > 1 and unique
+            mock_field("Req2", "string", false, false, false, false), // 19. Required
+            mock_field("Req3", "string", false, false, false, false), // 20. Required
+            // Pad to 21 fields (21 / 10 = 2 != 21 % 10 = 1)
+            mock_field("Pad1", "string", false, true, true, false) // 21
         ]));
 
         let insights = analyze_schema(&describe);
 
-        assert_eq!(insights.total_fields, 21);
-        assert_eq!(insights.custom_field_count, 9); // 6, 7, 8, 9, 10, 11, 12, 15, 16
-        assert_eq!(insights.formula_field_count, 2); // 9, 10
-        assert_eq!(insights.relationship_field_count, 4); // 11, 12, 13, 14
-        assert_eq!(insights.required_field_count, 3); // 2, 15, 16
+        // Explicitly assert every property to catch structural and arithmetic mutants.
+        assert_eq!(insights.total_fields, 21, "total_fields mismatch");
+        assert_eq!(
+            insights.custom_field_count, 9,
+            "custom_field_count mismatch"
+        );
+        assert_eq!(
+            insights.formula_field_count, 2,
+            "formula_field_count mismatch"
+        );
+        assert_eq!(
+            insights.relationship_field_count, 4,
+            "relationship_field_count mismatch"
+        );
+        assert_eq!(
+            insights.required_field_count, 3,
+            "required_field_count mismatch"
+        ); // 2, 19, 20
+        assert_eq!(
+            insights.standard_field_count, 12,
+            "standard_field_count mismatch"
+        );
 
-        // Score logic:
-        // (21/10) = 2
-        // (9*2) = 18
-        // (2*5) = 10
-        // (4*3) = 12
-        // Total = 42
-        assert_eq!(insights.complexity_score, 42);
+        // Score: (21/10) + (9*2) + (2*5) + (4*3) = 2 + 18 + 10 + 12 = 42
+        assert_eq!(insights.complexity_score, 42, "complexity_score mismatch");
 
-        // Ensure no weird empty payload breaks
+        // Now test all mutants via full struct equality match.
+        // This stops variable swap mutants.
+        let expected = SchemaInsights {
+            total_fields: 21,
+            custom_field_count: 9,
+            standard_field_count: 12,
+            required_field_count: 3,
+            formula_field_count: 2,
+            relationship_field_count: 4,
+            complexity_score: 42,
+        };
+        assert_eq!(insights, expected, "Struct equality failed");
+
         let empty_describe = create_mock_describe(&json!([]));
         let empty_insights = analyze_schema(&empty_describe);
-        assert_eq!(empty_insights.total_fields, 0);
-        assert_eq!(empty_insights.complexity_score, 0);
+
+        let empty_expected = SchemaInsights {
+            total_fields: 0,
+            custom_field_count: 0,
+            standard_field_count: 0,
+            required_field_count: 0,
+            formula_field_count: 0,
+            relationship_field_count: 0,
+            complexity_score: 0,
+        };
+        assert_eq!(
+            empty_insights, empty_expected,
+            "Empty struct equality failed"
+        );
     }
 
     use super::*;
