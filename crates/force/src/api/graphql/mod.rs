@@ -30,8 +30,8 @@
 //! let result: MyData = gql.query(&req).await?;
 //! ```
 
-pub mod error;
-pub mod types;
+pub(crate) mod error;
+pub(crate) mod types;
 
 // Re-export key types at module level
 pub use error::GraphqlErrorResponse;

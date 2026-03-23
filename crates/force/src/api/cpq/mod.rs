@@ -28,13 +28,13 @@
 //! let saved = cpq.save_quote(&calculated).await?;
 //! ```
 
-pub mod config;
-pub mod contract;
-pub mod document;
-pub mod error;
-pub mod product;
-pub mod quote;
-pub mod types;
+pub(crate) mod config;
+pub(crate) mod contract;
+pub(crate) mod document;
+pub(crate) mod error;
+pub(crate) mod product;
+pub(crate) mod quote;
+pub(crate) mod types;
 
 // Re-export primary types at module level.
 pub use error::CpqErrorResponse;

@@ -69,3 +69,6 @@
 **[The Facade: Eliminating Empty Static Structs for Type Generators]**
 **Tangle:** The `type_generator` and `typescript_generator` modules were exposing empty static structs `StructGenerator` and `TypescriptGenerator`, which acted merely as namespaces for `generate` functions. This is a Java-style object-oriented anti-pattern in Rust that introduces unnecessary namespacing and obfuscates intent.
 **Blueprint:** Refactored `StructGenerator` into the `generate_rust_struct` free function and `TypescriptGenerator` into the `generate_typescript_interface` free function. Removed the empty structs and their `impl` blocks. Exported the free functions via `pub use` in `experimental/mod.rs` to present a clean, idiomatic Rust API.
+**2024-05-31 - [The Facade: Finalizing Module Boundaries for API Handlers]**
+**Tangle:** The remaining `force::api` submodules (`graphql`, `data_cloud`, `cpq`, `consent`, `tooling`, `ui`) were defined as `pub mod`, leaking their internal structural implementation details (like `types`, `error`, `query`, etc.) directly into the public API.
+**Blueprint:** Refactored module visibility in these Facade files from `pub mod` to `pub(crate) mod` while retaining explicit `pub use` for strictly public interfaces at the module root. This enforces encapsulation and presents a clean, un-nested API surface to consumers.

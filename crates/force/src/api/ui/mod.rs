@@ -29,14 +29,14 @@
 
 #![allow(clippy::doc_markdown)]
 
-pub mod actions;
-pub mod favorites;
-pub mod layouts;
-pub mod list_views;
-pub mod lookups;
-pub mod object_info;
-pub mod records;
-pub mod types;
+pub(crate) mod actions;
+pub(crate) mod favorites;
+pub(crate) mod layouts;
+pub(crate) mod list_views;
+pub(crate) mod lookups;
+pub(crate) mod object_info;
+pub(crate) mod records;
+pub(crate) mod types;
 
 // Re-export shared types at module level
 pub use actions::{ActionRepresentation, RecordActionRepresentation};
