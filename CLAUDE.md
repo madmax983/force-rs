@@ -95,6 +95,7 @@ Only compile what you use. Each API surface is behind a feature flag:
 - `cpq` - Salesforce CPQ API (quote lifecycle, product config, documents, amendments)
 - `consent` - Consent & Portability API (GDPR/CCPA consent checks, data export)
 - `jwt` - JWT Bearer authentication flow
+- `username_password` - Username-password flow (deprecated by Salesforce, feature-gated as speed bump)
 - `pub_sub` - gRPC Pub/Sub API (separate `force-pubsub` crate)
 - `full` - All common features (rest + tooling + bulk + composite + jwt + ui + graphql + data_cloud + apex_rest)
 - `all` - Everything including specialized APIs (+ cpq)
@@ -360,12 +361,15 @@ use force::testing::{MockForceClient, MockAuthenticator};
 - [x] HTTP layer with reqwest
 - [x] ForceClient with compile-time auth safety
 
-### Phase 2: Core Auth Flows (In Progress)
+### Phase 2: Core Auth Flows
 - [x] Client credentials flow (OAuth 2.0)
-- [ ] JWT bearer flow (feature: jwt)
+- [x] JWT bearer flow (feature: jwt)
+- [x] Username-password flow (feature: username_password) - See [ADR-025](docs/adr/025-username-password-auth.md)
+  - [x] Password grant with security_token concatenation
+  - [x] Refresh token storage and rotation
+  - [x] Graceful fallback to re-auth on revoked tokens
 - [ ] SAML bearer flow (feature: jwt)
-- [ ] Username/password flow
-- [ ] Refresh token flow
+- [x] Refresh token support (in UsernamePassword authenticator)
 
 ### Phase 3: REST API (Default Feature) - COMPLETE
 - [x] RestHandler foundation
@@ -634,7 +638,7 @@ Significant architectural decisions are documented in `docs/adr/`:
 - [ADR-021](docs/adr/021-graphql-api-design.md) - GraphQL API error handling and dual query API design
 - [ADR-022](docs/adr/022-data-cloud-api-design.md) - Data Cloud API decorator authenticator and token exchange design
 - [ADR-023](docs/adr/023-apex-rest-cpq-design.md) - Apex REST and CPQ API layered design
-- [ADR-024](docs/adr/024-consent-portability-api-design.md) - Consent and Portability API design
+- [ADR-025](docs/adr/025-username-password-auth.md) - Username-password authentication with refresh token support
 
 ## Contributing
 
