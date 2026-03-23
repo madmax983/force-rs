@@ -127,36 +127,50 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
         layout_types: Option<&[crate::api::ui::types::LayoutType]>,
         modes: Option<&[crate::api::ui::types::Mode]>,
     ) -> crate::error::Result<RecordUiRepresentation> {
-        let ids_str = ids.join(",");
-        let path = format!("record-ui/{ids_str}");
+        // ⚡ Bolt: Construct path directly to avoid intermediate `.join(",")` allocation
+        let mut path = String::with_capacity(10 + ids.len() * 19);
+        path.push_str("record-ui/");
+        for (i, id) in ids.iter().enumerate() {
+            if i > 0 {
+                path.push(',');
+            }
+            path.push_str(id);
+        }
 
         let mut lt_str = String::new();
         let mut mode_str = String::new();
-        let mut params: Vec<(&str, &str)> = Vec::new();
+
+        // ⚡ Bolt: Use a stack-allocated array to avoid heap allocation for small parameter list
+        let mut params_array = [("", ""); 2];
+        let mut params_len = 0;
 
         if let Some(lts) = layout_types {
+            lt_str.reserve(lts.len() * 10);
             for (i, lt) in lts.iter().enumerate() {
                 if i > 0 {
                     lt_str.push(',');
                 }
                 lt_str.push_str(lt.as_str());
             }
-            params.push(("layoutTypes", &lt_str));
+            params_array[params_len] = ("layoutTypes", &lt_str);
+            params_len += 1;
         }
         if let Some(ms) = modes {
+            mode_str.reserve(ms.len() * 10);
             for (i, m) in ms.iter().enumerate() {
                 if i > 0 {
                     mode_str.push(',');
                 }
                 mode_str.push_str(m.as_str());
             }
-            params.push(("modes", &mode_str));
+            params_array[params_len] = ("modes", &mode_str);
+            params_len += 1;
         }
 
-        let query = if params.is_empty() {
+        let query = if params_len == 0 {
             None
         } else {
-            Some(params.as_slice())
+            Some(&params_array[..params_len])
         };
 
         self.get(&path, query, "Failed to fetch record UI").await
@@ -179,18 +193,29 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
     ) -> crate::error::Result<RecordRepresentation> {
         let path = format!("records/{id}");
 
-        let fields_str;
-        let mut params: Vec<(&str, &str)> = Vec::new();
+        let mut fields_str = String::new();
+
+        // ⚡ Bolt: Use a stack-allocated array to avoid heap allocation for small parameter list
+        let mut params_array = [("", ""); 1];
+        let mut params_len = 0;
 
         if let Some(fs) = fields {
-            fields_str = fs.join(",");
-            params.push(("fields", &fields_str));
+            // ⚡ Bolt: Construct string directly to avoid intermediate `.join(",")` allocation
+            fields_str.reserve(fs.len() * 20);
+            for (i, f) in fs.iter().enumerate() {
+                if i > 0 {
+                    fields_str.push(',');
+                }
+                fields_str.push_str(f);
+            }
+            params_array[params_len] = ("fields", &fields_str);
+            params_len += 1;
         }
 
-        let query = if params.is_empty() {
+        let query = if params_len == 0 {
             None
         } else {
-            Some(params.as_slice())
+            Some(&params_array[..params_len])
         };
 
         self.get(&path, query, "Failed to fetch record").await
@@ -211,21 +236,39 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
         ids: &[&str],
         fields: Option<&[&str]>,
     ) -> crate::error::Result<BatchResultRepresentation> {
-        let ids_str = ids.join(",");
-        let path = format!("records/batch/{ids_str}");
-
-        let fields_str;
-        let mut params: Vec<(&str, &str)> = Vec::new();
-
-        if let Some(fs) = fields {
-            fields_str = fs.join(",");
-            params.push(("fields", &fields_str));
+        // ⚡ Bolt: Construct path directly to avoid intermediate `.join(",")` allocation
+        let mut path = String::with_capacity(14 + ids.len() * 19);
+        path.push_str("records/batch/");
+        for (i, id) in ids.iter().enumerate() {
+            if i > 0 {
+                path.push(',');
+            }
+            path.push_str(id);
         }
 
-        let query = if params.is_empty() {
+        let mut fields_str = String::new();
+
+        // ⚡ Bolt: Use a stack-allocated array to avoid heap allocation for small parameter list
+        let mut params_array = [("", ""); 1];
+        let mut params_len = 0;
+
+        if let Some(fs) = fields {
+            // ⚡ Bolt: Construct string directly to avoid intermediate `.join(",")` allocation
+            fields_str.reserve(fs.len() * 20);
+            for (i, f) in fs.iter().enumerate() {
+                if i > 0 {
+                    fields_str.push(',');
+                }
+                fields_str.push_str(f);
+            }
+            params_array[params_len] = ("fields", &fields_str);
+            params_len += 1;
+        }
+
+        let query = if params_len == 0 {
             None
         } else {
-            Some(params.as_slice())
+            Some(&params_array[..params_len])
         };
 
         self.get(&path, query, "Failed to fetch records batch")
