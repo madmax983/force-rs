@@ -17,11 +17,11 @@ pub use describe::{
     ChildRelationship, FieldDescribe, FieldType, FilteredLookupInfo, GlobalDescribe,
     GlobalSObjectDescribe, PicklistValue, RecordTypeInfo, SObjectDescribe,
 };
+#[cfg(feature = "nova")]
+pub use explain::{ExplainResponse, PlanNote, QueryPlan};
 pub use limits::{LimitInfo, OrgLimits};
 pub use query_stream::QueryStream;
 pub use search::{SearchAttributes, SearchQueryBuilder, SearchRecords, SearchResult};
-#[cfg(feature = "nova")]
-pub use explain::{ExplainResponse, PlanNote, QueryPlan};
 
 use crate::api::rest_operation::RestOperation;
 use crate::error::Result;
