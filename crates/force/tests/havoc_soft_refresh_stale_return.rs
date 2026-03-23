@@ -48,19 +48,22 @@ mod tests {
             // Give the refresher a chance to publish a new token after we snapshot.
             thread::yield_now();
 
-            if let Ok(_lock) = self.refresh_lock.try_lock() {
-                let new_token = 3;
-                *self.token.write().unwrap() = new_token;
-                (new_token, false)
-            } else {
-                let saw_published_token = self.published.load(Ordering::SeqCst);
-                let returned_token = if saw_published_token {
-                    self.current_token().max(snapshot)
-                } else {
-                    snapshot
-                };
-                (returned_token, saw_published_token)
-            }
+            self.refresh_lock.try_lock().map_or_else(
+                |_| {
+                    let saw_published_token = self.published.load(Ordering::SeqCst);
+                    let returned_token = if saw_published_token {
+                        self.current_token().max(snapshot)
+                    } else {
+                        snapshot
+                    };
+                    (returned_token, saw_published_token)
+                },
+                |_lock| {
+                    let new_token = 3;
+                    *self.token.write().unwrap() = new_token;
+                    (new_token, false)
+                },
+            )
         }
 
         fn current_token(&self) -> usize {
@@ -73,7 +76,7 @@ mod tests {
         loom::model(|| {
             let manager = TokenManager::new();
             let refresher = manager.clone();
-            let reader = manager.clone();
+            let reader = manager;
 
             let refresh_task = thread::spawn(move || refresher.refresh_soft_expired());
             let reader_task = thread::spawn(move || reader.get_soft_expired_token());
