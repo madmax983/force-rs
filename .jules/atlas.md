@@ -72,3 +72,7 @@
 **2024-05-31 - [The Facade: Finalizing Module Boundaries for API Handlers]**
 **Tangle:** The remaining `force::api` submodules (`graphql`, `data_cloud`, `cpq`, `consent`, `tooling`, `ui`) were defined as `pub mod`, leaking their internal structural implementation details (like `types`, `error`, `query`, etc.) directly into the public API.
 **Blueprint:** Refactored module visibility in these Facade files from `pub mod` to `pub(crate) mod` while retaining explicit `pub use` for strictly public interfaces at the module root. This enforces encapsulation and presents a clean, un-nested API surface to consumers.
+
+**[Feature Gated Experimental Query Plan API]**
+**Tangle:** The experimental Query Plan API (`explain`) and its internal response types (`ExplainResponse`, `QueryPlan`, etc.) were exposed directly as part of the core REST module without proper feature-gating, leaking the abstraction and violating the public API contract.
+**Blueprint:** Applied the `nova` feature flag to the `explain` module, function, and re-exports, adhering to the experimental boundary rule. Moved the re-exports of `ExplainResponse`, `QueryPlan`, and `PlanNote` to the root `api::rest::mod.rs` to present a clean, explicitly gated public API interface.
