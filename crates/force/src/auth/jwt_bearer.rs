@@ -33,7 +33,6 @@ use crate::error::{AuthenticationError, ForceError, HttpError, Result};
 #[cfg(feature = "jwt")]
 use async_trait::async_trait;
 #[cfg(feature = "jwt")]
-#[cfg(feature = "jwt")]
 use jsonwebtoken::{EncodingKey, Header, encode};
 #[cfg(feature = "jwt")]
 use serde::{Deserialize, Serialize};
