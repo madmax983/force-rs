@@ -130,24 +130,26 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
         let ids_str = ids.join(",");
         let path = format!("record-ui/{ids_str}");
 
-        let lt_str;
-        let mode_str;
+        let mut lt_str = String::new();
+        let mut mode_str = String::new();
         let mut params: Vec<(&str, &str)> = Vec::new();
 
         if let Some(lts) = layout_types {
-            lt_str = lts
-                .iter()
-                .map(crate::api::ui::types::LayoutType::as_str)
-                .collect::<Vec<_>>()
-                .join(",");
+            for (i, lt) in lts.iter().enumerate() {
+                if i > 0 {
+                    lt_str.push(',');
+                }
+                lt_str.push_str(lt.as_str());
+            }
             params.push(("layoutTypes", &lt_str));
         }
         if let Some(ms) = modes {
-            mode_str = ms
-                .iter()
-                .map(crate::api::ui::types::Mode::as_str)
-                .collect::<Vec<_>>()
-                .join(",");
+            for (i, m) in ms.iter().enumerate() {
+                if i > 0 {
+                    mode_str.push(',');
+                }
+                mode_str.push_str(m.as_str());
+            }
             params.push(("modes", &mode_str));
         }
 
