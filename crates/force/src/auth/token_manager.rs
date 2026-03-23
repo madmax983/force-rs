@@ -70,6 +70,16 @@ impl<A: Authenticator> TokenManager<A> {
         arc_token
     }
 
+    /// Returns the currently stored token when it is at least as new as `fallback`.
+    async fn latest_token_or(&self, fallback: Arc<AccessToken>) -> Arc<AccessToken> {
+        let state = self.state.read().await;
+
+        match &state.token {
+            Some(current) if current.issued_at() >= fallback.issued_at() => current.clone(),
+            _ => fallback,
+        }
+    }
+
     /// Returns the current access token as an Arc reference, refreshing if necessary.
     ///
     /// This is an internal method to avoid cloning the token for internal use.
@@ -145,12 +155,12 @@ impl<A: Authenticator> TokenManager<A> {
                     Err(_) => {
                         // Refresh failed. Return the old token which is still valid (soft expired).
                         // We swallow the error here because the user can still proceed.
-                        Ok(valid_token)
+                        Ok(self.latest_token_or(valid_token).await)
                     }
                 }
             } else {
-                // Someone else is refreshing. Return current token immediately.
-                Ok(valid_token)
+                // Someone else is refreshing. Return the latest published token if one is already visible.
+                Ok(self.latest_token_or(valid_token).await)
             }
         } else {
             // This path should be unreachable:
