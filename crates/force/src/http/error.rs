@@ -29,12 +29,18 @@ pub fn parse_api_error(status_code: u16, body: &str) -> HttpError {
     // Try to parse as Salesforce error array
     if let Ok(errors) = serde_json::from_str::<Vec<SalesforceError>>(body) {
         if let Some(first_error) = errors.first() {
+            let fields_suffix = if first_error.fields.is_empty() {
+                String::new()
+            } else {
+                format!(" (fields: {})", first_error.fields.join(", "))
+            };
             return HttpError::StatusError {
                 status_code,
                 message: format!(
-                    "[{}] {}",
+                    "[{}] {}{}",
                     first_error.error_code.as_deref().unwrap_or("UNKNOWN"),
-                    first_error.message
+                    first_error.message,
+                    fields_suffix
                 ),
             };
         }
@@ -80,7 +86,7 @@ pub async fn read_capped_body(response: Response, limit_bytes: usize) -> String 
         }
     }
 
-    String::from_utf8_lossy(&bytes).into_owned()
+    String::from_utf8(bytes).unwrap_or_else(|e| String::from_utf8_lossy(e.as_bytes()).into_owned())
 }
 
 pub async fn response_to_force_error(
@@ -115,7 +121,10 @@ mod tests {
         } = error
         {
             assert_eq!(status_code, 400);
-            assert_eq!(message, "[INVALID_FIELD] Field does not exist");
+            assert_eq!(
+                message,
+                "[INVALID_FIELD] Field does not exist (fields: Name)"
+            );
         } else {
             panic!("Expected StatusError");
         }
@@ -203,7 +212,7 @@ mod tests {
         } = error
         {
             assert_eq!(status_code, 400);
-            assert_eq!(message, "[UNKNOWN] Field does not exist");
+            assert_eq!(message, "[UNKNOWN] Field does not exist (fields: Name)");
         } else {
             panic!("Expected StatusError");
         }

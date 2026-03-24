@@ -113,9 +113,13 @@ impl HttpExecutor {
     }
 
     /// Executes a request with an explicit retry class override.
+    ///
+    /// Use this when the default HTTP-method-based classification (from
+    /// [`classify_request`]) is insufficient — for example, to mark a POST
+    /// as idempotent so it can be safely retried on transient failures.
     pub async fn execute_response_with_retry_class<F, Fut>(
         &self,
-        request: Request,
+        mut request: Request,
         token: &AccessToken,
         refresh_token: F,
         request_class: RequestRetryClass,
@@ -124,8 +128,88 @@ impl HttpExecutor {
         F: Fn() -> Fut,
         Fut: std::future::Future<Output = Result<AccessToken>>,
     {
-        self.execute_response_with_class(request, token, refresh_token, request_class)
-            .await
+        // Capture method/path once for both telemetry and tracing
+        let method_str = request.method().as_str().to_string();
+        let path_str = request.url().path().to_string();
+
+        let ctx = TelemetryContext::new(
+            &method_str,
+            &path_str,
+            request_class,
+            self.telemetry_hooks.has_hooks(),
+        );
+
+        let request_span = tracing::info_span!(
+            "force_http_request",
+            http.method = method_str.as_str(),
+            http.path = path_str.as_str(),
+            request.class = ctx.request_class
+        );
+        let _request_span_guard = request_span.enter();
+
+        // Inject Bearer token
+        Self::inject_auth_header(&mut request, token)?;
+
+        // Execute with retry logic
+        let mut retry_attempt = 0;
+        let mut refreshed = false;
+        let max_retries = self.max_retries_for(request_class);
+        loop {
+            let req_clone = request.try_clone().ok_or_else(|| {
+                HttpError::InvalidUrl("cannot clone request for retry".to_string())
+            })?;
+
+            let response = match self.execute_attempt(req_clone, retry_attempt, &ctx).await {
+                Ok(resp) => resp,
+                Err(e) if retry_attempt < max_retries => {
+                    if Self::is_retryable_error(&e) {
+                        self.handle_transient_failure(retry_attempt, &ctx, None)
+                            .await;
+                        retry_attempt += 1;
+                        continue;
+                    }
+                    return Err(e);
+                }
+                Err(e) => return Err(e),
+            };
+
+            match response.status() {
+                StatusCode::UNAUTHORIZED => {
+                    if !refreshed {
+                        let new_token = refresh_token().await?;
+                        Self::inject_auth_header(&mut request, &new_token)?;
+                        refreshed = true;
+                        continue;
+                    }
+
+                    self.record_completion(
+                        &ctx,
+                        Some(StatusCode::UNAUTHORIZED.as_u16()),
+                        None,
+                        retry_attempt,
+                    );
+                    return Ok(response);
+                }
+                StatusCode::TOO_MANY_REQUESTS => {
+                    return Err(self.handle_rate_limit(&response, retry_attempt, &ctx));
+                }
+                StatusCode::SERVICE_UNAVAILABLE if retry_attempt < max_retries => {
+                    self.handle_transient_failure(retry_attempt, &ctx, Some(503))
+                        .await;
+                    retry_attempt += 1;
+                    continue;
+                }
+                _ => {
+                    self.record_completion(
+                        &ctx,
+                        Some(response.status().as_u16()),
+                        None,
+                        retry_attempt,
+                    );
+                    return Ok(response);
+                }
+            }
+        }
     }
 
     fn inject_auth_header(request: &mut Request, token: &AccessToken) -> Result<()> {
@@ -211,102 +295,6 @@ impl HttpExecutor {
             backoff.as_millis(),
         );
         tokio::time::sleep(backoff).await;
-    }
-
-    async fn execute_response_with_class<F, Fut>(
-        &self,
-        mut request: Request,
-        token: &AccessToken,
-        refresh_token: F,
-        request_class: RequestRetryClass,
-    ) -> Result<Response>
-    where
-        F: Fn() -> Fut,
-        Fut: std::future::Future<Output = Result<AccessToken>>,
-    {
-        // Capture telemetry context once
-        let ctx = TelemetryContext::new(
-            request.method().as_str(),
-            request.url().path(),
-            request_class,
-            self.telemetry_hooks.has_hooks(),
-        );
-
-        let request_span = tracing::info_span!(
-            "force_http_request",
-            http.method = request.method().as_str(),
-            http.path = request.url().path(),
-            request.class = ctx.request_class
-        );
-        let _request_span_guard = request_span.enter();
-
-        // Inject Bearer token
-        Self::inject_auth_header(&mut request, token)?;
-
-        // Execute with retry logic
-        let mut retry_attempt = 0;
-        let mut refreshed = false;
-        let max_retries = self.max_retries_for(request_class);
-        loop {
-            let req_clone = request.try_clone().ok_or_else(|| {
-                HttpError::InvalidUrl("cannot clone request for retry".to_string())
-            })?;
-
-            let response = match self.execute_attempt(req_clone, retry_attempt, &ctx).await {
-                Ok(resp) => resp,
-                Err(e) if retry_attempt < max_retries => {
-                    // Check if error is retryable (timeout or transport)
-                    if Self::is_retryable_error(&e) {
-                        self.handle_transient_failure(retry_attempt, &ctx, None)
-                            .await;
-                        retry_attempt += 1;
-                        continue;
-                    }
-                    return Err(e);
-                }
-                Err(e) => return Err(e),
-            };
-
-            match response.status() {
-                StatusCode::UNAUTHORIZED => {
-                    // 401: Refresh token and retry once
-                    if !refreshed {
-                        let new_token = refresh_token().await?;
-                        Self::inject_auth_header(&mut request, &new_token)?;
-                        refreshed = true;
-                        continue;
-                    }
-
-                    self.record_completion(
-                        &ctx,
-                        Some(StatusCode::UNAUTHORIZED.as_u16()),
-                        None,
-                        retry_attempt,
-                    );
-                    return Ok(response);
-                }
-                StatusCode::TOO_MANY_REQUESTS => {
-                    // 429: Rate limit - respect Retry-After header
-                    return Err(self.handle_rate_limit(&response, retry_attempt, &ctx));
-                }
-                StatusCode::SERVICE_UNAVAILABLE if retry_attempt < max_retries => {
-                    // 503: Retry with exponential backoff
-                    self.handle_transient_failure(retry_attempt, &ctx, Some(503))
-                        .await;
-                    retry_attempt += 1;
-                    continue;
-                }
-                _ => {
-                    self.record_completion(
-                        &ctx,
-                        Some(response.status().as_u16()),
-                        None,
-                        retry_attempt,
-                    );
-                    return Ok(response);
-                }
-            }
-        }
     }
 
     fn max_retries_for(&self, request_class: RequestRetryClass) -> u32 {

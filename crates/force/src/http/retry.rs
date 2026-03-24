@@ -100,7 +100,7 @@ pub fn classify_request(method: &Method) -> RequestRetryClass {
 /// Returns the number of seconds to wait, or None if header is missing/invalid.
 pub fn parse_retry_after(headers: &reqwest::header::HeaderMap) -> Option<u64> {
     headers
-        .get("Retry-After")
+        .get(reqwest::header::RETRY_AFTER)
         .and_then(|h| h.to_str().ok())
         .and_then(|s| s.parse::<u64>().ok())
 }
