@@ -76,6 +76,38 @@ pub struct IngestJob<S, A: Authenticator> {
 }
 
 impl<S: Send + Sync, A: Authenticator> IngestJob<S, A> {
+    /// Creates a test-only job handle in any state.
+    #[cfg(test)]
+    pub(crate) fn new_for_test(job_id: String, inner: Arc<crate::session::Session<A>>) -> Self {
+        Self {
+            job_id,
+            inner,
+            _state: PhantomData,
+        }
+    }
+
+    /// Sends a PATCH request to update the job's state (e.g., close, abort).
+    async fn patch_job_state(&self, state: JobState, error_context: &str) -> Result<()> {
+        let request = UpdateJobRequest { state };
+        let body = serde_json::to_vec(&request).map_err(crate::error::SerializationError::from)?;
+
+        let mut headers = reqwest::header::HeaderMap::new();
+        headers.insert(
+            "Content-Type",
+            reqwest::header::HeaderValue::from_static("application/json"),
+        );
+
+        self.execute_job_request(
+            reqwest::Method::PATCH,
+            None,
+            Some(body),
+            Some(headers),
+            error_context,
+        )
+        .await?;
+        Ok(())
+    }
+
     async fn execute_job_request(
         &self,
         method: reqwest::Method,
@@ -153,11 +185,6 @@ impl<A: Authenticator> IngestJob<Open, A> {
         }
     }
 
-    #[cfg(test)]
-    pub(crate) fn new_for_test(job_id: String, inner: Arc<crate::session::Session<A>>) -> Self {
-        Self::new(job_id, inner)
-    }
-
     /// Uploads CSV data to the job.
     ///
     /// # Arguments
@@ -199,27 +226,8 @@ impl<A: Authenticator> IngestJob<Open, A> {
     ///
     /// Returns an error if aborting fails.
     pub async fn abort(self) -> Result<()> {
-        let request = UpdateJobRequest {
-            state: JobState::Aborted,
-        };
-        let body = serde_json::to_vec(&request).map_err(crate::error::SerializationError::from)?;
-
-        let mut headers = reqwest::header::HeaderMap::new();
-        headers.insert(
-            "Content-Type",
-            reqwest::header::HeaderValue::from_static("application/json"),
-        );
-
-        self.execute_job_request(
-            reqwest::Method::PATCH,
-            None,
-            Some(body),
-            Some(headers),
-            "Abort job failed",
-        )
-        .await?;
-
-        Ok(())
+        self.patch_job_state(JobState::Aborted, "Abort job failed")
+            .await
     }
 }
 
@@ -230,25 +238,8 @@ impl<A: Authenticator> IngestJob<UploadComplete, A> {
     ///
     /// Returns an error if closing the job fails.
     pub async fn close(self) -> Result<IngestJob<InProgress, A>> {
-        let request = UpdateJobRequest {
-            state: JobState::UploadComplete,
-        };
-        let body = serde_json::to_vec(&request).map_err(crate::error::SerializationError::from)?;
-
-        let mut headers = reqwest::header::HeaderMap::new();
-        headers.insert(
-            "Content-Type",
-            reqwest::header::HeaderValue::from_static("application/json"),
-        );
-
-        self.execute_job_request(
-            reqwest::Method::PATCH,
-            None,
-            Some(body),
-            Some(headers),
-            "Close job failed",
-        )
-        .await?;
+        self.patch_job_state(JobState::UploadComplete, "Close job failed")
+            .await?;
 
         Ok(IngestJob {
             job_id: self.job_id,
@@ -259,15 +250,6 @@ impl<A: Authenticator> IngestJob<UploadComplete, A> {
 }
 
 impl<A: Authenticator> IngestJob<InProgress, A> {
-    #[cfg(test)]
-    pub(crate) fn new_for_test(job_id: String, inner: Arc<crate::session::Session<A>>) -> Self {
-        Self {
-            job_id,
-            inner,
-            _state: PhantomData,
-        }
-    }
-
     /// Polls the job status once.
     ///
     /// # Errors
@@ -377,15 +359,6 @@ impl<A: Authenticator> IngestJob<InProgress, A> {
 }
 
 impl<A: Authenticator> IngestJob<JobComplete, A> {
-    #[cfg(test)]
-    pub(crate) fn new_for_test(job_id: String, inner: Arc<crate::session::Session<A>>) -> Self {
-        Self {
-            job_id,
-            inner,
-            _state: PhantomData,
-        }
-    }
-
     /// Returns the job ID.
     #[must_use]
     pub fn job_id(&self) -> &str {

@@ -39,15 +39,6 @@ impl<A: crate::auth::Authenticator> BulkHandler<A> {
         Self { inner }
     }
 
-    /// Returns a reference to the client's inner state.
-    ///
-    /// This is used internally by bulk API modules to access the HTTP client
-    /// and token manager.
-    #[must_use]
-    pub(crate) fn inner(&self) -> &Arc<crate::session::Session<A>> {
-        &self.inner
-    }
-
     /// Constructs the base URL for Bulk API 2.0 operations.
     ///
     /// The base URL is constructed as: `{instance_url}/services/data/{api_version}/jobs/ingest`

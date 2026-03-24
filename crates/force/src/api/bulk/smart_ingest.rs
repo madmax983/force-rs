@@ -263,48 +263,11 @@ impl<'a, A: crate::auth::Authenticator> SmartIngest<'a, A> {
 mod tests {
     use super::SmartIngest;
     use crate::api::bulk::types::{JobOperation, JobState};
-    use crate::auth::{AccessToken, Authenticator, TokenResponse};
     use crate::client::{ForceClient, builder};
-    use crate::error::Result;
-    use crate::test_support::{Must, MustMsg};
-    use async_trait::async_trait;
+    use crate::test_support::{MockAuthenticator, Must, MustMsg};
     use serde::Serialize;
     use wiremock::matchers::{body_string, header, method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
-
-    #[derive(Debug, Clone)]
-    struct MockAuthenticator {
-        token: String,
-        instance_url: String,
-    }
-
-    impl MockAuthenticator {
-        fn new(token: &str, instance_url: &str) -> Self {
-            Self {
-                token: token.to_string(),
-                instance_url: instance_url.to_string(),
-            }
-        }
-    }
-
-    #[async_trait]
-    impl Authenticator for MockAuthenticator {
-        async fn authenticate(&self) -> Result<AccessToken> {
-            Ok(AccessToken::from_response(TokenResponse {
-                access_token: self.token.clone(),
-                instance_url: self.instance_url.clone(),
-                token_type: "Bearer".to_string(),
-                issued_at: "1704067200000".to_string(),
-                signature: "test_sig".to_string(),
-                expires_in: Some(7200),
-                refresh_token: None,
-            }))
-        }
-
-        async fn refresh(&self) -> Result<AccessToken> {
-            self.authenticate().await
-        }
-    }
 
     async fn create_test_client(mock_server_url: String) -> ForceClient<MockAuthenticator> {
         let auth = MockAuthenticator::new("test_token", &mock_server_url);

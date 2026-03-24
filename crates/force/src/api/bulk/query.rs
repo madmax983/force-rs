@@ -225,16 +225,18 @@ impl<T, A: crate::auth::Authenticator> BulkQueryStream<T, A> {
     }
 
     fn update_locator(&mut self, response: &reqwest::Response) {
-        let locator_header = response
+        self.first_page_fetched = true;
+        self.next_locator = response
             .headers()
             .get("Sforce-Locator")
             .and_then(|value| value.to_str().ok())
-            .map(std::string::ToString::to_string);
-        self.first_page_fetched = true;
-        self.next_locator = match locator_header.as_deref() {
-            Some("null") | None => None,
-            Some(value) => Some(value.to_string()),
-        };
+            .and_then(|s| {
+                if s == "null" {
+                    None
+                } else {
+                    Some(s.to_string())
+                }
+            });
     }
 
     #[allow(clippy::future_not_send)]
@@ -248,17 +250,14 @@ impl<T, A: crate::auth::Authenticator> BulkQueryStream<T, A> {
             .map_err(crate::error::HttpError::from)?;
 
         let mut reader = csv::Reader::from_reader(csv_bytes.as_ref());
-        let mut records = VecDeque::new();
 
+        // Reuse the existing VecDeque allocation across pages
+        self.records.clear();
         for result in reader.deserialize() {
-            let record: T = result.map_err(|e| crate::error::HttpError::StatusError {
-                status_code: 500,
-                message: format!("CSV deserialization failed: {}", e),
-            })?;
-            records.push_back(record);
+            let record: T = result.map_err(crate::error::SerializationError::from)?;
+            self.records.push_back(record);
         }
 
-        self.records = records;
         Ok(())
     }
 
@@ -302,7 +301,7 @@ impl<A: crate::auth::Authenticator> super::BulkHandler<A> {
     ///
     /// Returns an error if token retrieval fails.
     pub async fn query_base_url(&self) -> Result<String> {
-        self.inner().resolve_url("jobs/query").await
+        self.inner.resolve_url("jobs/query").await
     }
 
     /// Creates a new bulk query job.
@@ -332,7 +331,7 @@ impl<A: crate::auth::Authenticator> super::BulkHandler<A> {
     /// ```
     pub async fn create_query_job(&self, request: BulkQueryRequest) -> Result<BulkQueryJobInfo> {
         let url = self.query_base_url().await?;
-        let inner = self.inner();
+        let inner = &*self.inner;
         let request = inner
             .post(&url)
             .json(&request)
@@ -368,10 +367,10 @@ impl<A: crate::auth::Authenticator> super::BulkHandler<A> {
     /// ```
     pub async fn get_query_job(&self, job_id: &str) -> Result<BulkQueryJobInfo> {
         let url = self
-            .inner()
+            .inner
             .resolve_url(&format!("jobs/query/{}", job_id))
             .await?;
-        let inner = self.inner();
+        let inner = &*self.inner;
         let request = inner
             .get(&url)
             .build()
@@ -409,10 +408,10 @@ impl<A: crate::auth::Authenticator> super::BulkHandler<A> {
     /// ```
     pub async fn abort_query_job(&self, job_id: &str) -> Result<BulkQueryJobInfo> {
         let url = self
-            .inner()
+            .inner
             .resolve_url(&format!("jobs/query/{}", job_id))
             .await?;
-        let inner = self.inner();
+        let inner = &*self.inner;
 
         let update_request = super::types::UpdateJobRequest {
             state: super::types::JobState::Aborted,
@@ -454,10 +453,10 @@ impl<A: crate::auth::Authenticator> super::BulkHandler<A> {
     /// ```
     pub async fn delete_query_job(&self, job_id: &str) -> Result<()> {
         let url = self
-            .inner()
+            .inner
             .resolve_url(&format!("jobs/query/{}", job_id))
             .await?;
-        let inner = self.inner();
+        let inner = &*self.inner;
         let request = inner
             .delete(&url)
             .build()
@@ -510,7 +509,7 @@ impl<A: crate::auth::Authenticator> super::BulkHandler<A> {
     {
         // Placeholder for GREEN phase
         Ok(BulkQueryStream::new(
-            Arc::clone(self.inner()),
+            Arc::clone(&self.inner),
             job_id.to_string(),
         ))
     }
