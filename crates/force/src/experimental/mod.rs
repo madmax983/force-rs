@@ -64,7 +64,7 @@ pub use data_faker::generate_mock_record;
 #[cfg(feature = "schema")]
 pub use schema_analyzer::{SchemaInsights, analyze_schema};
 #[cfg(feature = "schema")]
-pub use schema_visualizer::SchemaVisualizer;
+pub use schema_visualizer::generate_visualizer_report;
 
 #[cfg(feature = "composite")]
 pub use soql_mass_op::SoqlMassOp;
