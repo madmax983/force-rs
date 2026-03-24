@@ -252,4 +252,50 @@ mod tests {
             Some("2024-01-01")
         );
     }
+
+    #[test]
+    fn test_generate_mock_record_picklists() {
+        let mut field1 = mock_field("Pick1", "picklist", true, false, false);
+        field1["picklistValues"] = json!([{"active": false, "value": "A", "defaultValue": false, "label": "A"}, {"active": true, "value": "B", "defaultValue": false, "label": "B"}]);
+
+        let mut field2 = mock_field("Pick2", "multipicklist", true, false, false);
+        field2["picklistValues"] = json!([{"active": false, "value": "X", "defaultValue": false, "label": "X"}, {"active": false, "value": "Y", "defaultValue": false, "label": "Y"}]);
+
+        let mut field3 = mock_field("Pick3", "combobox", true, false, false);
+        field3["picklistValues"] = json!([]);
+
+        let field4 = mock_field("Pick4", "picklist", true, false, false);
+
+        let field5 = mock_field("Base64F", "base64", true, false, false);
+        let field6 = mock_field("LocF", "location", true, false, false);
+        let field7 = mock_field("AddrF", "address", true, false, false);
+        let field8 = mock_field("DataCatF", "datacategorygroupreference", true, false, false);
+
+        let describe = create_mock_describe(&json!([
+            field1, field2, field3, field4, field5, field6, field7, field8
+        ]));
+        let record = generate_mock_record(&describe);
+
+        assert_eq!(
+            record.get_field("Pick1").and_then(|v| v.as_str()),
+            Some("B")
+        );
+        assert_eq!(
+            record.get_field("Pick2").and_then(|v| v.as_str()),
+            Some("X")
+        );
+        assert_eq!(
+            record.get_field("Pick3").and_then(|v| v.as_str()),
+            Some("Mock Selection")
+        );
+        assert_eq!(
+            record.get_field("Pick4").and_then(|v| v.as_str()),
+            Some("Mock Selection")
+        );
+
+        assert!(!record.has_field("Base64F"));
+        assert!(!record.has_field("LocF"));
+        assert!(!record.has_field("AddrF"));
+        assert!(!record.has_field("DataCatF"));
+    }
 }
