@@ -119,12 +119,18 @@ where
     }
 
     /// Converts this query stream into a `futures::Stream`.
+    ///
+    /// The stream terminates after emitting one error — it does not retry
+    /// or re-fetch the failing page, preventing infinite error loops.
     pub fn into_stream(self) -> impl Stream<Item = Result<T>> {
         futures::stream::unfold(self, |mut stream| async move {
             match stream.next().await {
                 Ok(Some(item)) => Some((Ok(item), stream)),
                 Ok(None) => None,
-                Err(e) => Some((Err(e), stream)),
+                Err(e) => {
+                    stream.exhausted = true;
+                    Some((Err(e), stream))
+                }
             }
         })
     }
