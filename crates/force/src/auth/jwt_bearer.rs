@@ -35,13 +35,13 @@ use async_trait::async_trait;
 #[cfg(feature = "jwt")]
 use jsonwebtoken::{EncodingKey, Header, encode};
 #[cfg(feature = "jwt")]
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 #[cfg(feature = "jwt")]
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// JWT claims for Salesforce OAuth JWT bearer assertion.
 #[cfg(feature = "jwt")]
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 struct JwtClaims<'a> {
     /// Issuer (OAuth client ID).
     iss: &'a str,
@@ -117,19 +117,13 @@ impl JwtBearerFlow {
                 )))
             })?;
 
-        // Client initialization failure is fatal and unrecoverable here
-        let http_client = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(30))
-            .build()
-            .unwrap_or_else(|e| panic!("Failed to create secure HTTP client: {}", e));
-
         Ok(Self {
             client_id: client_id.into(),
             username: username.into(),
             private_key,
             audience: audience.into(),
             token_url: token_url.into(),
-            http_client,
+            http_client: crate::auth::default_auth_http_client(),
         })
     }
 
@@ -150,8 +144,8 @@ impl JwtBearerFlow {
             client_id,
             username,
             private_key_pem,
-            "https://login.salesforce.com",
-            "https://login.salesforce.com/services/oauth2/token",
+            crate::auth::PRODUCTION_LOGIN_URL,
+            crate::auth::PRODUCTION_TOKEN_URL,
         )
     }
 
@@ -165,8 +159,8 @@ impl JwtBearerFlow {
             client_id,
             username,
             private_key_pem,
-            "https://test.salesforce.com",
-            "https://test.salesforce.com/services/oauth2/token",
+            crate::auth::SANDBOX_LOGIN_URL,
+            crate::auth::SANDBOX_TOKEN_URL,
         )
     }
 
@@ -234,30 +228,7 @@ impl Authenticator for JwtBearerFlow {
             .map_err(|e| ForceError::Http(HttpError::RequestFailed(e)))?;
 
         if !response.status().is_success() {
-            let status = response.status();
-            // Read up to 1MB to prevent memory exhaustion DoS
-            let body = crate::http::error::read_capped_body(response, 1024 * 1024).await;
-
-            let error_text = if body.trim().is_empty() {
-                "Unknown error".to_string()
-            } else {
-                body
-            };
-
-            // Try to parse OAuth error response
-            if let Ok(oauth_error) = serde_json::from_str::<OAuthErrorResponse>(&error_text) {
-                return Err(ForceError::Authentication(
-                    AuthenticationError::TokenRequestFailed(format!(
-                        "{}: {}",
-                        oauth_error.error, oauth_error.error_description
-                    )),
-                ));
-            }
-
-            return Err(ForceError::Http(HttpError::StatusError {
-                status_code: status.as_u16(),
-                message: error_text,
-            }));
+            return Err(crate::auth::handle_oauth_error(response, None).await);
         }
 
         let token_response = response
@@ -273,14 +244,6 @@ impl Authenticator for JwtBearerFlow {
         // Re-authenticate with a new JWT.
         self.authenticate().await
     }
-}
-
-/// OAuth error response.
-#[cfg(feature = "jwt")]
-#[derive(Debug, Deserialize)]
-struct OAuthErrorResponse {
-    error: String,
-    error_description: String,
 }
 
 #[cfg(all(test, feature = "jwt"))]

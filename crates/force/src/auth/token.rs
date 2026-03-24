@@ -41,7 +41,7 @@ pub struct TokenResponse {
     pub refresh_token: Option<String>,
 }
 
-fn default_token_type() -> String {
+pub fn default_token_type() -> String {
     "Bearer".to_string()
 }
 
@@ -142,30 +142,26 @@ impl AccessToken {
         &self.token_type
     }
 
-    /// Checks if the token is expired.
+    /// Checks if the token is expired (alias for [`is_soft_expired`]).
     ///
-    /// Uses a 60-second buffer to proactively refresh tokens before they expire.
-    /// If no expiration time is known, returns `false` (assume valid).
-    ///
-    /// # Returns
-    ///
-    /// `true` if the token is expired or will expire within 60 seconds.
+    /// Prefer using `is_soft_expired()` or `is_hard_expired()` for clarity.
     #[must_use]
     pub fn is_expired(&self) -> bool {
-        self.is_expired_with_buffer(Duration::seconds(60))
+        self.is_soft_expired()
     }
 
     /// Checks if the token is "hard" expired, meaning it is absolutely invalid.
     ///
-    /// This uses a 0-second buffer.
+    /// This uses a 0-second buffer — the token must be past its expiration time.
     #[must_use]
     pub fn is_hard_expired(&self) -> bool {
         self.is_expired_with_buffer(Duration::zero())
     }
 
-    /// Checks if the token is "soft" expired, meaning it is valid but should be refreshed.
+    /// Checks if the token is "soft" expired, meaning it should be refreshed proactively.
     ///
-    /// This uses the standard 60-second buffer.
+    /// Uses a 60-second buffer: returns `true` if the token will expire within 60 seconds.
+    /// If no expiration time is known, returns `false` (assume valid).
     #[must_use]
     pub fn is_soft_expired(&self) -> bool {
         self.is_expired_with_buffer(Duration::seconds(60))

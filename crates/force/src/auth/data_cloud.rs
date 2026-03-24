@@ -21,7 +21,7 @@
 use crate::auth::authenticator::Authenticator;
 use crate::auth::token::{AccessToken, TokenResponse};
 use crate::auth::token_manager::TokenManager;
-use crate::error::{AuthenticationError, ForceError, HttpError, Result};
+use crate::error::{ForceError, HttpError, Result};
 use async_trait::async_trait;
 use serde::Deserialize;
 use std::fmt;
@@ -76,16 +76,12 @@ struct DataCloudTokenResponse {
     pub instance_url: String,
 
     /// Token type (typically `"Bearer"`).
-    #[serde(default = "default_token_type")]
+    #[serde(default = "crate::auth::token::default_token_type")]
     pub token_type: String,
 
     /// Token lifetime in seconds.
     #[serde(default)]
     pub expires_in: Option<u64>,
-}
-
-fn default_token_type() -> String {
-    "Bearer".to_string()
 }
 
 impl DataCloudTokenResponse {
@@ -105,13 +101,6 @@ impl DataCloudTokenResponse {
 }
 
 // ─── Data Cloud Authenticator ────────────────────────────────────────────────
-
-/// OAuth error response from the token exchange endpoint.
-#[derive(Debug, Deserialize)]
-struct OAuthErrorResponse {
-    error: String,
-    error_description: String,
-}
 
 /// Decorator authenticator that performs the Data Cloud token exchange.
 ///
@@ -203,31 +192,12 @@ impl<A: Authenticator> Authenticator for DataCloudAuthenticator<A> {
             .await
             .map_err(|e| ForceError::Http(HttpError::RequestFailed(e)))?;
 
-        let status = response.status();
-        if !status.is_success() {
-            // Read up to 1MB to prevent memory exhaustion
-            let body = crate::http::error::read_capped_body(response, 1024 * 1024).await;
-
-            let error_text = if body.trim().is_empty() {
-                "Unknown error".to_string()
-            } else {
-                body
-            };
-
-            // Try to parse OAuth error response
-            if let Ok(oauth_error) = serde_json::from_str::<OAuthErrorResponse>(&error_text) {
-                return Err(ForceError::Authentication(
-                    AuthenticationError::TokenRequestFailed(format!(
-                        "Data Cloud token exchange failed: {}: {}",
-                        oauth_error.error, oauth_error.error_description
-                    )),
-                ));
-            }
-
-            return Err(ForceError::Http(HttpError::StatusError {
-                status_code: status.as_u16(),
-                message: format!("Data Cloud token exchange failed: {error_text}"),
-            }));
+        if !response.status().is_success() {
+            return Err(crate::auth::handle_oauth_error(
+                response,
+                Some("Data Cloud token exchange failed"),
+            )
+            .await);
         }
 
         // Parse successful DC token response
@@ -434,6 +404,7 @@ mod tests {
     #[cfg(feature = "mock")]
     mod integration {
         use super::*;
+        use crate::error::AuthenticationError;
         use crate::test_support::{MockAuthenticator, Must};
         use wiremock::matchers::{method, path};
         use wiremock::{Mock, MockServer, ResponseTemplate};
