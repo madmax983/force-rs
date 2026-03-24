@@ -168,9 +168,12 @@ impl DynamicSObject {
     }
 
     /// Converts the `SObject` to a JSON value.
-    #[must_use]
-    pub fn to_value(&self) -> Value {
-        serde_json::to_value(self).unwrap_or(Value::Null)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if serialization fails (unlikely for standard field types).
+    pub fn to_value(&self) -> Result<Value, serde_json::Error> {
+        serde_json::to_value(self)
     }
 }
 
@@ -390,7 +393,7 @@ mod tests {
         let mut sobject = DynamicSObject::new(attrs);
         sobject.set_field("Name", "Acme Corp");
 
-        let value = sobject.to_value();
+        let value = sobject.to_value().must();
         assert!(value.is_object());
         assert!(value.get("attributes").is_some());
         assert!(value.get("Name").is_some());

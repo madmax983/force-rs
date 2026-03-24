@@ -5,6 +5,22 @@
 
 use crate::error::ForceError;
 
+/// Validates that a string contains only alphanumeric characters and underscores.
+///
+/// Shared logic for SObject names, external ID fields, and any other identifier
+/// that must be a strict `[a-zA-Z0-9_]+` pattern.
+fn validate_identifier(name: &str, label: &str) -> Result<(), ForceError> {
+    if name.is_empty() {
+        return Err(ForceError::InvalidInput(format!("{label} cannot be empty")));
+    }
+    if !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+        return Err(ForceError::InvalidInput(format!(
+            "{label} contains invalid characters: {name}"
+        )));
+    }
+    Ok(())
+}
+
 /// Validates an SObject name (e.g., "Account", "Custom__c").
 ///
 /// # Rules
@@ -16,19 +32,7 @@ use crate::error::ForceError;
 /// This prevents path traversal and injection attacks when SObject names are used
 /// in URLs or queries.
 pub fn validate_sobject_name(name: &str) -> Result<(), ForceError> {
-    if name.is_empty() {
-        return Err(ForceError::InvalidInput(
-            "SObject name cannot be empty".to_string(),
-        ));
-    }
-    // Strict: [a-zA-Z0-9_]+
-    if !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
-        return Err(ForceError::InvalidInput(format!(
-            "SObject name contains invalid characters: {}",
-            name
-        )));
-    }
-    Ok(())
+    validate_identifier(name, "SObject name")
 }
 
 /// Validates a field name or path (e.g., "Name", "Parent.Name").
@@ -58,21 +62,7 @@ pub fn validate_field_name(name: &str) -> Result<(), ForceError> {
 /// This ensures that the external ID field is a valid identifier on the object,
 /// preventing path manipulation in upsert requests.
 pub fn validate_external_id_field(name: &str) -> Result<(), ForceError> {
-    if name.is_empty() {
-        return Err(ForceError::InvalidInput(
-            "External ID field name cannot be empty".to_string(),
-        ));
-    }
-
-    // Strict: [a-zA-Z0-9_]+
-    // No dots allowed for external ID fields on the object itself.
-    if !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
-        return Err(ForceError::InvalidInput(format!(
-            "External ID field name contains invalid characters: {}",
-            name
-        )));
-    }
-    Ok(())
+    validate_identifier(name, "External ID field name")
 }
 
 fn validate_field_name_internal(name: &str, allow_functions: bool) -> Result<(), ForceError> {
@@ -85,45 +75,38 @@ fn validate_field_name_internal(name: &str, allow_functions: bool) -> Result<(),
     // Check for invalid dot usage (path traversal / malformed paths)
     if name.starts_with('.') || name.ends_with('.') || name.contains("..") {
         return Err(ForceError::InvalidInput(format!(
-            "Field name contains invalid dot usage: {}",
-            name
+            "Field name contains invalid dot usage: {name}"
         )));
     }
 
+    // Single pass: validate characters and track parenthesis balance
+    let mut balance: i32 = 0;
     for c in name.chars() {
-        if !c.is_ascii_alphanumeric() && c != '_' && c != '.' {
-            if allow_functions && (c == '(' || c == ')') {
-                continue;
-            }
-            return Err(ForceError::InvalidInput(format!(
-                "Field name contains invalid character '{}': {}",
-                c, name
-            )));
+        if c.is_ascii_alphanumeric() || c == '_' || c == '.' {
+            continue;
         }
-    }
-
-    if allow_functions {
-        // Check parenthesis balance
-        let mut balance = 0;
-        for c in name.chars() {
+        if allow_functions && (c == '(' || c == ')') {
             if c == '(' {
                 balance += 1;
-            } else if c == ')' {
+            } else {
                 balance -= 1;
             }
             if balance < 0 {
                 return Err(ForceError::InvalidInput(format!(
-                    "Unbalanced parentheses in field name: {}",
-                    name
+                    "Unbalanced parentheses in field name: {name}"
                 )));
             }
+            continue;
         }
-        if balance != 0 {
-            return Err(ForceError::InvalidInput(format!(
-                "Unbalanced parentheses in field name: {}",
-                name
-            )));
-        }
+        return Err(ForceError::InvalidInput(format!(
+            "Field name contains invalid character '{c}': {name}"
+        )));
+    }
+
+    if allow_functions && balance != 0 {
+        return Err(ForceError::InvalidInput(format!(
+            "Unbalanced parentheses in field name: {name}"
+        )));
     }
 
     Ok(())

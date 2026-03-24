@@ -32,12 +32,12 @@ pub enum ApiVersionSupportTier {
 ///
 /// // Parse from string
 /// let version: ApiVersion = "v60.0".parse().unwrap();
-/// assert_eq!(version.as_str(), "v60.0");
+/// assert_eq!(version.to_string(), "v60.0");
 /// assert_eq!(version.major(), 60);
 ///
 /// // Create from major version number
 /// let version = ApiVersion::new(61);
-/// assert_eq!(version.as_str(), "v61.0");
+/// assert_eq!(version.to_string(), "v61.0");
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct ApiVersion {
@@ -53,7 +53,7 @@ impl ApiVersion {
     /// use force::types::ApiVersion;
     ///
     /// let version = ApiVersion::new(60);
-    /// assert_eq!(version.as_str(), "v60.0");
+    /// assert_eq!(version.to_string(), "v60.0");
     /// ```
     #[must_use]
     pub const fn new(major: u16) -> Self {
@@ -73,33 +73,6 @@ impl ApiVersion {
     #[must_use]
     pub const fn major(&self) -> u16 {
         self.major
-    }
-
-    /// Returns the version as a string in "vX.0" format.
-    ///
-    /// Note: This allocates a new String. For formatting purposes,
-    /// prefer using the `Display` trait which is more efficient.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use force::types::ApiVersion;
-    ///
-    /// let version = ApiVersion::new(60);
-    /// assert_eq!(version.as_str(), "v60.0");
-    /// ```
-    #[must_use]
-    pub fn as_str(&self) -> String {
-        format!("v{}.0", self.major)
-    }
-
-    /// The latest stable API version (v60.0 as of implementation).
-    ///
-    /// This should be updated periodically as new Salesforce releases occur.
-    /// Salesforce typically releases 3 versions per year (Winter, Spring, Summer).
-    #[must_use]
-    pub const fn latest() -> Self {
-        Self::new(60)
     }
 
     /// Minimum API version supported by this crate.
@@ -223,15 +196,10 @@ mod tests {
     }
 
     #[test]
-    fn test_as_str_format() {
-        let version = ApiVersion::new(60);
-        assert_eq!(version.as_str(), "v60.0");
-    }
-
-    #[test]
     fn test_display_trait() {
         let version = ApiVersion::new(60);
-        assert_eq!(format!("{}", version), "v60.0");
+        assert_eq!(version.to_string(), "v60.0");
+        assert_eq!(format!("{version}"), "v60.0");
     }
 
     #[test]
@@ -305,12 +273,6 @@ mod tests {
     }
 
     #[test]
-    fn test_latest() {
-        let latest = ApiVersion::latest();
-        assert_eq!(latest, ApiVersion::V60);
-    }
-
-    #[test]
     fn test_support_contract_flags() {
         assert!(ApiVersion::V55.is_supported());
         assert!(ApiVersion::V55.is_tested());
@@ -344,13 +306,13 @@ mod tests {
     fn test_from_str_to_str_roundtrip() {
         let original = "v60.0";
         let version: ApiVersion = original.parse().must();
-        assert_eq!(version.as_str(), original);
+        assert_eq!(version.to_string(), original);
     }
 
     #[test]
     fn test_large_version_numbers() {
         let version = ApiVersion::new(999);
-        assert_eq!(version.as_str(), "v999.0");
+        assert_eq!(version.to_string(), "v999.0");
         assert_eq!(version.major(), 999);
 
         let parsed: ApiVersion = "v999.0".parse().must();
@@ -360,7 +322,7 @@ mod tests {
     #[test]
     fn test_single_digit_version() {
         let version = ApiVersion::new(1);
-        assert_eq!(version.as_str(), "v1.0");
+        assert_eq!(version.to_string(), "v1.0");
 
         let parsed: ApiVersion = "v1.0".parse().must();
         assert_eq!(parsed, version);
@@ -404,14 +366,14 @@ mod tests {
                 prop_assert_eq!(parsed.major(), major);
             }
 
-            // Property 2: as_str() matches Display format
+            // Property 2: to_string() matches Display format
             #[test]
-            fn prop_as_str_matches_display(major in 1u16..1000u16) {
+            fn prop_to_string_matches_display(major in 1u16..1000u16) {
                 let version = ApiVersion::new(major);
-                let as_str = version.as_str();
-                let displayed = format!("{}", version);
+                let to_str = version.to_string();
+                let displayed = format!("{version}");
 
-                prop_assert_eq!(as_str, displayed);
+                prop_assert_eq!(to_str, displayed);
             }
 
             // Property 3: Valid version strings parse successfully

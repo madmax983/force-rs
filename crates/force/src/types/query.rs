@@ -109,7 +109,10 @@ impl<T> QueryResult<T> {
     }
 
     /// Consumes the result and returns an iterator over the records.
-    pub fn into_iter(self) -> impl Iterator<Item = T> {
+    ///
+    /// Prefer using `for record in result { ... }` via [`IntoIterator`] instead
+    /// of calling this directly.
+    pub fn into_records(self) -> std::vec::IntoIter<T> {
         self.records.into_iter()
     }
 
@@ -148,6 +151,15 @@ impl<T> QueryResult<T> {
 impl<T> Default for QueryResult<T> {
     fn default() -> Self {
         Self::new(0, true, Vec::new())
+    }
+}
+
+impl<T> IntoIterator for QueryResult<T> {
+    type Item = T;
+    type IntoIter = std::vec::IntoIter<T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.records.into_iter()
     }
 }
 
@@ -242,6 +254,8 @@ pub struct QueryIterator<T> {
     page_count: usize,
     /// Pre-calculated total record count.
     total_count: usize,
+    /// Number of records yielded so far.
+    yielded: usize,
 }
 
 impl<T> QueryIterator<T> {
@@ -256,6 +270,7 @@ impl<T> QueryIterator<T> {
             current_page: Vec::new().into_iter(),
             page_count,
             total_count,
+            yielded: 0,
         }
     }
 
@@ -279,6 +294,7 @@ impl<T> Iterator for QueryIterator<T> {
         loop {
             // 1. Try to yield from current page
             if let Some(record) = self.current_page.next() {
+                self.yielded += 1;
                 return Some(record);
             }
 
@@ -290,6 +306,11 @@ impl<T> Iterator for QueryIterator<T> {
                 return None;
             }
         }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let remaining = self.total_count.saturating_sub(self.yielded);
+        (remaining, Some(remaining))
     }
 }
 #[cfg(test)]
@@ -343,8 +364,19 @@ mod tests {
     fn test_query_result_into_iter() {
         let result: QueryResult<i32> = QueryResult::new(3, true, vec![1, 2, 3]);
 
+        // IntoIterator trait: use `for` loop style
         let collected: Vec<i32> = result.into_iter().collect();
         assert_eq!(collected, vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn test_query_result_for_loop() {
+        let result: QueryResult<i32> = QueryResult::new(3, true, vec![1, 2, 3]);
+        let mut sum = 0;
+        for record in result {
+            sum += record;
+        }
+        assert_eq!(sum, 6);
     }
 
     #[test]

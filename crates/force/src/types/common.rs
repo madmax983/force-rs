@@ -89,122 +89,97 @@ impl CreateResponse {
     }
 }
 
-/// Response from an update operation.
+/// Generates a simple success/failure response type with `success: bool` and `errors: Vec<ApiError>`.
 ///
-/// Update operations return only a success flag and any errors.
-/// The ID is not returned since it's already known (it was in the request).
-///
-/// # Examples
-///
-/// ```
-/// use force::types::UpdateResponse;
-///
-/// let response = UpdateResponse {
-///     success: true,
-///     errors: vec![],
-/// };
-/// assert!(response.is_success());
-/// ```
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct UpdateResponse {
-    /// Whether the update operation succeeded.
-    pub success: bool,
+/// `UpdateResponse` and `DeleteResponse` are structurally identical — this macro
+/// eliminates the copy-paste while keeping them as distinct types (Salesforce could
+/// diverge them in the future).
+macro_rules! define_simple_response {
+    ($(#[$meta:meta])* $name:ident) => {
+        $(#[$meta])*
+        #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        pub struct $name {
+            /// Whether the operation succeeded.
+            pub success: bool,
 
-    /// List of errors (empty if success is true).
-    #[serde(default)]
-    pub errors: Vec<ApiError>,
+            /// List of errors (empty if success is true).
+            #[serde(default)]
+            pub errors: Vec<ApiError>,
+        }
+
+        impl $name {
+            /// Creates a successful response.
+            #[must_use]
+            pub const fn success() -> Self {
+                Self {
+                    success: true,
+                    errors: Vec::new(),
+                }
+            }
+
+            /// Creates a failed response with the given errors.
+            #[must_use]
+            pub fn failure(errors: Vec<ApiError>) -> Self {
+                Self {
+                    success: false,
+                    errors,
+                }
+            }
+
+            /// Returns true if the operation succeeded.
+            #[must_use]
+            pub const fn is_success(&self) -> bool {
+                self.success
+            }
+
+            /// Returns true if the operation failed.
+            #[must_use]
+            pub const fn is_failure(&self) -> bool {
+                !self.success
+            }
+        }
+    };
 }
 
-impl UpdateResponse {
-    /// Creates a successful response.
-    #[must_use]
-    pub const fn success() -> Self {
-        Self {
-            success: true,
-            errors: Vec::new(),
-        }
-    }
+define_simple_response!(
+    /// Response from an update operation.
+    ///
+    /// Update operations return only a success flag and any errors.
+    /// The ID is not returned since it's already known (it was in the request).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use force::types::UpdateResponse;
+    ///
+    /// let response = UpdateResponse {
+    ///     success: true,
+    ///     errors: vec![],
+    /// };
+    /// assert!(response.is_success());
+    /// ```
+    UpdateResponse
+);
 
-    /// Creates a failed response with the given errors.
-    #[must_use]
-    pub fn failure(errors: Vec<ApiError>) -> Self {
-        Self {
-            success: false,
-            errors,
-        }
-    }
-
-    /// Returns true if the operation succeeded.
-    #[must_use]
-    pub const fn is_success(&self) -> bool {
-        self.success
-    }
-
-    /// Returns true if the operation failed.
-    #[must_use]
-    pub const fn is_failure(&self) -> bool {
-        !self.success
-    }
-}
-
-/// Response from a delete operation.
-///
-/// Delete operations return only a success flag and any errors.
-///
-/// # Examples
-///
-/// ```
-/// use force::types::DeleteResponse;
-///
-/// let response = DeleteResponse {
-///     success: true,
-///     errors: vec![],
-/// };
-/// assert!(response.is_success());
-/// ```
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct DeleteResponse {
-    /// Whether the delete operation succeeded.
-    pub success: bool,
-
-    /// List of errors (empty if success is true).
-    #[serde(default)]
-    pub errors: Vec<ApiError>,
-}
-
-impl DeleteResponse {
-    /// Creates a successful response.
-    #[must_use]
-    pub const fn success() -> Self {
-        Self {
-            success: true,
-            errors: Vec::new(),
-        }
-    }
-
-    /// Creates a failed response with the given errors.
-    #[must_use]
-    pub fn failure(errors: Vec<ApiError>) -> Self {
-        Self {
-            success: false,
-            errors,
-        }
-    }
-
-    /// Returns true if the operation succeeded.
-    #[must_use]
-    pub const fn is_success(&self) -> bool {
-        self.success
-    }
-
-    /// Returns true if the operation failed.
-    #[must_use]
-    pub const fn is_failure(&self) -> bool {
-        !self.success
-    }
-}
+define_simple_response!(
+    /// Response from a delete operation.
+    ///
+    /// Delete operations return only a success flag and any errors.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use force::types::DeleteResponse;
+    ///
+    /// let response = DeleteResponse {
+    ///     success: true,
+    ///     errors: vec![],
+    /// };
+    /// assert!(response.is_success());
+    /// ```
+    DeleteResponse
+);
 
 /// Response from an upsert operation.
 ///
