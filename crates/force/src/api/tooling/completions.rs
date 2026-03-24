@@ -31,12 +31,20 @@ pub enum CompletionsType {
     Visualforce,
 }
 
+impl CompletionsType {
+    /// Returns the string representation used in API query parameters.
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Apex => "apex",
+            Self::Visualforce => "visualforce",
+        }
+    }
+}
+
 impl fmt::Display for CompletionsType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Apex => write!(f, "apex"),
-            Self::Visualforce => write!(f, "visualforce"),
-        }
+        f.write_str(self.as_str())
     }
 }
 
@@ -107,11 +115,10 @@ impl<A: crate::auth::Authenticator> super::ToolingHandler<A> {
         query: &str,
     ) -> crate::error::Result<CompletionsResult> {
         let url = self.session().resolve_url("tooling/completions").await?;
-        let type_str = completions_type.to_string();
         let request = self
             .session()
             .get(&url)
-            .query(&[("type", type_str.as_str()), ("q", query)])
+            .query(&[("type", completions_type.as_str()), ("q", query)])
             .build()
             .map_err(crate::error::HttpError::from)?;
 
