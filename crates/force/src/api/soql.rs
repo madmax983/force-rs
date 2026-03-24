@@ -58,6 +58,32 @@ pub fn escape_soql_cow(input: &str) -> Cow<'_, str> {
     }
 }
 
+/// Encodes a `SoqlQueryBuilder` into a URL-safe `query?q=...` string.
+///
+/// Validates the builder, then writes the SOQL through URL-encoding.
+/// Used by Composite Batch and Graph APIs to embed queries in subrequests.
+pub(crate) fn encode_soql_query_url(
+    query_builder: &SoqlQueryBuilder,
+) -> Result<String, ForceError> {
+    if let Err(e) = query_builder.validate() {
+        return Err(ForceError::InvalidInput(format!(
+            "Invalid query builder: {e}"
+        )));
+    }
+
+    let mut url = String::with_capacity(256 + 8);
+    url.push_str("query?q=");
+
+    {
+        let mut writer = crate::api::url_encoded_writer::UrlEncodedWriter(&mut url);
+        query_builder
+            .write_query(&mut writer)
+            .map_err(|e| ForceError::InvalidInput(format!("Formatting failed: {e}")))?;
+    }
+
+    Ok(url)
+}
+
 /// Builder for constructing safe SOQL queries.
 ///
 /// Helps prevent SOQL injection by validating object and field names,

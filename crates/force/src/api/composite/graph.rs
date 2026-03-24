@@ -15,21 +15,9 @@ use crate::types::validator;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-/// Helper to validate graph reference IDs.
-/// Reference IDs must be strictly alphanumeric/underscores.
+/// Validates graph reference IDs using the shared identifier validator.
 fn validate_reference_id(id: &str) -> Result<()> {
-    if id.is_empty() {
-        return Err(ForceError::InvalidInput(
-            "Reference ID cannot be empty".to_string(),
-        ));
-    }
-    if !id.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
-        return Err(ForceError::InvalidInput(format!(
-            "Reference ID contains invalid characters: {}",
-            id
-        )));
-    }
-    Ok(())
+    validator::validate_identifier(id, "Reference ID")
 }
 
 /// Helper to validate graph IDs.
@@ -264,28 +252,7 @@ impl Graph {
     #[allow(clippy::needless_pass_by_value)] // Ownership consumed to enforce builder pattern
     pub fn query(self, query_builder: SoqlQueryBuilder, reference_id: &str) -> Result<Self> {
         validate_reference_id(reference_id)?;
-
-        if let Err(e) = query_builder.validate() {
-            return Err(ForceError::InvalidInput(format!(
-                "Invalid query builder: {}",
-                e
-            )));
-        }
-
-        let mut url = String::with_capacity(256 + 8);
-        url.push_str("query?q=");
-
-        {
-            use crate::api::url_encoded_writer::UrlEncodedWriter;
-            let mut writer = UrlEncodedWriter(&mut url);
-            if let Err(e) = query_builder.write_query(&mut writer) {
-                return Err(ForceError::InvalidInput(format!(
-                    "Formatting failed: {}",
-                    e
-                )));
-            }
-        }
-
+        let url = crate::api::soql::encode_soql_query_url(&query_builder)?;
         self.add_request(GraphRequest::new("GET", url, reference_id))
     }
 }

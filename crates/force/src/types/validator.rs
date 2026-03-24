@@ -9,7 +9,7 @@ use crate::error::ForceError;
 ///
 /// Shared logic for SObject names, external ID fields, and any other identifier
 /// that must be a strict `[a-zA-Z0-9_]+` pattern.
-fn validate_identifier(name: &str, label: &str) -> Result<(), ForceError> {
+pub fn validate_identifier(name: &str, label: &str) -> Result<(), ForceError> {
     if name.is_empty() {
         return Err(ForceError::InvalidInput(format!("{label} cannot be empty")));
     }
