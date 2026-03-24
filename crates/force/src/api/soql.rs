@@ -160,25 +160,10 @@ impl SoqlQueryBuilder {
     ///     .build();
     /// assert_eq!(query, "SELECT Id FROM Account WHERE CreatedDate > LAST_N_DAYS:30");
     /// ```
-    pub fn try_where_condition_unchecked(
-        mut self,
-        condition: impl Into<String>,
-    ) -> Result<Self, ForceError> {
-        self.where_clauses.push(condition.into());
-        Ok(self)
-    }
-
-    /// Adds a raw WHERE condition without validation or escaping.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the input condition is invalid (though unchecked, wrapper panic matches pattern).
     #[must_use]
-    pub fn where_condition_unchecked(self, condition: impl Into<String>) -> Self {
-        Self::unwrap_or_panic(
-            self.try_where_condition_unchecked(condition),
-            "where_condition_unchecked",
-        )
+    pub fn where_condition_unchecked(mut self, condition: impl Into<String>) -> Self {
+        self.where_clauses.push(condition.into());
+        self
     }
 
     /// Adds a WHERE condition for equality (e.g., `Field = 'Value'`).
@@ -259,18 +244,6 @@ impl SoqlQueryBuilder {
 
         self.where_clauses.push(buffer);
         Ok(self)
-    }
-
-    /// Adds a simple WHERE condition (helper).
-    fn add_condition(self, field: &str, op: &str, value: &str, context: &str) -> Self {
-        Self::unwrap_or_panic(self.try_add_condition(field, op, value), context)
-    }
-
-    /// Helper to validate field names and panic on error.
-    fn validate_field(field: &str, context: &str) {
-        if let Err(e) = validate_field_name(field) {
-            panic!("Invalid field name in {}: {}", context, e);
-        }
     }
 
     /// Adds a WHERE condition for IN clause (e.g., `Field IN ('Val1', 'Val2')`).
@@ -387,19 +360,10 @@ impl SoqlQueryBuilder {
     ///     .build();
     /// assert_eq!(query, "SELECT Id FROM Account LIMIT 5");
     /// ```
-    pub fn try_limit(mut self, limit: u32) -> Result<Self, ForceError> {
-        self.limit = Some(limit);
-        Ok(self)
-    }
-
-    /// Sets the LIMIT clause.
-    ///
-    /// # Panics
-    ///
-    /// Panics if limit fails to apply (wrapper matches pattern).
     #[must_use]
-    pub fn limit(self, limit: u32) -> Self {
-        Self::unwrap_or_panic(self.try_limit(limit), "limit")
+    pub fn limit(mut self, limit: u32) -> Self {
+        self.limit = Some(limit);
+        self
     }
 
     /// Sets the OFFSET clause.
@@ -416,19 +380,10 @@ impl SoqlQueryBuilder {
     ///     .build();
     /// assert_eq!(query, "SELECT Id FROM Account LIMIT 10 OFFSET 20");
     /// ```
-    pub fn try_offset(mut self, offset: u32) -> Result<Self, ForceError> {
-        self.offset = Some(offset);
-        Ok(self)
-    }
-
-    /// Sets the OFFSET clause.
-    ///
-    /// # Panics
-    ///
-    /// Panics if offset fails to apply (wrapper matches pattern).
     #[must_use]
-    pub fn offset(self, offset: u32) -> Self {
-        Self::unwrap_or_panic(self.try_offset(offset), "offset")
+    pub fn offset(mut self, offset: u32) -> Self {
+        self.offset = Some(offset);
+        self
     }
 
     /// Sets the ORDER BY clause.

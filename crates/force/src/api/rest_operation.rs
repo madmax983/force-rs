@@ -21,6 +21,7 @@ use crate::types::validator::{validate_external_id_field, validate_sobject_name}
 use crate::types::{QueryResult, SalesforceId};
 use percent_encoding::{AsciiSet, NON_ALPHANUMERIC, utf8_percent_encode};
 use serde::de::DeserializeOwned;
+use std::borrow::Cow;
 use std::sync::Arc;
 
 /// Custom encode set for External ID values in upsert paths.
@@ -82,12 +83,12 @@ pub trait RestOperation<A: Authenticator> {
     /// // REST (prefix = ""):  "sobjects/Account" → "sobjects/Account"
     /// // Tooling (prefix = "tooling"):  "sobjects/Account" → "tooling/sobjects/Account"
     /// ```
-    fn resolve_api_path(&self, relative_path: &str) -> String {
+    fn resolve_api_path<'a>(&self, relative_path: &'a str) -> Cow<'a, str> {
         let prefix = self.path_prefix();
         if prefix.is_empty() {
-            relative_path.to_string()
+            Cow::Borrowed(relative_path)
         } else {
-            format!("{}/{}", prefix, relative_path)
+            Cow::Owned(format!("{prefix}/{relative_path}"))
         }
     }
 
@@ -306,7 +307,9 @@ pub trait RestOperation<A: Authenticator> {
         external_id_value: &str,
         data: &serde_json::Value,
     ) -> Result<UpsertResponse> {
-        self.upsert_with_retry_class(
+        upsert_with_retry_class_impl(
+            self.session(),
+            self.path_prefix(),
             sobject,
             external_id_field,
             external_id_value,
@@ -343,7 +346,9 @@ pub trait RestOperation<A: Authenticator> {
         external_id_value: &str,
         data: &serde_json::Value,
     ) -> Result<UpsertResponse> {
-        self.upsert_with_retry_class(
+        upsert_with_retry_class_impl(
+            self.session(),
+            self.path_prefix(),
             sobject,
             external_id_field,
             external_id_value,
@@ -527,10 +532,7 @@ pub trait RestOperation<A: Authenticator> {
             .map_err(crate::error::HttpError::from)?;
 
         self.session()
-            .send_request_and_decode(
-                request,
-                &format!("Describe request for {} failed", sobject_type),
-            )
+            .send_request_and_decode(request, "Describe request failed")
             .await
     }
 }
@@ -594,40 +596,6 @@ async fn upsert_with_retry_class_impl<A: Authenticator>(
                 .map_err(|e| crate::error::HttpError::from(e).into())
         }
         _ => Err(crate::http::response_to_force_error(response, "Upsert request failed").await),
-    }
-}
-
-/// Default implementation for the upsert_with_retry_class helper on the trait.
-///
-/// This is a private trait method that delegates to the standalone function.
-/// It exists so that `upsert` and `upsert_idempotent` can share logic without
-/// being public on the trait.
-impl<A: Authenticator, T: RestOperation<A> + ?Sized> RestOperationExt<A> for T {}
-
-/// Extension trait providing the private `upsert_with_retry_class` method.
-///
-/// This keeps the helper out of the public API while letting `upsert` and
-/// `upsert_idempotent` share code.
-#[allow(async_fn_in_trait)]
-trait RestOperationExt<A: Authenticator>: RestOperation<A> {
-    async fn upsert_with_retry_class(
-        &self,
-        sobject: &str,
-        external_id_field: &str,
-        external_id_value: &str,
-        data: &serde_json::Value,
-        retry_class: crate::http::RequestRetryClass,
-    ) -> Result<UpsertResponse> {
-        upsert_with_retry_class_impl(
-            self.session(),
-            self.path_prefix(),
-            sobject,
-            external_id_field,
-            external_id_value,
-            data,
-            retry_class,
-        )
-        .await
     }
 }
 
