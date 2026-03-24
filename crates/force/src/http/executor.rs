@@ -158,6 +158,20 @@ impl HttpExecutor {
         }
     }
 
+    fn is_retryable_error(error: &crate::error::ForceError) -> bool {
+        match error {
+            // HttpError wraps reqwest::Error via RequestFailed
+            crate::error::ForceError::Http(http_err) => match http_err {
+                HttpError::Timeout { .. } => true,
+                HttpError::RequestFailed(re) => {
+                    !re.is_builder() && !re.is_redirect() && !re.is_status()
+                }
+                _ => false,
+            },
+            _ => false,
+        }
+    }
+
     fn handle_rate_limit(
         &self,
         response: &Response,
@@ -242,19 +256,7 @@ impl HttpExecutor {
                 Ok(resp) => resp,
                 Err(e) if retry_attempt < max_retries => {
                     // Check if error is retryable (timeout or transport)
-                    let is_retryable = match &e {
-                        // HttpError wraps reqwest::Error via RequestFailed
-                        crate::error::ForceError::Http(http_err) => match http_err {
-                            HttpError::Timeout { .. } => true,
-                            HttpError::RequestFailed(re) => {
-                                !re.is_builder() && !re.is_redirect() && !re.is_status()
-                            }
-                            _ => false,
-                        },
-                        _ => false,
-                    };
-
-                    if is_retryable {
+                    if Self::is_retryable_error(&e) {
                         self.handle_transient_failure(retry_attempt, &ctx, None)
                             .await;
                         retry_attempt += 1;

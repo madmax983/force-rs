@@ -47,3 +47,6 @@
 **Extract UrlEncodedWriter to Common Utils**
 **Learning:** Both `batch.rs` and `graph.rs` duplicated the `UrlEncodedWriter` struct and its `std::fmt::Write` implementation for avoiding memory allocations during URL construction. This creates unnecessary DRY violations for a pure utility type.
 **Action:** Extract `UrlEncodedWriter` into `crates/force/src/api/url_encoded_writer.rs` and re-use it across composite API implementations to keep the logic unified and DRY.
+**[Extract is_retryable_error]**
+**Learning:** Extracting complex inline `match` statements into dedicated helper methods significantly improves readability by flattening the pyramid of doom and providing a clear, descriptive name for the condition.
+**Action:** Look for other complex inline match statements that can be extracted into helper methods.
