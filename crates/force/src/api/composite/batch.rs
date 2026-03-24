@@ -20,8 +20,6 @@ fn validate_id(id: &str) -> Result<()> {
     Ok(())
 }
 
-use crate::api::url_encoded_writer::UrlEncodedWriter;
-
 /// Constructs a Composite Batch request.
 ///
 /// Use this request object to add up to 25 subrequests and execute them atomically.
@@ -45,7 +43,7 @@ impl<A: Authenticator> BatchRequest<A> {
         }
     }
 
-    /// sets whether the entire batch should stop processing if a subrequest fails.
+    /// Sets whether the entire batch should stop processing if a subrequest fails.
     ///
     /// If true, subsequent requests in the batch will not be executed.
     /// Default is false.
@@ -218,40 +216,9 @@ impl<A: Authenticator> BatchRequest<A> {
     ///     .await?;
     /// ```
     #[allow(clippy::needless_pass_by_value)] // Ownership consumed to enforce builder pattern
-    pub fn query(mut self, query_builder: SoqlQueryBuilder) -> Result<Self> {
-        if self.requests.len() >= 25 {
-            return Err(ForceError::InvalidInput(
-                "Batch size limit of 25 requests exceeded".to_string(),
-            ));
-        }
-
-        if let Err(e) = query_builder.validate() {
-            return Err(ForceError::InvalidInput(format!(
-                "Invalid query builder: {}",
-                e
-            )));
-        }
-
-        // 256 + 8 is a reasonable guess for typical queries
-        let mut url = String::with_capacity(256 + 8);
-        url.push_str("query?q=");
-
-        {
-            let mut writer = UrlEncodedWriter(&mut url);
-            if let Err(e) = query_builder.write_query(&mut writer) {
-                return Err(ForceError::InvalidInput(format!(
-                    "Formatting failed: {}",
-                    e
-                )));
-            }
-        }
-
-        self.requests.push(BatchSubRequest {
-            method: "GET".to_string(),
-            url,
-            rich_input: None,
-        });
-        Ok(self)
+    pub fn query(self, query_builder: SoqlQueryBuilder) -> Result<Self> {
+        let url = crate::api::soql::encode_soql_query_url(&query_builder)?;
+        self.add_request("GET", url, None)
     }
 
     /// Returns the number of requests currently in the batch.
@@ -293,16 +260,6 @@ impl<A: Authenticator> BatchRequest<A> {
                 ),
             ));
         }
-        if self.requests.len() > 25 {
-            // This is theoretically unreachable now due to add_request check
-            // but kept as defense in depth.
-            return Err(ForceError::Serialization(
-                crate::error::SerializationError::InvalidFormat(
-                    "Batch size exceeds limit of 25 requests".to_string(),
-                ),
-            ));
-        }
-
         // Construct the composite batch URL
         let url = self.handler.inner.resolve_url("composite/batch").await?;
 
