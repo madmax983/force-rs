@@ -74,7 +74,7 @@ impl<A: crate::auth::Authenticator> ApexRestHandler<A> {
         let url = self.inner.resolve_apex_rest_url(path).await?;
         let request = self.inner.get(&url).build().map_err(HttpError::from)?;
         self.inner
-            .send_request_and_decode(request, &format!("Apex REST GET {path} failed"))
+            .send_request_and_decode(request, "Apex REST GET failed")
             .await
     }
 
@@ -104,7 +104,7 @@ impl<A: crate::auth::Authenticator> ApexRestHandler<A> {
             .build()
             .map_err(HttpError::from)?;
         self.inner
-            .send_request_and_decode(request, &format!("Apex REST GET {path} failed"))
+            .send_request_and_decode(request, "Apex REST GET failed")
             .await
     }
 
@@ -134,7 +134,7 @@ impl<A: crate::auth::Authenticator> ApexRestHandler<A> {
             .build()
             .map_err(HttpError::from)?;
         self.inner
-            .send_request_and_decode(request, &format!("Apex REST POST {path} failed"))
+            .send_request_and_decode(request, "Apex REST POST failed")
             .await
     }
 
@@ -171,7 +171,7 @@ impl<A: crate::auth::Authenticator> ApexRestHandler<A> {
             .build()
             .map_err(HttpError::from)?;
         self.inner
-            .send_request_and_decode(request, &format!("Apex REST PATCH {path} failed"))
+            .send_request_and_decode(request, "Apex REST PATCH failed")
             .await
     }
 
@@ -193,7 +193,7 @@ impl<A: crate::auth::Authenticator> ApexRestHandler<A> {
             .build()
             .map_err(HttpError::from)?;
         self.inner
-            .send_request_and_decode(request, &format!("Apex REST PUT {path} failed"))
+            .send_request_and_decode(request, "Apex REST PUT failed")
             .await
     }
 
@@ -209,11 +209,9 @@ impl<A: crate::auth::Authenticator> ApexRestHandler<A> {
         let request = self.inner.delete(&url).build().map_err(HttpError::from)?;
         let response = self.inner.execute_request(request).await?;
         if !response.status().is_success() {
-            return Err(crate::http::response_to_force_error(
-                response,
-                &format!("Apex REST DELETE {path} failed"),
-            )
-            .await);
+            return Err(
+                crate::http::response_to_force_error(response, "Apex REST DELETE failed").await,
+            );
         }
         Ok(())
     }
