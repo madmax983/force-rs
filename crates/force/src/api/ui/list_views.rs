@@ -163,20 +163,23 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
         let path = format!("list-records/{list_view_id}");
 
         let page_size_str;
-        let mut params: Vec<(&str, &str)> = Vec::new();
+        let mut params = [("", ""); 2];
+        let mut params_len = 0;
 
         if let Some(ps) = page_size {
             page_size_str = ps.to_string();
-            params.push(("pageSize", &page_size_str));
+            params[params_len] = ("pageSize", &page_size_str);
+            params_len += 1;
         }
         if let Some(pt) = page_token {
-            params.push(("pageToken", pt));
+            params[params_len] = ("pageToken", pt);
+            params_len += 1;
         }
 
-        let query = if params.is_empty() {
+        let query = if params_len == 0 {
             None
         } else {
-            Some(params.as_slice())
+            Some(&params[..params_len])
         };
 
         self.get(&path, query, "Failed to fetch list records").await
