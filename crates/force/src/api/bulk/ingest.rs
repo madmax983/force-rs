@@ -1752,10 +1752,8 @@ mod tests {
             .await;
 
         let client = create_test_client(mock_server.uri()).await;
-        let job = IngestJob::<Open, _>::new_for_test(
-            "750xx0000000009AAA".to_string(),
-            Arc::clone(client.inner()),
-        );
+        let job =
+            IngestJob::<Open, _>::new_for_test("750xx0000000009AAA".to_string(), client.session());
 
         job.abort().await.must();
     }
@@ -1798,7 +1796,7 @@ mod tests {
         let client = create_test_client(mock_server.uri()).await;
         let job = IngestJob::<JobComplete, _>::new_for_test(
             "750xx0000000009AAA".to_string(),
-            Arc::clone(client.inner()),
+            client.session(),
         );
 
         let success = job.successful_results().await.must();

@@ -185,30 +185,8 @@ impl<A: Authenticator> AuthenticatedBuilder<A> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::auth::token::AccessToken;
     use crate::config::{ClientConfig, Environment};
-    use crate::test_support::Must;
-    use async_trait::async_trait;
-
-    // Mock authenticator for testing
-    #[derive(Debug, Clone)]
-    struct MockAuth;
-
-    #[async_trait]
-    impl Authenticator for MockAuth {
-        async fn authenticate(&self) -> Result<AccessToken> {
-            // Create a mock token for testing
-            Ok(AccessToken::new(
-                "mock_token".to_string(),
-                "https://test.salesforce.com".to_string(),
-                None,
-            ))
-        }
-
-        async fn refresh(&self) -> Result<AccessToken> {
-            self.authenticate().await
-        }
-    }
+    use crate::test_support::{MockAuthenticator, Must};
 
     #[test]
     fn test_builder_new_creates_noauth() {
@@ -226,15 +204,21 @@ mod tests {
     #[test]
     fn test_builder_authenticate_transitions_state() {
         let builder = ForceClientBuilder::new();
-        let auth_builder = builder.authenticate(MockAuth);
+        let auth_builder = builder.authenticate(MockAuthenticator::new(
+            "mock_token",
+            "https://test.salesforce.com",
+        ));
         // Verify it's now AuthenticatedBuilder
-        let _: AuthenticatedBuilder<MockAuth> = auth_builder;
+        let _: AuthenticatedBuilder<MockAuthenticator> = auth_builder;
     }
 
     #[tokio::test]
     async fn test_builder_builds_client() {
         let client = ForceClientBuilder::new()
-            .authenticate(MockAuth)
+            .authenticate(MockAuthenticator::new(
+                "mock_token",
+                "https://test.salesforce.com",
+            ))
             .build()
             .await
             .must();
@@ -258,7 +242,10 @@ mod tests {
 
         let client = ForceClientBuilder::new()
             .config(config.clone())
-            .authenticate(MockAuth)
+            .authenticate(MockAuthenticator::new(
+                "mock_token",
+                "https://test.salesforce.com",
+            ))
             .build()
             .await
             .must();
@@ -277,7 +264,10 @@ mod tests {
         };
 
         let client = ForceClientBuilder::new()
-            .authenticate(MockAuth)
+            .authenticate(MockAuthenticator::new(
+                "mock_token",
+                "https://test.salesforce.com",
+            ))
             .config(config)
             .build()
             .await

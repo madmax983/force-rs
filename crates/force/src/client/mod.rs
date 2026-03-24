@@ -38,6 +38,24 @@ pub fn builder() -> ForceClientBuilder<NoAuth> {
     ForceClientBuilder::new()
 }
 
+/// Generates a handler accessor method on `ForceClient`.
+///
+/// Each handler is a lightweight wrapper around `Arc<Session<A>>`.
+/// This macro eliminates copy-paste while preserving per-method doc
+/// comments and feature gates.
+macro_rules! handler_accessor {
+    (
+        $(#[$meta:meta])*
+        pub fn $name:ident -> $Handler:ty
+    ) => {
+        $(#[$meta])*
+        #[must_use]
+        pub fn $name(&self) -> $Handler {
+            <$Handler>::new(Arc::clone(&self.inner))
+        }
+    };
+}
+
 impl<A: crate::auth::authenticator::Authenticator> ForceClient<A> {
     /// Returns the client configuration.
     #[must_use]
@@ -54,184 +72,86 @@ impl<A: crate::auth::authenticator::Authenticator> ForceClient<A> {
         self.inner.token_manager.token().await
     }
 
-    /// Returns a reference to the inner state (for internal use by handlers).
+    /// Returns the shared session state.
     ///
-    /// # Internal API
-    ///
-    /// This method is internal to the crate and should not be used directly.
+    /// Used by API handlers internally and by extension crates like `force-pubsub`
+    /// to access the same authentication and HTTP state without duplicating auth logic.
     #[must_use]
-    pub(crate) fn inner(&self) -> &Arc<Session<A>> {
-        &self.inner
-    }
-
-    /// Returns the shared session state for use by extension crates.
-    ///
-    /// This allows extension crates like `force-pubsub` to access the same
-    /// authentication and HTTP state without duplicating auth logic.
-    #[must_use]
-    pub fn session(&self) -> Arc<crate::session::Session<A>> {
+    pub fn session(&self) -> Arc<Session<A>> {
         Arc::clone(&self.inner)
     }
 
-    /// Creates a REST API handler for this client.
-    ///
-    /// The REST handler provides access to CRUD operations, queries, and metadata.
-    ///
-    /// # Examples
-    ///
-    /// ```ignore
-    /// let client = builder().authenticate(auth).build().await?;
-    /// let rest = client.rest();
-    /// ```
-    #[cfg(feature = "rest")]
-    #[must_use]
-    pub fn rest(&self) -> crate::api::rest::RestHandler<A> {
-        crate::api::rest::RestHandler::new(Arc::clone(&self.inner))
+    handler_accessor! {
+        /// Creates a REST API handler for this client.
+        ///
+        /// Provides CRUD operations, queries, search, describe, and limits.
+        #[cfg(feature = "rest")]
+        pub fn rest -> crate::api::rest::RestHandler<A>
     }
 
-    /// Creates a Bulk API 2.0 handler for this client.
-    ///
-    /// The Bulk handler provides access to high-volume data operations and bulk queries.
-    ///
-    /// # Examples
-    ///
-    /// ```ignore
-    /// let client = builder().authenticate(auth).build().await?;
-    /// let bulk = client.bulk();
-    /// ```
-    #[cfg(feature = "bulk")]
-    #[must_use]
-    pub fn bulk(&self) -> crate::api::bulk::BulkHandler<A> {
-        crate::api::bulk::BulkHandler::new(Arc::clone(&self.inner))
+    handler_accessor! {
+        /// Creates a Bulk API 2.0 handler for this client.
+        ///
+        /// Provides high-volume data operations and bulk queries.
+        #[cfg(feature = "bulk")]
+        pub fn bulk -> crate::api::bulk::BulkHandler<A>
     }
 
-    /// Creates a Tooling API handler for this client.
-    ///
-    /// The Tooling handler provides access to CRUD operations, queries,
-    /// and metadata for Salesforce development objects (`ApexClass`,
-    /// `ApexTrigger`, etc.).
-    ///
-    /// # Examples
-    ///
-    /// ```ignore
-    /// use force::api::rest_operation::RestOperation;
-    ///
-    /// let client = builder().authenticate(auth).build().await?;
-    /// let tooling = client.tooling();
-    /// ```
-    #[cfg(feature = "tooling")]
-    #[must_use]
-    pub fn tooling(&self) -> crate::api::tooling::ToolingHandler<A> {
-        crate::api::tooling::ToolingHandler::new(Arc::clone(&self.inner))
+    handler_accessor! {
+        /// Creates a Tooling API handler for this client.
+        ///
+        /// Provides CRUD, queries, and metadata for development objects.
+        #[cfg(feature = "tooling")]
+        pub fn tooling -> crate::api::tooling::ToolingHandler<A>
     }
 
-    /// Creates a Composite API handler for this client.
-    ///
-    /// The Composite handler provides access to batch and graph operations.
-    ///
-    /// # Examples
-    ///
-    /// ```ignore
-    /// let client = builder().authenticate(auth).build().await?;
-    /// let composite = client.composite();
-    /// ```
-    #[cfg(feature = "composite")]
-    #[must_use]
-    pub fn composite(&self) -> crate::api::composite::CompositeHandler<A> {
-        crate::api::composite::CompositeHandler::new(Arc::clone(&self.inner))
+    handler_accessor! {
+        /// Creates a Composite API handler for this client.
+        ///
+        /// Provides batch and graph operations.
+        #[cfg(feature = "composite")]
+        pub fn composite -> crate::api::composite::CompositeHandler<A>
     }
 
-    /// Creates a UI API handler for this client.
-    ///
-    /// The UI handler provides layout-aware record data, object metadata,
-    /// list views, actions, lookups, and favorites.
-    ///
-    /// # Examples
-    ///
-    /// ```ignore
-    /// let client = builder().authenticate(auth).build().await?;
-    /// let ui = client.ui();
-    /// let record_ui = ui.record_ui(&["001000000000001AAA"], None, None).await?;
-    /// ```
-    #[cfg(feature = "ui")]
-    #[must_use]
-    pub fn ui(&self) -> crate::api::ui::UiHandler<A> {
-        crate::api::ui::UiHandler::new(Arc::clone(&self.inner))
+    handler_accessor! {
+        /// Creates a UI API handler for this client.
+        ///
+        /// Provides layout-aware records, object metadata, list views,
+        /// actions, lookups, and favorites.
+        #[cfg(feature = "ui")]
+        pub fn ui -> crate::api::ui::UiHandler<A>
     }
 
-    /// Creates a GraphQL API handler for this client.
-    ///
-    /// The GraphQL handler provides access to the Salesforce GraphQL API,
-    /// which supports queries and mutations via a single POST endpoint.
-    ///
-    /// # Examples
-    ///
-    /// ```ignore
-    /// use force::api::graphql::GraphqlRequest;
-    ///
-    /// let client = builder().authenticate(auth).build().await?;
-    /// let gql = client.graphql();
-    /// let data = gql.query_raw("{ uiapi { query { Account { edges { node { Id } } } } } }", None).await?;
-    /// ```
-    #[cfg(feature = "graphql")]
-    #[must_use]
-    pub fn graphql(&self) -> crate::api::graphql::GraphqlHandler<A> {
-        crate::api::graphql::GraphqlHandler::new(Arc::clone(&self.inner))
+    handler_accessor! {
+        /// Creates a GraphQL API handler for this client.
+        ///
+        /// Provides queries and mutations via a single POST endpoint.
+        #[cfg(feature = "graphql")]
+        pub fn graphql -> crate::api::graphql::GraphqlHandler<A>
     }
 
-    /// Creates an Apex REST API handler for this client.
-    ///
-    /// The Apex REST handler provides generic HTTP access to any custom Apex
-    /// REST endpoint at `/services/apexrest/{path}`.
-    ///
-    /// # Examples
-    ///
-    /// ```ignore
-    /// let client = builder().authenticate(auth).build().await?;
-    /// let result: serde_json::Value = client.apex_rest()
-    ///     .post("MyNamespace/MyEndpoint", &body)
-    ///     .await?;
-    /// ```
-    #[cfg(feature = "apex_rest")]
-    #[must_use]
-    pub fn apex_rest(&self) -> crate::api::apex_rest::ApexRestHandler<A> {
-        crate::api::apex_rest::ApexRestHandler::new(Arc::clone(&self.inner))
+    handler_accessor! {
+        /// Creates an Apex REST API handler for this client.
+        ///
+        /// Provides generic HTTP access to custom `/services/apexrest/` endpoints.
+        #[cfg(feature = "apex_rest")]
+        pub fn apex_rest -> crate::api::apex_rest::ApexRestHandler<A>
     }
 
-    /// Creates a Salesforce CPQ API handler for this client.
-    ///
-    /// The CPQ handler provides typed access to the Salesforce CPQ
-    /// ServiceRouter for quote lifecycle, product configuration,
-    /// document generation, and contract amendment operations.
-    ///
-    /// # Examples
-    ///
-    /// ```ignore
-    /// let client = builder().authenticate(auth).build().await?;
-    /// let quote = client.cpq().read_quote("a0x000000000001").await?;
-    /// ```
-    #[cfg(feature = "cpq")]
-    #[must_use]
-    pub fn cpq(&self) -> crate::api::cpq::CpqHandler<A> {
-        crate::api::cpq::CpqHandler::new(Arc::clone(&self.inner))
+    handler_accessor! {
+        /// Creates a CPQ API handler for this client.
+        ///
+        /// Provides typed access to the Salesforce CPQ ServiceRouter.
+        #[cfg(feature = "cpq")]
+        pub fn cpq -> crate::api::cpq::CpqHandler<A>
     }
 
-    /// Creates a Consent & Portability API handler for this client.
-    ///
-    /// The Consent handler provides access to consent status checks
-    /// and GDPR/CCPA data portability requests.
-    ///
-    /// # Examples
-    ///
-    /// ```ignore
-    /// let client = builder().authenticate(auth).build().await?;
-    /// let consent = client.consent();
-    /// let result = consent.read_consent("email", &["001xx000003GYk1"]).await?;
-    /// ```
-    #[cfg(feature = "consent")]
-    #[must_use]
-    pub fn consent(&self) -> crate::api::consent::ConsentHandler<A> {
-        crate::api::consent::ConsentHandler::new(Arc::clone(&self.inner))
+    handler_accessor! {
+        /// Creates a Consent & Portability API handler for this client.
+        ///
+        /// Provides consent status checks and GDPR/CCPA data portability.
+        #[cfg(feature = "consent")]
+        pub fn consent -> crate::api::consent::ConsentHandler<A>
     }
 
     /// Creates a Data Cloud API handler for this client.
@@ -291,6 +211,8 @@ mod tests {
         let cloned_client = client.clone();
 
         // Assert that the cloned client points to the same underlying Arc
-        assert!(Arc::ptr_eq(client.inner(), cloned_client.inner()));
+        let s1 = client.session();
+        let s2 = cloned_client.session();
+        assert!(Arc::ptr_eq(&s1, &s2));
     }
 }
