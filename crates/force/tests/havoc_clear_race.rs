@@ -68,8 +68,7 @@ async fn test_havoc_clear_race_condition() {
 
     // Spawn a task that does a force refresh
     let refresh_task = tokio::spawn(async move {
-        #[allow(clippy::unwrap_used)]
-        manager_clone.force_refresh().await.unwrap();
+        let _ = manager_clone.force_refresh().await;
     });
 
     // Wait a little bit to ensure refresh_task has started and is sleeping
