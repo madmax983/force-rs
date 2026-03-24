@@ -120,8 +120,8 @@ impl SearchQueryBuilder {
     ///
     /// * `text` - The search text
     #[must_use]
-    pub fn find(mut self, text: impl Into<String>) -> Self {
-        self.search_text = escape_sosl(text.into()).into_owned();
+    pub fn find(mut self, text: &str) -> Self {
+        self.search_text = escape_sosl(text).into_owned();
         self
     }
 
@@ -444,21 +444,18 @@ impl<'a> FieldSyntaxValidator<'a> {
     }
 }
 
-/// Implements a state machine to track quoting and parenthesis balance.
-/// - Inside quotes (`'` or `"`): All characters are allowed (except unescaped quote).
-/// - Outside quotes: Only alphanumeric and safe symbols allowed.
-/// - Parentheses must be balanced.
-fn validate_field_syntax(field: &str) {
-    if let Err(e) = validate_field_syntax_safe(field) {
-        panic!("{}", e);
-    }
-}
-
 #[cfg(test)]
 mod tests {
 
     use super::*;
     use crate::test_support::Must;
+
+    /// Panicking wrapper for `validate_field_syntax_safe` — test-only.
+    fn validate_field_syntax(field: &str) {
+        if let Err(e) = validate_field_syntax_safe(field) {
+            panic!("{e}");
+        }
+    }
 
     #[test]
     #[should_panic(

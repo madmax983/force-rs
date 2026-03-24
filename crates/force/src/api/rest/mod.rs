@@ -16,6 +16,7 @@ pub use describe::{
     ChildRelationship, FieldDescribe, FieldType, FilteredLookupInfo, GlobalDescribe,
     GlobalSObjectDescribe, PicklistValue, RecordTypeInfo, SObjectDescribe,
 };
+pub use explain::{ExplainResponse, PlanNote, QueryPlan};
 pub use limits::{LimitInfo, OrgLimits};
 pub use query_stream::QueryStream;
 pub use search::{SearchAttributes, SearchQueryBuilder, SearchRecords, SearchResult};
@@ -150,46 +151,6 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
         self.inner.send_request_and_decode(request, error_msg).await
     }
 
-    /// Helper method to execute a PATCH request and expect an empty success response.
-    pub(crate) async fn execute_patch_empty(
-        &self,
-        path: &str,
-        body: &serde_json::Value,
-        error_msg: &str,
-    ) -> Result<()> {
-        let url = self.inner.resolve_url(path).await?;
-        let request = self
-            .inner
-            .patch(&url)
-            .json(body)
-            .build()
-            .map_err(crate::error::HttpError::from)?;
-        let response = self.inner.execute_request(request).await?;
-
-        if response.status().is_success() {
-            Ok(())
-        } else {
-            Err(crate::http::response_to_force_error(response, error_msg).await)
-        }
-    }
-
-    /// Helper method to execute a DELETE request and expect an empty success response.
-    pub(crate) async fn execute_delete_empty(&self, path: &str, error_msg: &str) -> Result<()> {
-        let url = self.inner.resolve_url(path).await?;
-        let request = self
-            .inner
-            .delete(&url)
-            .build()
-            .map_err(crate::error::HttpError::from)?;
-        let response = self.inner.execute_request(request).await?;
-
-        if response.status().is_success() {
-            Ok(())
-        } else {
-            Err(crate::http::response_to_force_error(response, error_msg).await)
-        }
-    }
-
     /// Retrieves organization limits.
     ///
     /// Returns information about the organization's usage and limits for various
@@ -210,7 +171,7 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
     /// println!("API calls: {}/{}", api_limit.used.unwrap_or(0), api_limit.max);
     /// ```
     pub async fn limits(&self) -> Result<limits::OrgLimits> {
-        self.execute_get("/limits", None, "Limits API request failed")
+        self.execute_get("limits", None, "Limits API request failed")
             .await
     }
 
@@ -253,12 +214,8 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
     /// }
     /// ```
     pub async fn search(&self, sosl: &str) -> Result<search::SearchResult> {
-        self.execute_get(
-            "/search",
-            Some(&[("q", sosl)]),
-            "SOSL search request failed",
-        )
-        .await
+        self.execute_get("search", Some(&[("q", sosl)]), "SOSL search request failed")
+            .await
     }
 
     /// Retrieves the query execution plan for a SOQL query.
@@ -279,7 +236,7 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
     /// - The response cannot be deserialized
     pub async fn explain(&self, soql: &str) -> Result<explain::ExplainResponse> {
         self.execute_get(
-            "/query",
+            "query",
             Some(&[("explain", soql)]),
             "Query Plan API request failed",
         )
