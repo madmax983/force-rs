@@ -113,23 +113,6 @@ impl<A: crate::auth::Authenticator> DataCloudHandler<A> {
         let request = req.build().map_err(crate::error::HttpError::from)?;
         self.inner.send_request_and_decode(request, error_msg).await
     }
-
-    /// Helper: DELETE a Data Cloud path; expect 204 No Content.
-    #[allow(dead_code)]
-    pub(crate) async fn delete_empty(&self, path: &str, error_msg: &str) -> Result<()> {
-        let url = self.resolve_dc_url(path).await?;
-        let request = self
-            .inner
-            .delete(&url)
-            .build()
-            .map_err(crate::error::HttpError::from)?;
-        let response = self.inner.execute_request(request).await?;
-        if response.status().is_success() {
-            Ok(())
-        } else {
-            Err(crate::http::response_to_force_error(response, error_msg).await)
-        }
-    }
 }
 
 #[cfg(test)]
