@@ -105,24 +105,28 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
     ) -> crate::error::Result<RecordLayoutRepresentation> {
         let path = format!("layout/{object}");
 
-        let mut params: Vec<(&str, &str)> = Vec::new();
+        let mut params = [("", ""); 2];
+        let mut params_len = 0;
 
         let lt_str;
         if let Some(lt) = layout_type {
             lt_str = lt.as_str();
-            params.push(("layoutType", lt_str));
+            // ⚡ Bolt: Eliminate heap allocation for small, short-lived collections like query parameter lists.
+            params[params_len] = ("layoutType", lt_str);
+            params_len += 1;
         }
 
         let mode_str;
         if let Some(m) = mode {
             mode_str = m.as_str();
-            params.push(("mode", mode_str));
+            params[params_len] = ("mode", mode_str);
+            params_len += 1;
         }
 
-        let query = if params.is_empty() {
+        let query = if params_len == 0 {
             None
         } else {
-            Some(params.as_slice())
+            Some(&params[..params_len])
         };
 
         self.get(&path, query, "Failed to fetch layout").await
