@@ -45,7 +45,7 @@ pub struct ClientConfig {
 impl Default for ClientConfig {
     fn default() -> Self {
         Self {
-            api_version: ApiVersion::DEFAULT.as_str(),
+            api_version: ApiVersion::DEFAULT.to_string(),
             environment: Environment::Production,
             timeout: Duration::from_secs(30),
             max_retries: 3,

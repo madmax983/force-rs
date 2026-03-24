@@ -79,7 +79,12 @@ impl SalesforceId {
         }
 
         let checksum = Self::compute_checksum(&self.0);
-        Self(format!("{}{}", self.0, checksum))
+        let mut result = String::with_capacity(18);
+        result.push_str(&self.0);
+        for &b in &checksum {
+            result.push(b as char);
+        }
+        Self(result)
     }
 
     /// Returns the 15-character base of the ID.
@@ -100,44 +105,45 @@ impl SalesforceId {
         debug_assert_eq!(id.len(), 18);
 
         let base = &id[..15];
-        let provided_checksum = &id[15..];
-        let computed_checksum = Self::compute_checksum(base);
+        let provided = &id.as_bytes()[15..];
+        let computed = Self::compute_checksum(base);
 
-        if provided_checksum == computed_checksum {
+        if provided == computed {
             Ok(())
         } else {
             Err(SalesforceIdError::InvalidChecksum)
         }
     }
 
-    /// Computes the 3-character checksum for a 15-character ID.
+    /// Computes the 3-byte checksum for a 15-character ID.
+    ///
+    /// Returns a stack-allocated `[u8; 3]` instead of a heap-allocated `String`
+    /// since the checksum is always exactly 3 ASCII characters.
     ///
     /// The checksum algorithm:
     /// - Divide the 15 chars into 3 groups of 5
     /// - For each group, treat uppercase letters as 1, lowercase/digits as 0
     /// - Convert the 5-bit value to a base-32 character
-    fn compute_checksum(id: &str) -> String {
+    fn compute_checksum(id: &str) -> [u8; 3] {
         debug_assert_eq!(id.len(), 15);
 
-        let mut checksum = String::with_capacity(3);
-
-        for chunk in id.as_bytes().chunks(5) {
+        let mut result = [0u8; 3];
+        for (chunk_idx, chunk) in id.as_bytes().chunks(5).enumerate() {
             let mut value = 0u8;
             for (i, &byte) in chunk.iter().enumerate() {
                 if byte.is_ascii_uppercase() {
                     value |= 1 << i;
                 }
             }
-            checksum.push(Self::base32_char(value));
+            result[chunk_idx] = Self::base32_char(value);
         }
-
-        checksum
+        result
     }
 
-    /// Converts a 5-bit value to a base-32 character.
-    fn base32_char(value: u8) -> char {
+    /// Converts a 5-bit value to a base-32 byte (ASCII).
+    fn base32_char(value: u8) -> u8 {
         const CHARS: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ012345";
-        CHARS[value as usize] as char
+        CHARS[value as usize]
     }
 }
 
