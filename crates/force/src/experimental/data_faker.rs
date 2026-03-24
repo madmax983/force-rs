@@ -256,12 +256,10 @@ mod tests {
     #[test]
     fn test_generate_mock_record_picklists() {
         let mut field1 = mock_field("Pick1", "picklist", true, false, false);
-        field1["picklistValues"] =
-            json!([{"active": false, "value": "A", "defaultValue": false, "label": "A"}, {"active": true, "value": "B", "defaultValue": false, "label": "B"}]);
+        field1["picklistValues"] = json!([{"active": false, "value": "A", "defaultValue": false, "label": "A"}, {"active": true, "value": "B", "defaultValue": false, "label": "B"}]);
 
         let mut field2 = mock_field("Pick2", "multipicklist", true, false, false);
-        field2["picklistValues"] =
-            json!([{"active": false, "value": "X", "defaultValue": false, "label": "X"}, {"active": false, "value": "Y", "defaultValue": false, "label": "Y"}]);
+        field2["picklistValues"] = json!([{"active": false, "value": "X", "defaultValue": false, "label": "X"}, {"active": false, "value": "Y", "defaultValue": false, "label": "Y"}]);
 
         let mut field3 = mock_field("Pick3", "combobox", true, false, false);
         field3["picklistValues"] = json!([]);
