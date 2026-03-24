@@ -45,7 +45,6 @@
 use crate::auth::token::{AccessToken, TokenResponse};
 use crate::error::{AuthenticationError, ForceError, HttpError, Result};
 use async_trait::async_trait;
-use futures::StreamExt;
 use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
 use std::sync::Arc;
@@ -212,21 +211,8 @@ impl UsernamePassword {
 
         let status = response.status();
         if !status.is_success() {
-            // Read up to 1MB to prevent memory exhaustion
-            let mut stream = response.bytes_stream();
-            let mut bytes = Vec::with_capacity(4096);
-            while let Some(chunk) = stream.next().await {
-                if let Ok(chunk_bytes) = chunk {
-                    bytes.extend_from_slice(&chunk_bytes);
-                    if bytes.len() > 1024 * 1024 {
-                        bytes.truncate(1024 * 1024);
-                        break;
-                    }
-                } else {
-                    break;
-                }
-            }
-            let body = String::from_utf8_lossy(&bytes).into_owned();
+            // Read up to 1MB to prevent memory exhaustion DoS
+            let body = crate::http::error::read_capped_body(response, 1024 * 1024).await;
 
             let error_text = if body.trim().is_empty() {
                 "Unknown error".to_string()

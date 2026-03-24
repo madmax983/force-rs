@@ -44,3 +44,6 @@
 **2026-03-22 - Prevent Memory Exhaustion DoS in HTTP Error Parsing
 **Threat:** Maliciously large chunks from Salesforce API responses could bypass previous byte.len() > limit checks, allowing an unbounded `extend_from_slice` to exhaust memory causing Denial of Service.
 **Defense:** Created `read_capped_body` which uses `saturating_sub` to calculate remaining bounds and slices the chunk via `&chunk_bytes[..remaining]` to strictly cap the buffer allocation. Applied to all authenticators and base HTTP error parser.
+**2026-03-23 - Prevent Memory Exhaustion DoS in Username-Password Error Parsing
+**Threat:** Maliciously large chunks from Salesforce API responses could bypass previous byte.len() > limit checks, allowing an unbounded `extend_from_slice` to exhaust memory causing Denial of Service.
+**Defense:** Migrated `UsernamePassword` flow to use `read_capped_body` which uses `saturating_sub` to strictly cap the buffer allocation.
