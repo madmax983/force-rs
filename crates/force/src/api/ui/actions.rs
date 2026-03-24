@@ -57,8 +57,16 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
         &self,
         ids: &[&str],
     ) -> crate::error::Result<RecordActionRepresentation> {
-        let ids_str = ids.join(",");
-        let path = format!("actions/record/{ids_str}");
+        // ⚡ Bolt: Construct path directly to avoid intermediate `.join(",")` allocation
+        let capacity = 15 + ids.iter().map(|s| s.len() + 1).sum::<usize>();
+        let mut path = String::with_capacity(capacity);
+        path.push_str("actions/record/");
+        for (i, id) in ids.iter().enumerate() {
+            if i > 0 {
+                path.push(',');
+            }
+            path.push_str(id);
+        }
         self.get(&path, None, "Failed to fetch record actions")
             .await
     }
