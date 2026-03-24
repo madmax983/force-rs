@@ -213,3 +213,11 @@ match result {
 **Finding:** 30 mutants survived the `test_schema_analyzer_exhaustive_mutants` test due to mathematical overlaps. Because certain counts equaled each other or evaluated equally under different operators (e.g. `2*2=4` vs `2+2=4`, `2/10=0` vs `2%10=0`), `cargo mutants` demonstrated the test was blind to logic flaws and mathematical operator changes (`*` swapped with `/`, `+`, `-`, and `=` swapped with `!=`).
 **Evidence:** `cargo mutants -d crates/force -f crates/force/src/experimental/schema_analyzer.rs -F schema` reported 30 missed logic mutants spanning mathematical replacements and boolean condition flips (`&&` to `||`, `!x` to `x`).
 **Recommendation:** Completely rewrote the mock SObject definition within `test_schema_analyzer_exhaustive_mutants`. Set field counts to exact, non-overlapping values (`custom=9`, `formula=2`, `reference=4`, `required=3`, `total=21`, `standard=12`) that break all mathematical tautologies (e.g. `3*2=6` vs `3+2=5`). Tested every permutation of the `!nillable && !defaulted_on_create && name != "Id"` conditional to ensure that mutants mutating boolean operators (`&&`, `!`) are successfully killed. Verified 0 logic mutants survive.
+
+### [Strengthened] `crates/force/src/experimental/data_faker.rs`
+
+**Module:** `crates/force/src/experimental/data_faker.rs`
+**Severity:** 🟡 Suspect
+**Finding:** The `FieldType::Picklist`, `FieldType::Multipicklist`, and `FieldType::Combobox` fallback logic (checking active values vs. first values vs. defaults) and ignored types logic were completely untested. `cargo mutants` reported 0 missed mutants because it currently does not reliably mutate complex, nested `if let Some` branches inside `match` arms unless they involve boolean logic or numeric return values. This created false confidence in the test coverage.
+**Evidence:** `cargo mutants` reported 100% kill rate, yet manual review showed several branches in the `generate_mock_record` match statement had zero coverage.
+**Recommendation:** Added `test_generate_mock_record_picklists` to exhaustively test picklist behavior based on `active` status and fallback values, and to ensure skipped types (`Base64`, `Location`, `Address`, `Datacategorygroupreference`) are safely ignored.
