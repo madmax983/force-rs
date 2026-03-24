@@ -8,100 +8,91 @@ use crate::experimental::schema_graph::SchemaGraph;
 use std::collections::HashMap;
 use std::fmt::Write;
 
-/// A utility to generate a comprehensive Markdown report of an SObject schema.
+/// Generates a comprehensive Markdown report for the given SObject.
 ///
 /// This combines `analyze_schema`, `SchemaGraph`, and `FieldUsageScanner`
 /// into a single, unified visual report.
-#[derive(Debug)]
-pub struct SchemaVisualizer<'a, A: Authenticator> {
-    client: &'a ForceClient<A>,
-}
+///
+/// The report includes:
+/// - Schema Insights (Complexity score, field counts, etc.)
+/// - ER Diagram (Mermaid.js)
+/// - Field Usage Statistics (Optional)
+///
+/// # Arguments
+///
+/// * `client` - The ForceClient to use.
+/// * `sobject` - The API name of the SObject (e.g., "Account").
+/// * `include_usage` - Whether to scan and include field population statistics.
+pub async fn generate_visualizer_report<A: Authenticator>(
+    client: &ForceClient<A>,
+    sobject: &str,
+    include_usage: bool,
+) -> Result<String> {
+    let describe = client.rest().describe(sobject).await?;
 
-impl<'a, A: Authenticator> SchemaVisualizer<'a, A> {
-    /// Creates a new `SchemaVisualizer` instance.
-    #[must_use]
-    pub fn new(client: &'a ForceClient<A>) -> Self {
-        Self { client }
-    }
+    let insights = analyze_schema(&describe);
 
-    /// Generates a comprehensive Markdown report for the given SObject.
-    ///
-    /// The report includes:
-    /// - Schema Insights (Complexity score, field counts, etc.)
-    /// - ER Diagram (Mermaid.js)
-    /// - Field Usage Statistics (Optional)
-    ///
-    /// # Arguments
-    ///
-    /// * `sobject` - The API name of the SObject (e.g., "Account").
-    /// * `include_usage` - Whether to scan and include field population statistics.
-    pub async fn generate_report(&self, sobject: &str, include_usage: bool) -> Result<String> {
-        let describe = self.client.rest().describe(sobject).await?;
+    let mut graph = SchemaGraph::new(client);
+    graph.scan(sobject).await?;
+    let mermaid = graph.to_mermaid();
 
-        let insights = analyze_schema(&describe);
+    let mut md = String::with_capacity(2048);
 
-        let mut graph = SchemaGraph::new(self.client);
-        graph.scan(sobject).await?;
-        let mermaid = graph.to_mermaid();
+    // ⚡ Bolt: Use `writeln!` directly to the `md` buffer instead of `format!` and `push_str`
+    // to avoid intermediate String heap allocations for the report output.
+    let _ = writeln!(md, "# Schema Report: {}\n", describe.label);
+    let _ = writeln!(md, "**API Name:** `{}`", describe.name);
+    let _ = writeln!(md, "**Custom:** {}\n", describe.custom);
 
-        let mut md = String::with_capacity(2048);
+    let _ = writeln!(md, "## Schema Insights\n");
+    let _ = writeln!(
+        md,
+        "*   **Complexity Score:** {}",
+        insights.complexity_score
+    );
+    let _ = writeln!(md, "*   **Total Fields:** {}", insights.total_fields);
+    let _ = writeln!(
+        md,
+        "*   **Standard Fields:** {}",
+        insights.standard_field_count
+    );
+    let _ = writeln!(md, "*   **Custom Fields:** {}", insights.custom_field_count);
+    let _ = writeln!(
+        md,
+        "*   **Required Fields:** {}\n",
+        insights.required_field_count
+    );
 
-        // ⚡ Bolt: Use `writeln!` directly to the `md` buffer instead of `format!` and `push_str`
-        // to avoid intermediate String heap allocations for the report output.
-        let _ = writeln!(md, "# Schema Report: {}\n", describe.label);
-        let _ = writeln!(md, "**API Name:** `{}`", describe.name);
-        let _ = writeln!(md, "**Custom:** {}\n", describe.custom);
+    let _ = writeln!(md, "## Entity-Relationship Diagram\n");
+    let _ = writeln!(md, "```mermaid");
+    md.push_str(&mermaid);
+    let _ = writeln!(md, "```\n");
 
-        let _ = writeln!(md, "## Schema Insights\n");
-        let _ = writeln!(
-            md,
-            "*   **Complexity Score:** {}",
-            insights.complexity_score
-        );
-        let _ = writeln!(md, "*   **Total Fields:** {}", insights.total_fields);
-        let _ = writeln!(
-            md,
-            "*   **Standard Fields:** {}",
-            insights.standard_field_count
-        );
-        let _ = writeln!(md, "*   **Custom Fields:** {}", insights.custom_field_count);
-        let _ = writeln!(
-            md,
-            "*   **Required Fields:** {}\n",
-            insights.required_field_count
-        );
-
-        let _ = writeln!(md, "## Entity-Relationship Diagram\n");
-        let _ = writeln!(md, "```mermaid");
-        md.push_str(&mermaid);
-        let _ = writeln!(md, "```\n");
-
-        if include_usage {
-            let scanner = FieldUsageScanner::new(self.client);
-            let usages = scanner.scan(sobject).await?;
-            let mut usage_map = HashMap::with_capacity(usages.len());
-            for usage in usages {
-                usage_map.insert(usage.name, usage.percentage);
-            }
-
-            let _ = writeln!(md, "## Field Usage Statistics\n");
-            let _ = writeln!(md, "| Label | API Name | Populated % |");
-            let _ = writeln!(md, "|---|---|---|");
-
-            let mut fields = describe.fields;
-            fields.sort_by(|a, b| a.name.cmp(&b.name));
-
-            for field in &fields {
-                if let Some(pct) = usage_map.get(&field.name) {
-                    let _ = writeln!(md, "| {} | `{}` | {:.1}% |", field.label, field.name, pct);
-                } else {
-                    let _ = writeln!(md, "| {} | `{}` | N/A |", field.label, field.name);
-                }
-            }
+    if include_usage {
+        let scanner = FieldUsageScanner::new(client);
+        let usages = scanner.scan(sobject).await?;
+        let mut usage_map = HashMap::with_capacity(usages.len());
+        for usage in usages {
+            usage_map.insert(usage.name, usage.percentage);
         }
 
-        Ok(md)
+        let _ = writeln!(md, "## Field Usage Statistics\n");
+        let _ = writeln!(md, "| Label | API Name | Populated % |");
+        let _ = writeln!(md, "|---|---|---|");
+
+        let mut fields = describe.fields;
+        fields.sort_by(|a, b| a.name.cmp(&b.name));
+
+        for field in &fields {
+            if let Some(pct) = usage_map.get(&field.name) {
+                let _ = writeln!(md, "| {} | `{}` | {:.1}% |", field.label, field.name, pct);
+            } else {
+                let _ = writeln!(md, "| {} | `{}` | N/A |", field.label, field.name);
+            }
+        }
     }
+
+    Ok(md)
 }
 
 #[cfg(test)]
@@ -175,8 +166,9 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let visualizer = SchemaVisualizer::new(&client);
-        let md = visualizer.generate_report("Account", false).await.must();
+        let md = generate_visualizer_report(&client, "Account", false)
+            .await
+            .must();
 
         assert!(md.contains("# Schema Report: Account"));
         assert!(md.contains("**API Name:** `Account`"));
