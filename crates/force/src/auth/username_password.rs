@@ -43,11 +43,9 @@
 //! ```
 
 use crate::auth::token::{AccessToken, TokenResponse};
-use crate::error::{AuthenticationError, ForceError, HttpError, Result};
+use crate::error::{ForceError, HttpError, Result};
 use async_trait::async_trait;
-use futures::StreamExt;
 use secrecy::{ExposeSecret, SecretString};
-use serde::Deserialize;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
@@ -124,11 +122,6 @@ impl UsernamePassword {
         security_token: impl Into<String>,
         token_url: impl Into<String>,
     ) -> Self {
-        let client = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(30))
-            .build()
-            .unwrap_or_else(|e| panic!("Failed to create secure HTTP client: {e}"));
-
         Self {
             client_id: client_id.into(),
             client_secret: SecretString::new(client_secret.into().into()),
@@ -136,7 +129,7 @@ impl UsernamePassword {
             password: SecretString::new(password.into().into()),
             security_token: SecretString::new(security_token.into().into()),
             token_url: token_url.into(),
-            client,
+            client: crate::auth::default_auth_http_client(),
             refresh_token: Arc::new(RwLock::new(None)),
         }
     }
@@ -164,7 +157,7 @@ impl UsernamePassword {
             username,
             password,
             security_token,
-            "https://login.salesforce.com/services/oauth2/token",
+            crate::auth::PRODUCTION_TOKEN_URL,
         )
     }
 
@@ -184,7 +177,7 @@ impl UsernamePassword {
             username,
             password,
             security_token,
-            "https://test.salesforce.com/services/oauth2/token",
+            crate::auth::SANDBOX_TOKEN_URL,
         )
     }
 
@@ -210,43 +203,8 @@ impl UsernamePassword {
             .await
             .map_err(|e| ForceError::Http(HttpError::RequestFailed(e)))?;
 
-        let status = response.status();
-        if !status.is_success() {
-            // Read up to 1MB to prevent memory exhaustion
-            let mut stream = response.bytes_stream();
-            let mut bytes = Vec::with_capacity(4096);
-            while let Some(chunk) = stream.next().await {
-                if let Ok(chunk_bytes) = chunk {
-                    bytes.extend_from_slice(&chunk_bytes);
-                    if bytes.len() > 1024 * 1024 {
-                        bytes.truncate(1024 * 1024);
-                        break;
-                    }
-                } else {
-                    break;
-                }
-            }
-            let body = String::from_utf8_lossy(&bytes).into_owned();
-
-            let error_text = if body.trim().is_empty() {
-                "Unknown error".to_string()
-            } else {
-                body
-            };
-
-            if let Ok(oauth_error) = serde_json::from_str::<OAuthErrorResponse>(&error_text) {
-                return Err(ForceError::Authentication(
-                    AuthenticationError::TokenRequestFailed(format!(
-                        "{}: {}",
-                        oauth_error.error, oauth_error.error_description
-                    )),
-                ));
-            }
-
-            return Err(ForceError::Http(HttpError::StatusError {
-                status_code: status.as_u16(),
-                message: error_text,
-            }));
+        if !response.status().is_success() {
+            return Err(crate::auth::handle_oauth_error(response, None).await);
         }
 
         response
@@ -307,17 +265,11 @@ impl crate::auth::authenticator::Authenticator for UsernamePassword {
     }
 }
 
-/// OAuth error response from Salesforce.
-#[derive(Debug, Deserialize)]
-struct OAuthErrorResponse {
-    error: String,
-    error_description: String,
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::auth::Authenticator;
+    use crate::error::AuthenticationError;
     use crate::test_support::Must;
     use wiremock::matchers::{body_string_contains, method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};

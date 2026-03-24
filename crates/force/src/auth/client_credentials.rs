@@ -36,10 +36,9 @@
 //! ```
 
 use crate::auth::token::{AccessToken, TokenResponse};
-use crate::error::{AuthenticationError, ForceError, HttpError, Result};
+use crate::error::{ForceError, HttpError, Result};
 use async_trait::async_trait;
 use secrecy::{ExposeSecret, SecretString};
-use serde::Deserialize;
 
 /// OAuth 2.0 Client Credentials authenticator.
 ///
@@ -58,7 +57,6 @@ pub struct ClientCredentials {
     token_url: String,
 
     /// HTTP client for making requests.
-    #[allow(dead_code)]
     client: reqwest::Client,
 }
 
@@ -89,17 +87,11 @@ impl ClientCredentials {
         client_secret: impl Into<String>,
         token_url: impl Into<String>,
     ) -> Self {
-        // Client initialization failure is fatal and unrecoverable here
-        let client = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(30))
-            .build()
-            .unwrap_or_else(|e| panic!("Failed to create secure HTTP client: {}", e));
-
         Self {
             client_id: client_id.into(),
             client_secret: SecretString::new(client_secret.into().into()),
             token_url: token_url.into(),
-            client,
+            client: crate::auth::default_auth_http_client(),
         }
     }
 
@@ -122,11 +114,7 @@ impl ClientCredentials {
     /// * `client_id` - OAuth client ID from Connected App
     /// * `client_secret` - OAuth client secret from Connected App
     pub fn new_production(client_id: impl Into<String>, client_secret: impl Into<String>) -> Self {
-        Self::new(
-            client_id,
-            client_secret,
-            "https://login.salesforce.com/services/oauth2/token",
-        )
+        Self::new(client_id, client_secret, crate::auth::PRODUCTION_TOKEN_URL)
     }
 
     /// Creates a new `ClientCredentials` authenticator for Sandbox.
@@ -139,11 +127,7 @@ impl ClientCredentials {
     /// * `client_id` - OAuth client ID from Connected App
     /// * `client_secret` - OAuth client secret from Connected App
     pub fn new_sandbox(client_id: impl Into<String>, client_secret: impl Into<String>) -> Self {
-        Self::new(
-            client_id,
-            client_secret,
-            "https://test.salesforce.com/services/oauth2/token",
-        )
+        Self::new(client_id, client_secret, crate::auth::SANDBOX_TOKEN_URL)
     }
 
     /// Returns the OAuth 2.0 grant type for this flow.
@@ -171,32 +155,8 @@ impl crate::auth::authenticator::Authenticator for ClientCredentials {
             .await
             .map_err(|e| ForceError::Http(HttpError::RequestFailed(e)))?;
 
-        // Check for HTTP errors
-        let status = response.status();
-        if !status.is_success() {
-            // Read up to 1MB to prevent memory exhaustion DoS
-            let body = crate::http::error::read_capped_body(response, 1024 * 1024).await;
-
-            let error_text = if body.trim().is_empty() {
-                "Unknown error".to_string()
-            } else {
-                body
-            };
-
-            // Try to parse OAuth error response
-            if let Ok(oauth_error) = serde_json::from_str::<OAuthErrorResponse>(&error_text) {
-                return Err(ForceError::Authentication(
-                    AuthenticationError::TokenRequestFailed(format!(
-                        "{}: {}",
-                        oauth_error.error, oauth_error.error_description
-                    )),
-                ));
-            }
-
-            return Err(ForceError::Http(HttpError::StatusError {
-                status_code: status.as_u16(),
-                message: error_text,
-            }));
+        if !response.status().is_success() {
+            return Err(crate::auth::handle_oauth_error(response, None).await);
         }
 
         // Parse successful token response
@@ -215,17 +175,13 @@ impl crate::auth::authenticator::Authenticator for ClientCredentials {
     }
 }
 
-/// OAuth error response from Salesforce.
-#[derive(Debug, Deserialize)]
-struct OAuthErrorResponse {
-    error: String,
-    error_description: String,
-}
 #[cfg(test)]
 mod tests {
     use super::*;
     #[cfg(feature = "mock")]
     use crate::auth::Authenticator;
+    #[cfg(feature = "mock")]
+    use crate::error::AuthenticationError;
     #[cfg(feature = "mock")]
     use crate::test_support::Must;
 
