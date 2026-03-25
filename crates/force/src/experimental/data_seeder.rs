@@ -11,7 +11,7 @@ use crate::error::Result;
 use crate::experimental::data_faker::generate_mock_record;
 use serde_json::Value;
 
-/// Mass operations processor using SOQL and Composite Batch API.
+/// Utility for generating and inserting mock records from schema metadata.
 #[derive(Debug)]
 pub struct DataSeeder<'a, A: Authenticator> {
     client: &'a ForceClient<A>,
@@ -66,7 +66,11 @@ impl<'a, A: Authenticator> DataSeeder<'a, A> {
 
         for i in 0..count {
             let record = generate_mock_record(&describe);
-            let value = serde_json::to_value(&record.fields).unwrap_or(Value::Null);
+            let value = serde_json::to_value(&record.fields).map_err(|e| {
+                crate::error::ForceError::InvalidInput(format!(
+                    "Failed to serialize mock record: {e}"
+                ))
+            })?;
 
             current_batch = current_batch.post(sobject, value)?;
 

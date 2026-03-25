@@ -33,7 +33,7 @@ pub async fn generate_visualizer_report<A: Authenticator>(
     let insights = analyze_schema(&describe);
 
     let mut graph = SchemaGraph::new(client);
-    graph.scan(sobject).await?;
+    graph.add_describe(describe.clone());
     let mermaid = graph.to_mermaid();
 
     let mut md = String::with_capacity(2048);
