@@ -87,7 +87,10 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
     /// ```ignore
     /// let stream = client.rest().query_stream::<Account>("SELECT Id FROM Account");
     /// ```
-    pub fn query_stream<T>(&self, soql: impl Into<String>) -> crate::api::query_stream::QueryStream<T, A, Self>
+    pub fn query_stream<T>(
+        &self,
+        soql: impl Into<String>,
+    ) -> crate::api::query_stream::QueryStream<T, A, Self>
     where
         T: DeserializeOwned + Unpin,
     {
