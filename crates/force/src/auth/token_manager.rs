@@ -55,19 +55,23 @@ impl<A: Authenticator> TokenManager<A> {
         &self,
         arc_token: Arc<AccessToken>,
         is_initial_auth: bool,
-    ) -> Arc<AccessToken> {
+    ) -> Result<Arc<AccessToken>> {
         let mut state = self.state.write().await;
 
         if let Some(current) = &state.token {
             if current.issued_at() >= arc_token.issued_at() {
-                return current.clone();
+                return Ok(current.clone());
             }
             state.token = Some(arc_token.clone());
         } else if is_initial_auth {
             state.token = Some(arc_token.clone());
+        } else {
+            return Err(crate::error::ForceError::Authentication(
+                crate::error::AuthenticationError::InvalidToken,
+            ));
         }
 
-        arc_token
+        Ok(arc_token)
     }
 
     /// Returns the currently stored token when it is at least as new as `fallback`.
@@ -136,7 +140,7 @@ impl<A: Authenticator> TokenManager<A> {
             // ⚡ Bolt: Moving `new_token` directly into `Arc` avoids an unnecessary `.clone()` allocation
             // when transferring ownership, saving one heap allocation per token refresh/auth.
             let arc_token = Arc::new(new_token);
-            Ok(self.update_token_state(arc_token, !has_token).await)
+            self.update_token_state(arc_token, !has_token).await
         } else if let Some(valid_token) = current_token {
             // Soft expired. We have a valid token (valid_token).
             // Try to acquire refresh lock.
@@ -150,7 +154,7 @@ impl<A: Authenticator> TokenManager<A> {
                         // ⚡ Bolt: Moving `new_token` directly into `Arc` avoids an unnecessary `.clone()` allocation
                         // when transferring ownership, saving one heap allocation per token refresh.
                         let arc_token = Arc::new(new_token);
-                        Ok(self.update_token_state(arc_token, false).await)
+                        self.update_token_state(arc_token, false).await
                     }
                     Err(_) => {
                         // Refresh failed. Return the old token which is still valid (soft expired).
@@ -213,7 +217,7 @@ impl<A: Authenticator> TokenManager<A> {
         // ⚡ Bolt: Moving `new_token` directly into `Arc` avoids an unnecessary `.clone()` allocation
         // when transferring ownership, saving one heap allocation per force refresh.
         let arc_token = Arc::new(new_token);
-        let final_token = self.update_token_state(arc_token, false).await;
+        let final_token = self.update_token_state(arc_token, false).await?;
         Ok((*final_token).clone())
     }
 
@@ -772,5 +776,49 @@ mod tests {
             "soft_old_token",
             "Equality should not trigger an overwrite in soft refresh"
         );
+    }
+
+    #[tokio::test]
+    async fn test_token_manager_clear_during_refresh_race() {
+        let auth = MockAuthenticator::new().with_delay(std::time::Duration::from_millis(50));
+        let manager = StdArc::new(TokenManager::new(auth));
+
+        // 1. Initial auth to set a token
+        let _ = manager.token().await.must();
+
+        // 2. Manually expire the token
+        {
+            let mut state = manager.state.write().await;
+            if let Some(token) = &mut state.token {
+                *token = Arc::new(AccessToken::new(
+                    "expired_token".to_string(),
+                    "https://test.salesforce.com".to_string(),
+                    Some(Utc::now() - Duration::hours(1)),
+                ));
+            }
+        }
+
+        // 3. Trigger token() which will see it's hard expired and call refresh(), taking 50ms
+        let manager_clone = manager.clone();
+        let handle = tokio::spawn(async move { manager_clone.token().await });
+
+        // 4. Wait 10ms to ensure the spawn starts and begins sleeping
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+
+        // 5. Concurrently clear the token
+        manager.clear().await;
+
+        // 6. Await result
+        let result = handle.await.must();
+
+        // Should return an error, because the token was cleared while refreshing
+        assert!(result.is_err(), "👺 Havoc: Refresh revived a cleared session!");
+
+        // And the state should remain cleared
+        let has_token = {
+            let state = manager.state.read().await;
+            state.token.is_some()
+        };
+        assert!(!has_token, "👺 Havoc: State was revived!");
     }
 }
