@@ -186,7 +186,14 @@ impl fmt::Display for ApiError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "[{}] {}", self.error_code, self.message)?;
         if !self.fields.is_empty() {
-            write!(f, " (fields: {})", self.fields.join(", "))?;
+            write!(f, " (fields: ")?;
+            for (i, field) in self.fields.iter().enumerate() {
+                if i > 0 {
+                    write!(f, ", ")?;
+                }
+                write!(f, "{}", field)?;
+            }
+            write!(f, ")")?;
         }
         Ok(())
     }
