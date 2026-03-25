@@ -12,8 +12,15 @@ pub struct GraphqlErrorResponse(pub Vec<GraphqlError>);
 
 impl fmt::Display for GraphqlErrorResponse {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let messages: Vec<&str> = self.0.iter().map(|e| e.message.as_str()).collect();
-        write!(f, "{}", messages.join("; "))
+        // ⚡ Bolt: Write error messages directly to the formatter to avoid allocating
+        // an intermediate Vec and a concatenated String via `.join()`.
+        for (i, err) in self.0.iter().enumerate() {
+            if i > 0 {
+                write!(f, "; ")?;
+            }
+            write!(f, "{}", err.message)?;
+        }
+        Ok(())
     }
 }
 
