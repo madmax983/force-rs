@@ -355,6 +355,33 @@ mod integration_tests {
     }
 
     #[tokio::test]
+    async fn test_query_errors_empty() {
+        let (mock_server, handler) = setup().await;
+
+        Mock::given(method("POST"))
+            .and(path("/services/data/v60.0/graphql"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "data": null,
+                "errors": []
+            })))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let req = GraphqlRequest::new("{ bad query }");
+        let result: crate::error::Result<Value> = handler.query(&req).await;
+
+        let Err(err) = result else {
+            panic!("Expected an error");
+        };
+        let err_msg = err.to_string();
+        assert!(
+            err_msg.contains("neither data nor errors"),
+            "Error should complain about neither data nor errors, got: {err_msg}"
+        );
+    }
+
+    #[tokio::test]
     async fn test_query_graphql_errors_only() {
         let (mock_server, handler) = setup().await;
 
