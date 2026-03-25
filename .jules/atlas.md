@@ -72,3 +72,7 @@
 **2024-05-31 - [The Facade: Finalizing Module Boundaries for API Handlers]**
 **Tangle:** The remaining `force::api` submodules (`graphql`, `data_cloud`, `cpq`, `consent`, `tooling`, `ui`) were defined as `pub mod`, leaking their internal structural implementation details (like `types`, `error`, `query`, etc.) directly into the public API.
 **Blueprint:** Refactored module visibility in these Facade files from `pub mod` to `pub(crate) mod` while retaining explicit `pub use` for strictly public interfaces at the module root. This enforces encapsulation and presents a clean, un-nested API surface to consumers.
+
+**[The Tangle: QueryStream's Blob structure and circular dependency]**
+**Tangle:** `QueryStream` was located in `crates/force/src/api/rest/query_stream.rs`, importing `RestHandler` from `super`. `RestHandler` imported `QueryStream` from `query_stream.rs`. This tied the generic stream logic specifically to the REST handler, preventing other handlers (like `ToolingHandler`) from using it without importing `RestHandler`, breaking boundaries.
+**Blueprint:** Extracted `QueryStream` out to `crates/force/src/api/query_stream.rs` and made it generic over `O: RestOperation<A> + Clone`. Re-exported it in `api::mod` and `api::rest::mod` updated its query logic to construct the decoupled, generic query stream.
