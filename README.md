@@ -214,6 +214,7 @@ Stream millions of records without loading the entire dataset into memory:
 // Requires the "bulk" feature: force = { version = "0.1", features = ["bulk"] }
 use force::client::ForceClientBuilder;
 use force::auth::ClientCredentials;
+use futures::StreamExt; // Required for stream.next()
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
