@@ -17,7 +17,7 @@
 //! }
 //! ```
 
-use super::RestHandler;
+
 use crate::api::rest_operation::RestOperation;
 use crate::auth::Authenticator;
 use crate::error::Result;
@@ -29,8 +29,9 @@ use serde::de::DeserializeOwned;
 ///
 /// This stream lazily fetches and deserializes results from a SOQL query,
 /// automatically handling pagination via `query` and `query_more`.
-pub struct QueryStream<T, A: Authenticator> {
-    client: RestHandler<A>,
+pub struct QueryStream<T, A: Authenticator, O: RestOperation<A> + Clone> {
+    _auth: std::marker::PhantomData<A>,
+    client: O,
     soql: String,
     current_page: std::vec::IntoIter<T>,
     next_url: Option<String>,
@@ -39,14 +40,16 @@ pub struct QueryStream<T, A: Authenticator> {
     exhausted: bool,
 }
 
-impl<T, A> QueryStream<T, A>
+impl<T, A, O> QueryStream<T, A, O>
 where
     T: DeserializeOwned + Unpin,
+    O: RestOperation<A> + Clone,
     A: Authenticator,
 {
     /// Creates a new query stream.
-    pub fn new(client: RestHandler<A>, soql: impl Into<String>) -> Self {
+    pub fn new(client: O, soql: impl Into<String>) -> Self {
         Self {
+            _auth: std::marker::PhantomData,
             client,
             soql: soql.into(),
             current_page: Vec::new().into_iter(),

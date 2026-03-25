@@ -8,7 +8,6 @@ pub(crate) mod describe;
 pub(crate) mod explain;
 pub(crate) mod limits;
 pub(crate) mod query;
-pub(crate) mod query_stream;
 pub(crate) mod search;
 
 pub use crate::api::soql::{SoqlQueryBuilder, escape_soql};
@@ -18,7 +17,6 @@ pub use describe::{
 };
 pub use explain::{ExplainResponse, PlanNote, QueryPlan};
 pub use limits::{LimitInfo, OrgLimits};
-pub use query_stream::QueryStream;
 pub use search::{SearchAttributes, SearchQueryBuilder, SearchRecords, SearchResult};
 
 use crate::api::rest_operation::RestOperation;
@@ -89,11 +87,11 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
     /// ```ignore
     /// let stream = client.rest().query_stream::<Account>("SELECT Id FROM Account");
     /// ```
-    pub fn query_stream<T>(&self, soql: impl Into<String>) -> query_stream::QueryStream<T, A>
+    pub fn query_stream<T>(&self, soql: impl Into<String>) -> crate::api::query_stream::QueryStream<T, A, Self>
     where
         T: DeserializeOwned + Unpin,
     {
-        query_stream::QueryStream::new(self.clone(), soql)
+        crate::api::query_stream::QueryStream::new(self.clone(), soql)
     }
 
     /// Constructs the base URL for REST API operations.

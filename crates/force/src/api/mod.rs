@@ -35,6 +35,7 @@ pub mod consent;
 
 pub mod rest_operation;
 pub mod soql;
+pub(crate) mod query_stream;
 
 pub(crate) mod path_utils;
 
