@@ -812,7 +812,10 @@ mod tests {
         let result = handle.await.must();
 
         // Should return an error, because the token was cleared while refreshing
-        assert!(result.is_err(), "👺 Havoc: Refresh revived a cleared session!");
+        assert!(
+            result.is_err(),
+            "👺 Havoc: Refresh revived a cleared session!"
+        );
 
         // And the state should remain cleared
         let has_token = {
