@@ -62,6 +62,7 @@ pub fn escape_soql_cow(input: &str) -> Cow<'_, str> {
 ///
 /// Validates the builder, then writes the SOQL through URL-encoding.
 /// Used by Composite Batch and Graph APIs to embed queries in subrequests.
+#[cfg(any(feature = "composite", feature = "composite_graph"))]
 pub(crate) fn encode_soql_query_url(
     query_builder: &SoqlQueryBuilder,
 ) -> Result<String, ForceError> {
