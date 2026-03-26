@@ -112,6 +112,7 @@ pub struct SoqlQueryBuilder {
     limit: Option<u32>,
     offset: Option<u32>,
     order_by: Option<String>,
+    error: Option<String>,
 }
 
 impl SoqlQueryBuilder {
@@ -126,26 +127,16 @@ impl SoqlQueryBuilder {
     /// # Errors
     ///
     /// Returns an error if any field name contains invalid characters.
-    pub fn try_select(mut self, fields: &[impl AsRef<str>]) -> Result<Self, ForceError> {
-        self.fields = fields
-            .iter()
-            .map(|f| {
-                let s = f.as_ref();
-                validate_field_name(s)?;
-                Ok(s.to_string())
-            })
-            .collect::<Result<Vec<_>, ForceError>>()?;
-        Ok(self)
-    }
-
-    /// Sets the fields to select (panicking version).
-    ///
-    /// # Panics
-    ///
-    /// Panics if any field name contains invalid characters.
     #[must_use]
-    pub fn select(self, fields: &[impl AsRef<str>]) -> Self {
-        Self::unwrap_or_panic(self.try_select(fields), "select")
+    pub fn select(mut self, fields: &[impl AsRef<str>]) -> Self {
+        for f in fields {
+            if let Err(e) = validate_field_name(f.as_ref()) {
+                self.error = Some(e.to_string());
+                return self;
+            }
+        }
+        self.fields = fields.iter().map(|f| f.as_ref().to_string()).collect();
+        self
     }
 
     /// Sets the SObject to select from.
@@ -153,21 +144,15 @@ impl SoqlQueryBuilder {
     /// # Errors
     ///
     /// Returns an error if the SObject name is invalid.
-    pub fn try_from(mut self, sobject: impl Into<String>) -> Result<Self, ForceError> {
-        let s = sobject.into();
-        validate_sobject_name(&s)?;
-        self.sobject = Some(s);
-        Ok(self)
-    }
-
-    /// Sets the SObject to select from (panicking version).
-    ///
-    /// # Panics
-    ///
-    /// Panics if the SObject name contains invalid characters.
     #[must_use]
-    pub fn from(self, sobject: impl Into<String>) -> Self {
-        Self::unwrap_or_panic(self.try_from(sobject), "from")
+    pub fn from(mut self, sobject: impl Into<String>) -> Self {
+        let s = sobject.into();
+        if let Err(e) = validate_sobject_name(&s) {
+            self.error = Some(e.to_string());
+            return self;
+        }
+        self.sobject = Some(s);
+        self
     }
 
     /// Adds a raw WHERE condition without escaping.
@@ -210,18 +195,9 @@ impl SoqlQueryBuilder {
     ///     .build();
     /// assert_eq!(query, "SELECT Id FROM Contact WHERE LastName = 'Smith'");
     /// ```
-    pub fn try_where_eq(self, field: &str, value: &str) -> Result<Self, ForceError> {
-        self.try_add_condition(field, "=", value)
-    }
-
-    /// Adds a WHERE condition for equality (e.g., `Field = 'Value'`).
-    ///
-    /// # Panics
-    ///
-    /// Panics if the field name is invalid.
     #[must_use]
     pub fn where_eq(self, field: &str, value: &str) -> Self {
-        Self::unwrap_or_panic(self.try_where_eq(field, value), "where_eq")
+        self.add_condition(field, "=", value)
     }
 
     /// Adds a WHERE condition for NOT equality (e.g., `Field != 'Value'`).
@@ -241,36 +217,28 @@ impl SoqlQueryBuilder {
     ///     .build();
     /// assert_eq!(query, "SELECT Id FROM Contact WHERE LastName != 'Smith'");
     /// ```
-    pub fn try_where_ne(self, field: &str, value: &str) -> Result<Self, ForceError> {
-        self.try_add_condition(field, "!=", value)
-    }
-
-    /// Adds a WHERE condition for NOT equality (e.g., `Field != 'Value'`).
-    ///
-    /// # Panics
-    ///
-    /// Panics if the field name is invalid.
     #[must_use]
     pub fn where_ne(self, field: &str, value: &str) -> Self {
-        Self::unwrap_or_panic(self.try_where_ne(field, value), "where_ne")
+        self.add_condition(field, "!=", value)
     }
 
     /// Adds a simple WHERE condition (helper).
-    fn try_add_condition(mut self, field: &str, op: &str, value: &str) -> Result<Self, ForceError> {
+    fn add_condition(mut self, field: &str, op: &str, value: &str) -> Self {
         use std::fmt::Write;
 
-        validate_field_name(field).map_err(|e| ForceError::InvalidInput(e.to_string()))?;
-        // Optimization: Use escape_soql_cow to avoid allocation if escape not needed
-        let escaped_value = escape_soql_cow(value);
+        if let Err(e) = validate_field_name(field) {
+            self.error = Some(e.to_string());
+            return self;
+        }
 
-        // ⚡ Bolt: Avoid intermediate `format!` allocation by writing directly to a pre-allocated buffer.
-        let capacity = field.len() + op.len() + escaped_value.len() + 4; // 2 spaces + 2 quotes
+        let escaped_value = escape_soql_cow(value);
+        let capacity = field.len() + op.len() + escaped_value.len() + 4;
         let mut buffer = String::with_capacity(capacity);
         write!(buffer, "{} {} '{}'", field, op, escaped_value)
             .unwrap_or_else(|_| unreachable!("writing to String is infallible"));
 
         self.where_clauses.push(buffer);
-        Ok(self)
+        self
     }
 
     /// Adds a WHERE condition for IN clause (e.g., `Field IN ('Val1', 'Val2')`).
@@ -293,29 +261,27 @@ impl SoqlQueryBuilder {
     ///
     /// **Performance:** Avoids intermediate `Vec<String>` heap allocations by pre-calculating capacity
     /// and writing the escaped SOQL string directly into a single formatted string buffer.
-    pub fn try_where_in(
-        mut self,
-        field: &str,
-        values: &[impl AsRef<str>],
-    ) -> Result<Self, ForceError> {
+    #[must_use]
+    pub fn where_in(mut self, field: &str, values: &[impl AsRef<str>]) -> Self {
         use std::fmt::Write;
 
-        validate_field_name(field).map_err(|e| ForceError::InvalidInput(e.to_string()))?;
+        if let Err(e) = validate_field_name(field) {
+            self.error = Some(e.to_string());
+            return self;
+        }
+
         if values.is_empty() {
-            // ⚡ Bolt: Avoid intermediate `format!` allocation.
             let mut buffer = String::with_capacity(field.len() + 7);
             buffer.push_str(field);
             buffer.push_str(" IN ()");
             self.where_clauses.push(buffer);
-            return Ok(self);
+            return self;
         }
 
-        // Base capacity for "FIELD IN ()" + estimated 10 chars per value + quotes/commas
         let capacity = field.len() + 6 + (values.len() * 14);
         let mut buffer = String::with_capacity(capacity);
-
-        write!(buffer, "{} IN (", field)
-            .unwrap_or_else(|_| unreachable!("writing to String is infallible"));
+        buffer.push_str(field);
+        buffer.push_str(" IN (");
 
         for (i, value) in values.iter().enumerate() {
             if i > 0 {
@@ -328,17 +294,7 @@ impl SoqlQueryBuilder {
         buffer.push(')');
 
         self.where_clauses.push(buffer);
-        Ok(self)
-    }
-
-    /// Adds a WHERE condition for IN clause (e.g., `Field IN ('Val1', 'Val2')`).
-    ///
-    /// # Panics
-    ///
-    /// Panics if the field name is invalid.
-    #[must_use]
-    pub fn where_in(self, field: &str, values: &[impl AsRef<str>]) -> Self {
-        Self::unwrap_or_panic(self.try_where_in(field, values), "where_in")
+        self
     }
 
     /// Adds a WHERE condition for LIKE clause (e.g., `Field LIKE 'Val%'`).
@@ -360,18 +316,9 @@ impl SoqlQueryBuilder {
     ///     .build();
     /// assert_eq!(query, "SELECT Id FROM Account WHERE Name LIKE 'Acme%'");
     /// ```
-    pub fn try_where_like(self, field: &str, value: &str) -> Result<Self, ForceError> {
-        self.try_add_condition(field, "LIKE", value)
-    }
-
-    /// Adds a WHERE condition for LIKE clause (e.g., `Field LIKE 'Val%'`).
-    ///
-    /// # Panics
-    ///
-    /// Panics if the field name is invalid.
     #[must_use]
     pub fn where_like(self, field: &str, value: &str) -> Self {
-        Self::unwrap_or_panic(self.try_where_like(field, value), "where_like")
+        self.add_condition(field, "LIKE", value)
     }
 
     /// Sets the LIMIT clause.
@@ -430,20 +377,14 @@ impl SoqlQueryBuilder {
     ///     .build();
     /// assert_eq!(query, "SELECT Id FROM Account ORDER BY Name");
     /// ```
-    pub fn try_order_by(mut self, field: &str) -> Result<Self, ForceError> {
-        validate_field_name(field).map_err(|e| ForceError::InvalidInput(e.to_string()))?;
-        self.order_by = Some(field.to_string());
-        Ok(self)
-    }
-
-    /// Sets the ORDER BY clause.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the field name is invalid.
     #[must_use]
-    pub fn order_by(self, field: &str) -> Self {
-        Self::unwrap_or_panic(self.try_order_by(field), "order_by")
+    pub fn order_by(mut self, field: &str) -> Self {
+        if let Err(e) = validate_field_name(field) {
+            self.error = Some(e.to_string());
+            return self;
+        }
+        self.order_by = Some(field.to_string());
+        self
     }
 
     /// Sets the ORDER BY clause with direction (DESC).
@@ -463,20 +404,14 @@ impl SoqlQueryBuilder {
     ///     .build();
     /// assert_eq!(query, "SELECT Id FROM Account ORDER BY CreatedDate DESC");
     /// ```
-    pub fn try_order_by_desc(mut self, field: &str) -> Result<Self, ForceError> {
-        validate_field_name(field).map_err(|e| ForceError::InvalidInput(e.to_string()))?;
-        self.order_by = Some(format!("{} DESC", field));
-        Ok(self)
-    }
-
-    /// Sets the ORDER BY clause with direction (DESC).
-    ///
-    /// # Panics
-    ///
-    /// Panics if the field name is invalid.
     #[must_use]
-    pub fn order_by_desc(self, field: &str) -> Self {
-        Self::unwrap_or_panic(self.try_order_by_desc(field), "order_by_desc")
+    pub fn order_by_desc(mut self, field: &str) -> Self {
+        if let Err(e) = validate_field_name(field) {
+            self.error = Some(e.to_string());
+            return self;
+        }
+        self.order_by = Some(format!("{} DESC", field));
+        self
     }
 
     /// Validates that the builder has all necessary components to build a query.
@@ -485,6 +420,12 @@ impl SoqlQueryBuilder {
     ///
     /// Returns an error if no fields are selected or no SObject is specified.
     pub fn validate(&self) -> Result<(), ForceError> {
+        if let Some(err) = &self.error {
+            return Err(ForceError::InvalidInput(err.clone()));
+        }
+        if let Some(err) = &self.error {
+            return Err(ForceError::InvalidInput(err.clone()));
+        }
         if self.fields.is_empty() {
             return Err(ForceError::InvalidInput(
                 "Select fields cannot be empty".to_string(),
@@ -591,7 +532,10 @@ impl SoqlQueryBuilder {
     /// Panics if no fields are selected or no SObject is specified.
     #[must_use]
     pub fn build(self) -> String {
-        Self::unwrap_or_panic(self.try_build(), "build")
+        match self.try_build() {
+            Ok(query) => query,
+            Err(e) => panic!("Invalid input in build: {}", e),
+        }
     }
 }
 
@@ -644,54 +588,6 @@ mod tests {
             query,
             "SELECT Id FROM Contact WHERE LastName != 'O\\'Connor'"
         );
-    }
-
-    #[test]
-    #[should_panic(
-        expected = "Invalid input in where_eq: invalid input: invalid input: Field name contains invalid character ';': Invalid;Field"
-    )]
-    fn test_where_eq_panics_on_invalid_field() {
-        let _ = SoqlQueryBuilder::new().where_eq("Invalid;Field", "Value");
-    }
-
-    #[test]
-    #[should_panic(
-        expected = "Invalid input in where_ne: invalid input: invalid input: Field name contains invalid character ';': Invalid;Field"
-    )]
-    fn test_where_ne_panics_on_invalid_field() {
-        let _ = SoqlQueryBuilder::new().where_ne("Invalid;Field", "Value");
-    }
-
-    #[test]
-    #[should_panic(
-        expected = "Invalid input in where_in: invalid input: invalid input: Field name contains invalid character ';': Invalid;Field"
-    )]
-    fn test_where_in_panics_on_invalid_field() {
-        let _ = SoqlQueryBuilder::new().where_in("Invalid;Field", &["Value"]);
-    }
-
-    #[test]
-    #[should_panic(
-        expected = "Invalid input in where_like: invalid input: invalid input: Field name contains invalid character ';': Invalid;Field"
-    )]
-    fn test_where_like_panics_on_invalid_field() {
-        let _ = SoqlQueryBuilder::new().where_like("Invalid;Field", "Value");
-    }
-
-    #[test]
-    #[should_panic(
-        expected = "Invalid input in order_by: invalid input: invalid input: Field name contains invalid character ';': Invalid;Field"
-    )]
-    fn test_order_by_panics_on_invalid_field() {
-        let _ = SoqlQueryBuilder::new().order_by("Invalid;Field");
-    }
-
-    #[test]
-    #[should_panic(
-        expected = "Invalid input in order_by_desc: invalid input: invalid input: Field name contains invalid character ';': Invalid;Field"
-    )]
-    fn test_order_by_desc_panics_on_invalid_field() {
-        let _ = SoqlQueryBuilder::new().order_by_desc("Invalid;Field");
     }
 
     #[test]
@@ -765,7 +661,8 @@ mod tests {
         let builder = SoqlQueryBuilder::new();
 
         // Invalid field name
-        let result = builder.clone().try_select(&["Valid", "Invalid;DROP"]);
+        let builder_err = builder.clone().select(&["Valid", "Invalid;DROP"]);
+        let result = builder_err.try_build();
 
         if let Err(ForceError::InvalidInput(msg)) = result {
             assert!(msg.contains("invalid character"));
@@ -774,7 +671,8 @@ mod tests {
         }
 
         // Invalid SObject name
-        let result = builder.try_from("Invalid SObject");
+        let builder_err = builder.from("Invalid SObject");
+        let result = builder_err.try_build();
 
         if let Err(ForceError::InvalidInput(msg)) = result {
             assert!(msg.contains("invalid characters"));
@@ -783,7 +681,6 @@ mod tests {
         }
     }
 
-    // Test unwrap_or_panic logic by calling `build` on invalid states directly.
     #[test]
     #[should_panic(
         expected = "Invalid input in build: invalid input: Select fields cannot be empty"
@@ -798,22 +695,6 @@ mod tests {
     )]
     fn test_build_panics_on_missing_sobject() {
         let _ = SoqlQueryBuilder::new().select(&["Id"]).build();
-    }
-
-    #[test]
-    #[should_panic(
-        expected = "Invalid input in from: invalid input: SObject name contains invalid characters: Invalid Object"
-    )]
-    fn test_from_panics_on_invalid_sobject() {
-        let _ = SoqlQueryBuilder::new().from("Invalid Object");
-    }
-
-    #[test]
-    #[should_panic(
-        expected = "Invalid input in select: invalid input: Field name contains invalid character ';': Invalid;DROP"
-    )]
-    fn test_select_panics_on_invalid_field() {
-        let _ = SoqlQueryBuilder::new().select(&["Valid", "Invalid;DROP"]);
     }
 
     #[test]

@@ -16,25 +16,25 @@ mod tests {
         #![proptest_config(ProptestConfig::with_cases(10000))]
 
         #[test]
-        fn test_soql_try_where_eq_no_panic(field in ".*", value in ".*") {
+        fn test_soql_where_eq_no_panic(field in ".*", value in ".*") {
             let builder = SoqlQueryBuilder::new().from("Account");
 
             // This MUST NOT panic, it should return an Err if the field is invalid.
-            let _ = builder.try_where_eq(&field, &value);
+            let _ = builder.where_eq(&field, &value);
         }
 
         #[test]
-        fn test_soql_try_where_in_no_panic(field in ".*", values in prop::collection::vec(".*", 0..5)) {
+        fn test_soql_where_in_no_panic(field in ".*", values in prop::collection::vec(".*", 0..5)) {
             let builder = SoqlQueryBuilder::new().from("Account");
-            let _ = builder.try_where_in(&field, &values);
+            let _ = builder.where_in(&field, &values);
         }
 
         #[test]
-        fn test_soql_try_order_by_no_panic(field in ".*") {
+        fn test_soql_order_by_no_panic(field in ".*") {
             let builder = SoqlQueryBuilder::new().from("Account");
-            let _ = builder.try_order_by(&field);
+            let _ = builder.order_by(&field);
             let builder2 = SoqlQueryBuilder::new().from("Account");
-            let _ = builder2.try_order_by_desc(&field);
+            let _ = builder2.order_by_desc(&field);
         }
     }
 }
