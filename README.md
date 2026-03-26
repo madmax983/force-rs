@@ -9,6 +9,8 @@
 
 force-rs provides idiomatic Rust bindings to the Salesforce Platform APIs, enabling you to build high-performance integrations, data pipelines, and automation tools. With comprehensive coverage of 7 API surfaces, compile-time safe workflows, and memory-efficient streaming, force-rs is designed for real-world enterprise workloads.
 
+The workspace also includes [`force-sync`](crates/force-sync), a Postgres-first bidirectional sync engine built on top of `force` and `force-pubsub`.
+
 ## Features
 
 ### REST API
@@ -365,6 +367,8 @@ ForceClient<A>
 ```
 
 All handlers share a common `Session<A>` (via `Arc`) containing the HTTP client, token manager, and configuration. This ensures zero-cost handler creation and shared authentication state.
+
+For the sync layer, see [`crates/force-sync`](crates/force-sync) and its design notes in [`docs/adr/026-force-sync-crate.md`](docs/adr/026-force-sync-crate.md).
 
 Architectural decisions are documented in [`docs/adr/`](docs/adr/):
 
