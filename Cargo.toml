@@ -62,13 +62,13 @@ quick-xml = "0.37"
 wiremock = "0.6"
 
 # gRPC/Protobuf (for pub_sub)
-tonic = "0.12"
+tonic = "0.13"
 prost = "0.13"
 apache-avro = "0.17"
 dashmap = "6"
 tokio-stream = "0.1"
 
 # Build dependencies (for pub_sub proto compilation)
-tonic-build = "0.12"
+tonic-build = "0.13"
 prost-build = "0.13"
 protoc-bin-vendored = "3.0"
