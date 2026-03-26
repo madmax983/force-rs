@@ -87,3 +87,10 @@ pub use openapi_generator::OpenApiGenerator;
 pub(crate) mod json_schema;
 #[cfg(feature = "schema")]
 pub use json_schema::JsonSchemaGenerator;
+
+#[cfg(feature = "schema")]
+pub(crate) mod schema_linter;
+#[cfg(feature = "schema")]
+pub use schema_linter::{
+    LintResult, LintRule, LintSeverity, MissingCustomSuffixRule, SchemaLinter, TooManyFieldsRule,
+};
