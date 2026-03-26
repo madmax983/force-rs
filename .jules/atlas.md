@@ -76,3 +76,7 @@
 **[The Tangle: QueryStream's Blob structure and circular dependency]**
 **Tangle:** `QueryStream` was located in `crates/force/src/api/rest/query_stream.rs`, importing `RestHandler` from `super`. `RestHandler` imported `QueryStream` from `query_stream.rs`. This tied the generic stream logic specifically to the REST handler, preventing other handlers (like `ToolingHandler`) from using it without importing `RestHandler`, breaking boundaries.
 **Blueprint:** Extracted `QueryStream` out to `crates/force/src/api/query_stream.rs` and made it generic over `O: RestOperation<A> + Clone`. Re-exported it in `api::mod` and `api::rest::mod` updated its query logic to construct the decoupled, generic query stream.
+
+**[Feature Gating Experimental API]**
+**Tangle:** The Query Plan API (`explain`) was exposed in the default `rest` module without a feature gate, leaking experimental capabilities into the public stable API surface.
+**Blueprint:** Gated the `explain` module, its re-exported response types, and the `explain` method behind the `#[cfg(feature = "nova")]` flag. Added `nova` to Cargo.toml and the `all` feature group to isolate experimental endpoints.
