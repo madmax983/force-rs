@@ -34,8 +34,6 @@ async fn insert_conflict_query<C>(
 where
     C: GenericClient + Sync + ?Sized,
 {
-    let left_value = conflict.left_value.to_string();
-    let right_value = conflict.right_value.to_string();
     let row = client
         .query_one(
             "insert into sync_conflict (
@@ -53,8 +51,8 @@ where
                 &conflict.object_name,
                 &conflict.external_id,
                 &conflict.field_name,
-                &left_value,
-                &right_value,
+                &conflict.left_value,
+                &conflict.right_value,
                 &conflict.resolution,
             ],
         )

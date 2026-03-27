@@ -32,7 +32,6 @@ async fn insert_dead_letter_query<C>(
 where
     C: GenericClient + Sync + ?Sized,
 {
-    let payload_json = dead_letter.payload.as_ref().map(Value::to_string);
     let row = client
         .query_one(
             "insert into sync_dead_letter (
@@ -50,7 +49,7 @@ where
                 &dead_letter.object_name,
                 &dead_letter.external_id,
                 &dead_letter.error_message,
-                &payload_json,
+                &dead_letter.payload,
             ],
         )
         .await?;

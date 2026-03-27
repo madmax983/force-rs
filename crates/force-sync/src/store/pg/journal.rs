@@ -1,6 +1,7 @@
 //! Journal write helpers for the `PostgreSQL` sync store.
 
 use chrono::{DateTime, Utc};
+use serde_json::Value;
 use tokio_postgres::GenericClient;
 
 use crate::{
@@ -31,7 +32,7 @@ struct JournalValues {
     observed_at: DateTime<Utc>,
     operation: &'static str,
     tombstone: bool,
-    payload_json: String,
+    payload: Value,
     payload_hash: [u8; 32],
 }
 
@@ -49,7 +50,7 @@ fn journal_values(envelope: &ChangeEnvelope) -> Result<JournalValues, ForceSyncE
         observed_at: envelope.observed_at(),
         operation: envelope.operation().as_db_value(),
         tombstone: matches!(envelope.operation(), ChangeOperation::Delete),
-        payload_json: envelope.payload().to_string(),
+        payload: envelope.payload().clone(),
         payload_hash: envelope.payload_hash(),
     })
 }
@@ -95,7 +96,7 @@ where
                 &values.observed_at,
                 &values.operation,
                 &values.tombstone,
-                &values.payload_json,
+                &values.payload,
                 &payload_hash,
             ],
         )
@@ -149,7 +150,7 @@ where
                 &values.observed_at,
                 &values.operation,
                 &values.tombstone,
-                &values.payload_json,
+                &values.payload,
                 &payload_hash,
             ],
         )
@@ -258,6 +259,8 @@ mod tests {
             .unwrap_or_else(|error| panic!("unexpected journal values error: {error}"));
 
         let _: chrono::DateTime<chrono::Utc> = values.observed_at;
+        let _: &serde_json::Value = &values.payload;
         assert_eq!(values.observed_at, observed_at);
+        assert_eq!(values.payload, json!({"Name": "Acme"}));
     }
 }
