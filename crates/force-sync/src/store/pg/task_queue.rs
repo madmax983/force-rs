@@ -23,7 +23,6 @@ pub struct LeasedTask {
 
 struct LeaseDeadline {
     lease_until: DateTime<Utc>,
-    lease_until_sql: String,
 }
 
 fn compute_lease_deadline(lease_for: Duration) -> Result<LeaseDeadline, ForceSyncError> {
@@ -33,10 +32,7 @@ fn compute_lease_deadline(lease_for: Duration) -> Result<LeaseDeadline, ForceSyn
     let duration = chrono::Duration::seconds(secs) + chrono::Duration::nanoseconds(nanos);
     let lease_until = Utc::now() + duration;
 
-    Ok(LeaseDeadline {
-        lease_until,
-        lease_until_sql: lease_until.to_rfc3339(),
-    })
+    Ok(LeaseDeadline { lease_until })
 }
 
 async fn enqueue_apply_task_query<C>(
@@ -90,7 +86,7 @@ where
             from claimed
             where sync_task.task_id = claimed.task_id
             returning sync_task.task_id",
-            &[&worker_id, &limit, &lease_until.lease_until_sql],
+            &[&worker_id, &limit, &lease_until.lease_until],
         )
         .await?;
 
@@ -114,8 +110,7 @@ async fn update_task_status_unguarded<C>(
 where
     C: GenericClient + Sync + ?Sized,
 {
-    let next_attempt_at_sql = next_attempt_at.map(|value| value.to_rfc3339());
-    match (last_error, next_attempt_at_sql.as_deref()) {
+    match (last_error, next_attempt_at.as_ref()) {
         (Some(error), Some(next_attempt_at)) => Ok(client
             .execute(
                 "update sync_task
@@ -182,9 +177,7 @@ async fn update_task_status_guarded<C>(
 where
     C: GenericClient + Sync + ?Sized,
 {
-    let next_attempt_at_sql = next_attempt_at.map(|value| value.to_rfc3339());
-
-    match (last_error, next_attempt_at_sql.as_deref()) {
+    match (last_error, next_attempt_at.as_ref()) {
         (Some(error), Some(next_attempt_at)) => Ok(client
             .execute(
                 "update sync_task
@@ -513,5 +506,26 @@ impl PgStore {
     {
         let error = error.as_ref().to_owned();
         update_task_status(client, task_id, "failed", Some(&error), None, None).await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use chrono::Utc;
+
+    use super::compute_lease_deadline;
+
+    #[test]
+    fn lease_deadline_keeps_datetime_type() {
+        let before = Utc::now();
+        let deadline = compute_lease_deadline(Duration::from_secs(5))
+            .unwrap_or_else(|error| panic!("unexpected lease deadline error: {error}"));
+        let after = Utc::now();
+
+        let _: chrono::DateTime<chrono::Utc> = deadline.lease_until;
+        assert!(deadline.lease_until >= before);
+        assert!(deadline.lease_until <= after + chrono::Duration::seconds(5));
     }
 }

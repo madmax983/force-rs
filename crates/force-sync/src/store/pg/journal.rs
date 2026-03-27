@@ -1,5 +1,6 @@
 //! Journal write helpers for the `PostgreSQL` sync store.
 
+use chrono::{DateTime, Utc};
 use tokio_postgres::GenericClient;
 
 use crate::{
@@ -27,7 +28,7 @@ struct JournalValues {
     external_id: String,
     source: &'static str,
     source_cursor: String,
-    observed_at: String,
+    observed_at: DateTime<Utc>,
     operation: &'static str,
     tombstone: bool,
     payload_json: String,
@@ -45,7 +46,7 @@ fn journal_values(envelope: &ChangeEnvelope) -> Result<JournalValues, ForceSyncE
         external_id: envelope.sync_key().external_id().to_owned(),
         source: envelope.source().as_db_value(),
         source_cursor: cursor.as_db_value(),
-        observed_at: envelope.observed_at().to_rfc3339(),
+        observed_at: envelope.observed_at(),
         operation: envelope.operation().as_db_value(),
         tombstone: matches!(envelope.operation(), ChangeOperation::Delete),
         payload_json: envelope.payload().to_string(),
@@ -225,5 +226,38 @@ impl PgStore {
             || Ok(AppendResult::Duplicate),
             |journal_id| Ok(AppendResult::Inserted { journal_id }),
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use chrono::Utc;
+    use serde_json::json;
+
+    use crate::{
+        identity::SyncKey,
+        model::{ChangeEnvelope, ChangeOperation, SourceCursor, SourceSystem},
+    };
+
+    use super::journal_values;
+
+    #[test]
+    fn journal_values_keep_observed_at_as_datetime() {
+        let observed_at = Utc::now();
+        let envelope = ChangeEnvelope::new(
+            SyncKey::new("tenant", "Account", "external-1")
+                .unwrap_or_else(|error| panic!("unexpected sync key construction error: {error}")),
+            SourceSystem::Postgres,
+            ChangeOperation::Upsert,
+            observed_at,
+            json!({"Name": "Acme"}),
+        )
+        .with_cursor(SourceCursor::PostgresLsn("lsn-1".to_owned()));
+
+        let values = journal_values(&envelope)
+            .unwrap_or_else(|error| panic!("unexpected journal values error: {error}"));
+
+        let _: chrono::DateTime<chrono::Utc> = values.observed_at;
+        assert_eq!(values.observed_at, observed_at);
     }
 }
