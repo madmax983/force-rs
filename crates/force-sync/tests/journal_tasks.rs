@@ -197,6 +197,22 @@ async fn worker_guarded_task_updates_require_the_current_lease_and_clear_retry_s
         1
     );
 
+    let not_ready_yet = store
+        .lease_ready_tasks("worker-1", 1, Duration::from_secs(60))
+        .await?;
+    assert!(not_ready_yet.is_empty());
+
+    assert_eq!(
+        store
+            .retry_task(
+                leased[0].task_id,
+                Utc::now() - chrono::Duration::seconds(1),
+                "boom"
+            )
+            .await?,
+        1
+    );
+
     let leased_again = store
         .lease_ready_tasks("worker-1", 1, Duration::from_secs(60))
         .await?;
@@ -214,7 +230,7 @@ async fn worker_guarded_task_updates_require_the_current_lease_and_clear_retry_s
         .get()
         .await?
         .query_one(
-            "select status, last_error, next_attempt_at is null
+            "select status, last_error, next_attempt_at is not null
              from sync_task
              where task_id = $1",
             &[&leased_again[0].task_id],

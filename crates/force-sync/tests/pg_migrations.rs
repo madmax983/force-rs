@@ -12,7 +12,7 @@ async fn applies_initial_schema() -> Result<(), force_sync::error::ForceSyncErro
 
     let client = pool.get().await?;
     let rows = client
-        .query("select to_regclass('public.sync_journal')", &[])
+        .query("select to_regclass('public.sync_journal')::text", &[])
         .await?;
 
     assert_eq!(

@@ -65,7 +65,7 @@ async fn insert_outbox_row(
     source_cursor: &str,
 ) -> Result<(), ForceSyncError> {
     let client = pool.get().await?;
-    let payload_json = json!({"Name": "Acme Corp"}).to_string();
+    let payload = json!({"Name": "Acme Corp"});
     client
         .execute(
             "insert into force_sync_outbox (
@@ -85,7 +85,7 @@ async fn insert_outbox_row(
                 false,
                 $1::jsonb
             )",
-            &[&payload_json, &source_cursor],
+            &[&payload, &source_cursor],
         )
         .await?;
     Ok(())

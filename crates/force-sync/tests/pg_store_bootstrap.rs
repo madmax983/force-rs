@@ -16,7 +16,7 @@ async fn pg_store_can_open_transaction() -> Result<(), force_sync::error::ForceS
     let value: i64 = store
         .with_client(|client| async move {
             client
-                .query_one("select 1", &[])
+                .query_one("select 1::bigint", &[])
                 .await
                 .map(|row| row.get(0))
         })
@@ -25,7 +25,7 @@ async fn pg_store_can_open_transaction() -> Result<(), force_sync::error::ForceS
 
     let transaction_value: i64 = store
         .with_transaction(|client| {
-            async move { Ok(client.query_one("select 1", &[]).await?.get(0)) }.boxed()
+            async move { Ok(client.query_one("select 1::bigint", &[]).await?.get(0)) }.boxed()
         })
         .await?;
     assert_eq!(transaction_value, 1);

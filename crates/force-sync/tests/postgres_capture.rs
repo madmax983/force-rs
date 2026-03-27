@@ -47,7 +47,7 @@ async fn insert_outbox_row(
                 &seed.source_cursor,
                 &seed.op,
                 &seed.tombstone,
-                &seed.payload.to_string(),
+                &seed.payload,
             ],
         )
         .await?;

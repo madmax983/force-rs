@@ -110,60 +110,19 @@ async fn update_task_status_unguarded<C>(
 where
     C: GenericClient + Sync + ?Sized,
 {
-    match (last_error, next_attempt_at.as_ref()) {
-        (Some(error), Some(next_attempt_at)) => Ok(client
-            .execute(
-                "update sync_task
-                     set status = $2,
-                         last_error = $3,
-                         next_attempt_at = $4::timestamptz,
-                         lease_owner = null,
-                         lease_until = null,
-                         updated_at = now()
-                     where task_id = $1",
-                &[&task_id, &status, &error, &next_attempt_at],
-            )
-            .await?),
-        (Some(error), None) => Ok(client
-            .execute(
-                "update sync_task
-                     set status = $2,
-                         last_error = $3,
-                         next_attempt_at = null,
-                         lease_owner = null,
-                         lease_until = null,
-                         updated_at = now()
-                     where task_id = $1",
-                &[&task_id, &status, &error],
-            )
-            .await?),
-        (None, Some(next_attempt_at)) => Ok(client
-            .execute(
-                "update sync_task
-                     set status = $2,
-                         last_error = null,
-                         next_attempt_at = $3::timestamptz,
-                         lease_owner = null,
-                         lease_until = null,
-                         updated_at = now()
-                     where task_id = $1",
-                &[&task_id, &status, &next_attempt_at],
-            )
-            .await?),
-        (None, None) => Ok(client
-            .execute(
-                "update sync_task
-                     set status = $2,
-                         last_error = null,
-                         next_attempt_at = null,
-                         lease_owner = null,
-                         lease_until = null,
-                         updated_at = now()
-                     where task_id = $1",
-                &[&task_id, &status],
-            )
-            .await?),
-    }
+    Ok(client
+        .execute(
+            "update sync_task
+                 set status = $2,
+                     last_error = $3,
+                     next_attempt_at = coalesce($4::timestamptz, next_attempt_at),
+                     lease_owner = null,
+                     lease_until = null,
+                     updated_at = now()
+                 where task_id = $1",
+            &[&task_id, &status, &last_error, &next_attempt_at],
+        )
+        .await?)
 }
 
 async fn update_task_status_guarded<C>(
@@ -177,68 +136,21 @@ async fn update_task_status_guarded<C>(
 where
     C: GenericClient + Sync + ?Sized,
 {
-    match (last_error, next_attempt_at.as_ref()) {
-        (Some(error), Some(next_attempt_at)) => Ok(client
-            .execute(
-                "update sync_task
-                     set status = $2,
-                         last_error = $3,
-                         next_attempt_at = $4::timestamptz,
-                         lease_owner = null,
-                         lease_until = null,
-                         updated_at = now()
-                     where task_id = $1
-                       and status = 'leased'
-                       and lease_owner = $5",
-                &[&task_id, &status, &error, &next_attempt_at, &worker_id],
-            )
-            .await?),
-        (Some(error), None) => Ok(client
-            .execute(
-                "update sync_task
-                     set status = $2,
-                         last_error = $3,
-                         next_attempt_at = null,
-                         lease_owner = null,
-                         lease_until = null,
-                         updated_at = now()
-                     where task_id = $1
-                       and status = 'leased'
-                       and lease_owner = $4",
-                &[&task_id, &status, &error, &worker_id],
-            )
-            .await?),
-        (None, Some(next_attempt_at)) => Ok(client
-            .execute(
-                "update sync_task
-                     set status = $2,
-                         last_error = null,
-                         next_attempt_at = $3::timestamptz,
-                         lease_owner = null,
-                         lease_until = null,
-                         updated_at = now()
-                     where task_id = $1
-                       and status = 'leased'
-                       and lease_owner = $4",
-                &[&task_id, &status, &next_attempt_at, &worker_id],
-            )
-            .await?),
-        (None, None) => Ok(client
-            .execute(
-                "update sync_task
-                     set status = $2,
-                         last_error = null,
-                         next_attempt_at = null,
-                         lease_owner = null,
-                         lease_until = null,
-                         updated_at = now()
-                     where task_id = $1
-                       and status = 'leased'
-                       and lease_owner = $3",
-                &[&task_id, &status, &worker_id],
-            )
-            .await?),
-    }
+    Ok(client
+        .execute(
+            "update sync_task
+                 set status = $2,
+                     last_error = $3,
+                     next_attempt_at = coalesce($4::timestamptz, next_attempt_at),
+                     lease_owner = null,
+                     lease_until = null,
+                     updated_at = now()
+                 where task_id = $1
+                   and status = 'leased'
+                   and lease_owner = $5",
+            &[&task_id, &status, &last_error, &next_attempt_at, &worker_id],
+        )
+        .await?)
 }
 
 async fn update_task_status<C>(
