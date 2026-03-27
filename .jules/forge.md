@@ -50,3 +50,7 @@
 **[Extract is_retryable_error]**
 **Learning:** Extracting complex inline `match` statements into dedicated helper methods significantly improves readability by flattening the pyramid of doom and providing a clear, descriptive name for the condition.
 **Action:** Look for other complex inline match statements that can be extracted into helper methods.
+
+**[Flatten is_retryable_error]**
+**Learning:** Double `match` statements ("Pyramid of Doom") on Result/Error enum variants make simple logic unnecessarily nested and harder to quickly scan.
+**Action:** Prefer `if let` guard clauses to handle outer wrappers, flattening the logic into a single un-nested match statement.

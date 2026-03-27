@@ -243,15 +243,15 @@ impl HttpExecutor {
     }
 
     fn is_retryable_error(error: &crate::error::ForceError) -> bool {
-        match error {
-            // HttpError wraps reqwest::Error via RequestFailed
-            crate::error::ForceError::Http(http_err) => match http_err {
-                HttpError::Timeout { .. } => true,
-                HttpError::RequestFailed(re) => {
-                    !re.is_builder() && !re.is_redirect() && !re.is_status()
-                }
-                _ => false,
-            },
+        let crate::error::ForceError::Http(http_err) = error else {
+            return false;
+        };
+
+        match http_err {
+            HttpError::Timeout { .. } => true,
+            HttpError::RequestFailed(re) => {
+                !re.is_builder() && !re.is_redirect() && !re.is_status()
+            }
             _ => false,
         }
     }
