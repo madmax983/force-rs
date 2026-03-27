@@ -456,20 +456,25 @@ impl<A: Authenticator> SyncEngine<A> {
                     j.observed_at,
                     j.operation,
                     j.payload::text as payload_json,
-                    prev.payload::text as current_payload_json
+                    applied.payload::text as current_payload_json
                  from sync_task t
                  join sync_journal j
                    on (t.payload->>'journal_id')::bigint = j.journal_id
+                 left join sync_link link
+                   on link.tenant = j.tenant
+                  and link.object_name = j.object_name
+                  and link.external_id = j.external_id
                  left join lateral (
                     select payload
-                    from sync_journal prev
-                    where prev.tenant = j.tenant
-                      and prev.object_name = j.object_name
-                      and prev.external_id = j.external_id
-                      and prev.journal_id < j.journal_id
-                    order by prev.journal_id desc
+                    from sync_journal applied
+                    where applied.tenant = j.tenant
+                      and applied.object_name = j.object_name
+                      and applied.external_id = j.external_id
+                      and link.last_payload_hash is not null
+                      and applied.payload_hash = link.last_payload_hash
+                    order by applied.journal_id desc
                     limit 1
-                 ) prev on true
+                 ) applied on true
                  where t.task_id = $1",
                 &[&task_id],
             )
