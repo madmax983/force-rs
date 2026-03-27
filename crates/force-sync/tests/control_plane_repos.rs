@@ -2,7 +2,7 @@
 
 mod support;
 
-use serde_json::json;
+use serde_json::{Value, json};
 
 use force_sync::{
     error::ForceSyncError,
@@ -138,8 +138,8 @@ async fn insert_conflict_writes_a_row() -> Result<(), ForceSyncError> {
     assert_eq!(row.get::<_, String>(1), "Account");
     assert_eq!(row.get::<_, String>(2), "external-1");
     assert_eq!(row.get::<_, String>(3), "Name");
-    assert_eq!(row.get::<_, String>(4), json!("Left").to_string());
-    assert_eq!(row.get::<_, String>(5), json!("Right").to_string());
+    assert_eq!(row.get::<_, Value>(4), json!("Left"));
+    assert_eq!(row.get::<_, Value>(5), json!("Right"));
     assert_eq!(row.get::<_, Option<String>>(6).as_deref(), Some("manual"));
     Ok(())
 }
@@ -181,10 +181,9 @@ async fn insert_dead_letter_writes_a_row() -> Result<(), ForceSyncError> {
         Some("external-1")
     );
     assert_eq!(row.get::<_, String>(4), "boom");
-    let payload_json = json!({"task": "failed"}).to_string();
     assert_eq!(
-        row.get::<_, Option<String>>(5).as_deref(),
-        Some(payload_json.as_str())
+        row.get::<_, Option<Value>>(5),
+        Some(json!({"task": "failed"}))
     );
     Ok(())
 }
