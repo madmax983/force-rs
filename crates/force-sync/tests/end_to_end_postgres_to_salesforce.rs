@@ -60,8 +60,12 @@ async fn test_client(mock_server: &MockServer) -> ForceClient<MockAuthenticator>
         .unwrap_or_else(|error| panic!("unexpected client build error: {error}"))
 }
 
-async fn insert_outbox_row(pool: &deadpool_postgres::Pool) -> Result<(), ForceSyncError> {
+async fn insert_outbox_row(
+    pool: &deadpool_postgres::Pool,
+    source_cursor: &str,
+) -> Result<(), ForceSyncError> {
     let client = pool.get().await?;
+    let payload_json = json!({"Name": "Acme Corp"}).to_string();
     client
         .execute(
             "insert into force_sync_outbox (
@@ -76,12 +80,12 @@ async fn insert_outbox_row(pool: &deadpool_postgres::Pool) -> Result<(), ForceSy
                 'tenant',
                 'Account',
                 'external-1',
-                'postgres-lsn-1',
+                $2,
                 'upsert',
                 false,
                 $1::jsonb
             )",
-            &[&json!({"Name": "Acme Corp"}).to_string()],
+            &[&payload_json, &source_cursor],
         )
         .await?;
     Ok(())
@@ -112,7 +116,7 @@ async fn run_capture_and_apply_once_converges_one_postgres_record() -> Result<()
     let pool = support::postgres::test_pool();
     support::postgres::reset_schema(&pool).await?;
     force_sync::store::pg::migrate(&pool).await?;
-    insert_outbox_row(&pool).await?;
+    insert_outbox_row(&pool, "postgres-lsn-1").await?;
 
     let store = PgStore::new(pool.clone());
     let engine = SyncEngine::builder(client)
@@ -149,6 +153,58 @@ async fn run_capture_and_apply_once_converges_one_postgres_record() -> Result<()
     let task = db
         .query_one(
             "select status, last_error from sync_task where task_kind = 'apply'",
+            &[],
+        )
+        .await?;
+    assert_eq!(task.get::<_, String>(0), "done");
+    assert!(task.get::<_, Option<String>>(1).is_none());
+
+    Ok(())
+}
+
+#[tokio::test]
+#[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
+async fn replayed_postgres_change_is_not_reapplied_to_salesforce() -> Result<(), ForceSyncError> {
+    let mock_server = MockServer::start().await;
+    let client = test_client(&mock_server).await;
+
+    Mock::given(method("PATCH"))
+        .and(path(
+            "/services/data/v60.0/sobjects/Account/ExternalId__c/external-1",
+        ))
+        .and(header("Authorization", "Bearer test_token"))
+        .and(body_json(json!({"Name": "Acme Corp"})))
+        .respond_with(ResponseTemplate::new(201).set_body_json(json!({
+            "id": "001000000000001AAA",
+            "success": true,
+            "created": true,
+            "errors": []
+        })))
+        .expect(1)
+        .mount(&mock_server)
+        .await;
+
+    let pool = support::postgres::test_pool();
+    support::postgres::reset_schema(&pool).await?;
+    force_sync::store::pg::migrate(&pool).await?;
+
+    insert_outbox_row(&pool, "postgres-lsn-1").await?;
+    let engine = SyncEngine::builder(client)
+        .postgres(PgStore::new(pool.clone()))
+        .object(ObjectSync::new("Account").external_id("ExternalId__c"))
+        .build()?;
+
+    assert_eq!(engine.run_capture_postgres_once().await?, 1);
+    assert_eq!(engine.run_apply_once().await?, 1);
+
+    insert_outbox_row(&pool, "postgres-lsn-2").await?;
+    assert_eq!(engine.run_capture_postgres_once().await?, 1);
+    assert_eq!(engine.run_apply_once().await?, 0);
+
+    let db = pool.get().await?;
+    let task = db
+        .query_one(
+            "select status, last_error from sync_task where task_kind = 'apply' order by task_id desc limit 1",
             &[],
         )
         .await?;

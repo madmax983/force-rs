@@ -3,9 +3,11 @@
 use force::{
     api::bulk::{JobInfo, JobOperation},
     api::rest_operation::RestOperation,
+    api::soql::SoqlQueryBuilder,
     auth::Authenticator,
     client::ForceClient,
     error::{ForceError, HttpError},
+    types::DynamicSObject,
     types::SalesforceId,
 };
 use futures::stream;
@@ -69,7 +71,10 @@ impl<A: Authenticator> SalesforceApplier<A> {
                 created: response.created,
             }),
             Err(error) if is_missing_id_upsert_update(&error) => Ok(RestApplyResult {
-                salesforce_id: None,
+                salesforce_id: Some(
+                    self.resolve_salesforce_id(sobject, external_id_field, external_id_value)
+                        .await?,
+                ),
                 created: false,
             }),
             Err(error) => Err(classify_force_error(error)),
@@ -86,12 +91,22 @@ impl<A: Authenticator> SalesforceApplier<A> {
         sobject: &str,
         salesforce_id: &SalesforceId,
     ) -> Result<(), ApplyError> {
-        self.client
-            .rest()
-            .delete(sobject, salesforce_id)
-            .await
-            .map(|_| ())
-            .map_err(classify_force_error)
+        match self.client.rest().delete(sobject, salesforce_id).await {
+            Ok(_) => Ok(()),
+            Err(error) => {
+                if matches!(
+                    error,
+                    ForceError::Http(HttpError::StatusError {
+                        status_code: 404,
+                        ..
+                    })
+                ) {
+                    Ok(())
+                } else {
+                    Err(classify_force_error(error))
+                }
+            }
+        }
     }
 
     /// Applies a bulk upsert using an external ID field and configured batch size.
@@ -118,6 +133,54 @@ impl<A: Authenticator> SalesforceApplier<A> {
             .await
             .map_err(classify_force_error)
     }
+
+    async fn resolve_salesforce_id(
+        &self,
+        sobject: &str,
+        external_id_field: &str,
+        external_id_value: &str,
+    ) -> Result<SalesforceId, ApplyError> {
+        let query = SoqlQueryBuilder::new()
+            .select(&["Id"])
+            .from(sobject)
+            .where_eq(external_id_field, external_id_value)
+            .limit(1)
+            .build();
+
+        let result = self
+            .client
+            .rest()
+            .query::<DynamicSObject>(&query)
+            .await
+            .map_err(classify_force_error)?;
+
+        let Some(record) = result.records.into_iter().next() else {
+            return Err(missing_follow_up_id_error(
+                sobject,
+                external_id_field,
+                external_id_value,
+            ));
+        };
+
+        let Some(id) = record.get_field_as::<String>("Id").map_err(|error| {
+            ApplyError::Permanent(ForceError::InvalidInput(format!(
+                "invalid Salesforce query result: {error}"
+            )))
+        })?
+        else {
+            return Err(missing_follow_up_id_error(
+                sobject,
+                external_id_field,
+                external_id_value,
+            ));
+        };
+
+        SalesforceId::new(&id).map_err(|error| {
+            ApplyError::Permanent(ForceError::InvalidInput(format!(
+                "invalid Salesforce query result ID: {error}"
+            )))
+        })
+    }
 }
 
 fn is_missing_id_upsert_update(error: &ForceError) -> bool {
@@ -134,6 +197,16 @@ const fn classify_force_error(error: ForceError) -> ApplyError {
     } else {
         ApplyError::Permanent(error)
     }
+}
+
+fn missing_follow_up_id_error(
+    sobject: &str,
+    external_id_field: &str,
+    external_id_value: &str,
+) -> ApplyError {
+    ApplyError::Permanent(ForceError::InvalidInput(format!(
+        "upsert updated existing {sobject} via {external_id_field}={external_id_value}, but follow-up lookup did not return a Salesforce Id"
+    )))
 }
 
 const fn is_retryable_force_error(error: &ForceError) -> bool {

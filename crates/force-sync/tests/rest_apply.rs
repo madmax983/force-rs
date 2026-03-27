@@ -10,7 +10,7 @@ use force::{
 use serde_json::json;
 use wiremock::{
     Mock, MockServer, ResponseTemplate,
-    matchers::{body_json, header, method, path},
+    matchers::{body_json, header, method, path, query_param},
 };
 
 use force_sync::apply::salesforce::{ApplyError, RestApplyResult, SalesforceApplier};
@@ -104,7 +104,7 @@ async fn apply_rest_upsert_create_returns_created_id() {
 }
 
 #[tokio::test]
-async fn apply_rest_upsert_update_204_returns_success_without_id() {
+async fn apply_rest_upsert_update_204_fails_when_lookup_finds_no_row() {
     let mock_server = MockServer::start().await;
     let client = test_client(&mock_server).await;
     let applier = SalesforceApplier::new(client);
@@ -120,11 +120,87 @@ async fn apply_rest_upsert_update_204_returns_success_without_id() {
         .mount(&mock_server)
         .await;
 
+    Mock::given(method("GET"))
+        .and(path("/services/data/v60.0/query"))
+        .and(query_param(
+            "q",
+            "SELECT Id FROM Account WHERE ExternalId__c = 'ACME-002' LIMIT 1",
+        ))
+        .and(header("Authorization", "Bearer test_token"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "totalSize": 0,
+            "done": true,
+            "records": []
+        })))
+        .expect(1)
+        .mount(&mock_server)
+        .await;
+
     let result = applier
         .apply_rest_upsert(
             "Account",
             "ExternalId__c",
             "ACME-002",
+            &json!({"Name": "Acme Updated"}),
+        )
+        .await;
+
+    let Err(error) = result else {
+        panic!("expected 204 follow-up lookup failure");
+    };
+
+    assert!(matches!(error, ApplyError::Permanent(_)));
+    assert!(
+        error
+            .to_string()
+            .contains("follow-up lookup did not return")
+    );
+}
+
+#[tokio::test]
+async fn apply_rest_upsert_update_204_resolves_salesforce_id_when_link_missing() {
+    let mock_server = MockServer::start().await;
+    let client = test_client(&mock_server).await;
+    let applier = SalesforceApplier::new(client);
+
+    Mock::given(method("PATCH"))
+        .and(path(
+            "/services/data/v60.0/sobjects/Account/ExternalId__c/ACME-003",
+        ))
+        .and(header("Authorization", "Bearer test_token"))
+        .and(body_json(json!({"Name": "Acme Updated"})))
+        .respond_with(ResponseTemplate::new(204))
+        .expect(1)
+        .mount(&mock_server)
+        .await;
+
+    Mock::given(method("GET"))
+        .and(path("/services/data/v60.0/query"))
+        .and(query_param(
+            "q",
+            "SELECT Id FROM Account WHERE ExternalId__c = 'ACME-003' LIMIT 1",
+        ))
+        .and(header("Authorization", "Bearer test_token"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "totalSize": 1,
+            "done": true,
+            "records": [{
+                "attributes": {
+                    "type": "Account",
+                    "url": "/services/data/v60.0/sobjects/Account/001000000000003AAA"
+                },
+                "Id": "001000000000003AAA"
+            }]
+        })))
+        .expect(1)
+        .mount(&mock_server)
+        .await;
+
+    let result = applier
+        .apply_rest_upsert(
+            "Account",
+            "ExternalId__c",
+            "ACME-003",
             &json!({"Name": "Acme Updated"}),
         )
         .await
@@ -133,7 +209,7 @@ async fn apply_rest_upsert_update_204_returns_success_without_id() {
     assert_eq!(
         result,
         RestApplyResult {
-            salesforce_id: None,
+            salesforce_id: Some(salesforce_id("001000000000003AAA")),
             created: false,
         }
     );
@@ -152,6 +228,29 @@ async fn apply_rest_delete_uses_salesforce_id() {
         ))
         .and(header("Authorization", "Bearer test_token"))
         .respond_with(ResponseTemplate::new(204))
+        .expect(1)
+        .mount(&mock_server)
+        .await;
+
+    applier
+        .apply_rest_delete("Account", &record_id)
+        .await
+        .unwrap_or_else(|error| panic!("unexpected delete error: {error}"));
+}
+
+#[tokio::test]
+async fn apply_rest_delete_404_is_idempotent_success() {
+    let mock_server = MockServer::start().await;
+    let client = test_client(&mock_server).await;
+    let applier = SalesforceApplier::new(client);
+    let record_id = salesforce_id("001000000000004AAA");
+
+    Mock::given(method("DELETE"))
+        .and(path(
+            "/services/data/v60.0/sobjects/Account/001000000000004AAA",
+        ))
+        .and(header("Authorization", "Bearer test_token"))
+        .respond_with(ResponseTemplate::new(404).set_body_string("not found"))
         .expect(1)
         .mount(&mock_server)
         .await;

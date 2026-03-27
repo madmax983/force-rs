@@ -22,7 +22,9 @@ use crate::{
 };
 
 struct ApplyTaskContext {
+    _journal_id: i64,
     envelope: ChangeEnvelope,
+    current_payload: Option<Value>,
 }
 
 /// Runtime sync engine for the explicit Postgres-to-Salesforce vertical slice.
@@ -84,10 +86,11 @@ impl<A: Authenticator> SyncEngine<A> {
             .store
             .lease_ready_tasks(&self.worker_id, self.apply_batch_size, self.lease_for)
             .await?;
+        let batch_size = leased.len().max(1);
         let mut applied = 0usize;
 
         for task in leased {
-            if self.process_leased_task(&task).await? {
+            if self.process_leased_task(&task, batch_size).await? {
                 applied += 1;
             }
         }
@@ -104,7 +107,11 @@ impl<A: Authenticator> SyncEngine<A> {
         reconcile::run_reconcile_once(&self.store, self.reconcile_batch_size.max(1)).await
     }
 
-    async fn process_leased_task(&self, task: &LeasedTask) -> Result<bool, ForceSyncError> {
+    async fn process_leased_task(
+        &self,
+        task: &LeasedTask,
+        batch_size: usize,
+    ) -> Result<bool, ForceSyncError> {
         let context = self.load_apply_task_context(task.task_id).await?;
         let Some(context) = context else {
             let _ = self
@@ -137,9 +144,9 @@ impl<A: Authenticator> SyncEngine<A> {
         let decision = plan_change(
             &PlannerContext {
                 object: object.clone(),
-                current_payload: None,
-                batch_size: 1,
-                urgent: true,
+                current_payload: context.current_payload.clone(),
+                batch_size,
+                urgent: batch_size <= object.lane_thresholds().rest_max_batch_size(),
                 has_dependencies: false,
             },
             &context.envelope,
@@ -163,43 +170,59 @@ impl<A: Authenticator> SyncEngine<A> {
         object: &ObjectSync,
         decision: crate::plan::PlanDecision,
     ) -> Result<bool, ForceSyncError> {
+        if decision.lane == ApplyLane::Conflict {
+            for field_name in &decision.conflicts {
+                let conflict = SyncConflict {
+                    tenant: envelope.sync_key().tenant().to_owned(),
+                    object_name: envelope.sync_key().object_name().to_owned(),
+                    external_id: envelope.sync_key().external_id().to_owned(),
+                    field_name: field_name.clone(),
+                    left_value: Value::Null,
+                    right_value: Value::Null,
+                    resolution: None,
+                };
+                self.store.insert_conflict(&conflict).await?;
+            }
+            let _ = self
+                .store
+                .fail_task_for_worker(
+                    &self.worker_id,
+                    task.task_id,
+                    format!("planner conflict: {}", decision.conflicts.join(",")),
+                )
+                .await?;
+            return Ok(false);
+        }
+
+        if decision.lane == ApplyLane::Noop {
+            self.store
+                .ack_task_for_worker(&self.worker_id, task.task_id)
+                .await?;
+            return Ok(false);
+        }
+
+        if should_project_locally(envelope.source(), decision.lane) {
+            return self.apply_local_task(task, envelope, existing_link).await;
+        }
+
         match decision.lane {
-            ApplyLane::Noop => {
-                self.store
-                    .ack_task_for_worker(&self.worker_id, task.task_id)
-                    .await?;
-                Ok(false)
-            }
-            ApplyLane::Conflict => {
-                for field_name in &decision.conflicts {
-                    let conflict = SyncConflict {
-                        tenant: envelope.sync_key().tenant().to_owned(),
-                        object_name: envelope.sync_key().object_name().to_owned(),
-                        external_id: envelope.sync_key().external_id().to_owned(),
-                        field_name: field_name.clone(),
-                        left_value: Value::Null,
-                        right_value: Value::Null,
-                        resolution: None,
-                    };
-                    self.store.insert_conflict(&conflict).await?;
-                }
-                let _ = self
-                    .store
-                    .fail_task_for_worker(
-                        &self.worker_id,
-                        task.task_id,
-                        format!("planner conflict: {}", decision.conflicts.join(",")),
-                    )
-                    .await?;
-                Ok(false)
-            }
-            ApplyLane::Rest | ApplyLane::Bulk => {
+            ApplyLane::Rest => {
                 let payload = decision
                     .payload
                     .as_ref()
                     .unwrap_or_else(|| envelope.payload());
                 let success = self
                     .apply_rest_task(task, envelope, payload, existing_link, object)
+                    .await?;
+                Ok(success)
+            }
+            ApplyLane::Bulk => {
+                let payload = decision
+                    .payload
+                    .as_ref()
+                    .unwrap_or_else(|| envelope.payload());
+                let success = self
+                    .apply_bulk_task(task, envelope, payload, existing_link, object)
                     .await?;
                 Ok(success)
             }
@@ -213,6 +236,84 @@ impl<A: Authenticator> SyncEngine<A> {
                     )
                     .await?;
                 Ok(false)
+            }
+            ApplyLane::Conflict | ApplyLane::Noop => unreachable!("handled above"),
+        }
+    }
+
+    async fn apply_local_task(
+        &self,
+        task: &LeasedTask,
+        envelope: &ChangeEnvelope,
+        existing_link: Option<&crate::store::pg::SyncLink>,
+    ) -> Result<bool, ForceSyncError> {
+        let salesforce_id = local_projection_salesforce_id(existing_link, envelope)?;
+        let link = project_sync_link(
+            existing_link,
+            envelope,
+            salesforce_id.as_ref(),
+            matches!(envelope.operation(), ChangeOperation::Delete),
+        );
+        self.store.put_link(&link).await?;
+        self.store
+            .ack_task_for_worker(&self.worker_id, task.task_id)
+            .await?;
+        Ok(true)
+    }
+
+    async fn apply_bulk_task(
+        &self,
+        task: &LeasedTask,
+        envelope: &ChangeEnvelope,
+        payload: &Value,
+        existing_link: Option<&crate::store::pg::SyncLink>,
+        object: &ObjectSync,
+    ) -> Result<bool, ForceSyncError> {
+        match envelope.operation() {
+            ChangeOperation::Upsert => {
+                let Some(existing_salesforce_id) =
+                    existing_link.and_then(|link| link.salesforce_id.as_deref())
+                else {
+                    return self
+                        .apply_rest_task(task, envelope, payload, existing_link, object)
+                        .await;
+                };
+
+                let job_result = self
+                    .salesforce
+                    .apply_bulk_upsert(
+                        envelope.sync_key().object_name(),
+                        object
+                            .external_id_field()
+                            .ok_or(ForceSyncError::MissingConfiguration {
+                                field: "external_id_field",
+                            })?,
+                        1,
+                        vec![payload.clone()],
+                    )
+                    .await;
+                if let Err(error) = job_result {
+                    return self.handle_apply_error(task, error).await;
+                }
+
+                let Some(salesforce_id) =
+                    force::types::SalesforceId::new(existing_salesforce_id.to_owned()).ok()
+                else {
+                    return self
+                        .apply_rest_task(task, envelope, payload, existing_link, object)
+                        .await;
+                };
+
+                let link = project_sync_link(existing_link, envelope, Some(&salesforce_id), false);
+                self.store.put_link(&link).await?;
+                self.store
+                    .ack_task_for_worker(&self.worker_id, task.task_id)
+                    .await?;
+                Ok(true)
+            }
+            ChangeOperation::Delete => {
+                self.apply_rest_task(task, envelope, payload, existing_link, object)
+                    .await
             }
         }
     }
@@ -346,6 +447,7 @@ impl<A: Authenticator> SyncEngine<A> {
         let row = client
             .query_opt(
                 "select
+                    j.journal_id,
                     j.tenant,
                     j.object_name,
                     j.external_id,
@@ -353,10 +455,21 @@ impl<A: Authenticator> SyncEngine<A> {
                     j.source_cursor,
                     j.observed_at,
                     j.operation,
-                    j.payload::text as payload_json
+                    j.payload::text as payload_json,
+                    prev.payload::text as current_payload_json
                  from sync_task t
                  join sync_journal j
                    on (t.payload->>'journal_id')::bigint = j.journal_id
+                 left join lateral (
+                    select payload
+                    from sync_journal prev
+                    where prev.tenant = j.tenant
+                      and prev.object_name = j.object_name
+                      and prev.external_id = j.external_id
+                      and prev.journal_id < j.journal_id
+                    order by prev.journal_id desc
+                    limit 1
+                 ) prev on true
                  where t.task_id = $1",
                 &[&task_id],
             )
@@ -402,6 +515,13 @@ impl<A: Authenticator> SyncEngineBuilder<A> {
         self
     }
 
+    /// Sets the number of tasks leased for each apply pass.
+    #[must_use]
+    pub const fn apply_batch_size(mut self, apply_batch_size: i64) -> Self {
+        self.apply_batch_size = apply_batch_size;
+        self
+    }
+
     /// Builds the runtime engine.
     ///
     /// # Errors
@@ -436,6 +556,7 @@ impl<A: Authenticator> SyncEngineBuilder<A> {
 }
 
 fn build_apply_task_context(row: &tokio_postgres::Row) -> Result<ApplyTaskContext, ForceSyncError> {
+    let journal_id: i64 = row.get("journal_id");
     let tenant: String = row.get("tenant");
     let object_name: String = row.get("object_name");
     let external_id: String = row.get("external_id");
@@ -444,9 +565,14 @@ fn build_apply_task_context(row: &tokio_postgres::Row) -> Result<ApplyTaskContex
     let observed_at: DateTime<Utc> = row.get("observed_at");
     let operation: String = row.get("operation");
     let payload_json: String = row.get("payload_json");
+    let current_payload_json: Option<String> = row.get("current_payload_json");
 
     let sync_key = SyncKey::new(tenant, object_name, external_id)?;
     let payload = serde_json::from_str(&payload_json)?;
+    let current_payload = match current_payload_json {
+        Some(current_payload_json) => Some(serde_json::from_str(&current_payload_json)?),
+        None => None,
+    };
     let envelope = ChangeEnvelope::new(
         sync_key,
         parse_source_system(&source)?,
@@ -456,7 +582,42 @@ fn build_apply_task_context(row: &tokio_postgres::Row) -> Result<ApplyTaskContex
     )
     .with_cursor(parse_source_cursor(&source_cursor)?);
 
-    Ok(ApplyTaskContext { envelope })
+    Ok(ApplyTaskContext {
+        _journal_id: journal_id,
+        envelope,
+        current_payload,
+    })
+}
+
+fn should_project_locally(source: SourceSystem, lane: ApplyLane) -> bool {
+    source == SourceSystem::Salesforce && !matches!(lane, ApplyLane::Noop | ApplyLane::Conflict)
+}
+
+fn local_projection_salesforce_id(
+    existing_link: Option<&crate::store::pg::SyncLink>,
+    envelope: &ChangeEnvelope,
+) -> Result<Option<force::types::SalesforceId>, ForceSyncError> {
+    if let Some(existing_salesforce_id) =
+        existing_link.and_then(|link| link.salesforce_id.as_deref())
+    {
+        return force::types::SalesforceId::new(existing_salesforce_id.to_owned())
+            .map(Some)
+            .map_err(|error| ForceSyncError::InvalidStoredValue {
+                field: "salesforce_id",
+                value: error.to_string(),
+            });
+    }
+
+    let Some(payload_salesforce_id) = envelope.payload().get("Id").and_then(Value::as_str) else {
+        return Ok(None);
+    };
+
+    force::types::SalesforceId::new(payload_salesforce_id.to_owned())
+        .map(Some)
+        .map_err(|error| ForceSyncError::InvalidStoredValue {
+            field: "payload.Id",
+            value: error.to_string(),
+        })
 }
 
 fn parse_source_system(value: &str) -> Result<SourceSystem, ForceSyncError> {
@@ -505,4 +666,92 @@ fn parse_source_cursor(value: &str) -> Result<SourceCursor, ForceSyncError> {
         field: "source_cursor",
         value: value.to_owned(),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use chrono::Utc;
+    use serde_json::json;
+
+    use super::{local_projection_salesforce_id, should_project_locally};
+    use crate::{
+        identity::SyncKey,
+        model::{ChangeEnvelope, ChangeOperation, SourceSystem},
+        plan::ApplyLane,
+        store::pg::SyncLink,
+    };
+
+    fn envelope(payload: serde_json::Value) -> ChangeEnvelope {
+        ChangeEnvelope::new(
+            SyncKey::new("tenant", "Account", "external-1")
+                .unwrap_or_else(|error| panic!("unexpected sync key construction error: {error}")),
+            SourceSystem::Salesforce,
+            ChangeOperation::Upsert,
+            Utc::now(),
+            payload,
+        )
+    }
+
+    #[test]
+    fn should_not_project_local_noops_back_to_salesforce() {
+        assert!(!should_project_locally(
+            SourceSystem::Salesforce,
+            ApplyLane::Noop
+        ));
+        assert!(!should_project_locally(
+            SourceSystem::Postgres,
+            ApplyLane::Rest
+        ));
+        assert!(should_project_locally(
+            SourceSystem::Salesforce,
+            ApplyLane::Rest
+        ));
+    }
+
+    #[test]
+    fn local_projection_salesforce_id_uses_payload_id_when_link_is_missing() {
+        let envelope = envelope(json!({
+            "Id": "001000000000009AAA",
+            "Name": "Incoming Salesforce"
+        }));
+
+        let salesforce_id = local_projection_salesforce_id(None, &envelope)
+            .unwrap_or_else(|error| panic!("unexpected projection error: {error}"));
+
+        assert_eq!(
+            salesforce_id
+                .as_ref()
+                .map(force::types::SalesforceId::as_str),
+            Some("001000000000009AAA")
+        );
+    }
+
+    #[test]
+    fn local_projection_salesforce_id_prefers_existing_link() {
+        let envelope = envelope(json!({
+            "Id": "001000000000009AAA",
+            "Name": "Incoming Salesforce"
+        }));
+        let existing_link = SyncLink {
+            tenant: "tenant".to_owned(),
+            object_name: "Account".to_owned(),
+            external_id: "external-1".to_owned(),
+            salesforce_id: Some("001000000000001AAA".to_owned()),
+            postgres_id: None,
+            last_source: Some("postgres".to_owned()),
+            last_source_cursor: Some("postgres-lsn:1".to_owned()),
+            last_payload_hash: None,
+            tombstone: false,
+        };
+
+        let salesforce_id = local_projection_salesforce_id(Some(&existing_link), &envelope)
+            .unwrap_or_else(|error| panic!("unexpected projection error: {error}"));
+
+        assert_eq!(
+            salesforce_id
+                .as_ref()
+                .map(force::types::SalesforceId::as_str),
+            Some("001000000000001AAA")
+        );
+    }
 }
