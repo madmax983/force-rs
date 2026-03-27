@@ -148,7 +148,7 @@ mod tests {
     use wiremock::matchers::{method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
-        async fn setup_mock_describe_contact(mock_server: &MockServer) {
+    async fn setup_mock_describe_contact(mock_server: &MockServer) {
         let id_field = json!({
             "name": "Id", "type": "id", "label": "Contact ID",
             "referenceTo": [],
@@ -199,7 +199,7 @@ mod tests {
             .await;
     }
 
-        async fn setup_mock_describe_account(mock_server: &MockServer) {
+    async fn setup_mock_describe_account(mock_server: &MockServer) {
         let id_field = json!({
             "name": "Id", "type": "id", "label": "Account ID",
             "referenceTo": [],
@@ -250,7 +250,7 @@ mod tests {
             .await;
     }
 
-        async fn setup_mock_describe_user(mock_server: &MockServer) {
+    async fn setup_mock_describe_user(mock_server: &MockServer) {
         let id_field = json!({
             "name": "Id", "type": "id", "label": "User ID",
             "referenceTo": [],
