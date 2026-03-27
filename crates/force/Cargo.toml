@@ -56,6 +56,7 @@ composite = ["rest"]
 composite_graph = ["composite"]
 
 # Experimental capability surfaces
+nova = ["rest"]
 schema = ["rest"]
 data_utility = ["rest"]
 
@@ -86,11 +87,11 @@ consent = []
 
 # Meta features
 full = ["rest", "bulk", "composite", "tooling", "jwt", "ui", "graphql", "data_cloud", "apex_rest", "consent"]
-all = ["full", "schema", "data_utility", "composite_graph", "cpq"]
+all = ["full", "schema", "data_utility", "composite_graph", "cpq", "nova"]
 
 [[example]]
 name = "query_plan"
-required-features = ["rest"]
+required-features = ["nova"]
 
 [[example]]
 name = "data_dictionary"
