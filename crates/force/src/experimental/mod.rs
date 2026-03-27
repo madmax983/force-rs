@@ -94,3 +94,8 @@ pub(crate) mod schema_linter;
 pub use schema_linter::{
     LintResult, LintRule, LintSeverity, MissingCustomSuffixRule, SchemaLinter, TooManyFieldsRule,
 };
+
+#[cfg(feature = "schema")]
+pub(crate) mod dependency_mapper;
+#[cfg(feature = "schema")]
+pub use dependency_mapper::{DependencyNode, SObjectDependencyMapper};
