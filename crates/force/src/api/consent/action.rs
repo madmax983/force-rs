@@ -34,7 +34,14 @@ impl<A: crate::auth::Authenticator> ConsentHandler<A> {
         let url = self
             .resolve_consent_url(&format!("action/{action}"))
             .await?;
-        let ids_param = ids.join(",");
+        // ⚡ Bolt: Construct comma-separated string dynamically to avoid intermediate Vec allocation from `.join()`
+        let mut ids_param = String::with_capacity(ids.iter().map(|s| s.len() + 1).sum());
+        for (i, id) in ids.iter().enumerate() {
+            if i > 0 {
+                ids_param.push(',');
+            }
+            ids_param.push_str(id);
+        }
         let request = self
             .inner
             .get(&url)
@@ -78,8 +85,22 @@ impl<A: crate::auth::Authenticator> ConsentHandler<A> {
         ids: &[&str],
     ) -> Result<ConsentResponse> {
         let url = self.resolve_consent_url("multiaction").await?;
-        let actions_param = actions.join(",");
-        let ids_param = ids.join(",");
+        // ⚡ Bolt: Construct comma-separated string dynamically to avoid intermediate Vec allocation from `.join()`
+        let mut actions_param = String::with_capacity(actions.iter().map(|s| s.len() + 1).sum());
+        for (i, action) in actions.iter().enumerate() {
+            if i > 0 {
+                actions_param.push(',');
+            }
+            actions_param.push_str(action);
+        }
+        // ⚡ Bolt: Construct comma-separated string dynamically to avoid intermediate Vec allocation from `.join()`
+        let mut ids_param = String::with_capacity(ids.iter().map(|s| s.len() + 1).sum());
+        for (i, id) in ids.iter().enumerate() {
+            if i > 0 {
+                ids_param.push(',');
+            }
+            ids_param.push_str(id);
+        }
         let request = self
             .inner
             .get(&url)
