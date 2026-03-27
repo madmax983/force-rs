@@ -44,3 +44,7 @@
 **2026-03-22 - Prevent Memory Exhaustion DoS in HTTP Error Parsing
 **Threat:** Maliciously large chunks from Salesforce API responses could bypass previous byte.len() > limit checks, allowing an unbounded `extend_from_slice` to exhaust memory causing Denial of Service.
 **Defense:** Created `read_capped_body` which uses `saturating_sub` to calculate remaining bounds and slices the chunk via `&chunk_bytes[..remaining]` to strictly cap the buffer allocation. Applied to all authenticators and base HTTP error parser.
+
+## 2025-03-26 - [Unmaintained Dependency: rustls-pemfile]
+**Threat:** The `force-pubsub` crate pulled in `rustls-pemfile` via `tonic`'s `tls` and `tls-roots` features. `rustls-pemfile` is unmaintained (RUSTSEC-2025-0134) and poses a supply chain risk.
+**Defense:** Removed `tls` and `tls-roots` features from `tonic` in `crates/force-pubsub/Cargo.toml` and replaced them with `tls-webpki-roots`. Ran `cargo update -p tonic` to remove the vulnerable dependency and pull in `webpki-roots`.
