@@ -215,6 +215,8 @@ Stream millions of records without loading the entire dataset into memory:
 use force::client::ForceClientBuilder;
 use force::auth::ClientCredentials;
 use serde::Deserialize;
+// Requires `futures` crate
+use futures::StreamExt;
 
 #[derive(Debug, Deserialize)]
 struct Contact {
@@ -234,14 +236,17 @@ async fn main() -> anyhow::Result<()> {
     let client = ForceClientBuilder::new().authenticate(auth).build().await?;
 
     // Create bulk query job and stream results
-    let mut stream = client.bulk()
+    let stream = client.bulk()
         .query::<Contact>(
             "SELECT Id, Email FROM Contact WHERE Email != null"
         )
         .await?;
+    let stream = stream.into_stream();
+    let mut stream = std::pin::pin!(stream);
 
     let mut count = 0;
-    while let Some(contact) = stream.next().await? {
+    while let Some(contact_result) = stream.next().await {
+        let contact = contact_result?;
         println!("Processing: {} ({})", contact.id, contact.email.unwrap_or_default());
         count += 1;
     }
