@@ -51,6 +51,15 @@ ADRs follow this structure:
 | [015](015-merge-storage-into-auth.md) | Merge Storage Logic into Auth | Accepted | 2026-02-18 |
 | [016](016-isolate-auth-types.md) | Isolate Auth Types | Accepted | 2026-03-02 |
 | [017](017-decomposed-rest-api.md) | Decomposed REST API Module | Accepted | 2026-03-05 |
+| [018](018-force-pubsub-crate.md) | Implement Pub/Sub as a Separate Workspace Crate | Accepted | 2026-03-17 |
+| [019](019-tooling-api-design.md) | RestOperation Trait and Tooling API Design | Accepted | 2026-03-19 |
+| [020](020-ui-api-design.md) | UI API Design | Accepted | 2026-03-20 |
+| [021](021-graphql-api-design.md) | GraphQL API Design | Accepted | 2026-03-20 |
+| [022](022-data-cloud-api-design.md) | Data Cloud API Design | Accepted | 2026-03-21 |
+| [023](023-apex-rest-cpq-design.md) | Apex REST and CPQ API Design | Accepted | 2026-03-21 |
+| [024](024-consent-portability-api-design.md) | Consent & Portability API Design | Accepted | 2026-03-21 |
+| [025](025-username-password-auth.md) | Username-Password Authentication Flow | Accepted | 2026-03-22 |
+| [026](026-force-sync-crate.md) | Create `force-sync` as a Postgres-First Sync Engine | Accepted | 2026-03-25 |
 
 ## Decision Process
 

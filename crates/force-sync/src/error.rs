@@ -1,0 +1,97 @@
+//! Error types for force-sync.
+
+/// Database and migration errors.
+#[derive(Debug, thiserror::Error)]
+pub enum ForceSyncError {
+    /// Postgres pool acquisition failure.
+    #[error("database pool error: {0}")]
+    Pool(#[from] deadpool_postgres::PoolError),
+
+    /// Postgres client or query failure.
+    #[error("database error: {0}")]
+    Database(#[from] tokio_postgres::Error),
+
+    /// A replay cursor is required to append journal entries.
+    #[error("sync journal entries require a source cursor")]
+    MissingSourceCursor,
+
+    /// The transaction callback failed and the rollback also failed.
+    #[error(
+        "transaction callback failed and rollback also failed: callback={callback}; rollback={rollback}"
+    )]
+    TransactionRollback {
+        /// Error returned by the transaction callback.
+        callback: Box<Self>,
+        /// Error returned while attempting to roll back the transaction.
+        rollback: tokio_postgres::Error,
+    },
+
+    /// A required sync key part was empty.
+    #[error("sync key {part} cannot be empty")]
+    EmptySyncKeyPart {
+        /// The offending sync key part.
+        part: &'static str,
+    },
+
+    /// A requested sync record was not found.
+    #[error("missing {entity}")]
+    NotFound {
+        /// The missing entity name.
+        entity: &'static str,
+    },
+
+    /// A required engine configuration field was not provided.
+    #[error("missing required configuration: {field}")]
+    MissingConfiguration {
+        /// The missing configuration field.
+        field: &'static str,
+    },
+
+    /// A lease duration could not be represented as a Postgres interval timestamp.
+    #[error("lease duration is out of range")]
+    InvalidLeaseDuration,
+
+    /// A JSON payload could not be decoded.
+    #[error("json error: {0}")]
+    Json(#[from] serde_json::Error),
+
+    /// A Salesforce Pub/Sub operation failed.
+    #[error("pubsub error: {0}")]
+    PubSub(Box<force_pubsub::PubSubError>),
+
+    /// An outbox row carried an unexpected operation value.
+    #[error("invalid outbox operation: {op}")]
+    InvalidOutboxOperation {
+        /// The invalid operation value.
+        op: String,
+    },
+
+    /// An outbox row carried an already-encoded or otherwise invalid cursor.
+    #[error("invalid outbox cursor: {cursor}")]
+    InvalidOutboxCursor {
+        /// The invalid cursor value.
+        cursor: String,
+    },
+
+    /// A stored database value could not be decoded into a domain type.
+    #[error("invalid stored value for {field}: {value}")]
+    InvalidStoredValue {
+        /// The field or column name.
+        field: &'static str,
+        /// The invalid stored value.
+        value: String,
+    },
+
+    /// Placeholder variant while the crate surface is being implemented.
+    #[error("not implemented")]
+    NotImplemented,
+}
+
+/// Backward-compatible alias for the crate's top-level error type.
+pub type Error = ForceSyncError;
+
+impl From<force_pubsub::PubSubError> for ForceSyncError {
+    fn from(error: force_pubsub::PubSubError) -> Self {
+        Self::PubSub(Box::new(error))
+    }
+}

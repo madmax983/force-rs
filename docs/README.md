@@ -6,6 +6,8 @@ This directory contains architecture records, operational runbooks, and governan
 
 - [`adr/`](adr/): Architecture Decision Records (design rationale and tradeoffs)
 - [`adr/README.md`](adr/README.md): ADR index
+- [`plans/2026-03-25-force-sync-design.md`](plans/2026-03-25-force-sync-design.md): force-sync design notes
+- [`plans/2026-03-25-force-sync-implementation.md`](plans/2026-03-25-force-sync-implementation.md): force-sync implementation plan
 
 ## Operations
 
