@@ -586,14 +586,13 @@ mod tests {
             .execute_response(request, &token, refresh_token)
             .await;
 
-        match result {
-            Err(crate::error::ForceError::Http(HttpError::RateLimitExceeded {
-                retry_after_seconds,
-            })) => {
-                assert_eq!(retry_after_seconds, 60);
-            }
-            _ => panic!("Expected RateLimitExceeded error, got: {:?}", result),
-        }
+        let Err(crate::error::ForceError::Http(HttpError::RateLimitExceeded {
+            retry_after_seconds,
+        })) = result
+        else {
+            panic!("Expected RateLimitExceeded error, got: {:?}", result);
+        };
+        assert_eq!(retry_after_seconds, 60);
     }
 
     #[tokio::test]
@@ -688,13 +687,12 @@ mod tests {
             .execute_response(request, &token, refresh_token)
             .await;
 
-        match result {
-            Err(crate::error::ForceError::Http(HttpError::Timeout { timeout_seconds })) => {
-                // Since 10ms converts to 0s in standard Duration::as_secs()
-                assert_eq!(timeout_seconds, 0);
-            }
-            _ => panic!("Expected Timeout error, got: {:?}", result),
-        }
+        let Err(crate::error::ForceError::Http(HttpError::Timeout { timeout_seconds })) = result
+        else {
+            panic!("Expected Timeout error, got: {:?}", result);
+        };
+        // Since 10ms converts to 0s in standard Duration::as_secs()
+        assert_eq!(timeout_seconds, 0);
     }
 
     #[tokio::test]
@@ -722,15 +720,13 @@ mod tests {
             .execute_response(request, &token, refresh_token)
             .await;
 
-        match result {
-            Err(crate::error::ForceError::Http(HttpError::RequestFailed(e))) => {
-                assert!(
-                    e.is_connect() || e.is_builder() || e.is_request(),
-                    "Expected connection/transport error, got: {:?}",
-                    e
-                );
-            }
-            _ => panic!("Expected Transport error, got: {:?}", result),
-        }
+        let Err(crate::error::ForceError::Http(HttpError::RequestFailed(e))) = result else {
+            panic!("Expected Transport error, got: {:?}", result);
+        };
+        assert!(
+            e.is_connect() || e.is_builder() || e.is_request(),
+            "Expected connection/transport error, got: {:?}",
+            e
+        );
     }
 }
