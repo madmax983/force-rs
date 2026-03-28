@@ -229,11 +229,3 @@ match result {
 **Finding:** The `stream.next().await` code block in the `README.md` and `bulk_query.rs` example caused confusion and failed to compile when copied because `BulkQueryStream::next()` is an inherent method, but the code comment explicitly referred to needing the `futures::StreamExt` trait. The lack of standard `futures::StreamExt` implementations made the provided examples difficult to adapt for standard async combinators.
 **Evidence:** User reported compilation failure (`ECHO_ISSUE.md`) indicating `next` method was missing and expecting `futures::StreamExt`.
 **Recommendation:** Refactored the `README.md` and `bulk_query.rs` examples to explicitly call `.into_stream()` to convert `BulkQueryStream` into a standard `futures::Stream`, added the `use futures::StreamExt;` import, wrapped the result via `std::pin::pin!`, and updated the `while let Some` loop to handle the resulting `Option<Result<T>>`. Tests and examples now successfully compile.
-
-### [Strengthened] `crates/force/src/experimental/json_schema.rs` and `crates/force/src/experimental/openapi_generator.rs`
-
-**Module:** `crates/force/src/experimental/json_schema.rs` and `crates/force/src/experimental/openapi_generator.rs`
-**Severity:** 🔴 Critical
-**Finding:** The tests `test_json_schema_generator_basic` and `test_openapi_generator_basic` used basic mock payloads that missed the majority of `FieldType` mappings (Picklist, Boolean, Int, Double, Date, Datetime, Base64). Furthermore, `openapi_generator.rs` relied on weak `.contains()` assertions that provided false confidence by not validating the structure of the string formatting.
-**Evidence:** `cargo mutants` revealed 12 missed logic mutants in `json_schema.rs` and 14 missed logic mutants in `openapi_generator.rs` involving missing match arms and inverted boolean logic.
-**Recommendation:** Replaced the simple mock JSON payload with an exhaustive payload containing 11 different field types mapping to every possible branch in both generators. Upgraded `openapi_generator.rs` assertions from `.contains()` to a complete `assert_eq!` check against a golden YAML string.
