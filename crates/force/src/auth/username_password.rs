@@ -257,7 +257,11 @@ impl crate::auth::authenticator::Authenticator for UsernamePassword {
             }
             // Refresh token revoked or expired — fall back to full re-auth.
             let mut stored = self.refresh_token.write().await;
-            *stored = None;
+            // 👺 Havoc: Only clear the token if another thread hasn't already authenticated
+            // and provided a *newer* refresh token while we were awaiting the failed request.
+            if stored.as_deref() == Some(rt.as_str()) {
+                *stored = None;
+            }
         }
 
         // No refresh token or refresh failed — re-authenticate with password.
