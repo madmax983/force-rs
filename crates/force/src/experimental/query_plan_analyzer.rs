@@ -228,4 +228,18 @@ mod tests {
         assert_eq!(infos.len(), 1);
         assert!(infos[0].message.contains("Not considered for indexing"));
     }
+
+    #[test]
+    fn test_analyze_query_plan_initialization_fields() {
+        let response = ExplainResponse {
+            plans: vec![
+                create_plan("IndexScan", 5.0, 10, 10000, vec![]),
+                create_plan("TableScan", 10.0, 10, 10000, vec![]),
+            ],
+        };
+        let insights = analyze_query_plan(&response);
+        assert_eq!(insights.evaluated_plans, 2);
+        assert!((insights.lowest_cost - 5.0).abs() < f64::EPSILON);
+    }
+
 }

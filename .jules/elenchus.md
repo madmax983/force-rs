@@ -229,3 +229,38 @@ match result {
 **Finding:** The `stream.next().await` code block in the `README.md` and `bulk_query.rs` example caused confusion and failed to compile when copied because `BulkQueryStream::next()` is an inherent method, but the code comment explicitly referred to needing the `futures::StreamExt` trait. The lack of standard `futures::StreamExt` implementations made the provided examples difficult to adapt for standard async combinators.
 **Evidence:** User reported compilation failure (`ECHO_ISSUE.md`) indicating `next` method was missing and expecting `futures::StreamExt`.
 **Recommendation:** Refactored the `README.md` and `bulk_query.rs` examples to explicitly call `.into_stream()` to convert `BulkQueryStream` into a standard `futures::Stream`, added the `use futures::StreamExt;` import, wrapped the result via `std::pin::pin!`, and updated the `while let Some` loop to handle the resulting `Option<Result<T>>`. Tests and examples now successfully compile.
+
+### [Strengthened] `crates/force/src/auth/token_manager.rs`
+**Module:** `crates/force/src/auth/token_manager.rs`
+**Severity:** 🔴 Critical
+**Finding:** Mutants modifying `current.issued_at() >= fallback.issued_at()` in `latest_token_or` survived.
+**Evidence:** `replace match guard ... with true` and `false` missed by tests.
+**Recommendation:** Added tests explicitly verifying correct token returns based on exact issue timestamps.
+
+### [Strengthened] `crates/force/src/client/builder.rs`
+**Module:** `crates/force/src/client/builder.rs`
+**Severity:** 🟡 Suspect
+**Finding:** Deletion of `api_version` configuration in Data Cloud setup survived.
+**Evidence:** Missed mutant removing `api_version` assignment.
+**Recommendation:** Added `test_builder_data_cloud_config` to assert accurate field assignment.
+
+### [Strengthened] `crates/force/src/experimental/soql_mass_op.rs`
+**Module:** `crates/force/src/experimental/soql_mass_op.rs`
+**Severity:** 🟡 Suspect
+**Finding:** Methods `update_all` and `delete_all` returning default values or incorrectly evaluating boolean guards survived.
+**Evidence:** `delete ! in update_all` and `replace return with Default::default()` missed by tests.
+**Recommendation:** Added invalid input tests and explicit verification against `Default::default()`.
+
+### [Strengthened] `crates/force/src/experimental/query_plan_analyzer.rs`
+**Module:** `crates/force/src/experimental/query_plan_analyzer.rs`
+**Severity:** 🟡 Suspect
+**Finding:** Deletion of specific properties initialized via `Default::default()` fallback.
+**Evidence:** Missing mutants `evaluated_plans` and `lowest_cost`.
+**Recommendation:** Explicitly asserted `lowest_cost` and `evaluated_plans` initialized correctness.
+
+### [Strengthened] `crates/force/src/api/tooling/run_tests.rs`
+**Module:** `crates/force/src/api/tooling/run_tests.rs`
+**Severity:** 🔴 Critical
+**Finding:** Mutants modifying boolean correctness of `all_passed` survived.
+**Evidence:** `replace == with !=`, `true`, `false` missed by tests.
+**Recommendation:** Explicitly evaluated `all_passed` logic in targeted test cases.

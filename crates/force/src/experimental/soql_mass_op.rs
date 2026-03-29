@@ -224,6 +224,8 @@ mod tests {
         assert_eq!(stats.records_processed, 2);
         assert_eq!(stats.ops_succeeded, 2);
         assert_eq!(stats.ops_failed, 0);
+        assert_ne!(stats.records_processed, 0);
+        assert_ne!(stats.ops_succeeded, 0);
     }
 
     #[tokio::test]
@@ -273,5 +275,88 @@ mod tests {
         assert_eq!(stats.records_processed, 1);
         assert_eq!(stats.ops_succeeded, 1);
         assert_eq!(stats.ops_failed, 0);
+        assert_ne!(stats.records_processed, 0);
+        assert_ne!(stats.ops_succeeded, 0);
     }
+
+    #[tokio::test]
+    async fn test_mass_update_invalid_input() {
+        let mock_server = create_mock_server().await;
+        let client = create_test_client(&mock_server).await;
+        let query = SoqlQueryBuilder::new().select(&["Id"]).from("Account");
+        let op = SoqlMassOp::new(&client, query);
+
+        let updates = json!("not an object");
+        let result = op.update_all(updates).await;
+
+        let Err(err) = result else { panic!("Expected an error for invalid input") };
+        assert!(matches!(err, ForceError::InvalidInput(_)));
+    }
+
+    #[tokio::test]
+    async fn test_mass_op_asserts_non_default_stats() {
+        let mock_server = create_mock_server().await;
+        let client = create_test_client(&mock_server).await;
+
+        Mock::given(method("GET"))
+            .and(path("/services/data/v60.0/query"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "totalSize": 1,
+                "done": true,
+                "records": [ { "attributes": { "type": "Account", "url": "/services/data/v60.0/sobjects/Account/001000000000001AAA" }, "Id": "001000000000001AAA" } ]
+            })))
+            .mount(&mock_server)
+            .await;
+
+        Mock::given(method("POST"))
+            .and(path("/services/data/v60.0/composite/batch"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "hasErrors": false,
+                "results": [ { "statusCode": 204, "result": null } ]
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let query = SoqlQueryBuilder::new().select(&["Id"]).from("Account");
+        let op = SoqlMassOp::new(&client, query);
+        let stats = op.delete_all().await.must();
+
+        assert_ne!(stats.records_processed, 0);
+        assert_ne!(stats.ops_succeeded, 0);
+    }
+
+
+    #[tokio::test]
+    async fn test_mass_update_asserts_non_default_stats() {
+        let mock_server = create_mock_server().await;
+        let client = create_test_client(&mock_server).await;
+
+        Mock::given(method("GET"))
+            .and(path("/services/data/v60.0/query"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "totalSize": 1,
+                "done": true,
+                "records": [ { "attributes": { "type": "Account", "url": "/services/data/v60.0/sobjects/Account/001000000000001AAA" }, "Id": "001000000000001AAA" } ]
+            })))
+            .mount(&mock_server)
+            .await;
+
+        Mock::given(method("POST"))
+            .and(path("/services/data/v60.0/composite/batch"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "hasErrors": false,
+                "results": [ { "statusCode": 204, "result": null } ]
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let query = SoqlQueryBuilder::new().select(&["Id"]).from("Account");
+        let op = SoqlMassOp::new(&client, query);
+        let updates = json!({"Status": "Closed"});
+        let stats = op.update_all(updates).await.must();
+
+        assert_ne!(stats.records_processed, 0);
+        assert_ne!(stats.ops_succeeded, 0);
+    }
+
 }

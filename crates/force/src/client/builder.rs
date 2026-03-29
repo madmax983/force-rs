@@ -275,4 +275,22 @@ mod tests {
 
         assert_eq!(client.config().api_version, "v61.0");
     }
+
+    #[tokio::test]
+    #[cfg(feature = "data_cloud")]
+    async fn test_builder_data_cloud_config() {
+        let auth = MockAuthenticator::new("mock", "url");
+        let dc_config = crate::auth::DataCloudConfig {
+            api_version: Some("v99.0".to_string()),
+            ..Default::default()
+        };
+        let client = ForceClientBuilder::new()
+            .authenticate(auth)
+            .with_data_cloud(dc_config)
+            .build()
+            .await
+            .must();
+        assert_eq!(client.dc_session.must().config.api_version, "v99.0");
+    }
+
 }
