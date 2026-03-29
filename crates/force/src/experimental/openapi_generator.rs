@@ -23,24 +23,21 @@ impl OpenApiGenerator {
             let _ = writeln!(out, "      description: {}", describe.label);
         }
 
-        // Find required fields for the required array
-        let required_fields: Vec<&str> = describe
-            .fields
-            .iter()
-            .filter(|f| {
-                !f.nillable
-                    && !f.defaulted_on_create
-                    && f.createable
-                    && f.type_ != FieldType::Id
-                    && f.type_ != FieldType::Boolean
-            })
-            .map(|f| f.name.as_str())
-            .collect();
-
-        if !required_fields.is_empty() {
-            out.push_str("      required:\n");
-            for field in required_fields {
-                let _ = writeln!(out, "        - {}", field);
+        // Find required fields for the required array without intermediate Vec allocation
+        // ⚡ Bolt: Iterate directly instead of `.collect()`-ing into a `Vec<&str>` to avoid heap allocation.
+        let mut has_required = false;
+        for field in &describe.fields {
+            if !field.nillable
+                && !field.defaulted_on_create
+                && field.createable
+                && field.type_ != FieldType::Id
+                && field.type_ != FieldType::Boolean
+            {
+                if !has_required {
+                    out.push_str("      required:\n");
+                    has_required = true;
+                }
+                let _ = writeln!(out, "        - {}", field.name);
             }
         }
 
