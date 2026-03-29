@@ -289,7 +289,9 @@ mod tests {
         let updates = json!("not an object");
         let result = op.update_all(updates).await;
 
-        let Err(err) = result else { panic!("Expected an error for invalid input") };
+        let Err(err) = result else {
+            panic!("Expected an error for invalid input")
+        };
         assert!(matches!(err, ForceError::InvalidInput(_)));
     }
 
@@ -325,7 +327,6 @@ mod tests {
         assert_ne!(stats.ops_succeeded, 0);
     }
 
-
     #[tokio::test]
     async fn test_mass_update_asserts_non_default_stats() {
         let mock_server = create_mock_server().await;
@@ -358,5 +359,4 @@ mod tests {
         assert_ne!(stats.records_processed, 0);
         assert_ne!(stats.ops_succeeded, 0);
     }
-
 }

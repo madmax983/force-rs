@@ -241,5 +241,4 @@ mod tests {
         assert_eq!(insights.evaluated_plans, 2);
         assert!((insights.lowest_cost - 5.0).abs() < f64::EPSILON);
     }
-
 }

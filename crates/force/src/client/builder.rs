@@ -292,5 +292,4 @@ mod tests {
             .must();
         assert_eq!(client.dc_session.must().config.api_version, "v99.0");
     }
-
 }

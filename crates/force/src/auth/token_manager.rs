@@ -797,13 +797,13 @@ mod tests {
         let old_token = AccessToken::new(
             "old".to_string(),
             "url".to_string(),
-            Some(Utc::now() - Duration::hours(1))
+            Some(Utc::now() - Duration::hours(1)),
         );
 
         let new_token = AccessToken::new(
             "new".to_string(),
             "url".to_string(),
-            Some(Utc::now() + Duration::hours(1))
+            Some(Utc::now() + Duration::hours(1)),
         );
 
         {
@@ -812,7 +812,9 @@ mod tests {
         }
 
         // Fallback is older, current should be returned
-        let result1 = manager.latest_token_or(StdArc::new(old_token.clone())).await;
+        let result1 = manager
+            .latest_token_or(StdArc::new(old_token.clone()))
+            .await;
         assert_eq!(result1.as_str(), "new");
 
         {
@@ -821,8 +823,9 @@ mod tests {
         }
 
         // Fallback is newer, fallback should be returned
-        let result2 = manager.latest_token_or(StdArc::new(new_token.clone())).await;
+        let result2 = manager
+            .latest_token_or(StdArc::new(new_token.clone()))
+            .await;
         assert_eq!(result2.as_str(), "new");
     }
-
 }
