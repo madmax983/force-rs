@@ -54,3 +54,7 @@
 **[Flatten is_retryable_error]**
 **Learning:** Double `match` statements ("Pyramid of Doom") on Result/Error enum variants make simple logic unnecessarily nested and harder to quickly scan.
 **Action:** Prefer `if let` guard clauses to handle outer wrappers, flattening the logic into a single un-nested match statement.
+
+**[Extract match blocks to guard clauses in tests]**
+**Learning:** Using `match` blocks with wildcard panics for asserting specific errors inside tests creates a "Pyramid of Doom" and hurts readability.
+**Action:** Prefer `let Err(err) = result else { panic!(...) }` guard clauses to extract the error safely, and then assert its contents directly at the top level of the test block.
