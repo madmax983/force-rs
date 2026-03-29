@@ -254,6 +254,46 @@ mod tests {
     }
 
     #[test]
+    fn test_generate_mock_record_datetime_time_currency_percent() {
+        let describe = create_mock_describe(&json!([
+            mock_field("CreatedDate", "datetime", true, false, false),
+            mock_field("CloseTime", "time", true, false, false),
+            mock_field("AnnualRevenue", "currency", true, false, false),
+            mock_field("Probability", "percent", true, false, false),
+            mock_field("EncryptedField", "encryptedstring", true, false, false),
+            mock_field("AnyField", "anyType", true, false, false),
+            mock_field("LookupField", "reference", true, false, false),
+            mock_field("Description", "textarea", true, false, false)
+        ]));
+
+        let record = generate_mock_record(&describe);
+
+        assert_eq!(
+            record.get_field("CreatedDate").and_then(|v| v.as_str()),
+            Some("2024-01-01T12:00:00.000+0000")
+        );
+        assert_eq!(
+            record.get_field("CloseTime").and_then(|v| v.as_str()),
+            Some("12:00:00.000Z")
+        );
+        assert_eq!(
+            record.get_field_as::<f64>("AnnualRevenue").must(),
+            Some(42.42)
+        );
+        assert_eq!(
+            record.get_field_as::<f64>("Probability").must(),
+            Some(42.42)
+        );
+        assert_eq!(
+            record.get_field("EncryptedField").and_then(|v| v.as_str()),
+            Some("Detailed mock description for EncryptedField Label")
+        );
+        assert!(record.has_field("AnyField"));
+        assert!(record.has_field("LookupField"));
+        assert!(record.has_field("Description"));
+    }
+
+    #[test]
     fn test_generate_mock_record_picklists() {
         let mut field1 = mock_field("Pick1", "picklist", true, false, false);
         field1["picklistValues"] = json!([{"active": false, "value": "A", "defaultValue": false, "label": "A"}, {"active": true, "value": "B", "defaultValue": false, "label": "B"}]);

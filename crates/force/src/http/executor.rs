@@ -729,4 +729,211 @@ mod tests {
             e
         );
     }
+
+    #[test]
+    fn test_executor_default() {
+        let executor = HttpExecutor::default();
+        assert_eq!(executor.timeout, Duration::from_secs(30));
+    }
+
+    #[test]
+    fn test_executor_with_config() {
+        let executor = HttpExecutor::with_config(5, Duration::from_secs(60));
+        assert_eq!(executor.timeout, Duration::from_secs(60));
+        assert_eq!(executor.retry_policy.read_max_retries, 5);
+    }
+
+    #[test]
+    fn test_executor_with_client() {
+        let client = reqwest::Client::new();
+        let executor = HttpExecutor::with_client(client, 2, Duration::from_secs(15));
+        assert_eq!(executor.timeout, Duration::from_secs(15));
+        assert_eq!(executor.retry_policy.read_max_retries, 2);
+    }
+
+    #[test]
+    fn test_executor_with_retry_policy() {
+        let policy = RetryPolicy::new(4, 1);
+        let executor = HttpExecutor::with_retry_policy(policy, Duration::from_secs(45));
+        assert_eq!(executor.timeout, Duration::from_secs(45));
+        assert_eq!(executor.retry_policy.read_max_retries, 4);
+    }
+
+    #[test]
+    fn test_executor_with_base_backoff() {
+        let executor = HttpExecutor::new().with_base_backoff(Duration::from_millis(1000));
+        assert_eq!(executor.base_backoff, Duration::from_millis(1000));
+    }
+
+    #[tokio::test]
+    async fn test_execute_json_success() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/test"))
+            .and(header("Authorization", "Bearer test_token"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "name": "test",
+                "value": 42
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let executor = HttpExecutor::new();
+        let token = create_test_token();
+
+        let refresh_token = || async {
+            panic!("Should not be called");
+            #[allow(unreachable_code)]
+            Ok(create_test_token())
+        };
+
+        let request = executor
+            .client
+            .request(Method::GET, format!("{}/test", mock_server.uri()))
+            .build()
+            .must();
+
+        let result: serde_json::Value = executor
+            .execute_json(request, &token, refresh_token)
+            .await
+            .must();
+
+        assert_eq!(result["name"], "test");
+        assert_eq!(result["value"], 42);
+    }
+
+    #[tokio::test]
+    async fn test_execute_returns_api_error_for_non_success_status() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/services/data/v60.0/query"))
+            .and(header("Authorization", "Bearer test_token"))
+            .respond_with(
+                ResponseTemplate::new(400).set_body_json(serde_json::json!([{
+                    "errorCode": "INVALID_FIELD",
+                    "message": "No such column 'Bogus' on entity 'Account'",
+                    "fields": ["Bogus"]
+                }])),
+            )
+            .mount(&mock_server)
+            .await;
+
+        let executor = HttpExecutor::new();
+        let token = create_test_token();
+
+        let refresh_token = || async {
+            panic!("Should not be called");
+            #[allow(unreachable_code)]
+            Ok(create_test_token())
+        };
+
+        let request = executor
+            .client
+            .request(
+                Method::GET,
+                format!("{}/services/data/v60.0/query", mock_server.uri()),
+            )
+            .build()
+            .must();
+
+        let result = executor.execute(request, &token, refresh_token).await;
+
+        let Err(crate::error::ForceError::Http(HttpError::StatusError {
+            status_code,
+            message,
+        })) = result
+        else {
+            panic!("Expected StatusError from execute(), got: {:?}", result);
+        };
+        assert_eq!(status_code, 400);
+        assert!(message.contains("INVALID_FIELD"));
+        assert!(message.contains("Bogus"));
+    }
+
+    #[tokio::test]
+    async fn test_execute_returns_unauthorized_after_refresh_exhausted() {
+        let mock_server = MockServer::start().await;
+
+        // Both attempts return 401 -- initial token and refreshed token both fail.
+        Mock::given(method("GET"))
+            .and(path("/services/data/v60.0/query"))
+            .respond_with(
+                ResponseTemplate::new(401).set_body_json(serde_json::json!([{
+                    "message": "Session expired or invalid",
+                    "errorCode": "INVALID_SESSION_ID"
+                }])),
+            )
+            .mount(&mock_server)
+            .await;
+
+        let executor = HttpExecutor::new();
+        let token = create_test_token();
+
+        let refresh_token = || async { Ok(create_test_token()) };
+
+        let request = executor
+            .client
+            .request(
+                Method::GET,
+                format!("{}/services/data/v60.0/query", mock_server.uri()),
+            )
+            .build()
+            .must();
+
+        let result = executor.execute(request, &token, refresh_token).await;
+
+        let Err(crate::error::ForceError::Http(HttpError::StatusError {
+            status_code,
+            message,
+        })) = result
+        else {
+            panic!("Expected 401 StatusError from execute(), got: {:?}", result);
+        };
+        assert_eq!(status_code, 401);
+        assert!(message.contains("Unauthorized after token refresh"));
+    }
+
+    #[tokio::test]
+    async fn test_execute_with_telemetry_hooks() {
+        use crate::http::telemetry::TelemetryHooks;
+
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/test"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({"ok": true})))
+            .mount(&mock_server)
+            .await;
+
+        let completed = Arc::new(AtomicUsize::new(0));
+        let completed_clone = Arc::clone(&completed);
+
+        let hooks = TelemetryHooks::new().on_complete(move |_event| {
+            completed_clone.fetch_add(1, Ordering::SeqCst);
+        });
+
+        let executor = HttpExecutor::new().with_telemetry_hooks(hooks);
+        let token = create_test_token();
+
+        let refresh_token = || async {
+            panic!("Should not be called");
+            #[allow(unreachable_code)]
+            Ok(create_test_token())
+        };
+
+        let request = executor
+            .client
+            .request(Method::GET, format!("{}/test", mock_server.uri()))
+            .build()
+            .must();
+
+        let _response = executor
+            .execute_response(request, &token, refresh_token)
+            .await
+            .must();
+
+        assert_eq!(completed.load(Ordering::SeqCst), 1);
+    }
 }

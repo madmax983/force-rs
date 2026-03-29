@@ -678,10 +678,13 @@ mod tests {
     use chrono::Utc;
     use serde_json::json;
 
-    use super::{local_projection_salesforce_id, should_project_locally};
+    use super::{
+        local_projection_salesforce_id, parse_change_operation, parse_source_cursor,
+        parse_source_system, should_project_locally,
+    };
     use crate::{
         identity::SyncKey,
-        model::{ChangeEnvelope, ChangeOperation, SourceSystem},
+        model::{ChangeEnvelope, ChangeOperation, SourceCursor, SourceSystem},
         plan::ApplyLane,
         store::pg::SyncLink,
     };
@@ -758,5 +761,225 @@ mod tests {
                 .map(force::types::SalesforceId::as_str),
             Some("001000000000001AAA")
         );
+    }
+
+    #[test]
+    fn local_projection_returns_none_when_no_link_and_no_payload_id() {
+        let envelope = envelope(json!({"Name": "No Id Field"}));
+        let salesforce_id = local_projection_salesforce_id(None, &envelope)
+            .unwrap_or_else(|error| panic!("unexpected projection error: {error}"));
+        assert!(salesforce_id.is_none());
+    }
+
+    // -- parse_source_system tests --
+
+    #[test]
+    fn parse_source_system_salesforce() {
+        assert_eq!(
+            parse_source_system("salesforce").unwrap_or_else(|e| panic!("unexpected error: {e}")),
+            SourceSystem::Salesforce,
+        );
+    }
+
+    #[test]
+    fn parse_source_system_postgres() {
+        assert_eq!(
+            parse_source_system("postgres").unwrap_or_else(|e| panic!("unexpected error: {e}")),
+            SourceSystem::Postgres,
+        );
+    }
+
+    #[test]
+    fn parse_source_system_unknown_returns_error() {
+        let result = parse_source_system("oracle");
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("oracle"));
+    }
+
+    // -- parse_change_operation tests --
+
+    #[test]
+    fn parse_change_operation_upsert() {
+        assert_eq!(
+            parse_change_operation("upsert").unwrap_or_else(|e| panic!("unexpected error: {e}")),
+            ChangeOperation::Upsert,
+        );
+    }
+
+    #[test]
+    fn parse_change_operation_delete() {
+        assert_eq!(
+            parse_change_operation("delete").unwrap_or_else(|e| panic!("unexpected error: {e}")),
+            ChangeOperation::Delete,
+        );
+    }
+
+    #[test]
+    fn parse_change_operation_unknown_returns_error() {
+        let result = parse_change_operation("insert");
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("insert"));
+    }
+
+    // -- parse_source_cursor tests --
+
+    #[test]
+    fn parse_source_cursor_salesforce_replay_id() {
+        let cursor = parse_source_cursor("salesforce-replay-id:42")
+            .unwrap_or_else(|e| panic!("unexpected error: {e}"));
+        assert_eq!(cursor, SourceCursor::SalesforceReplayId(42));
+    }
+
+    #[test]
+    fn parse_source_cursor_postgres_lsn() {
+        let cursor = parse_source_cursor("postgres-lsn:0/16B3748")
+            .unwrap_or_else(|e| panic!("unexpected error: {e}"));
+        assert_eq!(cursor, SourceCursor::PostgresLsn("0/16B3748".to_owned()));
+    }
+
+    #[test]
+    fn parse_source_cursor_snapshot() {
+        let cursor = parse_source_cursor("snapshot:2024-01-01T00:00:00Z")
+            .unwrap_or_else(|e| panic!("unexpected error: {e}"));
+        assert_eq!(
+            cursor,
+            SourceCursor::Snapshot("2024-01-01T00:00:00Z".to_owned())
+        );
+    }
+
+    #[test]
+    fn parse_source_cursor_invalid_replay_id_returns_error() {
+        let result = parse_source_cursor("salesforce-replay-id:not-a-number");
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("source_cursor"));
+    }
+
+    #[test]
+    fn parse_source_cursor_unknown_prefix_returns_error() {
+        let result = parse_source_cursor("kafka-offset:99");
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("kafka-offset:99"));
+    }
+
+    // -- should_project_locally additional coverage --
+
+    #[test]
+    fn should_project_locally_salesforce_bulk() {
+        assert!(should_project_locally(
+            SourceSystem::Salesforce,
+            ApplyLane::Bulk
+        ));
+    }
+
+    #[test]
+    fn should_not_project_locally_salesforce_conflict() {
+        assert!(!should_project_locally(
+            SourceSystem::Salesforce,
+            ApplyLane::Conflict
+        ));
+    }
+
+    #[test]
+    fn should_not_project_locally_postgres_bulk() {
+        assert!(!should_project_locally(
+            SourceSystem::Postgres,
+            ApplyLane::Bulk
+        ));
+    }
+
+    // -- SyncEngineBuilder validation tests --
+
+    mod builder_tests {
+        use async_trait::async_trait;
+        use force::{
+            auth::{AccessToken, Authenticator, TokenResponse},
+            client::builder,
+            error::Result as ForceResult,
+        };
+
+        use crate::{config::ObjectSync, error::ForceSyncError, runtime::SyncEngine};
+
+        #[derive(Debug, Clone)]
+        struct StubAuth;
+
+        #[async_trait]
+        impl Authenticator for StubAuth {
+            async fn authenticate(&self) -> ForceResult<AccessToken> {
+                Ok(AccessToken::from_response(TokenResponse {
+                    access_token: "stub".to_owned(),
+                    instance_url: "https://stub.salesforce.com".to_owned(),
+                    token_type: "Bearer".to_owned(),
+                    issued_at: "1704067200000".to_owned(),
+                    signature: "stub".to_owned(),
+                    expires_in: Some(7200),
+                    refresh_token: None,
+                }))
+            }
+
+            async fn refresh(&self) -> ForceResult<AccessToken> {
+                self.authenticate().await
+            }
+        }
+
+        #[tokio::test]
+        async fn build_fails_without_postgres() {
+            let client = builder()
+                .authenticate(StubAuth)
+                .build()
+                .await
+                .unwrap_or_else(|e| panic!("unexpected client build error: {e}"));
+
+            let result = SyncEngine::builder(client)
+                .object(ObjectSync::new("Account").external_id("ExternalId__c"))
+                .build();
+
+            assert!(result.is_err());
+            let err = result.unwrap_err();
+            assert!(
+                matches!(
+                    err,
+                    ForceSyncError::MissingConfiguration { field: "postgres" }
+                ),
+                "expected MissingConfiguration for postgres, got: {err}"
+            );
+        }
+
+        #[tokio::test]
+        async fn build_fails_with_empty_objects() {
+            let client = builder()
+                .authenticate(StubAuth)
+                .build()
+                .await
+                .unwrap_or_else(|e| panic!("unexpected client build error: {e}"));
+
+            // Create a dummy PgStore -- it won't be used for queries, only for builder validation.
+            let mut config = deadpool_postgres::Config::new();
+            config.url = Some("postgresql://unused:unused@localhost:5432/unused".to_owned());
+            let pool = config
+                .create_pool(
+                    Some(deadpool_postgres::Runtime::Tokio1),
+                    tokio_postgres::NoTls,
+                )
+                .unwrap_or_else(|e| panic!("unexpected pool error: {e}"));
+            let store = crate::store::pg::PgStore::new(pool);
+
+            let result = SyncEngine::builder(client).postgres(store).build();
+
+            assert!(result.is_err());
+            let err = result.unwrap_err();
+            assert!(
+                matches!(
+                    err,
+                    ForceSyncError::MissingConfiguration {
+                        field: "object sync"
+                    }
+                ),
+                "expected MissingConfiguration for object sync, got: {err}"
+            );
+        }
     }
 }
