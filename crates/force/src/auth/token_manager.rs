@@ -224,6 +224,27 @@ impl<A: Authenticator> TokenManager<A> {
     /// let new_token = manager.force_refresh().await?;
     /// ```
     pub async fn force_refresh(&self) -> Result<AccessToken> {
+        // Capture the current token's issued_at timestamp (if any)
+        let current_issued_at = {
+            let state = self.state.read().await;
+            state.token.as_ref().map(|t| t.issued_at())
+        };
+
+        // Acquire refresh lock to serialize force_refresh calls
+        let _lock = self.refresh_lock.lock().await;
+
+        // Double check: Did another thread already refresh the token while we were waiting?
+        {
+            let state = self.state.read().await;
+            if let Some(token) = &state.token {
+                // If the token in state is strictly newer than what we captured,
+                // another thread just refreshed it. Return that one!
+                if Some(token.issued_at()) > current_issued_at {
+                    return Ok((*token.clone()).clone());
+                }
+            }
+        }
+
         let new_token = self.authenticator.refresh().await?;
         // ⚡ Bolt: Moving `new_token` directly into `Arc` avoids an unnecessary `.clone()` allocation
         // when transferring ownership, saving one heap allocation per force refresh.
@@ -786,6 +807,36 @@ mod tests {
             result.as_str(),
             "soft_old_token",
             "Equality should not trigger an overwrite in soft refresh"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_token_manager_force_refresh_stampede() {
+        let auth = MockAuthenticator::new().with_delay(std::time::Duration::from_millis(50));
+        let manager = StdArc::new(TokenManager::new(auth));
+
+        // Let the manager fetch the initial token
+        let _ = manager.token().await.must();
+
+        // Spawn 100 concurrent tasks calling force_refresh
+        let mut handles = Vec::new();
+        for _ in 0..100 {
+            let manager_clone = manager.clone();
+            handles.push(tokio::spawn(async move {
+                manager_clone.force_refresh().await.must()
+            }));
+        }
+
+        for handle in handles {
+            let _ = handle.await.must();
+        }
+
+        // The initial token() call triggers 1 auth.
+        // The 100 force_refresh() calls should trigger EXACTLY 1 refresh, not 100.
+        let refresh_count = manager.authenticator.refresh_count();
+        assert_eq!(
+            refresh_count, 1,
+            "👺 Havoc: force_refresh triggered a stampede!"
         );
     }
 }
