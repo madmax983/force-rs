@@ -10,7 +10,7 @@ keywords = ["salesforce", "api", "rest", "bulk", "crm"]
 categories = ["api-bindings", "web-programming"]
 documentation = "https://docs.rs/force"
 homepage = "https://github.com/madmax983/force-rs"
-readme = "README.md"
+readme = "../../README.md"
 
 [lints]
 workspace = true
