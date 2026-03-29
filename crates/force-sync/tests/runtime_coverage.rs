@@ -76,7 +76,7 @@ fn sync_key(external_id: &str) -> SyncKey {
         .unwrap_or_else(|error| panic!("unexpected sync key construction error: {error}"))
 }
 
-/// Inserts a journal row and an apply task. Returns the task_id.
+/// Inserts a journal row and an apply task. Returns the `task_id`.
 async fn insert_journal_and_task(
     pool: &deadpool_postgres::Pool,
     operation: ChangeOperation,
@@ -91,7 +91,7 @@ async fn insert_journal_and_task(
     let store = PgStore::new(pool.clone());
     let cursor = match source {
         SourceSystem::Postgres => SourceCursor::PostgresLsn(format!("0/{seq:08X}")),
-        SourceSystem::Salesforce => SourceCursor::SalesforceReplayId(seq as i64),
+        SourceSystem::Salesforce => SourceCursor::SalesforceReplayId(i64::try_from(seq).unwrap_or_else(|e| panic!("cursor seq overflow: {e}"))),
     };
     let envelope = ChangeEnvelope::new(
         sync_key(external_id),
@@ -161,6 +161,7 @@ fn build_engine(
 /// 6. DELETE with retryable error
 #[tokio::test]
 #[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
+#[allow(clippy::too_many_lines)]
 async fn runtime_coverage_combined_tests() -> Result<(), ForceSyncError> {
     let mock_server = MockServer::start().await;
 

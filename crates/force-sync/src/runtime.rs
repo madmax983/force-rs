@@ -791,9 +791,9 @@ mod tests {
 
     #[test]
     fn parse_source_system_unknown_returns_error() {
-        let result = parse_source_system("oracle");
-        assert!(result.is_err());
-        let err = result.unwrap_err();
+        let Err(err) = parse_source_system("oracle") else {
+            panic!("expected error for unknown source system");
+        };
         assert!(err.to_string().contains("oracle"));
     }
 
@@ -817,9 +817,9 @@ mod tests {
 
     #[test]
     fn parse_change_operation_unknown_returns_error() {
-        let result = parse_change_operation("insert");
-        assert!(result.is_err());
-        let err = result.unwrap_err();
+        let Err(err) = parse_change_operation("insert") else {
+            panic!("expected error for unknown change operation");
+        };
         assert!(err.to_string().contains("insert"));
     }
 
@@ -851,17 +851,17 @@ mod tests {
 
     #[test]
     fn parse_source_cursor_invalid_replay_id_returns_error() {
-        let result = parse_source_cursor("salesforce-replay-id:not-a-number");
-        assert!(result.is_err());
-        let err = result.unwrap_err();
+        let Err(err) = parse_source_cursor("salesforce-replay-id:not-a-number") else {
+            panic!("expected error for invalid replay ID");
+        };
         assert!(err.to_string().contains("source_cursor"));
     }
 
     #[test]
     fn parse_source_cursor_unknown_prefix_returns_error() {
-        let result = parse_source_cursor("kafka-offset:99");
-        assert!(result.is_err());
-        let err = result.unwrap_err();
+        let Err(err) = parse_source_cursor("kafka-offset:99") else {
+            panic!("expected error for unknown cursor prefix");
+        };
         assert!(err.to_string().contains("kafka-offset:99"));
     }
 
@@ -937,8 +937,9 @@ mod tests {
                 .object(ObjectSync::new("Account").external_id("ExternalId__c"))
                 .build();
 
-            assert!(result.is_err());
-            let err = result.unwrap_err();
+            let Err(err) = result else {
+                panic!("expected error for missing postgres");
+            };
             assert!(
                 matches!(
                     err,
@@ -969,8 +970,9 @@ mod tests {
 
             let result = SyncEngine::builder(client).postgres(store).build();
 
-            assert!(result.is_err());
-            let err = result.unwrap_err();
+            let Err(err) = result else {
+                panic!("expected error for empty objects");
+            };
             assert!(
                 matches!(
                     err,
