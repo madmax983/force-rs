@@ -787,4 +787,40 @@ mod tests {
         assert_eq!(op.resolve_api_path("query"), "tooling/query");
         assert_eq!(op.resolve_api_path("sobjects"), "tooling/sobjects");
     }
+
+    #[tokio::test]
+    async fn test_upsert_returns_not_implemented_on_204() {
+        use crate::client::builder;
+        use serde_json::json;
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let mock_server = MockServer::start().await;
+        let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
+
+        Mock::given(method("PATCH"))
+            .and(path(
+                "/services/data/v60.0/sobjects/Account/ExternalId__c/123",
+            ))
+            .respond_with(ResponseTemplate::new(204))
+            .mount(&mock_server)
+            .await;
+
+        let client = builder().authenticate(auth).build().await.must();
+
+        let result = client
+            .rest()
+            .upsert("Account", "ExternalId__c", "123", &json!({"Name": "Acme"}))
+            .await;
+
+        match result {
+            Err(crate::error::ForceError::NotImplemented(msg)) => {
+                assert_eq!(
+                    msg,
+                    "Upsert update (204) response does not include record ID - use query to retrieve"
+                );
+            }
+            _ => panic!("Expected NotImplemented error for 204 response"),
+        }
+    }
 }
