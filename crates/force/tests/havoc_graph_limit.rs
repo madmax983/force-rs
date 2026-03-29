@@ -2,6 +2,7 @@
 
 #![cfg(feature = "composite_graph")]
 #![allow(clippy::unwrap_used)]
+#![cfg(feature = "composite_graph")]
 
 use force::api::composite::{Graph, GraphRequest};
 
