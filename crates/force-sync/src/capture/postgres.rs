@@ -204,3 +204,124 @@ pub async fn capture_batch(
         })
         .await
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::model::{ChangeOperation, SourceCursor};
+
+    // ── outbox_operation ──────────────────────────────────────────────
+
+    #[test]
+    fn outbox_operation_upsert_not_tombstone() {
+        let Ok(op) = outbox_operation("upsert", false) else {
+            panic!("expected Ok for upsert/false");
+        };
+        assert_eq!(op, ChangeOperation::Upsert);
+    }
+
+    #[test]
+    fn outbox_operation_delete_tombstone() {
+        let Ok(op) = outbox_operation("delete", true) else {
+            panic!("expected Ok for delete/true");
+        };
+        assert_eq!(op, ChangeOperation::Delete);
+    }
+
+    #[test]
+    fn outbox_operation_upsert_tombstone_is_invalid() {
+        assert!(matches!(
+            outbox_operation("upsert", true),
+            Err(ForceSyncError::InvalidOutboxOperation { .. })
+        ));
+    }
+
+    #[test]
+    fn outbox_operation_delete_not_tombstone_is_invalid() {
+        assert!(matches!(
+            outbox_operation("delete", false),
+            Err(ForceSyncError::InvalidOutboxOperation { .. })
+        ));
+    }
+
+    #[test]
+    fn outbox_operation_unknown_op_is_invalid() {
+        assert!(matches!(
+            outbox_operation("insert", false),
+            Err(ForceSyncError::InvalidOutboxOperation { .. })
+        ));
+    }
+
+    // ── outbox_source_cursor ──────────────────────────────────────────
+
+    #[test]
+    fn outbox_source_cursor_plain_lsn_succeeds() {
+        let Ok(cursor) = outbox_source_cursor("0/16B3740") else {
+            panic!("expected Ok for plain LSN");
+        };
+        assert!(matches!(cursor, SourceCursor::PostgresLsn(ref lsn) if lsn == "0/16B3740"));
+    }
+
+    #[test]
+    fn outbox_source_cursor_rejects_postgres_lsn_prefix() {
+        assert!(matches!(
+            outbox_source_cursor("postgres-lsn:0/16B3740"),
+            Err(ForceSyncError::InvalidOutboxCursor { .. })
+        ));
+    }
+
+    #[test]
+    fn outbox_source_cursor_rejects_salesforce_replay_id_prefix() {
+        assert!(matches!(
+            outbox_source_cursor("salesforce-replay-id:42"),
+            Err(ForceSyncError::InvalidOutboxCursor { .. })
+        ));
+    }
+
+    #[test]
+    fn outbox_source_cursor_rejects_snapshot_prefix() {
+        assert!(matches!(
+            outbox_source_cursor("snapshot:abc"),
+            Err(ForceSyncError::InvalidOutboxCursor { .. })
+        ));
+    }
+
+    // ── row_content_error ─────────────────────────────────────────────
+
+    #[test]
+    fn row_content_error_recognizes_json_error() {
+        let Err(json_err) = serde_json::from_str::<Value>("{{invalid}}") else {
+            panic!("expected invalid JSON to fail");
+        };
+        let err: ForceSyncError = json_err.into();
+        assert!(row_content_error(&err));
+    }
+
+    #[test]
+    fn row_content_error_recognizes_invalid_outbox_operation() {
+        let err = ForceSyncError::InvalidOutboxOperation {
+            op: "bad".to_string(),
+        };
+        assert!(row_content_error(&err));
+    }
+
+    #[test]
+    fn row_content_error_recognizes_invalid_outbox_cursor() {
+        let err = ForceSyncError::InvalidOutboxCursor {
+            cursor: "bad".to_string(),
+        };
+        assert!(row_content_error(&err));
+    }
+
+    #[test]
+    fn row_content_error_recognizes_empty_sync_key_part() {
+        let err = ForceSyncError::EmptySyncKeyPart { part: "tenant" };
+        assert!(row_content_error(&err));
+    }
+
+    #[test]
+    fn row_content_error_rejects_missing_source_cursor() {
+        let err = ForceSyncError::MissingSourceCursor;
+        assert!(!row_content_error(&err));
+    }
+}

@@ -291,3 +291,152 @@ async fn transient_rest_upsert_failure_is_retryable() {
     assert!(matches!(error, ApplyError::Retryable(_)));
     assert!(error.to_string().contains("temporary outage"));
 }
+
+#[tokio::test]
+async fn apply_rest_delete_server_error_is_retryable() {
+    let mock_server = MockServer::start().await;
+    let client = test_client(&mock_server).await;
+    let applier = SalesforceApplier::new(client);
+    let record_id = salesforce_id("001000000000005AAA");
+
+    Mock::given(method("DELETE"))
+        .and(path(
+            "/services/data/v60.0/sobjects/Account/001000000000005AAA",
+        ))
+        .and(header("Authorization", "Bearer test_token"))
+        .respond_with(ResponseTemplate::new(503).set_body_string("service unavailable"))
+        .mount(&mock_server)
+        .await;
+
+    let result = applier.apply_rest_delete("Account", &record_id).await;
+
+    let Err(error) = result else {
+        panic!("expected retryable delete error");
+    };
+
+    assert!(matches!(error, ApplyError::Retryable(_)));
+}
+
+#[tokio::test]
+async fn apply_rest_delete_bad_request_is_permanent() {
+    let mock_server = MockServer::start().await;
+    let client = test_client(&mock_server).await;
+    let applier = SalesforceApplier::new(client);
+    let record_id = salesforce_id("001000000000006AAA");
+
+    Mock::given(method("DELETE"))
+        .and(path(
+            "/services/data/v60.0/sobjects/Account/001000000000006AAA",
+        ))
+        .and(header("Authorization", "Bearer test_token"))
+        .respond_with(ResponseTemplate::new(400).set_body_string("bad request"))
+        .mount(&mock_server)
+        .await;
+
+    let result = applier.apply_rest_delete("Account", &record_id).await;
+
+    let Err(error) = result else {
+        panic!("expected permanent delete error");
+    };
+
+    assert!(matches!(error, ApplyError::Permanent(_)));
+}
+
+#[tokio::test]
+async fn apply_rest_upsert_permanent_400_classified_correctly() {
+    let mock_server = MockServer::start().await;
+    let client = test_client(&mock_server).await;
+    let applier = SalesforceApplier::new(client);
+
+    Mock::given(method("PATCH"))
+        .and(path(
+            "/services/data/v60.0/sobjects/Account/ExternalId__c/ACME-400",
+        ))
+        .respond_with(ResponseTemplate::new(400).set_body_json(json!([{
+            "message": "FIELD_INTEGRITY_EXCEPTION",
+            "errorCode": "FIELD_INTEGRITY_EXCEPTION",
+            "fields": ["Name"]
+        }])))
+        .mount(&mock_server)
+        .await;
+
+    let result = applier
+        .apply_rest_upsert(
+            "Account",
+            "ExternalId__c",
+            "ACME-400",
+            &json!({"Name": null}),
+        )
+        .await;
+
+    let Err(error) = result else {
+        panic!("expected permanent apply error for 400");
+    };
+
+    assert!(matches!(error, ApplyError::Permanent(_)));
+}
+
+#[tokio::test]
+async fn apply_rest_upsert_update_204_fails_when_id_field_is_null_in_query_result() {
+    let mock_server = MockServer::start().await;
+    let client = test_client(&mock_server).await;
+    let applier = SalesforceApplier::new(client);
+
+    // Upsert returns 204 (update, no body)
+    Mock::given(method("PATCH"))
+        .and(path(
+            "/services/data/v60.0/sobjects/Account/ExternalId__c/ACME-NULL",
+        ))
+        .and(header("Authorization", "Bearer test_token"))
+        .respond_with(ResponseTemplate::new(204))
+        .expect(1)
+        .mount(&mock_server)
+        .await;
+
+    // Follow-up query returns a record but the Id field is null
+    Mock::given(method("GET"))
+        .and(path("/services/data/v60.0/query"))
+        .and(query_param(
+            "q",
+            "SELECT Id FROM Account WHERE ExternalId__c = 'ACME-NULL' LIMIT 1",
+        ))
+        .and(header("Authorization", "Bearer test_token"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "totalSize": 1,
+            "done": true,
+            "records": [{
+                "attributes": {
+                    "type": "Account",
+                    "url": "/services/data/v60.0/sobjects/Account/001000000000099AAA"
+                },
+                "Id": null
+            }]
+        })))
+        .expect(1)
+        .mount(&mock_server)
+        .await;
+
+    let result = applier
+        .apply_rest_upsert(
+            "Account",
+            "ExternalId__c",
+            "ACME-NULL",
+            &json!({"Name": "Test"}),
+        )
+        .await;
+
+    let Err(error) = result else {
+        panic!("expected permanent error for null Id field");
+    };
+
+    assert!(
+        matches!(error, ApplyError::Permanent(_)),
+        "expected Permanent error, got: {error}"
+    );
+    let error_text = error.to_string();
+    assert!(
+        error_text.contains("follow-up lookup did not return")
+            || error_text.contains("invalid Salesforce"),
+        "unexpected error message: {error_text}"
+    );
+}

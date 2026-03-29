@@ -694,6 +694,88 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_token_manager_update_token_state_cleared_token_rejects_non_initial() {
+        // Tests the branch at line 68-73: state cleared, is_initial_auth=false -> InvalidToken
+        let auth = MockAuthenticator::new();
+        let manager = TokenManager::new(auth);
+
+        // 1. Set a valid token
+        let _token1 = manager.token().await.must();
+
+        // 2. Clear it
+        manager.clear().await;
+
+        // 3. Force refresh (which calls update_token_state with is_initial_auth=false)
+        // Since the token was cleared, update_token_state should return InvalidToken
+        let result = manager.force_refresh().await;
+        assert!(
+            matches!(
+                result,
+                Err(crate::error::ForceError::Authentication(
+                    crate::error::AuthenticationError::InvalidToken
+                ))
+            ),
+            "Expected InvalidToken error after clearing and force_refresh, got: {result:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_token_manager_soft_expired_refresh_failure_returns_valid_token() {
+        // Tests the branch at line 170-174: soft refresh fails, return old valid token
+        let auth = MockAuthenticator::with_failure();
+        let manager = TokenManager::new(auth);
+
+        // Manually inject a SOFT expired token (still valid but should be refreshed)
+        let soft_token = AccessToken::new(
+            "still_valid_token".to_string(),
+            "https://test.salesforce.com".to_string(),
+            Some(Utc::now() + Duration::seconds(30)), // 30s < 60s buffer = soft expired
+        );
+
+        {
+            let mut state = manager.state.write().await;
+            state.token = Some(StdArc::new(soft_token));
+        }
+
+        // token() should try to refresh (and fail), but return the old valid token
+        let token = manager.token().await.must();
+        assert_eq!(token.as_str(), "still_valid_token");
+    }
+
+    #[tokio::test]
+    async fn test_token_manager_soft_expired_concurrent_returns_latest_token() {
+        // Tests the branch at line 176-179: someone else is refreshing, return latest token
+        let auth = MockAuthenticator::new().with_delay(std::time::Duration::from_millis(200));
+        let manager = StdArc::new(TokenManager::new(auth));
+
+        // Manually inject a SOFT expired token
+        let soft_token = AccessToken::new(
+            "soft_valid_token".to_string(),
+            "https://test.salesforce.com".to_string(),
+            Some(Utc::now() + Duration::seconds(30)),
+        );
+
+        {
+            let mut state = manager.state.write().await;
+            state.token = Some(StdArc::new(soft_token));
+        }
+
+        // Spawn first task that will acquire refresh lock and sleep 200ms
+        let manager_clone = manager.clone();
+        let handle1 = tokio::spawn(async move { manager_clone.token().await.must() });
+
+        // Wait a bit so the first task acquires the lock
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+
+        // Second task should fail to acquire lock and return the latest token
+        let token2 = manager.token().await.must();
+        assert_eq!(token2.as_str(), "soft_valid_token");
+
+        // First task completes with the refreshed token
+        let _token1 = handle1.await.must();
+    }
+
+    #[tokio::test]
     async fn test_token_manager_equality_overwrites() {
         // We need the mock to generate a token with a specific timestamp to ensure equality.
         // Wait, MockAuthenticator just uses `Utc::now()`.
