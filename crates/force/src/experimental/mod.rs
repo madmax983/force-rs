@@ -81,12 +81,12 @@ pub use typescript_generator::generate_typescript_interface;
 #[cfg(feature = "schema")]
 pub(crate) mod openapi_generator;
 #[cfg(feature = "schema")]
-pub use openapi_generator::OpenApiGenerator;
+pub use openapi_generator::generate_openapi_schema;
 
 #[cfg(feature = "schema")]
 pub(crate) mod json_schema;
 #[cfg(feature = "schema")]
-pub use json_schema::JsonSchemaGenerator;
+pub use json_schema::generate_json_schema;
 
 #[cfg(feature = "schema")]
 pub(crate) mod schema_linter;
