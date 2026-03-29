@@ -94,3 +94,8 @@ pub(crate) mod schema_linter;
 pub use schema_linter::{
     LintResult, LintRule, LintSeverity, MissingCustomSuffixRule, SchemaLinter, TooManyFieldsRule,
 };
+
+#[cfg(feature = "nova")]
+pub(crate) mod query_plan_analyzer;
+#[cfg(feature = "nova")]
+pub use query_plan_analyzer::{InsightSeverity, QueryInsight, QueryInsights, analyze_query_plan};
