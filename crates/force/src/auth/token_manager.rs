@@ -834,6 +834,9 @@ mod tests {
         // The initial token() call triggers 1 auth.
         // The 100 force_refresh() calls should trigger EXACTLY 1 refresh, not 100.
         let refresh_count = manager.authenticator.refresh_count();
-        assert_eq!(refresh_count, 1, "👺 Havoc: force_refresh triggered a stampede!");
+        assert_eq!(
+            refresh_count, 1,
+            "👺 Havoc: force_refresh triggered a stampede!"
+        );
     }
 }
