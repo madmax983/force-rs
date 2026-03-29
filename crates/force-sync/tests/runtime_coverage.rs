@@ -91,7 +91,9 @@ async fn insert_journal_and_task(
     let store = PgStore::new(pool.clone());
     let cursor = match source {
         SourceSystem::Postgres => SourceCursor::PostgresLsn(format!("0/{seq:08X}")),
-        SourceSystem::Salesforce => SourceCursor::SalesforceReplayId(i64::try_from(seq).unwrap_or_else(|e| panic!("cursor seq overflow: {e}"))),
+        SourceSystem::Salesforce => SourceCursor::SalesforceReplayId(
+            i64::try_from(seq).unwrap_or_else(|e| panic!("cursor seq overflow: {e}")),
+        ),
     };
     let envelope = ChangeEnvelope::new(
         sync_key(external_id),
