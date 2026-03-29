@@ -540,16 +540,14 @@ mod tests {
         let result: Result<QueryResult<TestAccount>, _> =
             client.rest().query_more(malicious_url).await;
 
-        match result {
-            Err(ForceError::InvalidInput(msg)) => {
-                assert!(msg.contains("Security Error"));
-                assert!(msg.contains("does not match instance origin"));
-            }
-            _ => panic!(
+        let Err(ForceError::InvalidInput(msg)) = result else {
+            panic!(
                 "Expected ForceError::InvalidInput with security warning, got {:?}",
                 result
-            ),
-        }
+            );
+        };
+        assert!(msg.contains("Security Error"));
+        assert!(msg.contains("does not match instance origin"));
     }
 
     #[tokio::test]
@@ -572,16 +570,14 @@ mod tests {
         let result: Result<QueryResult<TestAccount>, _> =
             client.rest().query_more(&malicious_url).await;
 
-        match result {
-            Err(ForceError::InvalidInput(msg)) => {
-                assert!(msg.contains("Security Error"));
-                assert!(msg.contains("does not match instance origin"));
-            }
-            _ => panic!(
+        let Err(ForceError::InvalidInput(msg)) = result else {
+            panic!(
                 "Expected ForceError::InvalidInput with security warning, got {:?}",
                 result
-            ),
-        }
+            );
+        };
+        assert!(msg.contains("Security Error"));
+        assert!(msg.contains("does not match instance origin"));
     }
 
     #[tokio::test]
@@ -605,16 +601,14 @@ mod tests {
         let result: Result<QueryResult<TestAccount>, _> =
             client.rest().query_more(&malicious_url).await;
 
-        match result {
-            Err(ForceError::InvalidInput(msg)) => {
-                assert!(msg.contains("Security Error"));
-                assert!(msg.contains("does not match instance origin"));
-            }
-            _ => panic!(
+        let Err(ForceError::InvalidInput(msg)) = result else {
+            panic!(
                 "Expected ForceError::InvalidInput with security warning, got {:?}",
                 result
-            ),
-        }
+            );
+        };
+        assert!(msg.contains("Security Error"));
+        assert!(msg.contains("does not match instance origin"));
     }
 
     #[tokio::test]
@@ -637,16 +631,14 @@ mod tests {
         let result: Result<QueryResult<TestAccount>, _> =
             client.rest().query_more(&malicious_url).await;
 
-        match result {
-            Err(ForceError::InvalidInput(msg)) => {
-                assert!(msg.contains("Security Error"));
-                assert!(msg.contains("does not match instance origin"));
-            }
-            _ => panic!(
+        let Err(ForceError::InvalidInput(msg)) = result else {
+            panic!(
                 "Expected ForceError::InvalidInput with security warning, got {:?}",
                 result
-            ),
-        }
+            );
+        };
+        assert!(msg.contains("Security Error"));
+        assert!(msg.contains("does not match instance origin"));
     }
 
     #[tokio::test]
@@ -670,15 +662,13 @@ mod tests {
         let result: Result<QueryResult<TestAccount>, _> =
             client.rest().query_more(&malicious_url).await;
 
-        match result {
-            Err(ForceError::InvalidInput(msg)) => {
-                assert!(msg.contains("Security Error"));
-                assert!(msg.contains("does not match instance origin"));
-            }
-            _ => panic!(
+        let Err(ForceError::InvalidInput(msg)) = result else {
+            panic!(
                 "Expected ForceError::InvalidInput with security warning, got {:?}",
                 result
-            ),
-        }
+            );
+        };
+        assert!(msg.contains("Security Error"));
+        assert!(msg.contains("does not match instance origin"));
     }
 }
