@@ -1,6 +1,6 @@
 # force-rs
 
-[![Build Status](https://img.shields.io/github/actions/workflow/status/markm/force-rs/ci.yml?branch=main)](https://github.com/markm/force-rs/actions)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/madmax983/force-rs/ci.yml?branch=main)](https://github.com/madmax983/force-rs/actions)
 [![Crates.io](https://img.shields.io/crates/v/force.svg)](https://crates.io/crates/force)
 [![Documentation](https://docs.rs/force/badge.svg)](https://docs.rs/force)
 [![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](LICENSE-MIT)
