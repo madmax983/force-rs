@@ -104,9 +104,10 @@ pub fn compare_schemas(
     }
 
     // Find removed fields
-    for old_field in old_fields.into_values() {
-        result.removed_fields.push(old_field.clone());
-    }
+    // ⚡ Bolt: Using `extend` automatically pre-allocates the exact capacity needed from the iterator's size hint, preventing multiple vector reallocations.
+    result
+        .removed_fields
+        .extend(old_fields.into_values().cloned());
 
     // Sort to ensure deterministic output
     result.added_fields.sort_by(|a, b| a.name.cmp(&b.name));
