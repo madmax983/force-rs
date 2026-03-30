@@ -132,22 +132,26 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
 
         let lt_str;
         let mode_str;
-        let mut params: Vec<(&str, &str)> = Vec::new();
+        let mut params: Vec<(&str, &str)> = Vec::with_capacity(2);
 
         if let Some(lts) = layout_types {
-            lt_str = lts
-                .iter()
-                .map(crate::api::ui::types::LayoutType::as_str)
-                .collect::<Vec<_>>()
-                .join(",");
+            // ⚡ Bolt: Pre-allocating a String and appending directly avoids the intermediate `Vec` allocation of `.collect::<Vec<_>>().join(",")`
+            let mut buf = String::with_capacity(lts.len() * 10);
+            for (i, lt) in lts.iter().enumerate() {
+                if i > 0 { buf.push(','); }
+                buf.push_str(lt.as_str());
+            }
+            lt_str = buf;
             params.push(("layoutTypes", &lt_str));
         }
         if let Some(ms) = modes {
-            mode_str = ms
-                .iter()
-                .map(crate::api::ui::types::Mode::as_str)
-                .collect::<Vec<_>>()
-                .join(",");
+            // ⚡ Bolt: Pre-allocating a String and appending directly avoids the intermediate `Vec` allocation of `.collect::<Vec<_>>().join(",")`
+            let mut buf = String::with_capacity(ms.len() * 10);
+            for (i, m) in ms.iter().enumerate() {
+                if i > 0 { buf.push(','); }
+                buf.push_str(m.as_str());
+            }
+            mode_str = buf;
             params.push(("modes", &mode_str));
         }
 
@@ -178,7 +182,7 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
         let path = format!("records/{id}");
 
         let fields_str;
-        let mut params: Vec<(&str, &str)> = Vec::new();
+        let mut params: Vec<(&str, &str)> = Vec::with_capacity(2);
 
         if let Some(fs) = fields {
             fields_str = fs.join(",");
@@ -213,7 +217,7 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
         let path = format!("records/batch/{ids_str}");
 
         let fields_str;
-        let mut params: Vec<(&str, &str)> = Vec::new();
+        let mut params: Vec<(&str, &str)> = Vec::with_capacity(2);
 
         if let Some(fs) = fields {
             fields_str = fs.join(",");

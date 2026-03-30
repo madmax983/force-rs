@@ -163,7 +163,7 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
         let path = format!("list-records/{list_view_id}");
 
         let page_size_str;
-        let mut params: Vec<(&str, &str)> = Vec::new();
+        let mut params: Vec<(&str, &str)> = Vec::with_capacity(2);
 
         if let Some(ps) = page_size {
             page_size_str = ps.to_string();

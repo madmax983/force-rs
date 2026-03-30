@@ -105,7 +105,7 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
     ) -> crate::error::Result<RecordLayoutRepresentation> {
         let path = format!("layout/{object}");
 
-        let mut params: Vec<(&str, &str)> = Vec::new();
+        let mut params: Vec<(&str, &str)> = Vec::with_capacity(2);
 
         let lt_str;
         if let Some(lt) = layout_type {
