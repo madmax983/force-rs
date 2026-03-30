@@ -556,7 +556,8 @@ async fn upsert_with_retry_class_impl<A: Authenticator>(
     validate_sobject_name(sobject)?;
     validate_external_id_field(external_id_field)?;
 
-    let encoded_value = utf8_percent_encode(external_id_value, UPSERT_ENCODE_SET).to_string();
+    // ⚡ Bolt: Pass `utf8_percent_encode` directly to `format!` to avoid an intermediate `String` allocation.
+    let encoded_value = utf8_percent_encode(external_id_value, UPSERT_ENCODE_SET);
 
     let relative = format!(
         "sobjects/{}/{}/{}",
