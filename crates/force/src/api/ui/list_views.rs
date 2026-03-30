@@ -162,13 +162,13 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
     ) -> crate::error::Result<ListRecordsRepresentation> {
         let path = format!("list-records/{list_view_id}");
 
-        let page_size_str;
         let mut params: Vec<(&str, &str)> = Vec::new();
 
-        if let Some(ps) = page_size {
-            page_size_str = ps.to_string();
-            params.push(("pageSize", &page_size_str));
+        let page_size_str = page_size.map(|ps| ps.to_string());
+        if let Some(s) = &page_size_str {
+            params.push(("pageSize", s));
         }
+
         if let Some(pt) = page_token {
             params.push(("pageToken", pt));
         }

@@ -130,27 +130,28 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
         let ids_str = ids.join(",");
         let path = format!("record-ui/{ids_str}");
 
-        let mut lt_str = String::new();
-        let mut mode_str = String::new();
         let mut params: Vec<(&str, &str)> = Vec::new();
 
-        if let Some(lts) = layout_types {
-            for (i, lt) in lts.iter().enumerate() {
-                if i > 0 {
-                    lt_str.push(',');
-                }
-                lt_str.push_str(lt.as_str());
-            }
-            params.push(("layoutTypes", &lt_str));
+        let lt_str = layout_types.map(|lts| {
+            lts.iter()
+                .map(crate::api::ui::types::LayoutType::as_str)
+                .collect::<Vec<_>>()
+                .join(",")
+        });
+
+        if let Some(s) = &lt_str {
+            params.push(("layoutTypes", s));
         }
-        if let Some(ms) = modes {
-            for (i, m) in ms.iter().enumerate() {
-                if i > 0 {
-                    mode_str.push(',');
-                }
-                mode_str.push_str(m.as_str());
-            }
-            params.push(("modes", &mode_str));
+
+        let mode_str = modes.map(|ms| {
+            ms.iter()
+                .map(crate::api::ui::types::Mode::as_str)
+                .collect::<Vec<_>>()
+                .join(",")
+        });
+
+        if let Some(s) = &mode_str {
+            params.push(("modes", s));
         }
 
         let query = if params.is_empty() {
@@ -179,12 +180,11 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
     ) -> crate::error::Result<RecordRepresentation> {
         let path = format!("records/{id}");
 
-        let fields_str;
         let mut params: Vec<(&str, &str)> = Vec::new();
 
-        if let Some(fs) = fields {
-            fields_str = fs.join(",");
-            params.push(("fields", &fields_str));
+        let fields_str = fields.map(|fs| fs.join(","));
+        if let Some(s) = &fields_str {
+            params.push(("fields", s));
         }
 
         let query = if params.is_empty() {
@@ -214,12 +214,11 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
         let ids_str = ids.join(",");
         let path = format!("records/batch/{ids_str}");
 
-        let fields_str;
         let mut params: Vec<(&str, &str)> = Vec::new();
 
-        if let Some(fs) = fields {
-            fields_str = fs.join(",");
-            params.push(("fields", &fields_str));
+        let fields_str = fields.map(|fs| fs.join(","));
+        if let Some(s) = &fields_str {
+            params.push(("fields", s));
         }
 
         let query = if params.is_empty() {

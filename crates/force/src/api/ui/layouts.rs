@@ -107,16 +107,14 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
 
         let mut params: Vec<(&str, &str)> = Vec::new();
 
-        let lt_str;
-        if let Some(lt) = layout_type {
-            lt_str = lt.as_str();
-            params.push(("layoutType", lt_str));
+        let lt_str = layout_type.map(|lt| lt.as_str());
+        if let Some(s) = &lt_str {
+            params.push(("layoutType", s));
         }
 
-        let mode_str;
-        if let Some(m) = mode {
-            mode_str = m.as_str();
-            params.push(("mode", mode_str));
+        let mode_str = mode.map(|m| m.as_str());
+        if let Some(s) = &mode_str {
+            params.push(("mode", s));
         }
 
         let query = if params.is_empty() {
