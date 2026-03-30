@@ -27,6 +27,9 @@ pub(crate) mod type_generator;
 #[cfg(feature = "schema")]
 pub(crate) mod schema_diff;
 
+#[cfg(feature = "schema")]
+pub(crate) mod dependency_mapper;
+
 #[cfg(feature = "data_utility")]
 pub(crate) mod data_faker;
 
@@ -57,6 +60,9 @@ pub use type_generator::generate_rust_struct;
 
 #[cfg(feature = "schema")]
 pub use schema_diff::{FieldChange, SchemaDiffResult, compare_schemas};
+
+#[cfg(feature = "schema")]
+pub use dependency_mapper::{DependencyNode, SObjectDependencyMapper};
 
 #[cfg(feature = "data_utility")]
 pub use data_faker::generate_mock_record;
