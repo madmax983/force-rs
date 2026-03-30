@@ -1,0 +1,10 @@
+def explain_logic():
+    print("Wait! `t1` reads `initial`, which is 'old_rt'. Then `t1` calls `refresh()`.")
+    print("If `t2` runs, sets to 'new_rt'. Then `t1` reads inside `refresh()`, it sees 'new_rt'.")
+    print("Then `t1` yields. `t2` already ran.")
+    print("Then `t1` clears 'new_rt' because `stored == Some('new_rt')` and `rt == 'new_rt'`!")
+    print("If `t1` clears 'new_rt', the final state is `None`!")
+    print("BUT `t1` was supposed to be refreshing 'old_rt'. The fact that `t1` read 'new_rt' INSIDE `refresh()` means it refreshed 'new_rt' and failed. So `None` is CORRECT in that interleaving!")
+    print("How do we distinguish? We can just pass the token we WANT to refresh into `refresh()`?")
+    print("No, in the real code, `refresh()` fetches the token inside.")
+explain_logic()

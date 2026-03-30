@@ -5,9 +5,11 @@ members = ["crates/force", "crates/force-pubsub", "crates/force-sync"]
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.85"
 authors = ["Mark M"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/madmax983/force-rs"
+homepage = "https://github.com/madmax983/force-rs"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

@@ -181,3 +181,154 @@ pub async fn load_replay_id(
         .map(|checkpoint| replay_id_from_position(checkpoint.cursor_position))
         .transpose()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    // ── change_operation ──────────────────────────────────────────────
+
+    #[test]
+    fn change_operation_returns_delete_for_delete_change_type() {
+        let payload = json!({
+            "ChangeEventHeader": {
+                "changeType": "DELETE"
+            }
+        });
+        assert_eq!(change_operation(&payload), ChangeOperation::Delete);
+    }
+
+    #[test]
+    fn change_operation_returns_upsert_for_create_change_type() {
+        let payload = json!({
+            "ChangeEventHeader": {
+                "changeType": "CREATE"
+            }
+        });
+        assert_eq!(change_operation(&payload), ChangeOperation::Upsert);
+    }
+
+    #[test]
+    fn change_operation_returns_upsert_for_update_change_type() {
+        let payload = json!({
+            "ChangeEventHeader": {
+                "changeType": "UPDATE"
+            }
+        });
+        assert_eq!(change_operation(&payload), ChangeOperation::Upsert);
+    }
+
+    #[test]
+    fn change_operation_returns_upsert_when_header_missing() {
+        let payload = json!({"Name": "Acme"});
+        assert_eq!(change_operation(&payload), ChangeOperation::Upsert);
+    }
+
+    #[test]
+    fn change_operation_returns_upsert_when_change_type_missing() {
+        let payload = json!({
+            "ChangeEventHeader": {
+                "entityName": "Account"
+            }
+        });
+        assert_eq!(change_operation(&payload), ChangeOperation::Upsert);
+    }
+
+    // ── replay_id_to_position ─────────────────────────────────────────
+
+    #[test]
+    fn replay_id_to_position_single_byte() {
+        let replay = ReplayId::from_bytes(vec![42]);
+        let Ok(pos) = replay_id_to_position(&replay) else {
+            panic!("expected Ok for single-byte replay id");
+        };
+        assert_eq!(pos, 42);
+    }
+
+    #[test]
+    fn replay_id_to_position_multi_byte() {
+        // 256 = 0x01 0x00
+        let replay = ReplayId::from_bytes(vec![1, 0]);
+        let Ok(pos) = replay_id_to_position(&replay) else {
+            panic!("expected Ok for multi-byte replay id");
+        };
+        assert_eq!(pos, 256);
+    }
+
+    #[test]
+    fn replay_id_to_position_full_8_bytes() {
+        let replay = ReplayId::from_bytes(vec![0, 0, 0, 0, 0, 0, 1, 0]);
+        let Ok(pos) = replay_id_to_position(&replay) else {
+            panic!("expected Ok for 8-byte replay id");
+        };
+        assert_eq!(pos, 256);
+    }
+
+    #[test]
+    fn replay_id_to_position_rejects_more_than_8_bytes() {
+        let replay = ReplayId::from_bytes(vec![0; 9]);
+        assert!(matches!(
+            replay_id_to_position(&replay),
+            Err(ForceSyncError::InvalidStoredValue { .. })
+        ));
+    }
+
+    #[test]
+    fn replay_id_to_position_rejects_value_exceeding_i64_max() {
+        // 0xFF repeated 8 times = u64::MAX which exceeds i64::MAX
+        let replay = ReplayId::from_bytes(vec![0xFF; 8]);
+        assert!(matches!(
+            replay_id_to_position(&replay),
+            Err(ForceSyncError::InvalidStoredValue { .. })
+        ));
+    }
+
+    // ── replay_id_from_position ───────────────────────────────────────
+
+    #[test]
+    fn replay_id_from_position_small_value() {
+        let Ok(replay) = replay_id_from_position(42) else {
+            panic!("expected Ok for small position");
+        };
+        assert_eq!(replay.as_bytes(), &[42]);
+    }
+
+    #[test]
+    fn replay_id_from_position_multi_byte_value() {
+        let Ok(replay) = replay_id_from_position(256) else {
+            panic!("expected Ok for multi-byte position");
+        };
+        assert_eq!(replay.as_bytes(), &[1, 0]);
+    }
+
+    #[test]
+    fn replay_id_from_position_zero() {
+        let Ok(replay) = replay_id_from_position(0) else {
+            panic!("expected Ok for zero position");
+        };
+        assert_eq!(replay.as_bytes(), &[0]);
+    }
+
+    #[test]
+    fn replay_id_from_position_rejects_negative() {
+        assert!(matches!(
+            replay_id_from_position(-1),
+            Err(ForceSyncError::InvalidStoredValue { .. })
+        ));
+    }
+
+    // ── round-trip ────────────────────────────────────────────────────
+
+    #[test]
+    fn replay_id_round_trip_preserves_value() {
+        let original_position: i64 = 123_456;
+        let Ok(replay) = replay_id_from_position(original_position) else {
+            panic!("expected Ok for from_position");
+        };
+        let Ok(recovered) = replay_id_to_position(&replay) else {
+            panic!("expected Ok for to_position");
+        };
+        assert_eq!(recovered, original_position);
+    }
+}

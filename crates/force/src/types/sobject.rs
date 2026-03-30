@@ -436,6 +436,39 @@ mod tests {
     }
 
     #[test]
+    fn test_dynamic_sobject_from_value_missing_attributes() {
+        // from_value should fail when attributes are missing
+        let json = json!({
+            "Name": "Acme Corp",
+            "Industry": "Technology"
+        });
+        let result = DynamicSObject::from_value(json);
+        assert!(result.is_err(), "Expected error for missing attributes");
+    }
+
+    #[test]
+    fn test_dynamic_sobject_remove_field_nonexistent() {
+        let id = SalesforceId::new("001000000000001AAA").must();
+        let attrs = Attributes::new("Account", &id, "v60.0");
+        let mut sobject = DynamicSObject::new(attrs);
+
+        // Removing a field that doesn't exist should return None
+        let removed = sobject.remove_field("NonexistentField");
+        assert!(removed.is_none());
+    }
+
+    #[test]
+    fn test_dynamic_sobject_get_field_nonexistent() {
+        let id = SalesforceId::new("001000000000001AAA").must();
+        let attrs = Attributes::new("Account", &id, "v60.0");
+        let sobject = DynamicSObject::new(attrs);
+
+        assert!(sobject.get_field("NonexistentField").is_none());
+        let result: Result<Option<String>, _> = sobject.get_field_as("NonexistentField");
+        assert_eq!(result.must(), None);
+    }
+
+    #[test]
     fn test_roundtrip_serialization() {
         let id = SalesforceId::new("001000000000001AAA").must();
         let attrs = Attributes::new("Account", &id, "v60.0");
