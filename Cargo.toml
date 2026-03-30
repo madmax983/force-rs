@@ -24,7 +24,7 @@ expect_used = "warn"
 tokio = { version = "1.42", features = ["full"] }
 
 # HTTP client
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls-webpki-roots", "json"] }
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
@@ -62,7 +62,7 @@ quick-xml = "0.37"
 wiremock = "0.6"
 
 # gRPC/Protobuf (for pub_sub)
-tonic = "0.12"
+tonic = { version = "0.12", default-features = false }
 prost = "0.13"
 apache-avro = "0.17"
 dashmap = "6"

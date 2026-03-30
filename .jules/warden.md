@@ -41,3 +41,6 @@
 **2024-05-24 - [Unbounded memory allocation during HTTP error response parsing]
 **Threat:** A Denial of Service (DoS) vulnerability via memory exhaustion. In client_credentials and jwt_bearer authenticators, the `response.text().await` call unbounded memory allocations reading error payloads. A malicious or misconfigured server returning a multi-gigabyte error body could crash the application.
 **Defense:** Replaced unbounded `.text().await` with a 1MB capped stream reader via `response.bytes_stream()` paired with `String::from_utf8_lossy()` to safely bound memory usage while parsing Salesforce error responses.
+**2025-03-07 - [Unmaintained rustls-pemfile via tonic]
+**Threat:** [The rustls-pemfile crate v2.2.0 is unmaintained and flagged by cargo audit. It's pulled in via tonic v0.12.3 which force-pubsub depends on.]
+**Defense:** [No fix implemented currently. Updating to tonic v0.14.x requires further refactoring for force-pubsub (prost, tonic-build incompatibility).]
