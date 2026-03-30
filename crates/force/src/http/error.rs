@@ -47,6 +47,33 @@ pub fn parse_api_error(status_code: u16, body: &str) -> HttpError {
     }
 }
 
+/// Reads an HTTP response body up to a maximum size limit to prevent memory exhaustion DoS.
+///
+/// ⚡ Bolt: Centralizes safely capped HTTP body reading to prevent malicious large chunks
+/// from bypassing after-the-fact length checks, while maintaining a single pre-allocated buffer.
+pub async fn read_capped_body(response: Response, limit: usize) -> Vec<u8> {
+    let mut stream = response.bytes_stream();
+    let mut bytes = Vec::with_capacity(4096.min(limit));
+
+    while let Some(chunk_res) = stream.next().await {
+        if let Ok(chunk) = chunk_res {
+            let remaining = limit.saturating_sub(bytes.len());
+            if remaining == 0 {
+                break;
+            }
+            let to_copy = remaining.min(chunk.len());
+            bytes.extend_from_slice(&chunk[..to_copy]);
+
+            if bytes.len() >= limit {
+                break;
+            }
+        } else {
+            break;
+        }
+    }
+    bytes
+}
+
 /// Converts an HTTP error response into a `ForceError` using Salesforce-aware parsing.
 ///
 /// If the response body is empty or unreadable, falls back to `fallback_message`.
@@ -57,21 +84,7 @@ pub async fn response_to_force_error(
     let status_code = response.status().as_u16();
 
     // Read up to 1MB to prevent memory exhaustion DoS
-    let mut stream = response.bytes_stream();
-    #[allow(unused_doc_comments)]
-    /// ⚡ Bolt: Pre-allocate capacity for the error body to minimize reallocations
-    let mut bytes = Vec::with_capacity(4096);
-    while let Some(chunk) = stream.next().await {
-        if let Ok(chunk_bytes) = chunk {
-            bytes.extend_from_slice(&chunk_bytes);
-            if bytes.len() > 1024 * 1024 {
-                bytes.truncate(1024 * 1024);
-                break;
-            }
-        } else {
-            break;
-        }
-    }
+    let bytes = read_capped_body(response, 1024 * 1024).await;
     let body = String::from_utf8_lossy(&bytes).into_owned();
 
     let payload = if body.trim().is_empty() {
