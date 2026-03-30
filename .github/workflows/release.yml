@@ -85,7 +85,7 @@ jobs:
           check_published() {
             local crate="$1"
             local output_name="$2"
-            if curl -fsSL "https://crates.io/api/v1/crates/${crate}/${version}" >/dev/null; then
+            if curl -fsSL -A "force-rs-release-check" "https://crates.io/api/v1/crates/${crate}/${version}" >/dev/null; then
               echo "${output_name}=true" >> "$GITHUB_OUTPUT"
               echo "${crate} ${version} is already published; skipping upload."
             else
