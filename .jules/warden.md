@@ -44,3 +44,6 @@
 **2026-03-22 - Prevent Memory Exhaustion DoS in HTTP Error Parsing
 **Threat:** Maliciously large chunks from Salesforce API responses could bypass previous byte.len() > limit checks, allowing an unbounded `extend_from_slice` to exhaust memory causing Denial of Service.
 **Defense:** Created `read_capped_body` which uses `saturating_sub` to calculate remaining bounds and slices the chunk via `&chunk_bytes[..remaining]` to strictly cap the buffer allocation. Applied to all authenticators and base HTTP error parser.
+**2025-02-23 - Prevent Memory Exhaustion DoS in Bulk APIs**
+**Threat:** Unbounded memory allocation when downloading large CSV files via `.bytes()` in `api/bulk/query.rs` and `api/bulk/ingest.rs`. Since Bulk API 2.0 can return files up to 1GB in size, a malicious payload or large response could lead to an Out-of-Memory (OOM) Denial-of-Service condition.
+**Defense:** Replaced unbounded `.bytes()` calls with the `read_capped_bytes` utility. This utility leverages `response.bytes_stream()` to read data chunk-by-chunk, strictly bounding the internal allocation limit up to a maximum of 1GB (`1024 * 1024 * 1024` bytes) using `saturating_sub()`.
