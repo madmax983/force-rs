@@ -75,26 +75,52 @@ jobs:
             echo "Running in PUBLISH mode"
           fi
 
+      - name: Check published crate versions
+        id: published
+        shell: bash
+        run: |
+          version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+          check_published() {
+            local crate="$1"
+            local output_name="$2"
+            if curl -fsSL "https://crates.io/api/v1/crates/${crate}/${version}" >/dev/null; then
+              echo "${output_name}=true" >> "$GITHUB_OUTPUT"
+              echo "${crate} ${version} is already published; skipping upload."
+            else
+              echo "${output_name}=false" >> "$GITHUB_OUTPUT"
+              echo "${crate} ${version} is not published yet; upload required."
+            fi
+          }
+
+          check_published force force
+          check_published force-pubsub force_pubsub
+          check_published force-sync force_sync
+
       # Publish in dependency order: force -> force-pubsub -> force-sync
       - name: Publish force
+        if: steps.dry-run.outputs.flag != '' || steps.published.outputs.force != 'true'
         run: cargo publish -p force ${{ steps.dry-run.outputs.flag }}
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
       - name: Wait for crates.io index
-        if: steps.dry-run.outputs.flag == ''
+        if: steps.dry-run.outputs.flag == '' && steps.published.outputs.force != 'true'
         run: sleep 30
 
       - name: Publish force-pubsub
+        if: steps.dry-run.outputs.flag != '' || steps.published.outputs.force_pubsub != 'true'
         run: cargo publish -p force-pubsub ${{ steps.dry-run.outputs.flag }}
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
       - name: Wait for crates.io index
-        if: steps.dry-run.outputs.flag == ''
+        if: steps.dry-run.outputs.flag == '' && steps.published.outputs.force_pubsub != 'true'
         run: sleep 30
 
       - name: Publish force-sync
+        if: steps.dry-run.outputs.flag != '' || steps.published.outputs.force_sync != 'true'
         run: cargo publish -p force-sync ${{ steps.dry-run.outputs.flag }}
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
