@@ -89,21 +89,9 @@ impl<A: Authenticator> TokenManager<A> {
     ///
     /// This is an internal method to avoid cloning the token for internal use.
     pub(crate) async fn get_token_arc(&self) -> Result<Arc<AccessToken>> {
-        // Evaluate everything under a single read lock guard
-        let (is_soft_expired, is_hard_expired_actual, current_token) = {
-            let state = self.state.read().await;
-            if let Some(token) = &state.token {
-                (
-                    token.is_soft_expired(),
-                    token.is_hard_expired(),
-                    Some(token.clone()),
-                )
-            } else {
-                (false, true, None)
-            }
-        }; // Read lock dropped here
+        let (is_soft_expired, is_hard_expired_actual, current_token) =
+            self.evaluate_token_state().await;
 
-        // Fast path: check if current token is valid (not soft expired)
         if let Some(token) = current_token.as_ref() {
             if !is_soft_expired && !is_hard_expired_actual {
                 return Ok(token.clone());
@@ -111,78 +99,82 @@ impl<A: Authenticator> TokenManager<A> {
         }
 
         if is_hard_expired_actual {
-            // Must block and refresh.
-            // Acquire refresh lock to ensure only one thread refreshes.
-            let _lock = self.refresh_lock.lock().await;
-
-            // Double-check state (another thread might have refreshed while we waited for lock)
-            {
-                let state = self.state.read().await;
-                if let Some(token) = &state.token {
-                    if !token.is_hard_expired() {
-                        return Ok(token.clone());
-                    }
-                }
-            }
-
-            // Perform refresh/auth
-            // We need to check if we have a token to refresh, or if we need initial auth.
-            let has_token = {
-                let state = self.state.read().await;
-                state.token.is_some()
-            };
-
-            let new_token = if has_token {
-                self.authenticator.refresh().await?
-            } else {
-                self.authenticator.authenticate().await?
-            };
-
-            // ⚡ Bolt: Moving `new_token` directly into `Arc` avoids an unnecessary `.clone()` allocation
-            // when transferring ownership, saving one heap allocation per token refresh/auth.
-            let arc_token = Arc::new(new_token);
-            self.update_token_state(arc_token, !has_token).await
+            self.handle_hard_refresh().await
         } else if let Some(valid_token) = current_token {
-            // Soft expired. We have a valid token (valid_token).
-            // Try to acquire refresh lock.
-            if let Ok(_lock) = self.refresh_lock.try_lock() {
-                // Double-check state (another thread might have refreshed)
-                {
-                    let state = self.state.read().await;
-                    if let Some(token) = &state.token {
-                        if !token.is_soft_expired() && !token.is_hard_expired() {
-                            return Ok(token.clone());
-                        }
-                    }
-                }
-
-                // We are the refresher.
-                // Perform refresh.
-                let refresh_result = self.authenticator.refresh().await;
-
-                match refresh_result {
-                    Ok(new_token) => {
-                        // ⚡ Bolt: Moving `new_token` directly into `Arc` avoids an unnecessary `.clone()` allocation
-                        // when transferring ownership, saving one heap allocation per token refresh.
-                        let arc_token = Arc::new(new_token);
-                        self.update_token_state(arc_token, false).await
-                    }
-                    Err(_) => {
-                        // Refresh failed. Return the old token which is still valid (soft expired).
-                        // We swallow the error here because the user can still proceed.
-                        Ok(self.latest_token_or(valid_token).await)
-                    }
-                }
-            } else {
-                // Someone else is refreshing. Return the latest published token if one is already visible.
-                Ok(self.latest_token_or(valid_token).await)
-            }
+            self.handle_soft_refresh(valid_token).await
         } else {
-            // This path should be unreachable:
-            // if current_token is None, is_hard_expired would be true.
             Err(crate::error::ForceError::Authentication(
                 crate::error::AuthenticationError::InvalidToken,
             ))
+        }
+    }
+
+    async fn evaluate_token_state(&self) -> (bool, bool, Option<Arc<AccessToken>>) {
+        let state = self.state.read().await;
+        if let Some(token) = &state.token {
+            (
+                token.is_soft_expired(),
+                token.is_hard_expired(),
+                Some(token.clone()),
+            )
+        } else {
+            (false, true, None)
+        }
+    }
+
+    async fn handle_hard_refresh(&self) -> Result<Arc<AccessToken>> {
+        let _lock = self.refresh_lock.lock().await;
+
+        {
+            let state = self.state.read().await;
+            if let Some(token) = &state.token {
+                if !token.is_hard_expired() {
+                    return Ok(token.clone());
+                }
+            }
+        }
+
+        let has_token = {
+            let state = self.state.read().await;
+            state.token.is_some()
+        };
+
+        let new_token = if has_token {
+            self.authenticator.refresh().await?
+        } else {
+            self.authenticator.authenticate().await?
+        };
+
+        // ⚡ Bolt: Moving `new_token` directly into `Arc` avoids an unnecessary `.clone()` allocation
+        // when transferring ownership, saving one heap allocation per token refresh/auth.
+        let arc_token = Arc::new(new_token);
+        self.update_token_state(arc_token, !has_token).await
+    }
+
+    async fn handle_soft_refresh(&self, valid_token: Arc<AccessToken>) -> Result<Arc<AccessToken>> {
+        let Ok(_lock) = self.refresh_lock.try_lock() else {
+            return Ok(self.latest_token_or(valid_token).await);
+        };
+
+        {
+            let state = self.state.read().await;
+            if let Some(token) = &state.token {
+                if !token.is_soft_expired() && !token.is_hard_expired() {
+                    return Ok(token.clone());
+                }
+            }
+        }
+
+        let refresh_result = self.authenticator.refresh().await;
+
+        match refresh_result {
+            Ok(new_token) => {
+                // ⚡ Bolt: Moving `new_token` directly into `Arc` avoids an unnecessary `.clone()` allocation
+                // when transferring ownership, saving one heap allocation per token refresh.
+                let arc_token = Arc::new(new_token);
+                self.update_token_state(arc_token, false).await
+            }
+            Err(_) => Ok(self.latest_token_or(valid_token).await),
         }
     }
 

@@ -55,6 +55,10 @@
 **Learning:** Double `match` statements ("Pyramid of Doom") on Result/Error enum variants make simple logic unnecessarily nested and harder to quickly scan.
 **Action:** Prefer `if let` guard clauses to handle outer wrappers, flattening the logic into a single un-nested match statement.
 
-**[Flatten test error matching]**
-**Learning:** Using `match` blocks to assert specific error variants in tests introduces unnecessary nesting (Pyramid of Doom).
-**Action:** Prefer using `let Err(...) = result else { panic!(...) }` guard clauses to flatten test assertions.
+**Flattening `get_token_arc` in TokenManager**
+**Learning:** `get_token_arc` was a 115-line "God Function" full of nested `if/else` and `match` statements trying to handle multiple responsibilities (fast path, hard refresh, soft refresh).
+**Action:** Extract large functional branches like `handle_hard_refresh` and `handle_soft_refresh` into private helper methods. Using "Guard Clauses" (early returns) flattens the structure and makes the function read like a series of simple decisions rather than a "Pyramid of Doom".
+
+**Removing `allow(clippy::unwrap_used)` in Tests**
+**Learning:** The workspace strictly enforces `-D clippy::unwrap_used`, but many test files bypassed it and used `.unwrap()` instead of the custom `.must()` extension trait.
+**Action:** Remove the `allow` directive, replace `.unwrap()` with `.must()`, and ensure `Must` is imported (`use crate::test_support::Must;`). This maintains strictness and improves code consistency.

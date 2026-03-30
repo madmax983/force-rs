@@ -354,11 +354,12 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
 
 #[cfg(test)]
 mod tests {
-    #![allow(clippy::unwrap_used)]
+    use crate::test_support::Must;
+
     use super::*;
     use crate::api::ui::types::{LayoutType, Mode};
     use crate::client::builder;
-    use crate::test_support::{MockAuthenticator, Must};
+    use crate::test_support::MockAuthenticator;
     use serde_json::json;
     use wiremock::matchers::{method, path, query_param};
     use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -976,7 +977,7 @@ mod tests {
             "systemModstamp": "2024-01-01T00:00:00.000Z"
         }"#;
 
-        let record: RecordRepresentation = serde_json::from_str(json_str).unwrap();
+        let record: RecordRepresentation = serde_json::from_str(json_str).must();
         assert_eq!(record.api_name, "Contact");
         assert_eq!(record.id.as_deref(), Some("003000000000001AAA"));
         assert!(record.fields.contains_key("FirstName"));
@@ -996,7 +997,7 @@ mod tests {
             fields,
         };
 
-        let serialized = serde_json::to_value(&input).unwrap();
+        let serialized = serde_json::to_value(&input).must();
         assert_eq!(serialized["apiName"], "Account");
         assert_eq!(serialized["fields"]["Name"], "Test");
     }
@@ -1007,14 +1008,14 @@ mod tests {
         fields.insert("Phone".to_string(), json!("+1-555-9999"));
 
         let input = UpdateRecordInput { fields };
-        let serialized = serde_json::to_value(&input).unwrap();
+        let serialized = serde_json::to_value(&input).must();
         assert_eq!(serialized["fields"]["Phone"], "+1-555-9999");
     }
 
     #[test]
     fn test_batch_result_representation_deserialize() {
         let json_str = r#"{"hasErrors": false, "results": []}"#;
-        let result: BatchResultRepresentation = serde_json::from_str(json_str).unwrap();
+        let result: BatchResultRepresentation = serde_json::from_str(json_str).must();
         assert!(!result.has_errors);
         assert!(result.results.is_empty());
     }
@@ -1027,7 +1028,7 @@ mod tests {
             "objectInfos": {},
             "records": {}
         }"#;
-        let ui: RecordUiRepresentation = serde_json::from_str(json_str).unwrap();
+        let ui: RecordUiRepresentation = serde_json::from_str(json_str).must();
         assert!(ui.records.is_empty());
     }
 }
