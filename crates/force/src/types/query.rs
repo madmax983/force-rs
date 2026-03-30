@@ -664,6 +664,35 @@ mod tests {
     }
 
     #[test]
+    fn test_query_result_into_records() {
+        let result: QueryResult<i32> = QueryResult::new(3, true, vec![10, 20, 30]);
+        let records: Vec<i32> = result.into_records().collect();
+        assert_eq!(records, vec![10, 20, 30]);
+    }
+
+    #[test]
+    fn test_query_iterator_size_hint() {
+        let page1: QueryResult<i32> = QueryResult::with_next_page(5, vec![1, 2, 3], "/next".into());
+        let page2: QueryResult<i32> = QueryResult::new(5, true, vec![4, 5]);
+
+        let mut iter = QueryIterator::new(vec![page1, page2]);
+        assert_eq!(iter.size_hint(), (5, Some(5)));
+
+        let _ = iter.next(); // yields 1
+        assert_eq!(iter.size_hint(), (4, Some(4)));
+
+        let _ = iter.next(); // yields 2
+        let _ = iter.next(); // yields 3
+        assert_eq!(iter.size_hint(), (2, Some(2)));
+
+        let _ = iter.next(); // yields 4
+        let _ = iter.next(); // yields 5
+        assert_eq!(iter.size_hint(), (0, Some(0)));
+
+        assert!(iter.next().is_none());
+    }
+
+    #[test]
     fn test_query_iterator_empty_middle_page() {
         let page1: QueryResult<i32> = QueryResult::with_next_page(5, vec![1, 2], "/next1".into());
         let page2: QueryResult<i32> = QueryResult::with_next_page(5, vec![], "/next2".into());

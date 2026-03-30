@@ -452,12 +452,10 @@ mod tests {
         let builder = create_builder().await;
         let result = builder.execute().await;
 
-        match result {
-            Err(ForceError::Serialization(e)) => {
-                assert!(e.to_string().contains("Graph request cannot be empty"));
-            }
-            _ => panic!("Expected Serialization error, got {:?}", result),
-        }
+        let Err(ForceError::Serialization(e)) = result else {
+            panic!("Expected Serialization error, got {:?}", result);
+        };
+        assert!(e.to_string().contains("Graph request cannot be empty"));
     }
 
     #[test]
@@ -510,18 +508,13 @@ mod tests {
 
         let result = graph.get("Account", "../../../../../etc/passwd", "ref1");
 
-        let Err(err) = result else {
-            panic!("Expected an error");
-        };
-        match err {
-            crate::error::ForceError::InvalidInput(msg) => {
-                assert!(msg.contains("invalid path traversal characters"));
-            }
-            _ => panic!(
+        let Err(crate::error::ForceError::InvalidInput(msg)) = result else {
+            panic!(
                 "Expected InvalidInput error for path traversal, got: {:?}",
-                err
-            ),
-        }
+                result
+            );
+        };
+        assert!(msg.contains("invalid path traversal characters"));
     }
 
     #[test]
@@ -530,18 +523,13 @@ mod tests {
 
         let result = graph.get("Account", "001xx000003DHP0AAO", "invalid ref id! @#$");
 
-        let Err(err) = result else {
-            panic!("Expected an error");
-        };
-        match err {
-            crate::error::ForceError::InvalidInput(msg) => {
-                assert!(msg.contains("Reference ID contains invalid characters"));
-            }
-            _ => panic!(
+        let Err(crate::error::ForceError::InvalidInput(msg)) = result else {
+            panic!(
                 "Expected InvalidInput error for invalid reference id, got: {:?}",
-                err
-            ),
-        }
+                result
+            );
+        };
+        assert!(msg.contains("Reference ID contains invalid characters"));
     }
 
     #[test]
@@ -565,15 +553,13 @@ mod tests {
         for id in invalid_ids {
             let result = validate_reference_id(id);
             assert!(result.is_err(), "Expected {} to be invalid", id);
-            match result {
-                Err(ForceError::InvalidInput(msg)) => {
-                    if id.is_empty() {
-                        assert_eq!(msg, "Reference ID cannot be empty");
-                    } else {
-                        assert!(msg.contains("Reference ID contains invalid characters:"));
-                    }
-                }
-                _ => panic!("Expected InvalidInput error for {}", id),
+            let Err(ForceError::InvalidInput(msg)) = result else {
+                panic!("Expected InvalidInput error for {}", id);
+            };
+            if id.is_empty() {
+                assert_eq!(msg, "Reference ID cannot be empty");
+            } else {
+                assert!(msg.contains("Reference ID contains invalid characters:"));
             }
         }
     }
@@ -609,15 +595,13 @@ mod tests {
             let graph = Graph::new("graph1");
             let result = graph.get("Account", id, "ref1");
             assert!(result.is_err(), "Expected {} to be invalid graph id", id);
-            match result {
-                Err(ForceError::InvalidInput(msg)) => {
-                    if id.is_empty() {
-                        assert_eq!(msg, "ID cannot be empty");
-                    } else {
-                        assert!(msg.contains("ID contains invalid path traversal characters:"));
-                    }
-                }
-                _ => panic!("Expected InvalidInput error for {}", id),
+            let Err(ForceError::InvalidInput(msg)) = result else {
+                panic!("Expected InvalidInput error for {}", id);
+            };
+            if id.is_empty() {
+                assert_eq!(msg, "ID cannot be empty");
+            } else {
+                assert!(msg.contains("ID contains invalid path traversal characters:"));
             }
         }
     }

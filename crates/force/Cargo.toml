@@ -10,7 +10,7 @@ keywords = ["salesforce", "api", "rest", "bulk", "crm"]
 categories = ["api-bindings", "web-programming"]
 documentation = "https://docs.rs/force"
 homepage = "https://github.com/madmax983/force-rs"
-readme = "README.md"
+readme = "../../README.md"
 
 [lints]
 workspace = true
@@ -47,6 +47,7 @@ proptest = "1.5"
 
 [features]
 default = ["rest"]
+nova = ["rest"]
 
 # Platform API surfaces
 rest = []
@@ -86,7 +87,7 @@ consent = []
 
 # Meta features
 full = ["rest", "bulk", "composite", "tooling", "jwt", "ui", "graphql", "data_cloud", "apex_rest", "consent"]
-all = ["full", "schema", "data_utility", "composite_graph", "cpq"]
+all = ["full", "schema", "data_utility", "composite_graph", "cpq", "nova"]
 
 [[example]]
 name = "query_plan"

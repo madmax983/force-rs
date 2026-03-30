@@ -1,0 +1,38 @@
+[package]
+name = "force-sync"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version = "1.85"
+description = "Correctness-first bidirectional Salesforce and Postgres sync engine"
+keywords = ["salesforce", "postgres", "sync", "cdc", "crm"]
+categories = ["api-bindings", "database"]
+documentation = "https://docs.rs/force-sync"
+homepage = "https://github.com/madmax983/force-rs"
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[dependencies]
+force = { path = "../force", version = "0.1.0", features = ["rest", "bulk", "composite"] }
+force-pubsub = { path = "../force-pubsub", version = "0.1.0" }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+chrono = { workspace = true }
+bytes = { workspace = true }
+futures = { workspace = true }
+deadpool-postgres = { workspace = true }
+tokio-postgres = { workspace = true }
+blake3 = { workspace = true }
+
+[dev-dependencies]
+anyhow = { workspace = true }
+async-trait = { workspace = true }
+proptest = "1.7"
+wiremock = { workspace = true }

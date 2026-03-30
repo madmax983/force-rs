@@ -306,12 +306,12 @@ mod integration_tests {
             })
             .await;
 
-        match result {
-            Err(ForceError::Http(crate::error::HttpError::StatusError { status_code, .. })) => {
-                assert_eq!(status_code, 503);
-            }
-            _ => panic!("Expected 503 status error for non-retried mutation"),
-        }
+        let Err(ForceError::Http(crate::error::HttpError::StatusError { status_code, .. })) =
+            result
+        else {
+            panic!("Expected 503 status error for non-retried mutation");
+        };
+        assert_eq!(status_code, 503);
     }
 
     #[tokio::test]

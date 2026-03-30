@@ -8,12 +8,15 @@ repository.workspace = true
 description = "Salesforce Pub/Sub API (gRPC) client for force-rs"
 keywords = ["salesforce", "pubsub", "grpc", "streaming", "events"]
 categories = ["api-bindings", "web-programming"]
+documentation = "https://docs.rs/force-pubsub"
+homepage = "https://github.com/madmax983/force-rs"
+readme = "README.md"
 
 [lints]
 workspace = true
 
 [dependencies]
-force = { path = "../force" }
+force = { path = "../force", version = "0.1.0" }
 reqwest = { workspace = true }
 tonic = { workspace = true, features = ["tls-webpki-roots"] }
 prost = { workspace = true }
@@ -38,7 +41,7 @@ tokio-test = "0.4"
 tokio-stream = { workspace = true, features = ["net"] }
 anyhow = { workspace = true }
 async-trait = { workspace = true }
-force = { path = "../force" }
+force = { path = "../force", version = "0.1.0" }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 wiremock = { workspace = true }
 futures = { workspace = true }
