@@ -1,3 +1,4 @@
+#![allow(clippy::duration_suboptimal_units)]
 //! HTTP retry logic and policies.
 
 use reqwest::Method;
@@ -228,7 +229,7 @@ mod tests {
 
     #[test]
     fn test_exponential_backoff_respects_large_base() {
-        let base = Duration::from_secs(60);
+        let base = std::time::Duration::from_secs(60);
         // We expect at least 60s, but the old implementation capped it at 30s
         assert_eq!(exponential_backoff(0, base).as_secs(), 60);
     }

@@ -74,11 +74,11 @@ fn env_u64(key: &str, default: u64) -> u64 {
 
 fn env_flag(key: &str) -> bool {
     std::env::var(key)
-        .map(|value| {
+        .is_ok_and(|value| {
             let value = value.to_ascii_lowercase();
             matches!(value.as_str(), "1" | "true" | "yes" | "on")
         })
-        .unwrap_or(false)
+
 }
 
 fn assert_status_error_with_code(err: &ForceError, expected_status: u16, expected_codes: &[&str]) {

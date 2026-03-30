@@ -57,21 +57,10 @@ pub async fn response_to_force_error(
     let status_code = response.status().as_u16();
 
     // Read up to 1MB to prevent memory exhaustion DoS
-    let mut stream = response.bytes_stream();
+    let stream = response.bytes_stream();
     #[allow(unused_doc_comments)]
     /// ⚡ Bolt: Pre-allocate capacity for the error body to minimize reallocations
-    let mut bytes = Vec::with_capacity(4096);
-    while let Some(chunk) = stream.next().await {
-        if let Ok(chunk_bytes) = chunk {
-            bytes.extend_from_slice(&chunk_bytes);
-            if bytes.len() > 1024 * 1024 {
-                bytes.truncate(1024 * 1024);
-                break;
-            }
-        } else {
-            break;
-        }
-    }
+    let bytes = read_capped_body(Box::pin(stream), 1024 * 1024).await;
     let body = String::from_utf8_lossy(&bytes).into_owned();
 
     let payload = if body.trim().is_empty() {
@@ -81,6 +70,28 @@ pub async fn response_to_force_error(
     };
     parse_api_error(status_code, &payload).into()
 }
+
+/// Reads up to `limit` bytes from a `Bytes` stream, preventing memory exhaustion DoS.
+pub async fn read_capped_body(mut stream: impl futures::Stream<Item = reqwest::Result<bytes::Bytes>> + Unpin, limit: usize) -> Vec<u8> {
+    let mut bytes = Vec::with_capacity(std::cmp::min(limit, 4096));
+    while let Some(chunk) = stream.next().await {
+        if let Ok(chunk_bytes) = chunk {
+            let remaining = limit.saturating_sub(bytes.len());
+            if remaining == 0 {
+                break;
+            }
+            if chunk_bytes.len() > remaining {
+                bytes.extend_from_slice(&chunk_bytes[..remaining]);
+                break;
+            }
+            bytes.extend_from_slice(&chunk_bytes);
+        } else {
+            break;
+        }
+    }
+    bytes
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -206,6 +217,43 @@ mod integration_tests {
 
         // Generate a 2MB string.
         let large_body = "A".repeat(2 * 1024 * 1024);
+
+        Mock::given(method("GET"))
+            .and(path("/error"))
+            .respond_with(ResponseTemplate::new(400).set_body_string(large_body))
+            .mount(&mock_server)
+            .await;
+
+        let client = reqwest::Client::new();
+        let url = format!("{}/error", mock_server.uri());
+        let response = client.get(&url).send().await.must();
+
+        let error = response_to_force_error(response, "fallback").await;
+
+        let message_len =
+            if let crate::error::ForceError::Http(HttpError::StatusError { message, .. }) = error {
+                message.len()
+            } else {
+                panic!("Expected StatusError");
+            };
+
+        // It should be truncated exactly at 1MB (1048576 bytes)
+        assert_eq!(message_len, 1024 * 1024);
+    }
+}
+#[cfg(test)]
+mod havoc_tests {
+    use super::*;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+    use crate::test_support::Must;
+
+    #[tokio::test]
+    async fn test_havoc_response_to_force_error_truncation() {
+        let mock_server = MockServer::start().await;
+
+        // Generate a 50MB string.
+        let large_body = "A".repeat(50 * 1024 * 1024);
 
         Mock::given(method("GET"))
             .and(path("/error"))

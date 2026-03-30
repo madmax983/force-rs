@@ -1,3 +1,4 @@
+#![allow(clippy::duration_suboptimal_units)]
 //! Client configuration types for the Force API client.
 //!
 //! This module provides configuration primitives for the Salesforce client,
@@ -116,10 +117,10 @@ mod tests {
         #[test]
         fn test_custom_timeout() {
             let config = ClientConfig {
-                timeout: Duration::from_secs(60),
+                timeout: std::time::Duration::from_secs(60),
                 ..Default::default()
             };
-            assert_eq!(config.timeout, Duration::from_secs(60));
+            assert_eq!(config.timeout, std::time::Duration::from_secs(60));
         }
 
         #[test]

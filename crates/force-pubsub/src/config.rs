@@ -1,3 +1,4 @@
+#![allow(clippy::duration_suboptimal_units)]
 //! Configuration types for the Salesforce Pub/Sub API client.
 
 use std::time::Duration;

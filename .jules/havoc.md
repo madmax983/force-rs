@@ -1,6 +1,5 @@
-# 👺 Havoc: TokenManager Token Overwrite
-
-🧨 **The Trigger:** Concurrent token refresh operations where the older (stale) operation yields a token at the exact same microsecond timestamp as a newer token.
-📉 **The Stack Trace:** N/A (Data Corruption/Stale Data overwrite)
-🧪 **Reproduction:** Run `cargo test havoc`
-😈 **Comment:** A strictly greater than `>` sign permitted stale tokens to overwrite equivalently-aged but newer-acquired tokens due to ties in the `issued_at()` epoch validation within `get_token_arc()`. Relaxed to `>=` to preserve existing tokens on ties, protecting freshness. Unconditional forcing behavior remains in `force_refresh()`.
+**[HTTP Memory Exhaustion DoS]**
+**The Trigger:** A malicious or overly large HTTP response sent back to a token refresh or API error parser can exhaust memory because of an unbounded `.extend_from_slice` loop.
+**The Stack Trace:** No explicit trace, but memory bloats out of control with `A.repeat(50 * 1024 * 1024)` in mock server.
+**Reproduction:** Run `cargo fuzz` on HTTP error parser fetching a giant response chunk.
+**Comment:** A chunk isn't always bounded by safe dimensions; we must actively truncate `chunk_bytes` before pushing it into the allocation buffer. You assumed chunk bytes could just be pushed and then truncated!
