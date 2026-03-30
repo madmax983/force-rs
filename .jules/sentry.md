@@ -54,3 +54,7 @@
 **QueryStream and QueryIterator Edge Cases**
 **Learning:** `QueryStream` and `QueryIterator` have complex state machines around `done`, `exhausted`, and empty pages, which were untested. `QueryResult` can theoretically represent invalid states (e.g. `done: true` but `next_records_url: Some(...)`) and the iterator needs to handle them safely.
 **Action:** Added dedicated tests to verify safe iteration through empty middle pages, graceful handling of error propagation within streams, and proper exhaustion checks to prevent infinite loops.
+
+**GraphQL Empty Error Branch**
+**Learning:** The Salesforce GraphQL API can sometimes return a response with `data: null` and `errors: []` (an empty errors array). While testing complex `match` statements handling optional data and error structures, ensuring that fallback/catch-all branches exist is critical because if the `if !errors.is_empty()` guard is falsely assumed or missed, it will fail to drop down into the generic fallback error.
+**Action:** When handling arrays of external errors or events that might be unexpectedly empty, ensure dedicated mock tests simulate the `[]` state alongside the standard `Some` and `None` states to ensure logic routing handles all variants correctly.

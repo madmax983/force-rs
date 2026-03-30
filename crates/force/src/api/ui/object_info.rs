@@ -118,8 +118,16 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
         &self,
         objects: &[&str],
     ) -> crate::error::Result<BatchObjectInfoRepresentation> {
-        let joined = objects.join(",");
-        let path = format!("object-info/batch/{joined}");
+        // ⚡ Bolt: Construct path directly to avoid intermediate `.join(",")` allocation
+        let capacity = 18 + objects.iter().map(|s| s.len() + 1).sum::<usize>();
+        let mut path = String::with_capacity(capacity);
+        path.push_str("object-info/batch/");
+        for (i, obj) in objects.iter().enumerate() {
+            if i > 0 {
+                path.push(',');
+            }
+            path.push_str(obj);
+        }
         self.get(&path, None, "Failed to fetch batch object infos")
             .await
     }

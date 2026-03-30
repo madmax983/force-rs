@@ -33,6 +33,7 @@ pub mod cpq;
 #[cfg(feature = "consent")]
 pub mod consent;
 
+pub(crate) mod query_stream;
 pub mod rest_operation;
 pub mod soql;
 

@@ -19,6 +19,7 @@ mod example {
     use anyhow::Context;
     use force::auth::ClientCredentials;
     use force::client::ForceClientBuilder;
+    use futures::StreamExt;
     use serde::Deserialize;
 
     #[derive(Deserialize, Debug)]
@@ -58,11 +59,14 @@ mod example {
         println!("Query: {soql}");
 
         // Creates job, polls until complete, returns streaming results
-        let mut stream = client.bulk().query::<Account>(soql).await?;
+        let stream = client.bulk().query::<Account>(soql).await?;
+        let stream = stream.into_stream();
+        let mut stream = std::pin::pin!(stream);
 
         println!("\n═══ Results ═══");
         let mut count = 0;
-        while let Some(account) = stream.next().await? {
+        while let Some(account_result) = stream.next().await {
+            let account = account_result?;
             count += 1;
             println!(
                 "{}. {} [{}] ({})",

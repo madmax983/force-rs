@@ -40,6 +40,38 @@ jobs:
       - name: Unit-focused tests (all features)
         run: cargo test --workspace --all-features --lib --tests -- --test-threads=1
 
+  force-sync-postgres:
+    name: force-sync Postgres Integration
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: force_sync_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d force_sync_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      FORCE_SYNC_TEST_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/force_sync_test
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Run force-sync ignored Postgres tests
+        run: cargo test -p force-sync -- --ignored --test-threads=1
+
   full-matrix:
     name: Full Matrix (${{ matrix.rust }})
     runs-on: ubuntu-latest

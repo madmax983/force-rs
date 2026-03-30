@@ -470,15 +470,13 @@ mod tests {
     async fn test_batch_execute_empty() {
         let builder = create_builder().await;
         let result = builder.execute().await;
-        match result {
-            Err(ForceError::Serialization(e)) => {
-                assert!(e.to_string().contains("Batch cannot be empty"));
-            }
-            _ => panic!(
+        let Err(ForceError::Serialization(e)) = result else {
+            panic!(
                 "Expected Serialization error for empty batch, got {:?}",
                 result
-            ),
-        }
+            );
+        };
+        assert!(e.to_string().contains("Batch cannot be empty"));
     }
 
     #[tokio::test]

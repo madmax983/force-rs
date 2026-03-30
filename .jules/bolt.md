@@ -5,3 +5,10 @@
 **[Stack-Allocated Query Parameters in UI API]**
 **Learning:** Dynamic heap allocations for tiny, short-lived collections like UI query parameters (`Vec<(&str, &str)>`) represent an avoidable micro-overhead.
 **Action:** Use a fixed-size stack array and slice to completely eliminate heap allocation when parameter count is known and small.
+**GraphqlErrorResponse Display Optimization**
+**Learning:** When implementing `fmt::Display` for comma-separated (or otherwise joined) collections of strings, avoid calling `.collect()` into an intermediate `Vec` and then using `.join()`, as this triggers unnecessary heap allocations. Using `.collect()` on an ExactSizeIterator to build a `HashMap` correctly uses the size hint and pre-allocates under the hood, making a manual loop redundant.
+**Action:** Iterate over the elements using `.enumerate()` and write directly to the `Formatter` (e.g., `if i > 0 { write!(f, "; ")?; } write!(f, "{}", item)?;`).
+
+**Optimize Formatter allocations with collections**
+**Learning:** Calling `.join(",")` on collections before writing to a `std::fmt::Formatter` requires an unnecessary heap allocation for the intermediate `String`.
+**Action:** Iterate through the collection and use `write!` directly to the formatter to format items instead.

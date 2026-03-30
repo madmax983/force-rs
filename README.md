@@ -1,6 +1,6 @@
 # force-rs
 
-[![Build Status](https://img.shields.io/github/actions/workflow/status/markm/force-rs/ci.yml?branch=main)](https://github.com/markm/force-rs/actions)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/madmax983/force-rs/ci.yml?branch=main)](https://github.com/madmax983/force-rs/actions)
 [![Crates.io](https://img.shields.io/crates/v/force.svg)](https://crates.io/crates/force)
 [![Documentation](https://docs.rs/force/badge.svg)](https://docs.rs/force)
 [![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](LICENSE-MIT)
@@ -8,6 +8,8 @@
 **A canonical Salesforce Platform API client for Rust** — built with production-grade safety, performance, and developer ergonomics.
 
 force-rs provides idiomatic Rust bindings to the Salesforce Platform APIs, enabling you to build high-performance integrations, data pipelines, and automation tools. With comprehensive coverage of 7 API surfaces, compile-time safe workflows, and memory-efficient streaming, force-rs is designed for real-world enterprise workloads.
+
+The workspace also includes [`force-sync`](crates/force-sync), a Postgres-first bidirectional sync engine built on top of `force` and `force-pubsub`.
 
 ## Features
 
@@ -215,6 +217,8 @@ Stream millions of records without loading the entire dataset into memory:
 use force::client::ForceClientBuilder;
 use force::auth::ClientCredentials;
 use serde::Deserialize;
+// Requires `futures` crate
+use futures::StreamExt;
 
 #[derive(Debug, Deserialize)]
 struct Contact {
@@ -234,14 +238,17 @@ async fn main() -> anyhow::Result<()> {
     let client = ForceClientBuilder::new().authenticate(auth).build().await?;
 
     // Create bulk query job and stream results
-    let mut stream = client.bulk()
+    let stream = client.bulk()
         .query::<Contact>(
             "SELECT Id, Email FROM Contact WHERE Email != null"
         )
         .await?;
+    let stream = stream.into_stream();
+    let mut stream = std::pin::pin!(stream);
 
     let mut count = 0;
-    while let Some(contact) = stream.next().await? {
+    while let Some(contact_result) = stream.next().await {
+        let contact = contact_result?;
         println!("Processing: {} ({})", contact.id, contact.email.unwrap_or_default());
         count += 1;
     }
@@ -365,6 +372,8 @@ ForceClient<A>
 ```
 
 All handlers share a common `Session<A>` (via `Arc`) containing the HTTP client, token manager, and configuration. This ensures zero-cost handler creation and shared authentication state.
+
+For the sync layer, see [`crates/force-sync`](crates/force-sync) and its design notes in [`docs/adr/026-force-sync-crate.md`](docs/adr/026-force-sync-crate.md).
 
 Architectural decisions are documented in [`docs/adr/`](docs/adr/):
 

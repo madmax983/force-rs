@@ -221,3 +221,11 @@ match result {
 **Finding:** The `FieldType::Picklist`, `FieldType::Multipicklist`, and `FieldType::Combobox` fallback logic (checking active values vs. first values vs. defaults) and ignored types logic were completely untested. `cargo mutants` reported 0 missed mutants because it currently does not reliably mutate complex, nested `if let Some` branches inside `match` arms unless they involve boolean logic or numeric return values. This created false confidence in the test coverage.
 **Evidence:** `cargo mutants` reported 100% kill rate, yet manual review showed several branches in the `generate_mock_record` match statement had zero coverage.
 **Recommendation:** Added `test_generate_mock_record_picklists` to exhaustively test picklist behavior based on `active` status and fallback values, and to ensure skipped types (`Base64`, `Location`, `Address`, `Datacategorygroupreference`) are safely ignored.
+
+### [Strengthened] `crates/force/examples/bulk_query.rs`
+
+**Module:** `crates/force/examples/bulk_query.rs`
+**Severity:** 🟢 Acquitted
+**Finding:** The `stream.next().await` code block in the `README.md` and `bulk_query.rs` example caused confusion and failed to compile when copied because `BulkQueryStream::next()` is an inherent method, but the code comment explicitly referred to needing the `futures::StreamExt` trait. The lack of standard `futures::StreamExt` implementations made the provided examples difficult to adapt for standard async combinators.
+**Evidence:** User reported compilation failure (`ECHO_ISSUE.md`) indicating `next` method was missing and expecting `futures::StreamExt`.
+**Recommendation:** Refactored the `README.md` and `bulk_query.rs` examples to explicitly call `.into_stream()` to convert `BulkQueryStream` into a standard `futures::Stream`, added the `use futures::StreamExt;` import, wrapped the result via `std::pin::pin!`, and updated the `while let Some` loop to handle the resulting `Option<Result<T>>`. Tests and examples now successfully compile.

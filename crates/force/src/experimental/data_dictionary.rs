@@ -123,6 +123,72 @@ mod tests {
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
     #[tokio::test]
+    async fn test_generate_dictionary_without_usage() {
+        let mock_server = MockServer::start().await;
+        let auth = MockAuthenticator::new("token", &mock_server.uri());
+        let client = builder().authenticate(auth).build().await.must();
+
+        let id_field = json!({
+            "name": "Id", "type": "id", "label": "Account ID", "nillable": false,
+            "defaultedOnCreate": true, "referenceTo": [],
+            "aggregatable": true, "autoNumber": false, "byteLength": 18, "calculated": false,
+            "cascadeDelete": false, "caseSensitive": false, "createable": false, "custom": false,
+            "dependentPicklist": false, "deprecatedAndHidden": false, "digits": 0,
+            "displayLocationInDecimal": false, "encrypted": false, "externalId": false,
+            "filterable": true, "groupable": true, "highScaleNumber": false, "htmlFormatted": false,
+            "idLookup": true, "length": 18, "nameField": false, "namePointing": false,
+            "permissionable": false, "polymorphicForeignKey": false, "precision": 0,
+            "queryByDistance": false, "restrictedDelete": false, "restrictedPicklist": false,
+            "scale": 0, "soapType": "tns:ID", "sortable": true, "unique": false, "updateable": false,
+            "writeRequiresMasterRead": false
+        });
+
+        let name_field = json!({
+            "name": "Name", "type": "string", "label": "Account Name", "nillable": false,
+            "defaultedOnCreate": false, "referenceTo": ["Account", "Contact"],
+            "aggregatable": true, "autoNumber": false, "byteLength": 255, "calculated": false,
+            "cascadeDelete": false, "caseSensitive": false, "createable": true, "custom": false,
+            "dependentPicklist": false, "deprecatedAndHidden": false, "digits": 0,
+            "displayLocationInDecimal": false, "encrypted": false, "externalId": false,
+            "filterable": true, "groupable": true, "highScaleNumber": false, "htmlFormatted": false,
+            "idLookup": false, "length": 255, "nameField": true, "namePointing": false,
+            "permissionable": false, "polymorphicForeignKey": false, "precision": 0,
+            "queryByDistance": false, "restrictedDelete": false, "restrictedPicklist": false,
+            "scale": 0, "soapType": "xsd:string", "sortable": true, "unique": false, "updateable": true,
+            "writeRequiresMasterRead": false
+        });
+
+        let describe_json = json!({
+            "name": "Account", "label": "Account", "custom": true, "queryable": true,
+            "activateable": false, "createable": true, "customSetting": false, "deletable": true,
+            "deprecatedAndHidden": false, "feedEnabled": true, "hasSubtypes": false,
+            "isSubtype": false, "keyPrefix": "001", "labelPlural": "Accounts", "layoutable": true,
+            "mergeable": true, "mruEnabled": true, "replicateable": true, "retrieveable": true,
+            "searchable": true, "triggerable": true, "undeletable": true, "updateable": true,
+            "urls": {}, "childRelationships": [], "recordTypeInfos": [],
+            "fields": [id_field, name_field]
+        });
+
+        Mock::given(method("GET"))
+            .and(path("/services/data/v60.0/sobjects/Account/describe"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(describe_json))
+            .mount(&mock_server)
+            .await;
+
+        let dict = DataDictionary::new(&client);
+        let md = dict.generate("Account", false).await.must();
+
+        assert!(md.contains("# Data Dictionary: Account"));
+        assert!(md.contains("**Custom:** true"));
+        // Without usage, should not have Populated % column
+        assert!(!md.contains("Populated %"));
+        // Check the table has 5 columns, not 6
+        assert!(md.contains("| Label | API Name | Type | Required | Reference To |"));
+        // Check that multiple referenceTo values are comma-separated
+        assert!(md.contains("Account, Contact"));
+    }
+
+    #[tokio::test]
     async fn test_generate_dictionary() {
         let mock_server = MockServer::start().await;
         let auth = MockAuthenticator::new("token", &mock_server.uri());
