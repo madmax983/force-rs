@@ -237,11 +237,21 @@ impl<A: Authenticator> TokenManager<A> {
             }
         }
 
-        let new_token = self.authenticator.refresh().await?;
+        let has_token = {
+            let state = self.state.read().await;
+            state.token.is_some()
+        };
+
+        let new_token = if has_token {
+            self.authenticator.refresh().await?
+        } else {
+            self.authenticator.authenticate().await?
+        };
+
         // ⚡ Bolt: Moving `new_token` directly into `Arc` avoids an unnecessary `.clone()` allocation
         // when transferring ownership, saving one heap allocation per force refresh.
         let arc_token = Arc::new(new_token);
-        let final_token = self.update_token_state(arc_token, false).await?;
+        let final_token = self.update_token_state(arc_token, !has_token).await?;
         Ok((*final_token).clone())
     }
 
@@ -688,6 +698,7 @@ mod tests {
     #[tokio::test]
     async fn test_token_manager_update_token_state_cleared_token_rejects_non_initial() {
         // Tests the branch at line 68-73: state cleared, is_initial_auth=false -> InvalidToken
+        // We can test this by calling update_token_state directly with is_initial_auth=false
         let auth = MockAuthenticator::new();
         let manager = TokenManager::new(auth);
 
@@ -697,9 +708,14 @@ mod tests {
         // 2. Clear it
         manager.clear().await;
 
-        // 3. Force refresh (which calls update_token_state with is_initial_auth=false)
+        // 3. Directly call update_token_state with is_initial_auth=false
         // Since the token was cleared, update_token_state should return InvalidToken
-        let result = manager.force_refresh().await;
+        let dummy_token = AccessToken::new(
+            "dummy".to_string(),
+            "https://test.salesforce.com".to_string(),
+            Some(Utc::now() + Duration::hours(1)),
+        );
+        let result = manager.update_token_state(StdArc::new(dummy_token), false).await;
         assert!(
             matches!(
                 result,
@@ -707,7 +723,7 @@ mod tests {
                     crate::error::AuthenticationError::InvalidToken
                 ))
             ),
-            "Expected InvalidToken error after clearing and force_refresh, got: {result:?}"
+            "Expected InvalidToken error after clearing and update_token_state, got: {result:?}"
         );
     }
 
