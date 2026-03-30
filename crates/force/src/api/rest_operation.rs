@@ -91,6 +91,83 @@ pub trait RestOperation<A: Authenticator> {
         }
     }
 
+    // ── Internal Helpers ─────────────────────────────────────────────
+
+    /// Helper method to execute a GET request and deserialize the response.
+    async fn execute_get<T: DeserializeOwned>(
+        &self,
+        api_path: &str,
+        query: Option<&[(&str, &str)]>,
+        error_msg: &str,
+    ) -> Result<T> {
+        let url = self.session().resolve_url(api_path).await?;
+        let mut request = self.session().get(&url);
+
+        if let Some(params) = query {
+            request = request.query(params);
+        }
+
+        let request = request.build().map_err(crate::error::HttpError::from)?;
+        self.session().send_request_and_decode(request, error_msg).await
+    }
+
+    /// Helper method to execute a POST request and deserialize the response.
+    async fn execute_post<T: DeserializeOwned>(
+        &self,
+        api_path: &str,
+        body: &serde_json::Value,
+        error_msg: &str,
+    ) -> Result<T> {
+        let url = self.session().resolve_url(api_path).await?;
+        let request = self
+            .session()
+            .post(&url)
+            .json(body)
+            .build()
+            .map_err(crate::error::HttpError::from)?;
+        self.session().send_request_and_decode(request, error_msg).await
+    }
+
+    /// Helper method to execute a PATCH request and expect an empty success response.
+    async fn execute_patch_empty(
+        &self,
+        api_path: &str,
+        body: &serde_json::Value,
+        error_msg: &str,
+    ) -> Result<()> {
+        let url = self.session().resolve_url(api_path).await?;
+        let request = self
+            .session()
+            .patch(&url)
+            .json(body)
+            .build()
+            .map_err(crate::error::HttpError::from)?;
+        let response = self.session().execute_request(request).await?;
+
+        if response.status().is_success() {
+            Ok(())
+        } else {
+            Err(crate::http::response_to_force_error(response, error_msg).await)
+        }
+    }
+
+    /// Helper method to execute a DELETE request and expect an empty success response.
+    async fn execute_delete_empty(&self, api_path: &str, error_msg: &str) -> Result<()> {
+        let url = self.session().resolve_url(api_path).await?;
+        let request = self
+            .session()
+            .delete(&url)
+            .build()
+            .map_err(crate::error::HttpError::from)?;
+        let response = self.session().execute_request(request).await?;
+
+        if response.status().is_success() {
+            Ok(())
+        } else {
+            Err(crate::http::response_to_force_error(response, error_msg).await)
+        }
+    }
+
     // ── CRUD Operations ──────────────────────────────────────────────
 
     /// Creates a new record in Salesforce.
@@ -122,18 +199,7 @@ pub trait RestOperation<A: Authenticator> {
         validate_sobject_name(sobject)?;
         let relative = crate::api::path_utils::format_sobject_path(sobject, None);
         let api_path = self.resolve_api_path(&relative);
-        let url = self.session().resolve_url(&api_path).await?;
-
-        let request = self
-            .session()
-            .post(&url)
-            .json(data)
-            .build()
-            .map_err(crate::error::HttpError::from)?;
-
-        self.session()
-            .send_request_and_decode(request, "Create request failed")
-            .await
+        self.execute_post(&api_path, data, "Create request failed").await
     }
 
     /// Retrieves a record by its Salesforce ID.
@@ -162,17 +228,7 @@ pub trait RestOperation<A: Authenticator> {
         validate_sobject_name(sobject)?;
         let relative = crate::api::path_utils::format_sobject_path(sobject, Some(id.as_str()));
         let api_path = self.resolve_api_path(&relative);
-        let url = self.session().resolve_url(&api_path).await?;
-
-        let request = self
-            .session()
-            .get(&url)
-            .build()
-            .map_err(crate::error::HttpError::from)?;
-
-        self.session()
-            .send_request_and_decode(request, "Get request failed")
-            .await
+        self.execute_get(&api_path, None, "Get request failed").await
     }
 
     /// Updates an existing record.
@@ -208,22 +264,9 @@ pub trait RestOperation<A: Authenticator> {
         validate_sobject_name(sobject)?;
         let relative = crate::api::path_utils::format_sobject_path(sobject, Some(id.as_str()));
         let api_path = self.resolve_api_path(&relative);
-        let url = self.session().resolve_url(&api_path).await?;
-
-        let request = self
-            .session()
-            .patch(&url)
-            .json(data)
-            .build()
-            .map_err(crate::error::HttpError::from)?;
-
-        let response = self.session().execute_request(request).await?;
-
-        if response.status().is_success() {
-            Ok(UpdateResponse::success())
-        } else {
-            Err(crate::http::response_to_force_error(response, "Update request failed").await)
-        }
+        self.execute_patch_empty(&api_path, data, "Update request failed")
+            .await
+            .map(|()| UpdateResponse::success())
     }
 
     /// Deletes a record.
@@ -251,21 +294,9 @@ pub trait RestOperation<A: Authenticator> {
         validate_sobject_name(sobject)?;
         let relative = crate::api::path_utils::format_sobject_path(sobject, Some(id.as_str()));
         let api_path = self.resolve_api_path(&relative);
-        let url = self.session().resolve_url(&api_path).await?;
-
-        let request = self
-            .session()
-            .delete(&url)
-            .build()
-            .map_err(crate::error::HttpError::from)?;
-
-        let response = self.session().execute_request(request).await?;
-
-        if response.status().is_success() {
-            Ok(DeleteResponse::success())
-        } else {
-            Err(crate::http::response_to_force_error(response, "Delete request failed").await)
-        }
+        self.execute_delete_empty(&api_path, "Delete request failed")
+            .await
+            .map(|()| DeleteResponse::success())
     }
 
     /// Upserts a record using an external ID field.
@@ -389,18 +420,7 @@ pub trait RestOperation<A: Authenticator> {
         T: DeserializeOwned,
     {
         let api_path = self.resolve_api_path("query");
-        let url = self.session().resolve_url(&api_path).await?;
-
-        let request = self
-            .session()
-            .get(&url)
-            .query(&[("q", soql)])
-            .build()
-            .map_err(crate::error::HttpError::from)?;
-
-        self.session()
-            .send_request_and_decode(request, "SOQL query failed")
-            .await
+        self.execute_get(&api_path, Some(&[("q", soql)]), "SOQL query failed").await
     }
 
     /// Fetches the next page of query results using a `nextRecordsUrl`.
@@ -473,17 +493,7 @@ pub trait RestOperation<A: Authenticator> {
     /// ```
     async fn describe_global(&self) -> Result<GlobalDescribe> {
         let api_path = self.resolve_api_path("sobjects");
-        let url = self.session().resolve_url(&api_path).await?;
-
-        let request = self
-            .session()
-            .get(&url)
-            .build()
-            .map_err(crate::error::HttpError::from)?;
-
-        self.session()
-            .send_request_and_decode(request, "Global describe request failed")
-            .await
+        self.execute_get(&api_path, None, "Global describe request failed").await
     }
 
     /// Retrieves detailed metadata for a specific SObject.
@@ -518,20 +528,7 @@ pub trait RestOperation<A: Authenticator> {
             crate::api::path_utils::format_sobject_path(sobject_type, None)
         );
         let api_path = self.resolve_api_path(&relative);
-        let url = self.session().resolve_url(&api_path).await?;
-
-        let request = self
-            .session()
-            .get(&url)
-            .build()
-            .map_err(crate::error::HttpError::from)?;
-
-        self.session()
-            .send_request_and_decode(
-                request,
-                &format!("Describe request for {} failed", sobject_type),
-            )
-            .await
+        self.execute_get(&api_path, None, &format!("Describe request for {} failed", sobject_type)).await
     }
 }
 

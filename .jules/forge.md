@@ -47,3 +47,7 @@
 **Extract UrlEncodedWriter to Common Utils**
 **Learning:** Both `batch.rs` and `graph.rs` duplicated the `UrlEncodedWriter` struct and its `std::fmt::Write` implementation for avoiding memory allocations during URL construction. This creates unnecessary DRY violations for a pure utility type.
 **Action:** Extract `UrlEncodedWriter` into `crates/force/src/api/url_encoded_writer.rs` and re-use it across composite API implementations to keep the logic unified and DRY.
+
+**[Extract common request logic into trait methods]**
+**Learning:** Re-implementing URL resolution and HTTP request formatting inside every CRUD method in a trait (`RestOperation`) creates boilerplate.
+**Action:** Extract common request patterns (e.g., `execute_get`, `execute_post`) directly into the trait as provided helper methods, so all implementors (like `RestHandler` and `ToolingHandler`) inherit them and internal trait methods can use them.
