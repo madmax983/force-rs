@@ -48,3 +48,6 @@
 ## 2025-03-26 - [Unmaintained Dependency: rustls-pemfile]
 **Threat:** The `force-pubsub` crate pulled in `rustls-pemfile` via `tonic`'s `tls` and `tls-roots` features. `rustls-pemfile` is unmaintained (RUSTSEC-2025-0134) and poses a supply chain risk.
 **Defense:** Removed `tls` and `tls-roots` features from `tonic` in `crates/force-pubsub/Cargo.toml` and replaced them with `tls-webpki-roots`. Ran `cargo update -p tonic` to remove the vulnerable dependency and pull in `webpki-roots`.
+## 2026-03-27 - [DoS via Unbounded Allocation in Composite Graph]
+**Threat:** `CompositeGraphRequest::add_graph` allowed adding an unlimited number of graphs and subrequests. An attacker could construct a request with millions of subrequests, causing unbounded memory consumption before `execute()` is called, leading to an OOM crash.
+**Defense:** Updated `add_graph` to return `Result<Self>` and strictly enforce the Salesforce API limit of 500 total subrequests across all graphs. Attempts to add a graph that exceeds this limit now return `ForceError::InvalidInput`.
