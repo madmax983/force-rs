@@ -8,7 +8,7 @@ mod tests {
     #![allow(clippy::unwrap_used)]
     use loom::sync::{Arc, RwLock};
     use loom::thread;
-    use std::sync::atomic::{AtomicUsize, Ordering};
+    use loom::sync::atomic::{AtomicUsize, Ordering};
 
     // Simplified TokenManager logic mirroring crates/force/src/auth/token_manager.rs
     struct TokenManager {

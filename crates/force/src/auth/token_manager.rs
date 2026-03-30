@@ -54,26 +54,19 @@ impl<A: Authenticator> TokenManager<A> {
     ///
     /// This is an internal method to avoid cloning the token for internal use.
     pub(crate) async fn get_token_arc(&self) -> Result<Arc<AccessToken>> {
-        // Fast path: check if current token is valid (not soft expired)
-        {
-            let state = self.state.read().await;
-            if let Some(token) = &state.token {
-                if !token.is_soft_expired() {
-                    return Ok(token.clone());
-                }
-            }
-        } // Read lock dropped here
-
         // Determine if we are in a "soft expired" state (valid but old)
         // or "hard expired/missing" state (invalid).
         let (is_hard_expired, current_token) = {
             let state = self.state.read().await;
             if let Some(token) = &state.token {
+                if !token.is_soft_expired() {
+                    return Ok(token.clone());
+                }
                 (token.is_hard_expired(), Some(token.clone()))
             } else {
                 (true, None)
             }
-        };
+        }; // Read lock dropped here
 
         if is_hard_expired {
             // Must block and refresh.
