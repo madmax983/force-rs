@@ -1,10 +1,10 @@
 #[tokio::main]
 async fn main() {
-    use force::auth::{TokenManager, AccessToken, TokenResponse};
     use force::auth::Authenticator;
+    use force::auth::{AccessToken, TokenManager, TokenResponse};
 
     #[derive(Debug)]
-struct DummyAuth;
+    struct DummyAuth;
     #[async_trait::async_trait]
     impl Authenticator for DummyAuth {
         async fn authenticate(&self) -> force::error::Result<AccessToken> {

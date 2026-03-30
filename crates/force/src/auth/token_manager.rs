@@ -715,7 +715,9 @@ mod tests {
             "https://test.salesforce.com".to_string(),
             Some(Utc::now() + Duration::hours(1)),
         );
-        let result = manager.update_token_state(StdArc::new(dummy_token), false).await;
+        let result = manager
+            .update_token_state(StdArc::new(dummy_token), false)
+            .await;
         assert!(
             matches!(
                 result,
