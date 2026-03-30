@@ -64,10 +64,20 @@ impl<A: Authenticator> CompositeGraphRequest<A> {
     /// # Arguments
     ///
     /// * `graph` - The graph to add
-    #[must_use]
-    pub fn add_graph(mut self, graph: Graph) -> Self {
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the total number of subrequests across all graphs exceeds 500.
+    pub fn add_graph(mut self, graph: Graph) -> Result<Self> {
+        let current_subrequests: usize =
+            self.graphs.iter().map(|g| g.composite_request.len()).sum();
+        if current_subrequests + graph.composite_request.len() > 500 {
+            return Err(ForceError::InvalidInput(
+                "Composite Graph limit of 500 total subrequests exceeded".to_string(),
+            ));
+        }
         self.graphs.push(graph);
-        self
+        Ok(self)
     }
 
     /// Executes the graph request.
@@ -369,6 +379,30 @@ mod tests {
         client.composite().graph()
     }
 
+    #[tokio::test]
+    async fn test_composite_graph_total_limit() {
+        let mut builder = create_builder().await;
+
+        let mut graph1 = Graph::new("graph1");
+        for i in 0..250 {
+            graph1 = graph1
+                .get("Account", "001000000000000AAA", &format!("ref{}", i))
+                .must();
+        }
+        builder = builder.add_graph(graph1).must();
+
+        let mut graph2 = Graph::new("graph2");
+        for i in 0..251 {
+            graph2 = graph2
+                .get("Account", "001000000000000AAA", &format!("ref2_{}", i))
+                .must();
+        }
+
+        // Total would be 501, which exceeds the limit
+        let result = builder.add_graph(graph2);
+        assert!(matches!(result, Err(ForceError::InvalidInput(_))));
+    }
+
     #[test]
     fn test_graph_serialization() {
         let mut graph = Graph::new("graph1");
@@ -408,7 +442,7 @@ mod tests {
             .post("Account", json!({"Name": "Test"}), "acc1")
             .must();
 
-        let builder = client.composite().graph().add_graph(graph);
+        let builder = client.composite().graph().add_graph(graph).must();
 
         let response_json = json!({
             "graphs": [
