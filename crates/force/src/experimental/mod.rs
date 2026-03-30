@@ -99,3 +99,9 @@ pub use schema_linter::{
 pub(crate) mod query_plan_analyzer;
 #[cfg(feature = "nova")]
 pub use query_plan_analyzer::{InsightSeverity, QueryInsight, QueryInsights, analyze_query_plan};
+
+#[cfg(feature = "schema")]
+pub(crate) mod dependency_mapper;
+
+#[cfg(feature = "schema")]
+pub use dependency_mapper::{DependencyNode, SObjectDependencyMapper};
