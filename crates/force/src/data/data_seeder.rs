@@ -8,8 +8,8 @@ use crate::api::rest_operation::RestOperation;
 use crate::auth::Authenticator;
 use crate::client::ForceClient;
 use crate::error::Result;
-use crate::experimental::data_faker::generate_mock_record;
-use serde_json::Value;
+
+use super::data_faker::generate_mock_record;
 
 /// Utility for generating and inserting mock records from schema metadata.
 #[derive(Debug)]
@@ -62,7 +62,11 @@ impl<'a, A: Authenticator> DataSeeder<'a, A> {
         let describe = self.client.rest().describe(sobject).await?;
 
         let mut success_count = 0;
-        let mut current_batch = self.client.composite().batch().halt_on_error(self.halt_on_error);
+        let mut current_batch = self
+            .client
+            .composite()
+            .batch()
+            .halt_on_error(self.halt_on_error);
 
         for i in 0..count {
             let record = generate_mock_record(&describe);
@@ -80,12 +84,18 @@ impl<'a, A: Authenticator> DataSeeder<'a, A> {
                     if result.status_code >= 200 && result.status_code < 300 {
                         success_count += 1;
                     } else if self.halt_on_error {
-                        return Err(crate::error::ForceError::InvalidInput("Seed operation failed".into()));
+                        return Err(crate::error::ForceError::InvalidInput(
+                            "Seed operation failed".into(),
+                        ));
                     }
                 }
 
                 // Reset the batch for the next chunk
-                current_batch = self.client.composite().batch().halt_on_error(self.halt_on_error);
+                current_batch = self
+                    .client
+                    .composite()
+                    .batch()
+                    .halt_on_error(self.halt_on_error);
             }
         }
 

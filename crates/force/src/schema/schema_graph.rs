@@ -8,7 +8,7 @@
 //!
 //! ```no_run
 //! # use force::client::ForceClientBuilder;
-//! # use force::experimental::SchemaGraph;
+//! # use force::schema::SchemaGraph;
 //! # use force::auth::ClientCredentials;
 //! # #[tokio::main]
 //! # async fn main() -> anyhow::Result<()> {

@@ -19,3 +19,8 @@ This directory contains architecture records, operational runbooks, and governan
 - [`governance/`](governance/): compatibility and release policy docs
 - [`governance/api-stability-policy.md`](governance/api-stability-policy.md): semver/API/feature-flag guarantees
 
+## Vantage
+
+- [`vantage/`](vantage/): incubating Vantage specs and product notes
+- [`vantage/README.md`](vantage/README.md): Vantage index
+

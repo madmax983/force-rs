@@ -1,4 +1,0 @@
-with open(".jules/atlas.md", "a") as f:
-    f.write("\n**[The Tangle: QueryStream's Blob structure and circular dependency]**\n")
-    f.write("**Tangle:** `QueryStream` was located in `crates/force/src/api/rest/query_stream.rs`, importing `RestHandler` from `super`. `RestHandler` imported `QueryStream` from `query_stream.rs`. This tied the generic stream logic specifically to the REST handler, preventing other handlers (like `ToolingHandler`) from using it without importing `RestHandler`, breaking boundaries.\n")
-    f.write("**Blueprint:** Extracted `QueryStream` out to `crates/force/src/api/query_stream.rs` and made it generic over `O: RestOperation<A> + Clone`. Re-exported it in `api::mod` and `api::rest::mod` updated its query logic to construct the decoupled, generic query stream.\n")

@@ -1,4 +1,4 @@
-# ADR-014: Query Plan Support (Nova)
+# ADR-014: Query Plan Support
 
 **Status:** Accepted
 **Date:** 2026-02-18
@@ -8,7 +8,7 @@ Salesforce enforces strict governor limits on SOQL queries. Queries that are non
 Developers often need to verify query performance characteristics (cardinality, cost, index usage) *before* deploying code. While the Salesforce Developer Console provides a "Query Plan" tool, there was no programmatic way to access this data within the SDK itself, making it difficult to automate performance checks in CI/CD pipelines.
 
 **Decision:**
-We have introduced the `nova` feature flag which enables the `explain` module in the REST API handler.
+Query-plan support is part of the standard REST surface.
 This provides the `client.rest().explain(soql)` method, which calls the Salesforce Query Plan API (`/services/data/vXX.X/query/?explain=...`).
 
 The response includes:
@@ -20,7 +20,7 @@ The response includes:
 **Consequences:**
 ### Positive
 -   **Performance Tooling:** Enable automated performance assertions (e.g., `assert!(plan.relative_cost < 1.0)`).
--   **Opt-in:** The feature is gated (`#[cfg(feature = "nova")]`), keeping the core binary size minimal for users who don't need introspection.
+-   **No Surprise Feature Flag:** Users already on `rest` can inspect query plans without hunting for a secondary feature.
 
 ### Negative
--   **Feature Flag Complexity:** Adds another conditional compilation path to maintain and test.
+-   **Broader REST Surface:** Query-plan helpers now ship anywhere the REST handler is available.

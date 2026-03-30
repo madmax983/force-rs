@@ -9,6 +9,10 @@
 pub(crate) mod batch;
 #[cfg(feature = "composite_graph")]
 pub(crate) mod graph;
+#[cfg(feature = "composite")]
+pub(crate) mod query_batch;
+#[cfg(feature = "composite")]
+pub(crate) mod soql_mass_op;
 
 pub use batch::{BatchRequest, BatchResponse, BatchSubResponse};
 #[cfg(feature = "composite_graph")]
@@ -16,6 +20,10 @@ pub use graph::{
     CompositeGraphRequest, Graph, GraphErrorResponse, GraphRequest, GraphResponse, GraphResult,
     GraphSubResponse,
 };
+#[cfg(feature = "composite")]
+pub use query_batch::{BatchOp, BatchStats, QueryBatch};
+#[cfg(feature = "composite")]
+pub use soql_mass_op::SoqlMassOp;
 
 use crate::auth::Authenticator;
 use crate::session::Session;

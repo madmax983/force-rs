@@ -31,9 +31,12 @@ pub mod api;
 pub mod auth;
 pub mod client;
 pub mod config;
+#[cfg(feature = "data_utility")]
+pub mod data;
 pub mod error;
-pub mod experimental;
 pub mod http;
+#[cfg(feature = "schema")]
+pub mod schema;
 pub mod session;
 #[cfg(test)]
 pub(crate) mod test_support;

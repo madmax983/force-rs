@@ -1,14 +1,14 @@
 //! Example: Mass Update Records using SOQL and Composite API
 //!
 //! This example demonstrates how to find specific records using a SOQL query
-//! and instantly update all of them using the experimental `SoqlMassOp` utility.
+//! and instantly update all of them using the `SoqlMassOp` composite helper.
 //!
 //! Run with: `cargo run --example soql_mass_op --features composite`
 
+use force::api::composite::SoqlMassOp;
 use force::api::rest::SoqlQueryBuilder;
 use force::auth::ClientCredentials;
 use force::client::ForceClientBuilder;
-use force::experimental::SoqlMassOp;
 use serde_json::json;
 use std::env;
 

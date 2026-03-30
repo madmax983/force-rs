@@ -10,7 +10,7 @@
 //! ```no_run
 //! # use force::api::rest_operation::RestOperation;
 //! # use force::client::ForceClientBuilder;
-//! # use force::experimental::generate_mock_record;
+//! # use force::data::generate_mock_record;
 //! # use force::auth::ClientCredentials;
 //! # #[tokio::main]
 //! # async fn main() -> anyhow::Result<()> {

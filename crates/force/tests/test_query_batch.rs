@@ -4,10 +4,10 @@
 #![allow(clippy::expect_used)]
 
 use async_trait::async_trait;
+use force::api::composite::{BatchOp, QueryBatch};
 use force::auth::{AccessToken, Authenticator, TokenResponse};
 use force::client::builder;
 use force::error::Result;
-use force::experimental::{BatchOp, QueryBatch};
 use serde::Deserialize;
 use serde_json::json;
 use wiremock::matchers::{method, path, query_param};

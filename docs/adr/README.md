@@ -47,7 +47,7 @@ ADRs follow this structure:
 | [011](011-remove-pub-sub-support.md) | Remove Pub/Sub Support | Accepted | 2024-05-22 |
 | [012](012-http-layer-refactoring.md) | HTTP Layer Refactoring & Observability | Accepted | 2026-02-17 |
 | [013](013-rename-inner-to-session.md) | Rename Inner to Session | Accepted | 2026-02-18 |
-| [014](014-query-plan-support.md) | Query Plan Support (Nova) | Accepted | 2026-02-18 |
+| [014](014-query-plan-support.md) | Query Plan Support | Accepted | 2026-02-18 |
 | [015](015-merge-storage-into-auth.md) | Merge Storage Logic into Auth | Accepted | 2026-02-18 |
 | [016](016-isolate-auth-types.md) | Isolate Auth Types | Accepted | 2026-03-02 |
 | [017](017-decomposed-rest-api.md) | Decomposed REST API Module | Accepted | 2026-03-05 |
