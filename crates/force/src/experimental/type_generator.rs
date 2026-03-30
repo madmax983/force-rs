@@ -1,5 +1,7 @@
 #[cfg(feature = "schema")]
 use crate::api::rest::describe::{FieldType, SObjectDescribe};
+#[cfg(feature = "schema")]
+use std::fmt::Write;
 
 /// Experimental utility to generate Rust structs from SObject describe metadata.
 #[cfg(feature = "schema")]
@@ -14,30 +16,31 @@ impl StructGenerator {
     /// Rust types.
     pub fn generate(describe: &SObjectDescribe) -> String {
         let mut out = String::with_capacity(describe.fields.len() * 128);
-        out.push_str(&format!("/// {}\n", describe.label));
-        out.push_str("#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]\n");
-        out.push_str(&format!(
-            "pub struct {} {{\n",
-            Self::pascal_case(&describe.name)
-        ));
+        let _ = writeln!(out, "/// {}", describe.label);
+        let _ = writeln!(
+            out,
+            "#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]"
+        );
+        let _ = writeln!(out, "pub struct {} {{", Self::pascal_case(&describe.name));
 
         for field in &describe.fields {
-            out.push_str(&format!("    /// {}\n", field.label));
-            out.push_str(&format!("    #[serde(rename = \"{}\")]\n", field.name));
+            let _ = writeln!(out, "    /// {}", field.label);
+            let _ = writeln!(out, "    #[serde(rename = \"{}\")]", field.name);
             let rust_type = Self::map_type(&field.type_);
             let final_type = if field.nillable {
                 format!("Option<{}>", rust_type)
             } else {
                 rust_type.to_string()
             };
-            out.push_str(&format!(
-                "    pub {}: {},\n",
+            let _ = writeln!(
+                out,
+                "    pub {}: {},",
                 Self::snake_case(&field.name),
                 final_type
-            ));
+            );
         }
 
-        out.push_str("}\n");
+        let _ = writeln!(out, "}}");
         out
     }
 
