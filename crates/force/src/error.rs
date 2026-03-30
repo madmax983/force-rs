@@ -222,6 +222,25 @@ pub enum SerializationError {
 
 /// A specialized Result type for Force API operations.
 pub type Result<T> = std::result::Result<T, ForceError>;
+
+/// Unwraps the `Result`, or panics with the given context and error message.
+///
+/// This provides the `unwrap_or_panic` method used in builder patterns (e.g. `SoqlQueryBuilder`)
+/// to return non-panicking `Result` implementations while maintaining a panicking builder API.
+///
+/// # Panics
+///
+/// Panics if the result is `Err`.
+pub fn unwrap_or_panic<T>(
+    result: std::result::Result<T, crate::error::ForceError>,
+    context: &str,
+) -> T {
+    match result {
+        Ok(val) => val,
+        Err(e) => panic!("Invalid input in {}: {}", context, e),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

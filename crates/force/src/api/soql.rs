@@ -3,7 +3,7 @@
 //! This module provides a builder and utilities for constructing SOQL queries
 //! safely, preventing injection vulnerabilities.
 
-use crate::error::ForceError;
+use crate::error::{ForceError, unwrap_or_panic};
 use crate::types::validator::{validate_field_name, validate_sobject_name};
 use std::borrow::Cow;
 
@@ -118,7 +118,7 @@ impl SoqlQueryBuilder {
     /// Panics if any field name contains invalid characters.
     #[must_use]
     pub fn select(self, fields: &[impl AsRef<str>]) -> Self {
-        Self::unwrap_or_panic(self.try_select(fields), "select")
+        unwrap_or_panic(self.try_select(fields), "select")
     }
 
     /// Sets the SObject to select from.
@@ -140,7 +140,7 @@ impl SoqlQueryBuilder {
     /// Panics if the SObject name contains invalid characters.
     #[must_use]
     pub fn from(self, sobject: impl Into<String>) -> Self {
-        Self::unwrap_or_panic(self.try_from(sobject), "from")
+        unwrap_or_panic(self.try_from(sobject), "from")
     }
 
     /// Adds a raw WHERE condition without escaping.
@@ -175,7 +175,7 @@ impl SoqlQueryBuilder {
     /// Panics if the input condition is invalid (though unchecked, wrapper panic matches pattern).
     #[must_use]
     pub fn where_condition_unchecked(self, condition: impl Into<String>) -> Self {
-        Self::unwrap_or_panic(
+        unwrap_or_panic(
             self.try_where_condition_unchecked(condition),
             "where_condition_unchecked",
         )
@@ -209,7 +209,7 @@ impl SoqlQueryBuilder {
     /// Panics if the field name is invalid.
     #[must_use]
     pub fn where_eq(self, field: &str, value: &str) -> Self {
-        Self::unwrap_or_panic(self.try_where_eq(field, value), "where_eq")
+        unwrap_or_panic(self.try_where_eq(field, value), "where_eq")
     }
 
     /// Adds a WHERE condition for NOT equality (e.g., `Field != 'Value'`).
@@ -240,7 +240,7 @@ impl SoqlQueryBuilder {
     /// Panics if the field name is invalid.
     #[must_use]
     pub fn where_ne(self, field: &str, value: &str) -> Self {
-        Self::unwrap_or_panic(self.try_where_ne(field, value), "where_ne")
+        unwrap_or_panic(self.try_where_ne(field, value), "where_ne")
     }
 
     /// Adds a simple WHERE condition (helper).
@@ -255,7 +255,7 @@ impl SoqlQueryBuilder {
 
     /// Adds a simple WHERE condition (helper).
     fn add_condition(self, field: &str, op: &str, value: &str, context: &str) -> Self {
-        Self::unwrap_or_panic(self.try_add_condition(field, op, value), context)
+        unwrap_or_panic(self.try_add_condition(field, op, value), context)
     }
 
     /// Helper to validate field names and panic on error.
@@ -326,7 +326,7 @@ impl SoqlQueryBuilder {
     /// Panics if the field name is invalid.
     #[must_use]
     pub fn where_in(self, field: &str, values: &[impl AsRef<str>]) -> Self {
-        Self::unwrap_or_panic(self.try_where_in(field, values), "where_in")
+        unwrap_or_panic(self.try_where_in(field, values), "where_in")
     }
 
     /// Adds a WHERE condition for LIKE clause (e.g., `Field LIKE 'Val%'`).
@@ -359,7 +359,7 @@ impl SoqlQueryBuilder {
     /// Panics if the field name is invalid.
     #[must_use]
     pub fn where_like(self, field: &str, value: &str) -> Self {
-        Self::unwrap_or_panic(self.try_where_like(field, value), "where_like")
+        unwrap_or_panic(self.try_where_like(field, value), "where_like")
     }
 
     /// Sets the LIMIT clause.
@@ -387,7 +387,7 @@ impl SoqlQueryBuilder {
     /// Panics if limit fails to apply (wrapper matches pattern).
     #[must_use]
     pub fn limit(self, limit: u32) -> Self {
-        Self::unwrap_or_panic(self.try_limit(limit), "limit")
+        unwrap_or_panic(self.try_limit(limit), "limit")
     }
 
     /// Sets the OFFSET clause.
@@ -416,7 +416,7 @@ impl SoqlQueryBuilder {
     /// Panics if offset fails to apply (wrapper matches pattern).
     #[must_use]
     pub fn offset(self, offset: u32) -> Self {
-        Self::unwrap_or_panic(self.try_offset(offset), "offset")
+        unwrap_or_panic(self.try_offset(offset), "offset")
     }
 
     /// Sets the ORDER BY clause.
@@ -449,7 +449,7 @@ impl SoqlQueryBuilder {
     /// Panics if the field name is invalid.
     #[must_use]
     pub fn order_by(self, field: &str) -> Self {
-        Self::unwrap_or_panic(self.try_order_by(field), "order_by")
+        unwrap_or_panic(self.try_order_by(field), "order_by")
     }
 
     /// Sets the ORDER BY clause with direction (DESC).
@@ -482,7 +482,7 @@ impl SoqlQueryBuilder {
     /// Panics if the field name is invalid.
     #[must_use]
     pub fn order_by_desc(self, field: &str) -> Self {
-        Self::unwrap_or_panic(self.try_order_by_desc(field), "order_by_desc")
+        unwrap_or_panic(self.try_order_by_desc(field), "order_by_desc")
     }
 
     /// Validates that the builder has all necessary components to build a query.
@@ -586,10 +586,6 @@ impl SoqlQueryBuilder {
         Ok(())
     }
 
-    fn unwrap_or_panic<T>(result: Result<T, ForceError>, context: &str) -> T {
-        result.unwrap_or_else(|e| panic!("Invalid input in {}: {}", context, e))
-    }
-
     /// Builds the final SOQL query string (panicking version).
     ///
     /// # Panics
@@ -597,7 +593,7 @@ impl SoqlQueryBuilder {
     /// Panics if no fields are selected or no SObject is specified.
     #[must_use]
     pub fn build(self) -> String {
-        Self::unwrap_or_panic(self.try_build(), "build")
+        unwrap_or_panic(self.try_build(), "build")
     }
 }
 

@@ -47,3 +47,11 @@
 **Extract UrlEncodedWriter to Common Utils**
 **Learning:** Both `batch.rs` and `graph.rs` duplicated the `UrlEncodedWriter` struct and its `std::fmt::Write` implementation for avoiding memory allocations during URL construction. This creates unnecessary DRY violations for a pure utility type.
 **Action:** Extract `UrlEncodedWriter` into `crates/force/src/api/url_encoded_writer.rs` and re-use it across composite API implementations to keep the logic unified and DRY.
+
+**[Extract unwrap_or_panic logic]**
+**Learning:** Re-implementing a thin wrapper for panicking methods (`unwrap_or_panic`) across multiple builders (`SoqlQueryBuilder`, `SearchQueryBuilder`) creates duplication and hides the panic logic from standard locations.
+**Action:** Consolidate shared panicking unwrappers into `crate::error::unwrap_or_panic` to be DRY.
+
+**[Replace unwrap_or_else with expect]**
+**Learning:** Using `.unwrap_or_else(|_| unreachable!("..."))` for infallible string formatting operations makes code unnecessarily verbose and hurts readability compared to standard `.expect("...")`.
+**Action:** For infallible writing to Strings (`fmt::Write`), prefer `.expect("...")` with a clear explanation.

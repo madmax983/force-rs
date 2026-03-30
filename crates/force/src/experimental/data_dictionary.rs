@@ -97,14 +97,15 @@ impl<'a, A: Authenticator> DataDictionary<'a, A> {
                 first = false;
             }
 
-            if include_usage {
-                if let Some(usage) = usage_map.get(&field.name) {
-                    let _ = writeln!(md, " | {:.1}% |", usage.percentage);
-                } else {
-                    md.push_str(" | N/A |\n");
-                }
-            } else {
+            if !include_usage {
                 md.push_str(" |\n");
+                continue;
+            }
+
+            if let Some(usage) = usage_map.get(&field.name) {
+                let _ = writeln!(md, " | {:.1}% |", usage.percentage);
+            } else {
+                md.push_str(" | N/A |\n");
             }
         }
 

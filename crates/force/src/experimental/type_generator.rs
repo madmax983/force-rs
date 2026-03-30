@@ -69,16 +69,18 @@ impl StructGenerator {
         let mut prev_char: Option<char> = None;
 
         for c in s.chars() {
-            if c.is_ascii_uppercase() {
-                if let Some(p) = prev_char {
-                    if !p.is_ascii_uppercase() && p != '_' {
-                        result.push('_');
-                    }
-                }
-                result.push(c.to_ascii_lowercase());
-            } else {
+            if !c.is_ascii_uppercase() {
                 result.push(c);
+                prev_char = Some(c);
+                continue;
             }
+
+            if let Some(p) = prev_char {
+                if !p.is_ascii_uppercase() && p != '_' {
+                    result.push('_');
+                }
+            }
+            result.push(c.to_ascii_lowercase());
             prev_char = Some(c);
         }
 
