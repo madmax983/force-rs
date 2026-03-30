@@ -11,3 +11,7 @@
 **Remove `.to_string()` on `utf8_percent_encode` result**
 **Learning:** Calling `.to_string()` on the result of `percent_encoding::utf8_percent_encode()` before passing it into `format!` triggers an unnecessary intermediate heap allocation. The `PercentEncode` struct returned by this function implements `fmt::Display`, meaning it can be formatted directly.
 **Action:** Pass `utf8_percent_encode` directly into `format!` arguments instead of creating temporary strings.
+
+**Eliminate intermediate string allocations in SQL schema generation**
+**Learning:** Returning `String` from mapping functions like `map_field_type` by calling `.to_string()` or `format!()` causes unnecessary temporary heap allocations for every field when generating DDL.
+**Action:** Refactor mapping functions that return Strings into writing functions that take `&mut String` (e.g., `write_field_type(out: &mut String)`) and use `.push_str()` or `write!()` directly to the output buffer to avoid these allocations entirely.
