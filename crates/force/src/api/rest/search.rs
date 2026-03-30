@@ -245,12 +245,11 @@ impl SearchQueryBuilder {
 
         let mut query = String::with_capacity(128);
 
-        write!(&mut query, "FIND {{{}}}", self.search_text)
-            .unwrap_or_else(|_| unreachable!("String format cannot fail"));
+        let _ = write!(&mut query, "FIND {{{}}}", self.search_text);
 
         if let Some(scope) = self.search_scope {
-            write!(&mut query, " IN {}", scope)
-                .unwrap_or_else(|_| unreachable!("String format cannot fail"));
+            let _ = write!(&mut query, " IN {}", scope);
+
         }
 
         query.push_str(" RETURNING ");
@@ -278,13 +277,13 @@ impl SearchQueryBuilder {
         }
 
         if let Some(limit) = self.limit {
-            write!(&mut query, " LIMIT {}", limit)
-                .unwrap_or_else(|_| unreachable!("String format cannot fail"));
+            let _ = write!(&mut query, " LIMIT {}", limit);
+
         }
 
         if let Some(offset) = self.offset {
-            write!(&mut query, " OFFSET {}", offset)
-                .unwrap_or_else(|_| unreachable!("String format cannot fail"));
+            let _ = write!(&mut query, " OFFSET {}", offset);
+
         }
 
         Ok(query)

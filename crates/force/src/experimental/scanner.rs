@@ -102,12 +102,11 @@ impl<'a, A: Authenticator> FieldUsageScanner<'a, A> {
         query.push_str("SELECT COUNT(Id) total");
 
         for (i, field) in fields.iter().enumerate() {
-            write!(query, ", COUNT({}) f{}", field.name, i)
-                .unwrap_or_else(|_| unreachable!("writing to String is infallible"));
+            let _ = write!(query, ", COUNT({}) f{}", field.name, i);
+
         }
 
-        write!(query, " FROM {}", sobject)
-            .unwrap_or_else(|_| unreachable!("writing to String is infallible"));
+        let _ = write!(query, " FROM {}", sobject);
 
         // Execute query
         let response = self.client.rest().query::<Value>(&query).await?;

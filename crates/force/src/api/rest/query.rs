@@ -230,13 +230,14 @@ mod tests {
             .await
             .must();
 
-        // Verify that the client deserializes it as is
+        // Verify that the client safely handles the missing next_records_url
+        // by making has_more() return false despite done=false.
         assert!(!result.is_done());
-        assert!(result.has_more());
+        assert!(!result.has_more());
         assert!(result.next_records_url.is_none());
 
-        // This confirms that the client passes the invalid state to the user,
-        // who will then likely panic if they try to unwrap next_records_url.
+        // This confirms that the client safely prevents panic scenarios by overriding has_more.
+
     }
 
     #[tokio::test]

@@ -266,8 +266,7 @@ impl SoqlQueryBuilder {
         // ⚡ Bolt: Avoid intermediate `format!` allocation by writing directly to a pre-allocated buffer.
         let capacity = field.len() + op.len() + escaped_value.len() + 4; // 2 spaces + 2 quotes
         let mut buffer = String::with_capacity(capacity);
-        write!(buffer, "{} {} '{}'", field, op, escaped_value)
-            .unwrap_or_else(|_| unreachable!("writing to String is infallible"));
+        let _ = write!(buffer, "{} {} '{}'", field, op, escaped_value);
 
         self.where_clauses.push(buffer);
         Ok(self)
@@ -314,16 +313,15 @@ impl SoqlQueryBuilder {
         let capacity = field.len() + 6 + (values.len() * 14);
         let mut buffer = String::with_capacity(capacity);
 
-        write!(buffer, "{} IN (", field)
-            .unwrap_or_else(|_| unreachable!("writing to String is infallible"));
+        let _ = write!(buffer, "{} IN (", field);
 
         for (i, value) in values.iter().enumerate() {
             if i > 0 {
                 buffer.push_str(", ");
             }
             let escaped = escape_soql_cow(value.as_ref());
-            write!(buffer, "'{}'", escaped)
-                .unwrap_or_else(|_| unreachable!("writing to String is infallible"));
+            let _ = write!(buffer, "'{}'", escaped);
+
         }
         buffer.push(')');
 
