@@ -174,8 +174,6 @@ impl<A: crate::auth::Authenticator> GraphqlHandler<A> {
 
 #[cfg(test)]
 mod tests {
-    #![allow(clippy::unwrap_used)]
-
     use crate::client::{ForceClient, builder};
     use crate::test_support::{MockAuthenticator, Must, MustMsg};
 
@@ -322,7 +320,7 @@ mod integration_tests {
         assert!(
             data["uiapi"]["query"]["Account"]["edges"]
                 .as_array()
-                .unwrap()
+                .must()
                 .is_empty()
         );
     }
@@ -454,7 +452,7 @@ mod integration_tests {
         assert!(envelope.data.is_some());
         assert!(envelope.has_errors());
         assert_eq!(
-            envelope.errors.unwrap()[0].message,
+            envelope.errors.must()[0].message,
             "Warning: deprecated field"
         );
     }

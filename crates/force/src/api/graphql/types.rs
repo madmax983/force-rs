@@ -123,7 +123,7 @@ pub struct GraphqlErrorLocation {
 
 #[cfg(test)]
 mod tests {
-    #![allow(clippy::unwrap_used)]
+    use crate::test_support::Must;
 
     use super::*;
     use serde_json::json;
@@ -133,7 +133,7 @@ mod tests {
     #[test]
     fn test_request_minimal_serialization() {
         let req = GraphqlRequest::new("{ uiapi { query { Account { edges { node { Id } } } } } }");
-        let json = serde_json::to_value(&req).unwrap();
+        let json = serde_json::to_value(&req).must();
 
         assert_eq!(
             json["query"],
@@ -148,7 +148,7 @@ mod tests {
     fn test_request_with_variables() {
         let req = GraphqlRequest::new("query($id: ID!) { node(id: $id) { id } }")
             .with_variables(json!({"id": "001xx000003DHP0AAA"}));
-        let json = serde_json::to_value(&req).unwrap();
+        let json = serde_json::to_value(&req).must();
 
         assert_eq!(json["variables"]["id"], "001xx000003DHP0AAA");
     }
@@ -156,7 +156,7 @@ mod tests {
     #[test]
     fn test_request_with_operation_name() {
         let req = GraphqlRequest::new("query GetAccount { ... }").with_operation_name("GetAccount");
-        let json = serde_json::to_value(&req).unwrap();
+        let json = serde_json::to_value(&req).must();
 
         assert_eq!(json["operation_name"], "GetAccount");
     }
@@ -166,7 +166,7 @@ mod tests {
         let req = GraphqlRequest::new("query Op($x: Int!) { f(x: $x) }")
             .with_variables(json!({"x": 42}))
             .with_operation_name("Op");
-        let json = serde_json::to_value(&req).unwrap();
+        let json = serde_json::to_value(&req).must();
 
         assert_eq!(json["query"], "query Op($x: Int!) { f(x: $x) }");
         assert_eq!(json["variables"]["x"], 42);
@@ -178,7 +178,7 @@ mod tests {
     #[test]
     fn test_response_data_only() {
         let json_str = r#"{"data": {"uiapi": {"query": {"Account": {"edges": []}}}}}"#;
-        let resp: GraphqlResponse = serde_json::from_str(json_str).unwrap();
+        let resp: GraphqlResponse = serde_json::from_str(json_str).must();
 
         assert!(resp.data.is_some());
         assert!(!resp.has_errors());
@@ -196,11 +196,11 @@ mod tests {
                 }
             ]
         }"#;
-        let resp: GraphqlResponse = serde_json::from_str(json_str).unwrap();
+        let resp: GraphqlResponse = serde_json::from_str(json_str).must();
 
         assert!(resp.data.is_none());
         assert!(resp.has_errors());
-        let errors = resp.errors.unwrap();
+        let errors = resp.errors.must();
         assert_eq!(errors.len(), 1);
         assert_eq!(
             errors[0].message,
@@ -222,7 +222,7 @@ mod tests {
             "data": {"uiapi": {"query": {"Account": {"edges": []}}}},
             "errors": [{"message": "Insufficient access to field 'Revenue'"}]
         }"#;
-        let resp: GraphqlResponse = serde_json::from_str(json_str).unwrap();
+        let resp: GraphqlResponse = serde_json::from_str(json_str).must();
 
         assert!(resp.data.is_some());
         assert!(resp.has_errors());
@@ -231,7 +231,7 @@ mod tests {
     #[test]
     fn test_response_neither_data_nor_errors() {
         let json_str = r"{}";
-        let resp: GraphqlResponse = serde_json::from_str(json_str).unwrap();
+        let resp: GraphqlResponse = serde_json::from_str(json_str).must();
 
         assert!(resp.data.is_none());
         assert!(!resp.has_errors());
@@ -243,10 +243,10 @@ mod tests {
             "data": {"value": 1},
             "extensions": {"requestId": "abc-123", "cost": 5}
         }"#;
-        let resp: GraphqlResponse = serde_json::from_str(json_str).unwrap();
+        let resp: GraphqlResponse = serde_json::from_str(json_str).must();
 
         assert!(resp.data.is_some());
-        let ext = resp.extensions.unwrap();
+        let ext = resp.extensions.must();
         assert_eq!(ext["requestId"], "abc-123");
         assert_eq!(ext["cost"], 5);
     }
@@ -260,9 +260,9 @@ mod tests {
         }
 
         let json_str = r#"{"data": {"name": "test", "count": 42}}"#;
-        let resp: GraphqlResponse<MyData> = serde_json::from_str(json_str).unwrap();
+        let resp: GraphqlResponse<MyData> = serde_json::from_str(json_str).must();
 
-        let data = resp.data.unwrap();
+        let data = resp.data.must();
         assert_eq!(data.name, "test");
         assert_eq!(data.count, 42);
     }
@@ -272,7 +272,7 @@ mod tests {
     #[test]
     fn test_error_minimal() {
         let json_str = r#"{"message": "Something went wrong"}"#;
-        let err: GraphqlError = serde_json::from_str(json_str).unwrap();
+        let err: GraphqlError = serde_json::from_str(json_str).must();
 
         assert_eq!(err.message, "Something went wrong");
         assert!(err.locations.is_empty());
@@ -286,7 +286,7 @@ mod tests {
             "message": "Field error",
             "path": ["uiapi", "query", "Account", "edges", 0, "node", "Name"]
         }"#;
-        let err: GraphqlError = serde_json::from_str(json_str).unwrap();
+        let err: GraphqlError = serde_json::from_str(json_str).must();
 
         assert_eq!(err.path.len(), 7);
         assert_eq!(err.path[0], "uiapi");
