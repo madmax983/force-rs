@@ -229,8 +229,6 @@ impl SearchQueryBuilder {
     ///
     /// Returns an error if search text is empty or no objects are specified in RETURNING.
     pub fn try_build(self) -> Result<String, crate::error::ForceError> {
-        use std::fmt::Write;
-
         if self.search_text.is_empty() {
             return Err(crate::error::ForceError::InvalidInput(
                 "search text cannot be empty".to_string(),
@@ -245,12 +243,14 @@ impl SearchQueryBuilder {
 
         let mut query = String::with_capacity(128);
 
-        write!(&mut query, "FIND {{{}}}", self.search_text)
-            .unwrap_or_else(|_| unreachable!("String format cannot fail"));
+        // ⚡ Bolt: Eliminate `write!` macro usage for predictable string pushes, removing implicit formatting overhead.
+        query.push_str("FIND {");
+        query.push_str(&self.search_text);
+        query.push('}');
 
         if let Some(scope) = self.search_scope {
-            write!(&mut query, " IN {}", scope)
-                .unwrap_or_else(|_| unreachable!("String format cannot fail"));
+            query.push_str(" IN ");
+            query.push_str(scope);
         }
 
         query.push_str(" RETURNING ");
@@ -276,6 +276,8 @@ impl SearchQueryBuilder {
                 query.push(')');
             }
         }
+
+        use std::fmt::Write;
 
         if let Some(limit) = self.limit {
             write!(&mut query, " LIMIT {}", limit)
