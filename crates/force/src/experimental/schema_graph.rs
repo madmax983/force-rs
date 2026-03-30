@@ -110,7 +110,10 @@ impl<'a, A: Authenticator> SchemaGraph<'a, A> {
     /// Generates a Mermaid.js ER diagram from the scanned objects.
     #[must_use]
     pub fn to_mermaid(&self) -> String {
-        let mut mermaid = String::from("erDiagram\n");
+        // ⚡ Bolt: Pre-allocate capacity for Mermaid ER diagrams to avoid multiple string reallocations.
+        let capacity = 1024 + (self.nodes.len() * 512);
+        let mut mermaid = String::with_capacity(capacity);
+        mermaid.push_str("erDiagram\n");
 
         // Sort nodes for deterministic output
         let mut node_names: Vec<_> = self.nodes.keys().collect();

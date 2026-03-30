@@ -12,3 +12,7 @@
 **Optimize Formatter allocations with collections**
 **Learning:** Calling `.join(",")` on collections before writing to a `std::fmt::Formatter` requires an unnecessary heap allocation for the intermediate `String`.
 **Action:** Iterate through the collection and use `write!` directly to the formatter to format items instead.
+
+**Pre-allocate String buffers for Large Output**
+**Learning:** Using `String::from` or similar initialization when incrementally building large strings causes multiple heap reallocations.
+**Action:** Use `String::with_capacity` to pre-allocate an estimated or exact buffer size based on the expected input to avoid these reallocations.
