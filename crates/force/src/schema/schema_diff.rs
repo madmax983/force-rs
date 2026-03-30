@@ -9,7 +9,7 @@
 //! ```no_run
 //! # use force::api::rest_operation::RestOperation;
 //! # use force::client::ForceClientBuilder;
-//! # use force::experimental::compare_schemas;
+//! # use force::schema::compare_schemas;
 //! # use force::auth::ClientCredentials;
 //! # #[tokio::main]
 //! # async fn main() -> anyhow::Result<()> {

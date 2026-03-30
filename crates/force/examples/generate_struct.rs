@@ -1,4 +1,4 @@
-//! Experimental feature: Struct Generator
+//! Preview schema utility: Struct Generator
 //! Requires the `schema` feature: `force = { version = "0.1", features = ["schema"] }`
 
 #![allow(clippy::too_many_lines)]
@@ -11,7 +11,7 @@ use std::env;
 #[cfg(feature = "schema")]
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    use force::experimental::generate_rust_struct;
+    use force::schema::generate_rust_struct;
 
     let client_id =
         env::var("SALESFORCE_CLIENT_ID").unwrap_or_else(|_| "your-client-id".to_string());
@@ -62,7 +62,7 @@ async fn main() -> anyhow::Result<()> {
 #[cfg(feature = "schema")]
 fn fallback_demonstration() -> anyhow::Result<()> {
     use force::api::rest::SObjectDescribe;
-    use force::experimental::generate_rust_struct;
+    use force::schema::generate_rust_struct;
 
     println!("\nFallback demonstration mode:\n");
 

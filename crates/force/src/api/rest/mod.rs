@@ -8,6 +8,7 @@ pub(crate) mod describe;
 pub(crate) mod explain;
 pub(crate) mod limits;
 pub(crate) mod query;
+pub(crate) mod query_plan_analyzer;
 pub(crate) mod search;
 
 pub use crate::api::soql::{SoqlQueryBuilder, escape_soql};
@@ -17,6 +18,7 @@ pub use describe::{
 };
 pub use explain::{ExplainResponse, PlanNote, QueryPlan};
 pub use limits::{LimitInfo, OrgLimits};
+pub use query_plan_analyzer::{InsightSeverity, QueryInsight, QueryInsights, analyze_query_plan};
 pub use search::{SearchAttributes, SearchQueryBuilder, SearchRecords, SearchResult};
 
 use crate::api::rest_operation::RestOperation;

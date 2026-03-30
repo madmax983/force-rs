@@ -302,31 +302,31 @@ force-rs uses feature flags to minimize dependencies and binary size:
 | `ui` | UI API (layout-aware records, object info, list views, favorites) | Stable |
 | `graphql` | GraphQL API (queries, mutations, variables) | Stable |
 | `jwt` | JWT bearer token authentication | Stable |
-| `schema` | Schema utilities (data dictionary, struct generation) | Experimental |
-| `data_utility` | Data utilities (field usage scanning) | Experimental |
+| `schema` | Schema analysis, scanning, and code generation utilities | Preview |
+| `data_utility` | Mock-data generation and Salesforce seeding helpers | Preview |
 | `mock` | Wiremock utilities for testing | Stable |
 | `full` | All stable APIs (`rest` + `bulk` + `composite` + `tooling` + `ui` + `graphql` + `jwt`) | Meta |
-| `all` | Everything including experimental features | Meta |
+| `all` | Everything including preview features | Meta |
 
 **Recommendation:** Start with `default` features, then add `bulk` and `jwt` as needed.
 
-## Experimental Features
+## Preview Features
 
-The `force` crate includes experimental features that are not yet stable but are available for early adopters. These features may change or be removed in future releases.
+The `force` crate includes preview features for early adopters. These capabilities live in their real modules and remain feature-gated while the API settles before a future stabilization pass.
 
-### Query Plan API (`nova` feature)
+### Query Plan API
 
-> **Requires feature: `nova`**
+> Available with the default `rest` feature.
 
 The Query Plan API allows you to inspect the performance cost of a SOQL query before executing it. This is useful for identifying inefficient queries (e.g., table scans) in CI/CD pipelines.
 
 ```toml
 [dependencies]
-force = { version = "0.1", features = ["nova"] }
+force = "0.1"
 ```
 
 ```rust
-// Requires the "nova" feature: force = { version = "0.1", features = ["nova"] }
+// Available with the default "rest" feature: force = "0.1"
 use force::client::ForceClientBuilder;
 use force::auth::ClientCredentials;
 
@@ -348,14 +348,14 @@ async fn main() -> anyhow::Result<()> {
 }
 ```
 
-### Experimental Modules (`experimental` module)
+### Preview Utility Modules
 
-The `force::experimental` module contains utilities that are being incubated:
+Preview utilities now live in the modules that own them:
 
-- **`QueryBatch`**: A high-level abstraction for processing large query results in batches using the Composite API.
-- **`FieldUsageScanner`**: A utility to scan SObjects and identify "zombie fields" (fields that are rarely populated).
-
-These are available by default but are located in the `experimental` module to indicate their stability level.
+- **`force::api::composite::{QueryBatch, SoqlMassOp}`**: batch-aware helpers built on the Composite API.
+- **`force::api::rest::analyze_query_plan`**: turns `explain()` responses into actionable warnings.
+- **`force::schema`**: schema scanning, diffing, visualization, DDL export, and code generation helpers.
+- **`force::data`**: mock-record generation and bulk seeding helpers.
 
 ## Architecture
 
@@ -423,6 +423,10 @@ Nightly live-contract tests (ignored by default in local runs) are available in 
 The crate-level compatibility and feature-flag guarantees are documented in:
 
 - [API Stability and SemVer Policy](docs/governance/api-stability-policy.md)
+
+### Incubation Specs
+
+- [Vantage Specs Index](docs/vantage/README.md)
 
 ### CI Lanes
 

@@ -10,9 +10,10 @@ use crate::api::rest_operation::RestOperation;
 use crate::auth::Authenticator;
 use crate::client::ForceClient;
 use crate::error::Result;
-use crate::experimental::scanner::FieldUsageScanner;
 use std::collections::HashMap;
 use std::fmt::Write;
+
+use super::scanner::FieldUsageScanner;
 
 /// Generator for SObject data dictionaries in Markdown format.
 #[derive(Debug)]

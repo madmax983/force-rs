@@ -15,7 +15,7 @@
 //! ```no_run
 //! # use force::client::ForceClientBuilder;
 //! # use force::api::soql::SoqlQueryBuilder;
-//! # use force::experimental::SoqlMassOp;
+//! # use force::api::composite::SoqlMassOp;
 //! # use force::auth::ClientCredentials;
 //! # use serde_json::json;
 //! # #[tokio::main]
@@ -42,9 +42,10 @@ use crate::api::soql::SoqlQueryBuilder;
 use crate::auth::Authenticator;
 use crate::client::ForceClient;
 use crate::error::{ForceError, Result};
-use crate::experimental::query_batch::{BatchOp, BatchStats, QueryBatch};
 use crate::types::DynamicSObject;
 use serde_json::Value;
+
+use super::query_batch::{BatchOp, BatchStats, QueryBatch};
 
 /// Mass operations processor using SOQL and Composite Batch API.
 #[derive(Debug)]

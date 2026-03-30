@@ -8,7 +8,7 @@
 //! ```no_run
 //! # use force::api::rest_operation::RestOperation;
 //! # use force::client::ForceClientBuilder;
-//! # use force::experimental::generate_changelog;
+//! # use force::schema::generate_changelog;
 //! # use force::auth::ClientCredentials;
 //! # #[tokio::main]
 //! # async fn main() -> anyhow::Result<()> {
@@ -26,7 +26,8 @@
 //! ```
 
 use crate::api::rest::describe::SObjectDescribe;
-use crate::experimental::compare_schemas;
+
+use super::schema_diff::compare_schemas;
 
 /// Generates a Markdown changelog comparing an old and new schema describe.
 ///

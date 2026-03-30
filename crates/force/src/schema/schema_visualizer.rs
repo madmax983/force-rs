@@ -2,11 +2,12 @@ use crate::api::rest_operation::RestOperation;
 use crate::auth::Authenticator;
 use crate::client::ForceClient;
 use crate::error::Result;
-use crate::experimental::scanner::FieldUsageScanner;
-use crate::experimental::schema_analyzer::analyze_schema;
-use crate::experimental::schema_graph::SchemaGraph;
 use std::collections::HashMap;
 use std::fmt::Write;
+
+use super::scanner::FieldUsageScanner;
+use super::schema_analyzer::analyze_schema;
+use super::schema_graph::SchemaGraph;
 
 /// Generates a comprehensive Markdown report for the given SObject.
 ///

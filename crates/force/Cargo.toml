@@ -47,7 +47,6 @@ proptest = "1.5"
 
 [features]
 default = ["rest"]
-nova = ["rest"]
 
 # Platform API surfaces
 rest = []
@@ -56,9 +55,9 @@ bulk = ["dep:csv"]
 composite = ["rest"]
 composite_graph = ["composite"]
 
-# Experimental capability surfaces
+# Capability surfaces
 schema = ["rest"]
-data_utility = ["rest"]
+data_utility = ["composite"]
 
 # Auth flows
 jwt = ["dep:jsonwebtoken"]
@@ -87,7 +86,7 @@ consent = []
 
 # Meta features
 full = ["rest", "bulk", "composite", "tooling", "jwt", "ui", "graphql", "data_cloud", "apex_rest", "consent"]
-all = ["full", "schema", "data_utility", "composite_graph", "cpq", "nova"]
+all = ["full", "schema", "data_utility", "composite_graph", "cpq"]
 
 [[example]]
 name = "query_plan"

@@ -26,3 +26,6 @@ nul
 # Mutants
 mutants.out/
 mutants.out.old/
+
+*.py
+*.sh

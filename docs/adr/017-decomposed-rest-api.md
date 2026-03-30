@@ -11,7 +11,7 @@ We have decomposed the REST API module into specialized sub-modules:
 1.  **`handler`**: The core `RestHandler` definition and base HTTP capabilities.
 2.  **`crud`**: Create, Read, Update, Delete operations.
 3.  **`describe`**: Metadata describe operations.
-4.  **`explain`**: Query execution plan operations (feature gated behind `nova`).
+4.  **`explain`**: Query execution plan operations.
 5.  **`limits`**: Organization limits operations.
 6.  **`query`**: SOQL query execution.
 7.  **`query_stream`**: Streaming SOQL queries.

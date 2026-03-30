@@ -3,7 +3,7 @@
 use crate::api::rest::describe::{FieldType, SObjectDescribe};
 use std::fmt::Write;
 
-/// Experimental utility to generate TypeScript interfaces from SObject describe metadata.
+/// Preview utility to generate TypeScript interfaces from SObject describe metadata.
 #[cfg(feature = "schema")]
 /// Generates a TypeScript interface definition from an SObject describe result.
 pub fn generate_typescript_interface(describe: &SObjectDescribe) -> String {

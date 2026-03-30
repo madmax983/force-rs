@@ -2,7 +2,7 @@
 use crate::api::rest::describe::{FieldType, SObjectDescribe};
 use std::fmt::Write;
 
-/// Experimental utility to generate Rust structs from SObject describe metadata.
+/// Preview utility to generate Rust structs from SObject describe metadata.
 #[cfg(feature = "schema")]
 /// Generates a Rust struct definition from an SObject describe result.
 ///
