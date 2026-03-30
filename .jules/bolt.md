@@ -8,3 +8,6 @@
 **GraphqlErrorResponse Display Optimization**
 **Learning:** When implementing `fmt::Display` for comma-separated (or otherwise joined) collections of strings, avoid calling `.collect()` into an intermediate `Vec` and then using `.join()`, as this triggers unnecessary heap allocations. Using `.collect()` on an ExactSizeIterator to build a `HashMap` correctly uses the size hint and pre-allocates under the hood, making a manual loop redundant.
 **Action:** Iterate over the elements using `.enumerate()` and write directly to the `Formatter` (e.g., `if i > 0 { write!(f, "; ")?; } write!(f, "{}", item)?;`).
+**Remove `.to_string()` on `utf8_percent_encode` result**
+**Learning:** Calling `.to_string()` on the result of `percent_encoding::utf8_percent_encode()` before passing it into `format!` triggers an unnecessary intermediate heap allocation. The `PercentEncode` struct returned by this function implements `fmt::Display`, meaning it can be formatted directly.
+**Action:** Pass `utf8_percent_encode` directly into `format!` arguments instead of creating temporary strings.
