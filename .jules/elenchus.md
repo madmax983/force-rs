@@ -229,3 +229,13 @@ match result {
 **Finding:** The `stream.next().await` code block in the `README.md` and `bulk_query.rs` example caused confusion and failed to compile when copied because `BulkQueryStream::next()` is an inherent method, but the code comment explicitly referred to needing the `futures::StreamExt` trait. The lack of standard `futures::StreamExt` implementations made the provided examples difficult to adapt for standard async combinators.
 **Evidence:** User reported compilation failure (`ECHO_ISSUE.md`) indicating `next` method was missing and expecting `futures::StreamExt`.
 **Recommendation:** Refactored the `README.md` and `bulk_query.rs` examples to explicitly call `.into_stream()` to convert `BulkQueryStream` into a standard `futures::Stream`, added the `use futures::StreamExt;` import, wrapped the result via `std::pin::pin!`, and updated the `while let Some` loop to handle the resulting `Option<Result<T>>`. Tests and examples now successfully compile.
+
+### [Strengthened] `crates/force/src/api/rest_operation.rs`
+
+**Module:** `crates/force/src/api/rest_operation.rs`
+**Severity:** 🟡 Suspect
+**Finding:**
+- The `upsert` and `upsert_idempotent` operations `is_success` matches were missing adequate assertions testing `true` or `false` returns, allowing mutants enforcing wrong logic.
+- Missing specific test cases for `get`, `query`, and `query_more` allowing default/mock return mutations to survive.
+**Evidence:** `cargo mutants` output showing missed mutants for default returning `Result` types in `get` and `query` operations, and `is_success()` match arm inversions.
+**Recommendation:** Added `test_upsert_success_other_status` and `test_upsert_failure` to properly test status conditions. Injected `test_get_success_mock`, `test_query_success_mock`, and `test_query_more_success_mock` tests to prevent `Default::default()` returns in REST operations. All mutants now caught or unviable.

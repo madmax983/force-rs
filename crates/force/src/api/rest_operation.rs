@@ -824,4 +824,220 @@ mod tests {
             _ => panic!("Expected NotImplemented error for 204 response"),
         }
     }
+
+    #[tokio::test]
+    async fn test_upsert_success_other_status() {
+        use crate::client::builder;
+        use serde_json::json;
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let mock_server = MockServer::start().await;
+        let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
+        let client = builder().authenticate(auth).build().await.must();
+
+        // Testing the `_ if response.status().is_success()` match arm directly
+        Mock::given(method("PATCH"))
+            .and(path(
+                "/services/data/v60.0/sobjects/Account/ExternalId__c/ACME-002",
+            ))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "id": "001xx000003DHP0AAO",
+                "success": true,
+                "created": false,
+                "errors": []
+            })))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let rest = client.rest();
+        let response = rest
+            .upsert(
+                "Account",
+                "ExternalId__c",
+                "ACME-002",
+                &json!({"Name": "Acme Corp 2"}),
+            )
+            .await
+            .must();
+
+        assert!(response.is_success());
+        assert!(!response.is_created());
+        assert_eq!(response.id.as_str(), "001xx000003DHP0AAO");
+    }
+
+    #[tokio::test]
+    async fn test_upsert_failure() {
+        use crate::client::builder;
+        use serde_json::json;
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let mock_server = MockServer::start().await;
+        let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
+        let client = builder().authenticate(auth).build().await.must();
+
+        Mock::given(method("PATCH"))
+            .and(path(
+                "/services/data/v60.0/sobjects/Account/ExternalId__c/ACME-003",
+            ))
+            .respond_with(ResponseTemplate::new(400).set_body_json(json!([{
+                "message": "Bad Request",
+                "errorCode": "BAD_REQUEST"
+            }])))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let rest = client.rest();
+        let result = rest
+            .upsert(
+                "Account",
+                "ExternalId__c",
+                "ACME-003",
+                &json!({"Name": "Acme Corp 3"}),
+            )
+            .await;
+
+        let Err(err) = result else {
+            panic!("Expected Err");
+        };
+        assert!(err.to_string().contains("Bad Request"));
+    }
+
+    #[tokio::test]
+    async fn test_get_success_mock() {
+        use crate::client::builder;
+        use crate::types::SalesforceId;
+        use serde_json::json;
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let mock_server = MockServer::start().await;
+        let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
+        let client = builder().authenticate(auth).build().await.must();
+
+        Mock::given(method("GET"))
+            .and(path(
+                "/services/data/v60.0/sobjects/Account/001xx000003DHP0AAO",
+            ))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "Id": "001xx000003DHP0AAO",
+                "Name": "Test Account"
+            })))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let rest = client.rest();
+        let id = SalesforceId::new("001xx000003DHP0AAO").must();
+        let result = rest.get("Account", &id).await.must();
+
+        assert_eq!(result["Name"], "Test Account");
+    }
+
+    #[tokio::test]
+    async fn test_query_success_mock() {
+        use crate::client::builder;
+        use serde_json::json;
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let mock_server = MockServer::start().await;
+        let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
+        let client = builder().authenticate(auth).build().await.must();
+
+        Mock::given(method("GET"))
+            .and(path("/services/data/v60.0/query"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "totalSize": 1,
+                "done": true,
+                "records": [{"Id": "001xx000003DHP0AAO", "Name": "Test Account"}]
+            })))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let rest = client.rest();
+        let result = rest
+            .query::<serde_json::Value>("SELECT Id, Name FROM Account")
+            .await
+            .must();
+
+        assert_eq!(result.total_size, 1);
+        assert!(result.done);
+        assert_eq!(result.records.len(), 1);
+        assert_eq!(result.records[0]["Name"], "Test Account");
+    }
+
+    #[tokio::test]
+    async fn test_query_more_success_mock() {
+        use crate::client::builder;
+        use serde_json::json;
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let mock_server = MockServer::start().await;
+        let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
+        let client = builder().authenticate(auth).build().await.must();
+
+        Mock::given(method("GET"))
+            .and(path("/services/data/v60.0/query/01g"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "totalSize": 2,
+                "done": true,
+                "records": [{"Id": "001xx000003DHP0AAO", "Name": "Test Account 2"}]
+            })))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let rest = client.rest();
+        let result = rest
+            .query_more::<serde_json::Value>("/services/data/v60.0/query/01g")
+            .await
+            .must();
+
+        assert_eq!(result.total_size, 2);
+        assert!(result.done);
+        assert_eq!(result.records.len(), 1);
+        assert_eq!(result.records[0]["Name"], "Test Account 2");
+    }
+
+    #[test]
+    fn test_query_more_security_check_scheme_mismatch() {
+        let result = resolve_next_records_url(
+            "https://na1.salesforce.com",
+            "http://na1.salesforce.com/services/data/v60.0/query/01g",
+        );
+        let Err(err) = result else {
+            panic!("Expected Err");
+        };
+        assert!(err.to_string().contains("Security Error"));
+    }
+
+    #[test]
+    fn test_query_more_security_check_port_mismatch() {
+        let result = resolve_next_records_url(
+            "https://na1.salesforce.com",
+            "https://na1.salesforce.com:8080/services/data/v60.0/query/01g",
+        );
+        let Err(err) = result else {
+            panic!("Expected Err");
+        };
+        assert!(err.to_string().contains("Security Error"));
+    }
+
+    #[test]
+    fn test_query_more_security_check_username_mismatch() {
+        let result = resolve_next_records_url(
+            "https://na1.salesforce.com",
+            "https://user@na1.salesforce.com/services/data/v60.0/query/01g",
+        );
+        let Err(err) = result else {
+            panic!("Expected Err");
+        };
+        assert!(err.to_string().contains("Security Error"));
+    }
 }
