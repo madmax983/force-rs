@@ -7,7 +7,7 @@ use futures::stream;
 use serde_json::{Value, json};
 
 use force_sync::{
-    capture::salesforce::{capture_stream, load_replay_id},
+    capture::{capture_stream, load_replay_id},
     config::ObjectSync,
     error::ForceSyncError,
     store::pg::PgStore,
