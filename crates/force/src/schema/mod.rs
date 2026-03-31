@@ -3,6 +3,8 @@
 pub(crate) mod data_dictionary;
 pub(crate) mod json_schema;
 pub(crate) mod openapi_generator;
+#[cfg(feature = "nova")]
+pub(crate) mod postman_generator;
 pub(crate) mod scanner;
 pub(crate) mod schema_analyzer;
 pub(crate) mod schema_changelog;
@@ -14,6 +16,9 @@ pub(crate) mod sql_exporter;
 #[allow(missing_docs)]
 pub(crate) mod type_generator;
 pub(crate) mod typescript_generator;
+
+#[cfg(feature = "nova")]
+pub use postman_generator::generate_postman_collection;
 
 pub use data_dictionary::DataDictionary;
 pub use json_schema::generate_json_schema;

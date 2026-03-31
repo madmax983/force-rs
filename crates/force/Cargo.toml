@@ -58,6 +58,7 @@ composite_graph = ["composite"]
 # Capability surfaces
 schema = ["rest"]
 data_utility = ["composite"]
+nova = ["schema", "data_utility"]
 
 # Auth flows
 jwt = ["dep:jsonwebtoken"]
@@ -86,7 +87,7 @@ consent = []
 
 # Meta features
 full = ["rest", "bulk", "composite", "tooling", "jwt", "ui", "graphql", "data_cloud", "apex_rest", "consent"]
-all = ["full", "schema", "data_utility", "composite_graph", "cpq"]
+all = ["full", "schema", "data_utility", "composite_graph", "cpq", "nova"]
 
 [[example]]
 name = "query_plan"
