@@ -58,3 +58,7 @@
 **GraphQL Empty Error Branch**
 **Learning:** The Salesforce GraphQL API can sometimes return a response with `data: null` and `errors: []` (an empty errors array). While testing complex `match` statements handling optional data and error structures, ensuring that fallback/catch-all branches exist is critical because if the `if !errors.is_empty()` guard is falsely assumed or missed, it will fail to drop down into the generic fallback error.
 **Action:** When handling arrays of external errors or events that might be unexpectedly empty, ensure dedicated mock tests simulate the `[]` state alongside the standard `Some` and `None` states to ensure logic routing handles all variants correctly.
+
+**[Avoid `#![allow(clippy::unwrap_used)]` in Test Modules]**
+**Learning:** Using `#![allow(clippy::unwrap_used)]` to suppress unwrap warnings in test modules bypasses the project's custom `Must` trait (`.must()`), which provides better diagnostic messages on panics.
+**Action:** Always use the `.must()` or `.must_msg()` extensions from `crate::test_support::Must` instead of `unwrap()` in tests, and avoid suppressing the `clippy::unwrap_used` lint.

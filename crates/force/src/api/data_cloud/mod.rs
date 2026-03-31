@@ -117,7 +117,7 @@ impl<A: crate::auth::Authenticator> DataCloudHandler<A> {
 
 #[cfg(test)]
 mod tests {
-    #![allow(clippy::unwrap_used)]
+
     use crate::auth::DataCloudConfig;
     use crate::client::{ForceClient, builder};
     use crate::test_support::{MockAuthenticator, Must, MustMsg};
@@ -160,7 +160,10 @@ mod tests {
         let client = test_client_no_dc().await;
         let result = client.data_cloud();
         assert!(result.is_err());
-        let err = result.unwrap_err().to_string();
+        let Err(err) = result else {
+            panic!("Expected error")
+        };
+        let err = err.to_string();
         assert!(
             err.contains("Data Cloud not configured"),
             "Error should mention DC not configured, got: {err}"
