@@ -65,9 +65,8 @@ pub fn generate_ddl(describe: &SObjectDescribe) -> String {
         }
         first = false;
 
-        let sql_type = map_field_type(&field.type_, field.length);
-
-        let _ = write!(ddl, "    {} {}", field.name, sql_type);
+        let _ = write!(ddl, "    {} ", field.name);
+        write_field_type(&mut ddl, &field.type_, field.length);
 
         if field.name == "Id" {
             ddl.push_str(" PRIMARY KEY");
@@ -85,9 +84,10 @@ pub fn generate_ddl(describe: &SObjectDescribe) -> String {
 }
 
 /// Maps a Salesforce `FieldType` to a standard SQL data type.
-fn map_field_type(field_type: &FieldType, length: i32) -> String {
+fn write_field_type(out: &mut String, field_type: &FieldType, length: i32) {
+    use std::fmt::Write;
     match field_type {
-        FieldType::Id | FieldType::Reference => "VARCHAR(18)".to_string(),
+        FieldType::Id | FieldType::Reference => out.push_str("VARCHAR(18)"),
         FieldType::String
         | FieldType::Email
         | FieldType::Phone
@@ -96,20 +96,20 @@ fn map_field_type(field_type: &FieldType, length: i32) -> String {
         | FieldType::Multipicklist
         | FieldType::Combobox => {
             if length > 0 {
-                format!("VARCHAR({})", length)
+                let _ = write!(out, "VARCHAR({})", length);
             } else {
-                "VARCHAR(255)".to_string()
+                out.push_str("VARCHAR(255)");
             }
         }
-        FieldType::Boolean => "BOOLEAN".to_string(),
-        FieldType::Int => "INTEGER".to_string(),
+        FieldType::Boolean => out.push_str("BOOLEAN"),
+        FieldType::Int => out.push_str("INTEGER"),
         FieldType::Double | FieldType::Currency | FieldType::Percent => {
-            "DOUBLE PRECISION".to_string()
+            out.push_str("DOUBLE PRECISION");
         }
-        FieldType::Date => "DATE".to_string(),
-        FieldType::Datetime => "TIMESTAMP".to_string(),
-        FieldType::Time => "TIME".to_string(),
-        _ => "TEXT".to_string(), // Fallback for complex/unknown types
+        FieldType::Date => out.push_str("DATE"),
+        FieldType::Datetime => out.push_str("TIMESTAMP"),
+        FieldType::Time => out.push_str("TIME"),
+        _ => out.push_str("TEXT"), // Fallback for complex/unknown types
     }
 }
 
