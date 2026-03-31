@@ -208,7 +208,7 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
 
 #[cfg(test)]
 mod tests {
-    #![allow(clippy::unwrap_used)]
+
     use super::*;
     use crate::client::builder;
     use crate::test_support::{MockAuthenticator, Must};
@@ -628,7 +628,7 @@ mod tests {
             ]
         }"#;
 
-        let collection: ListViewSummaryCollection = serde_json::from_str(json_str).unwrap();
+        let collection: ListViewSummaryCollection = serde_json::from_str(json_str).must();
         assert_eq!(collection.count, 3);
         assert_eq!(collection.current_page_token.as_deref(), Some("tok1"));
         assert_eq!(collection.next_page_token.as_deref(), Some("tok2"));
@@ -655,7 +655,7 @@ mod tests {
             ]
         }"#;
 
-        let records: ListRecordsRepresentation = serde_json::from_str(json_str).unwrap();
+        let records: ListRecordsRepresentation = serde_json::from_str(json_str).must();
         assert_eq!(records.count, 50);
         assert_eq!(records.current_page_token.as_deref(), Some("current_tok"));
         assert_eq!(records.next_page_token.as_deref(), Some("next_tok"));

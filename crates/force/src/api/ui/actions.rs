@@ -76,7 +76,7 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
 
 #[cfg(test)]
 mod tests {
-    #![allow(clippy::unwrap_used)]
+
     use super::*;
     use crate::client::builder;
     use crate::test_support::{MockAuthenticator, Must};
@@ -219,8 +219,8 @@ mod tests {
             }
         }"#;
 
-        let rep: RecordActionRepresentation = serde_json::from_str(json_str).unwrap();
-        let actions = rep.actions.get("001000000000001AAA").unwrap();
+        let rep: RecordActionRepresentation = serde_json::from_str(json_str).must();
+        let actions = rep.actions.get("001000000000001AAA").must();
         assert_eq!(actions.len(), 1);
         assert_eq!(actions[0].api_name, "NewTask");
         assert_eq!(actions[0].action_type, "QuickAction");
