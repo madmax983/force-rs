@@ -65,9 +65,8 @@ pub fn generate_ddl(describe: &SObjectDescribe) -> String {
         }
         first = false;
 
-        let sql_type = map_field_type(&field.type_, field.length);
-
-        let _ = write!(ddl, "    {} {}", field.name, sql_type);
+        let _ = write!(ddl, "    {} ", field.name);
+        let _ = write_field_type(&mut ddl, &field.type_, field.length);
 
         if field.name == "Id" {
             ddl.push_str(" PRIMARY KEY");
@@ -84,10 +83,11 @@ pub fn generate_ddl(describe: &SObjectDescribe) -> String {
     ddl
 }
 
-/// Maps a Salesforce `FieldType` to a standard SQL data type.
-fn map_field_type(field_type: &FieldType, length: i32) -> String {
+/// Writes a standard SQL data type mapping for a Salesforce `FieldType` directly to a buffer.
+fn write_field_type(ddl: &mut String, field_type: &FieldType, length: i32) -> std::fmt::Result {
+    use std::fmt::Write;
     match field_type {
-        FieldType::Id | FieldType::Reference => "VARCHAR(18)".to_string(),
+        FieldType::Id | FieldType::Reference => ddl.write_str("VARCHAR(18)"),
         FieldType::String
         | FieldType::Email
         | FieldType::Phone
@@ -96,20 +96,20 @@ fn map_field_type(field_type: &FieldType, length: i32) -> String {
         | FieldType::Multipicklist
         | FieldType::Combobox => {
             if length > 0 {
-                format!("VARCHAR({})", length)
+                write!(ddl, "VARCHAR({})", length)
             } else {
-                "VARCHAR(255)".to_string()
+                ddl.write_str("VARCHAR(255)")
             }
         }
-        FieldType::Boolean => "BOOLEAN".to_string(),
-        FieldType::Int => "INTEGER".to_string(),
+        FieldType::Boolean => ddl.write_str("BOOLEAN"),
+        FieldType::Int => ddl.write_str("INTEGER"),
         FieldType::Double | FieldType::Currency | FieldType::Percent => {
-            "DOUBLE PRECISION".to_string()
+            ddl.write_str("DOUBLE PRECISION")
         }
-        FieldType::Date => "DATE".to_string(),
-        FieldType::Datetime => "TIMESTAMP".to_string(),
-        FieldType::Time => "TIME".to_string(),
-        _ => "TEXT".to_string(), // Fallback for complex/unknown types
+        FieldType::Date => ddl.write_str("DATE"),
+        FieldType::Datetime => ddl.write_str("TIMESTAMP"),
+        FieldType::Time => ddl.write_str("TIME"),
+        _ => ddl.write_str("TEXT"), // Fallback for complex/unknown types
     }
 }
 

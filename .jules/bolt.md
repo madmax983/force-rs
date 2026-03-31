@@ -11,3 +11,6 @@
 **Remove `.to_string()` on `utf8_percent_encode` result**
 **Learning:** Calling `.to_string()` on the result of `percent_encoding::utf8_percent_encode()` before passing it into `format!` triggers an unnecessary intermediate heap allocation. The `PercentEncode` struct returned by this function implements `fmt::Display`, meaning it can be formatted directly.
 **Action:** Pass `utf8_percent_encode` directly into `format!` arguments instead of creating temporary strings.
+**Refactor map_field_type to write_field_type**
+**Learning:** When repeatedly mapping enum values to string representations within a loop (e.g. generating SQL columns from FieldType), returning a new `String` (via `.to_string()` or `format!()`) creates excessive temporary heap allocations. Changing the function signature to accept a `&mut String` buffer and using `.write_str()` or `write!()` directly eliminates this overhead.
+**Action:** For string-building operations on hot paths, pass a mutable buffer reference downward instead of allocating and returning new strings from helper functions.
