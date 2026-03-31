@@ -1,13 +1,13 @@
 //! PostgreSQL storage and migration helpers.
 
-pub mod checkpoint;
-pub mod conflict;
-pub mod dead_letter;
-pub mod journal;
-pub mod link;
-pub mod migrate;
-pub mod store;
-pub mod task_queue;
+pub(crate) mod checkpoint;
+pub(crate) mod conflict;
+pub(crate) mod dead_letter;
+pub(crate) mod journal;
+pub(crate) mod link;
+pub(crate) mod migrate;
+pub(crate) mod store;
+pub(crate) mod task_queue;
 
 pub use checkpoint::CheckpointState;
 pub use conflict::SyncConflict;

@@ -15,7 +15,7 @@ use wiremock::{
 };
 
 use force_sync::{
-    apply::salesforce::SalesforceApplier,
+    apply::SalesforceApplier,
     config::ObjectSync,
     error::ForceSyncError,
     identity::SyncKey,
