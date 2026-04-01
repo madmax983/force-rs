@@ -19,12 +19,13 @@ pub fn generate_rust_struct(describe: &SObjectDescribe) -> String {
         let _ = writeln!(out, "    /// {}", field.label);
         let _ = writeln!(out, "    #[serde(rename = \"{}\")]", field.name);
         let rust_type = map_type(&field.type_);
-        let final_type = if field.nillable {
-            format!("Option<{}>", rust_type)
+        // ⚡ Bolt: Write type directly to buffer instead of allocating intermediate String via format! or to_string()
+        let _ = write!(out, "    pub {}: ", snake_case(&field.name));
+        if field.nillable {
+            let _ = writeln!(out, "Option<{}>,", rust_type);
         } else {
-            rust_type.to_string()
-        };
-        let _ = writeln!(out, "    pub {}: {},", snake_case(&field.name), final_type);
+            let _ = writeln!(out, "{},", rust_type);
+        }
     }
 
     out.push_str("}\n");
