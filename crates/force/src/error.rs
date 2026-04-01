@@ -103,6 +103,10 @@ pub enum HttpError {
         message: String,
     },
 
+    /// The payload returned from the API was too large to process.
+    #[error("payload too large: {0}")]
+    PayloadTooLarge(String),
+
     /// Rate limit exceeded.
     #[error("rate limit exceeded, retry after {retry_after_seconds} seconds")]
     RateLimitExceeded {

@@ -59,7 +59,7 @@ pub fn parse_api_error(status_code: u16, body: &str) -> HttpError {
 /// This prevents memory exhaustion (DoS) attacks from maliciously large error responses.
 ///
 /// It strictly caps the internal allocation and reads chunk by chunk.
-pub async fn read_capped_body(response: Response, limit_bytes: usize) -> String {
+pub async fn read_capped_body(response: Response, limit_bytes: usize) -> crate::error::Result<String> {
     let mut stream = response.bytes_stream();
 
     // ⚡ Bolt: Pre-allocate a reasonable capacity, up to max limit.
@@ -68,25 +68,21 @@ pub async fn read_capped_body(response: Response, limit_bytes: usize) -> String 
     let mut bytes = Vec::with_capacity(init_cap);
 
     while let Some(chunk) = stream.next().await {
-        if let Ok(chunk_bytes) = chunk {
-            // Check remaining capacity before extending
-            let remaining = limit_bytes.saturating_sub(bytes.len());
+        let chunk_bytes = chunk.map_err(|e| crate::error::HttpError::RequestFailed(e))?;
 
-            if remaining == 0 {
-                break;
-            }
+        // Check remaining capacity before extending
+        let remaining = limit_bytes.saturating_sub(bytes.len());
 
-            if chunk_bytes.len() > remaining {
-                bytes.extend_from_slice(&chunk_bytes[..remaining]);
-                break;
-            }
-            bytes.extend_from_slice(&chunk_bytes);
-        } else {
-            break;
+        if remaining == 0 || chunk_bytes.len() > remaining {
+            return Err(crate::error::ForceError::Http(crate::error::HttpError::PayloadTooLarge(
+                format!("response body exceeded the limit of {} bytes", limit_bytes)
+            )));
         }
+
+        bytes.extend_from_slice(&chunk_bytes);
     }
 
-    String::from_utf8(bytes).unwrap_or_else(|e| String::from_utf8_lossy(e.as_bytes()).into_owned())
+    Ok(String::from_utf8(bytes).unwrap_or_else(|e| String::from_utf8_lossy(e.as_bytes()).into_owned()))
 }
 
 pub async fn response_to_force_error(
@@ -95,12 +91,17 @@ pub async fn response_to_force_error(
 ) -> crate::error::ForceError {
     let status_code = response.status().as_u16();
 
-    let body = read_capped_body(response, 1024 * 1024).await;
+    let body_res = read_capped_body(response, 1024 * 1024).await;
 
-    let payload = if body.trim().is_empty() {
-        fallback_message.to_string()
-    } else {
-        body
+    let payload = match body_res {
+        Ok(body) => {
+            if body.trim().is_empty() {
+                fallback_message.to_string()
+            } else {
+                body
+            }
+        }
+        Err(e) => format!("Failed to read error body: {}", e),
     };
     parse_api_error(status_code, &payload).into()
 }

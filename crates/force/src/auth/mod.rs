@@ -80,12 +80,16 @@ pub(crate) async fn handle_oauth_error(
     context: Option<&str>,
 ) -> ForceError {
     let status = response.status();
-    let body = crate::http::error::read_capped_body(response, 1024 * 1024).await;
-
-    let error_text = if body.trim().is_empty() {
-        "Unknown error".to_string()
-    } else {
-        body
+    let body_res = crate::http::error::read_capped_body(response, 1024 * 1024).await;
+    let error_text = match body_res {
+        Ok(body) => {
+            if body.trim().is_empty() {
+                "Unknown error".to_string()
+            } else {
+                body
+            }
+        }
+        Err(e) => format!("Failed to read error body: {}", e),
     };
 
     if let Ok(oauth_error) = serde_json::from_str::<OAuthErrorResponse>(&error_text) {

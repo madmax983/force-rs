@@ -403,7 +403,11 @@ impl HttpExecutor {
         Fut: std::future::Future<Output = Result<AccessToken>>,
     {
         let response = self.execute(request, token, refresh_token).await?;
-        let json = response.json::<T>().await.map_err(HttpError::from)?;
+        let body_text = crate::http::error::read_capped_body(response, 100 * 1024 * 1024).await?;
+        let json = serde_json::from_str::<T>(&body_text).map_err(|e| HttpError::StatusError {
+            status_code: 200, // We have already confirmed status is success in `execute`
+            message: format!("Failed to parse JSON response: {}", e),
+        })?;
         Ok(json)
     }
 }
