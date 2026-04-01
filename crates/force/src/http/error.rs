@@ -29,19 +29,40 @@ pub fn parse_api_error(status_code: u16, body: &str) -> HttpError {
     // Try to parse as Salesforce error array
     if let Ok(errors) = serde_json::from_str::<Vec<SalesforceError>>(body) {
         if let Some(first_error) = errors.first() {
-            let fields_suffix = if first_error.fields.is_empty() {
-                String::new()
-            } else {
-                format!(" (fields: {})", first_error.fields.join(", "))
-            };
+            let code = first_error.error_code.as_deref().unwrap_or("UNKNOWN");
+
+            // ⚡ Bolt: Pre-allocate a single buffer to avoid multiple heap allocations
+            // from intermediate strings and `.join(", ")`.
+            let mut cap = code.len() + first_error.message.len() + 4; // "[{}] "
+            if !first_error.fields.is_empty() {
+                cap += 11 + first_error.fields.iter().map(|f| f.len()).sum::<usize>(); // " (fields: )" + field lengths
+                if first_error.fields.len() > 1 {
+                    cap += (first_error.fields.len() - 1) * 2; // ", " separators
+                }
+            }
+
+            let mut message = String::with_capacity(cap);
+            message.push('[');
+            message.push_str(code);
+            message.push_str("] ");
+            message.push_str(&first_error.message);
+
+            if !first_error.fields.is_empty() {
+                message.push_str(" (fields: ");
+                let mut first = true;
+                for field in &first_error.fields {
+                    if !first {
+                        message.push_str(", ");
+                    }
+                    first = false;
+                    message.push_str(field);
+                }
+                message.push(')');
+            }
+
             return HttpError::StatusError {
                 status_code,
-                message: format!(
-                    "[{}] {}{}",
-                    first_error.error_code.as_deref().unwrap_or("UNKNOWN"),
-                    first_error.message,
-                    fields_suffix
-                ),
+                message,
             };
         }
     }
