@@ -164,7 +164,7 @@ mod tests {
     use super::*;
     use crate::api::rest::describe::{FieldDescribe, FieldType};
 
-    fn mock_field(name: &str, type_: FieldType, createable: bool) -> FieldDescribe {
+    fn mock_field(name: &str, type_: FieldType, createable: bool, updateable: bool) -> FieldDescribe {
         FieldDescribe {
             aggregatable: true,
             auto_number: false,
@@ -220,7 +220,7 @@ mod tests {
             sortable: true,
             type_,
             unique: false,
-            updateable: createable,
+            updateable,
             write_requires_master_read: false,
         }
     }
@@ -256,9 +256,11 @@ mod tests {
             child_relationships: vec![],
             record_type_infos: vec![],
             fields: vec![
-                mock_field("Id", FieldType::Id, false),
-                mock_field("Name", FieldType::String, true),
-                mock_field("Industry", FieldType::Picklist, true),
+                mock_field("Id", FieldType::Id, true, true),
+                mock_field("Name", FieldType::String, true, true),
+                mock_field("Industry", FieldType::Picklist, true, true),
+                mock_field("CreateOnly", FieldType::String, true, false),
+                mock_field("UpdateOnly", FieldType::String, false, true),
             ],
         };
 
@@ -279,11 +281,24 @@ mod tests {
         let create_item = &items[0];
         assert_eq!(create_item["name"], "Create Account");
         assert_eq!(create_item["request"]["method"], "POST");
-        assert!(
-            create_item["request"]["body"]["raw"]
-                .as_str()
-                .must_msg("raw body should be string")
-                .contains("Name")
-        );
+        let create_raw = create_item["request"]["body"]["raw"]
+            .as_str()
+            .must_msg("raw body should be string");
+        assert!(!create_raw.contains("\"Id\""), "Id should not be createable");
+        assert!(create_raw.contains("\"Name\""), "Name should be createable");
+        assert!(create_raw.contains("\"CreateOnly\""), "CreateOnly should be createable");
+        assert!(!create_raw.contains("\"UpdateOnly\""), "UpdateOnly should not be createable");
+
+        // Check Update Request
+        let update_item = &items[2];
+        assert_eq!(update_item["name"], "Update Account");
+        assert_eq!(update_item["request"]["method"], "PATCH");
+        let update_raw = update_item["request"]["body"]["raw"]
+            .as_str()
+            .must_msg("raw body should be string");
+        assert!(!update_raw.contains("\"Id\""), "Id should not be updateable");
+        assert!(update_raw.contains("\"Name\""), "Name should be updateable");
+        assert!(!update_raw.contains("\"CreateOnly\""), "CreateOnly should not be updateable");
+        assert!(update_raw.contains("\"UpdateOnly\""), "UpdateOnly should be updateable");
     }
 }
