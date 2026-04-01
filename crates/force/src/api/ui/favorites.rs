@@ -131,7 +131,6 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
 
 #[cfg(test)]
 mod tests {
-    #![allow(clippy::unwrap_used)]
     use super::*;
     use crate::client::builder;
     use crate::test_support::{MockAuthenticator, Must};
@@ -400,7 +399,7 @@ mod tests {
             target_type: "Record".to_string(),
         };
 
-        let serialized = serde_json::to_value(&input).unwrap();
+        let serialized = serde_json::to_value(&input).must();
         assert_eq!(serialized["label"], "Test Favorite");
         assert_eq!(serialized["name"], "test_fav");
         assert_eq!(serialized["target"], "001000000000001AAA");

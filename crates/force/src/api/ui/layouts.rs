@@ -133,7 +133,6 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
 
 #[cfg(test)]
 mod tests {
-    #![allow(clippy::unwrap_used)]
     use super::*;
     use crate::api::ui::types::{LayoutType, Mode};
     use crate::client::builder;
@@ -337,7 +336,7 @@ mod tests {
             ]
         }"#;
 
-        let layout: RecordLayoutRepresentation = serde_json::from_str(json_str).unwrap();
+        let layout: RecordLayoutRepresentation = serde_json::from_str(json_str).must();
         assert_eq!(layout.id, "layout-test-001");
         assert_eq!(layout.layout_type, "Full");
         assert_eq!(layout.mode, "View");

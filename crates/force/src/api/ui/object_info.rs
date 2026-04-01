@@ -129,7 +129,6 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
 
 #[cfg(test)]
 mod tests {
-    #![allow(clippy::unwrap_used)]
     use super::*;
     use crate::client::builder;
     use crate::test_support::{MockAuthenticator, Must};
@@ -323,7 +322,7 @@ mod tests {
             }
         }"#;
 
-        let info: ObjectInfoRepresentation = serde_json::from_str(json_str).unwrap();
+        let info: ObjectInfoRepresentation = serde_json::from_str(json_str).must();
         assert_eq!(info.api_name, "Opportunity");
         assert_eq!(info.label_plural, "Opportunities");
         assert_eq!(info.key_prefix.as_deref(), Some("006"));
@@ -353,7 +352,7 @@ mod tests {
             ]
         }"#;
 
-        let field: FieldInfoRepresentation = serde_json::from_str(json_str).unwrap();
+        let field: FieldInfoRepresentation = serde_json::from_str(json_str).must();
         assert_eq!(field.api_name, "AccountId");
         assert_eq!(field.data_type, "Reference");
         assert!(!field.required);

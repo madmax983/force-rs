@@ -68,8 +68,8 @@ impl Mode {
 
 #[cfg(test)]
 mod tests {
-    #![allow(clippy::unwrap_used)]
     use super::*;
+    use crate::test_support::Must;
 
     #[test]
     fn test_layout_type_as_str() {
@@ -87,7 +87,7 @@ mod tests {
     #[test]
     fn test_field_value_representation_deserialize() {
         let json = r#"{"displayValue":"Test Account","value":"001000000000001AAA","extra_field":"ignored"}"#;
-        let fvr: FieldValueRepresentation = serde_json::from_str(json).unwrap();
+        let fvr: FieldValueRepresentation = serde_json::from_str(json).must();
         assert_eq!(fvr.display_value.as_deref(), Some("Test Account"));
         assert!(fvr.value.is_some());
     }
@@ -95,7 +95,7 @@ mod tests {
     #[test]
     fn test_field_value_representation_null_value() {
         let json = r#"{"displayValue":null,"value":null}"#;
-        let fvr: FieldValueRepresentation = serde_json::from_str(json).unwrap();
+        let fvr: FieldValueRepresentation = serde_json::from_str(json).must();
         assert!(fvr.display_value.is_none());
         assert!(fvr.value.is_none());
     }
