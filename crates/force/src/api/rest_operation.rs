@@ -580,24 +580,26 @@ async fn upsert_with_retry_class_impl<A: Authenticator>(
         .execute_request_with_retry_class(request, retry_class)
         .await?;
 
-    match response.status().as_u16() {
-        204 => {
-            // 204 No Content means an existing record was updated
-            // But the response does not include the record ID
-            Err(ForceError::NotImplemented(
-                "Upsert update (204) response does not include record ID - use query to retrieve"
-                    .to_string(),
-            ))
-        }
-        _ if response.status().is_success() => {
-            // Success codes (201 Created, 200 OK) - parse as upsert response
-            response
-                .json::<UpsertResponse>()
-                .await
-                .map_err(|e| crate::error::HttpError::from(e).into())
-        }
-        _ => Err(crate::http::response_to_force_error(response, "Upsert request failed").await),
+    let status = response.status();
+
+    if status.as_u16() == 204 {
+        // 204 No Content means an existing record was updated
+        // But the response does not include the record ID
+        return Err(ForceError::NotImplemented(
+            "Upsert update (204) response does not include record ID - use query to retrieve"
+                .to_string(),
+        ));
     }
+
+    if status.is_success() {
+        // Success codes (201 Created, 200 OK) - parse as upsert response
+        return response
+            .json::<UpsertResponse>()
+            .await
+            .map_err(|e| crate::error::HttpError::from(e).into());
+    }
+
+    Err(crate::http::response_to_force_error(response, "Upsert request failed").await)
 }
 
 /// Resolves and validates the `nextRecordsUrl` for query pagination.

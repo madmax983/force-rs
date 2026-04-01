@@ -173,42 +173,38 @@ impl HttpExecutor {
                 Err(e) => return Err(e),
             };
 
-            match response.status() {
-                StatusCode::UNAUTHORIZED => {
-                    if !refreshed {
-                        let new_token = refresh_token().await?;
-                        Self::inject_auth_header(&mut request, &new_token)?;
-                        refreshed = true;
-                        continue;
-                    }
+            let status = response.status();
 
-                    self.record_completion(
-                        &ctx,
-                        Some(StatusCode::UNAUTHORIZED.as_u16()),
-                        None,
-                        retry_attempt,
-                    );
-                    return Ok(response);
-                }
-                StatusCode::TOO_MANY_REQUESTS => {
-                    return Err(self.handle_rate_limit(&response, retry_attempt, &ctx));
-                }
-                StatusCode::SERVICE_UNAVAILABLE if retry_attempt < max_retries => {
-                    self.handle_transient_failure(retry_attempt, &ctx, Some(503))
-                        .await;
-                    retry_attempt += 1;
+            if status == StatusCode::UNAUTHORIZED {
+                if !refreshed {
+                    let new_token = refresh_token().await?;
+                    Self::inject_auth_header(&mut request, &new_token)?;
+                    refreshed = true;
                     continue;
                 }
-                _ => {
-                    self.record_completion(
-                        &ctx,
-                        Some(response.status().as_u16()),
-                        None,
-                        retry_attempt,
-                    );
-                    return Ok(response);
-                }
+
+                self.record_completion(
+                    &ctx,
+                    Some(StatusCode::UNAUTHORIZED.as_u16()),
+                    None,
+                    retry_attempt,
+                );
+                return Ok(response);
             }
+
+            if status == StatusCode::TOO_MANY_REQUESTS {
+                return Err(self.handle_rate_limit(&response, retry_attempt, &ctx));
+            }
+
+            if status == StatusCode::SERVICE_UNAVAILABLE && retry_attempt < max_retries {
+                self.handle_transient_failure(retry_attempt, &ctx, Some(503))
+                    .await;
+                retry_attempt += 1;
+                continue;
+            }
+
+            self.record_completion(&ctx, Some(status.as_u16()), None, retry_attempt);
+            return Ok(response);
         }
     }
 
