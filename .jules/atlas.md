@@ -76,3 +76,7 @@
 **[The Tangle: QueryStream's Blob structure and circular dependency]**
 **Tangle:** `QueryStream` was located in `crates/force/src/api/rest/query_stream.rs`, importing `RestHandler` from `super`. `RestHandler` imported `QueryStream` from `query_stream.rs`. This tied the generic stream logic specifically to the REST handler, preventing other handlers (like `ToolingHandler`) from using it without importing `RestHandler`, breaking boundaries.
 **Blueprint:** Extracted `QueryStream` out to `crates/force/src/api/query_stream.rs` and made it generic over `O: RestOperation<A> + Clone`. Re-exported it in `api::mod` and `api::rest::mod` updated its query logic to construct the decoupled, generic query stream.
+
+**2024-06-01 - [The Facade: Enforcing Module Boundaries in force-sync]**
+**Tangle:** The `force-sync` crate leaked internal submodules (`capture::postgres`, `capture::salesforce`, `apply::postgres`, `apply::salesforce`, `store::pg`) by exposing them as `pub mod`. This violated the Facade pattern and exposed implementation details.
+**Blueprint:** Refactored module visibility to `pub(crate) mod` and explicitly re-exported only the necessary public types (e.g., `SalesforceApplier`, `capture_batch`, `capture_stream`, `PgStore`) via `pub use` at the root of the respective modules.
