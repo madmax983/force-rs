@@ -15,6 +15,7 @@ Design backlog and product-spec notes for incubating `force-rs` capabilities. Th
 - [`field-usage-scanner.md`](field-usage-scanner.md): schema usage analysis for low-value fields.
 - [`json-schema-generator.md`](json-schema-generator.md): JSON Schema generation from org metadata.
 - [`openapi-generator.md`](openapi-generator.md): OpenAPI generation for downstream consumers.
+- [`postman-collection-generator.md`](postman-collection-generator.md): Postman collection generation for API testing.
 - [`rust-struct-generator.md`](rust-struct-generator.md): Rust type generation from Salesforce schema.
 - [`schema-analyzer.md`](schema-analyzer.md): schema quality and risk analysis.
 - [`schema-changelog-generator.md`](schema-changelog-generator.md): schema diff and release changelog generation.
