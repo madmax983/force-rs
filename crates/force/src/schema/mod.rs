@@ -3,6 +3,7 @@
 pub(crate) mod data_dictionary;
 pub(crate) mod json_schema;
 pub(crate) mod openapi_generator;
+pub(crate) mod postman_generator;
 pub(crate) mod scanner;
 pub(crate) mod schema_analyzer;
 pub(crate) mod schema_changelog;
@@ -18,6 +19,7 @@ pub(crate) mod typescript_generator;
 pub use data_dictionary::DataDictionary;
 pub use json_schema::generate_json_schema;
 pub use openapi_generator::generate_openapi_schema;
+pub use postman_generator::generate_postman_collection;
 pub use scanner::{FieldUsage, FieldUsageScanner};
 pub use schema_analyzer::{SchemaInsights, analyze_schema};
 pub use schema_changelog::generate_changelog;
