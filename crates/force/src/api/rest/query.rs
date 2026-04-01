@@ -232,11 +232,12 @@ mod tests {
 
         // Verify that the client deserializes it as is
         assert!(!result.is_done());
-        assert!(result.has_more());
+        // Since nextRecordsUrl is missing, we should NOT have more records
+        assert!(!result.has_more());
         assert!(result.next_records_url.is_none());
 
-        // This confirms that the client passes the invalid state to the user,
-        // who will then likely panic if they try to unwrap next_records_url.
+        // This confirms that the client now safely avoids returning true for has_more
+        // when next_records_url is missing, preventing unwrapping panics.
     }
 
     #[tokio::test]

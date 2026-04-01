@@ -88,7 +88,7 @@ impl<T> QueryResult<T> {
     /// Returns true if there are more results to fetch.
     #[must_use]
     pub const fn has_more(&self) -> bool {
-        !self.done
+        !self.done && self.next_records_url.is_some()
     }
 
     /// Returns the number of records in this page.
@@ -545,16 +545,15 @@ mod tests {
         // Demonstrate dangerous state: done=false but next_records_url is None
         let result: QueryResult<i32> = QueryResult {
             total_size: 10,
-            done: false, // implies has_more
+            done: false,
             records: vec![],
             next_records_url: None,
         };
 
         assert!(!result.is_done());
-        assert!(result.has_more()); // Returns true!
-        assert!(result.next_records_url.is_none()); // But no URL to fetch!
-
-        // This confirms the danger: a user checking has_more() might try to unwrap next_records_url
+        // Fix: even though done=false, without a next url, we don't have more
+        assert!(!result.has_more());
+        assert!(result.next_records_url.is_none());
     }
 
     // Property-based tests using proptest
@@ -581,11 +580,10 @@ mod tests {
         }
 
         proptest! {
-            // Property 1: has_more() is strictly the inverse of done
+            // Property 1: has_more() implies not done AND has a url
             #[test]
-            fn prop_has_more_is_inverse_of_done(result in arbitrary_query_result()) {
-                prop_assert_eq!(result.has_more(), !result.is_done());
-                prop_assert_eq!(result.has_more(), !result.done);
+            fn prop_has_more_implies_not_done_and_has_url(result in arbitrary_query_result()) {
+                prop_assert_eq!(result.has_more(), !result.done && result.next_records_url.is_some());
             }
 
             // Property 2: If done is true, has_more() is false (regardless of next_records_url)
