@@ -41,3 +41,15 @@ pub(crate) mod path_utils;
 
 #[cfg(any(feature = "composite", feature = "composite_graph"))]
 pub(crate) mod url_encoded_writer;
+
+/// Extension trait to unwrap builder `try_` methods or panic with a formatted error message.
+pub trait BuilderUnwrap<T> {
+    /// Unwraps a builder result, panicking with a standardized "Invalid input in {context}: {error}" message if it fails.
+    fn unwrap_or_builder_panic(self, context: &str) -> T;
+}
+
+impl<T> BuilderUnwrap<T> for Result<T, crate::error::ForceError> {
+    fn unwrap_or_builder_panic(self, context: &str) -> T {
+        self.unwrap_or_else(|e| panic!("Invalid input in {}: {}", context, e))
+    }
+}

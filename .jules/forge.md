@@ -62,3 +62,7 @@
 **Removing `allow(clippy::unwrap_used)` in Tests**
 **Learning:** The workspace strictly enforces `-D clippy::unwrap_used`, but many test files bypassed it and used `.unwrap()` instead of the custom `.must()` extension trait.
 **Action:** Remove the `allow` directive, replace `.unwrap()` with `.must()`, and ensure `Must` is imported (`use crate::test_support::Must;`). This maintains strictness and improves code consistency.
+
+**[Remove Duplicated Panic Helpers]**
+**Learning:** Implementing panicking wrappers like `unwrap_or_panic` inside individual builder structs creates unnecessary duplication and indirection for handling errors during construction.
+**Action:** Replace localized panic wrappers with inline `.unwrap_or_else(|e| panic!(...))` statements to eliminate DRY violations and improve error traceability.
