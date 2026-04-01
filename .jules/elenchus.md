@@ -17,8 +17,17 @@ This journal records the findings of the Elenchus test audit.
 | **Acquitted** | `crates/force/src/api/composite/batch.rs` | 🟢 Acquitted | Initial audit found tautological encoding tests and fragile JSON assertions. Refactored to use hardcoded "golden" strings and structural JSON validation. |
 | **Strengthened** | `crates/force/src/experimental/type_generator.rs` | 🔴 Critical | Replace `.contains()` checks with exact match (`assert_eq!`) against a golden string. Enhance case-conversion tests with comprehensive cases. Added missing coverage for `map_type`. |
 | **Strengthened** | `crates/force/src/experimental/schema_analyzer.rs` | 🔴 Critical | Original test `test_schema_analyzer` provided only 6 total fields, meaning that the `total_fields / 10` division resulted in `0`. Tests did not effectively test logic. |
+| **Strengthened** | `crates/force/src/schema/postman_generator.rs` | 🟡 Suspect | The test suite missed mutations changing `&&` to `||` in the createable/updateable and "Id" field filtering logic. |
 
 ## Detailed Findings
+
+### [Strengthened] `crates/force/src/schema/postman_generator.rs`
+
+**Module:** `crates/force/src/schema/postman_generator.rs`
+**Severity:** 🟡 Suspect
+**Finding:** The `test_generate_postman_collection` test checked output values for `POST` but missed testing combinations of `createable`, `updateable`, and `field.name != "Id"`. This allowed logic mutants mutating `&&` to `||` to survive.
+**Evidence:** `cargo mutants` output showing exactly three missed mutants changing `&&` to `||` on lines 30 and 36, and `!=` to `==` on line 36.
+**Recommendation:** Expand the test mock fields to include `Id` (with createable/updateable = true) to test the name exclusion. Add fields testing permutations of true/false for `createable` and `updateable`. Add explicit assertions to ensure proper variables are included or excluded from `create_item` and `update_item` request payloads.
 
 ### [Acquitted] `crates/force/src/experimental/query_batch.rs`
 
