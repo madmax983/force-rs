@@ -41,3 +41,7 @@
 **2024-05-24 - [Unbounded memory allocation during HTTP error response parsing]
 **Threat:** A Denial of Service (DoS) vulnerability via memory exhaustion. In client_credentials and jwt_bearer authenticators, the `response.text().await` call unbounded memory allocations reading error payloads. A malicious or misconfigured server returning a multi-gigabyte error body could crash the application.
 **Defense:** Replaced unbounded `.text().await` with a 1MB capped stream reader via `response.bytes_stream()` paired with `String::from_utf8_lossy()` to safely bound memory usage while parsing Salesforce error responses.
+
+**2026-04-01 - [rustls-pemfile Unmaintained Dependency]**
+**Threat:** [The rustls-pemfile v2.2.0 crate is unmaintained and brought in via tonic's default tls-native-roots feature, presenting a potential supply chain risk.]
+**Defense:** [Removed the 'tls-native-roots' feature from 'tonic' in 'force-pubsub' and explicitly enabled 'tls-webpki-roots', which relies on actively maintained dependencies while fulfilling the TLS requirements.]

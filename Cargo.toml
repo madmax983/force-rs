@@ -62,7 +62,7 @@ quick-xml = "0.37"
 wiremock = "0.6"
 
 # gRPC/Protobuf (for pub_sub)
-tonic = "0.12"
+tonic = { version = "0.12", default-features = false, features = ["channel", "codegen", "prost", "router", "server", "transport"] }
 prost = "0.13"
 apache-avro = "0.17"
 dashmap = "6"
