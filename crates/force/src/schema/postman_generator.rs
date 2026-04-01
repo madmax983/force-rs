@@ -164,7 +164,12 @@ mod tests {
     use super::*;
     use crate::api::rest::describe::{FieldDescribe, FieldType};
 
-    fn mock_field(name: &str, type_: FieldType, createable: bool, updateable: bool) -> FieldDescribe {
+    fn mock_field(
+        name: &str,
+        type_: FieldType,
+        createable: bool,
+        updateable: bool,
+    ) -> FieldDescribe {
         FieldDescribe {
             aggregatable: true,
             auto_number: false,
@@ -284,10 +289,19 @@ mod tests {
         let create_raw = create_item["request"]["body"]["raw"]
             .as_str()
             .must_msg("raw body should be string");
-        assert!(!create_raw.contains("\"Id\""), "Id should not be createable");
+        assert!(
+            !create_raw.contains("\"Id\""),
+            "Id should not be createable"
+        );
         assert!(create_raw.contains("\"Name\""), "Name should be createable");
-        assert!(create_raw.contains("\"CreateOnly\""), "CreateOnly should be createable");
-        assert!(!create_raw.contains("\"UpdateOnly\""), "UpdateOnly should not be createable");
+        assert!(
+            create_raw.contains("\"CreateOnly\""),
+            "CreateOnly should be createable"
+        );
+        assert!(
+            !create_raw.contains("\"UpdateOnly\""),
+            "UpdateOnly should not be createable"
+        );
 
         // Check Update Request
         let update_item = &items[2];
@@ -296,9 +310,18 @@ mod tests {
         let update_raw = update_item["request"]["body"]["raw"]
             .as_str()
             .must_msg("raw body should be string");
-        assert!(!update_raw.contains("\"Id\""), "Id should not be updateable");
+        assert!(
+            !update_raw.contains("\"Id\""),
+            "Id should not be updateable"
+        );
         assert!(update_raw.contains("\"Name\""), "Name should be updateable");
-        assert!(!update_raw.contains("\"CreateOnly\""), "CreateOnly should not be updateable");
-        assert!(update_raw.contains("\"UpdateOnly\""), "UpdateOnly should be updateable");
+        assert!(
+            !update_raw.contains("\"CreateOnly\""),
+            "CreateOnly should not be updateable"
+        );
+        assert!(
+            update_raw.contains("\"UpdateOnly\""),
+            "UpdateOnly should be updateable"
+        );
     }
 }
