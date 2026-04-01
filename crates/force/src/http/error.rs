@@ -60,6 +60,13 @@ pub fn parse_api_error(status_code: u16, body: &str) -> HttpError {
 ///
 /// It strictly caps the internal allocation and reads chunk by chunk.
 pub async fn read_capped_body(response: Response, limit_bytes: usize) -> String {
+    let bytes = read_capped_body_bytes(response, limit_bytes).await;
+    String::from_utf8(bytes).unwrap_or_else(|e| String::from_utf8_lossy(e.as_bytes()).into_owned())
+}
+
+/// Reads the body of an HTTP response up to a specified byte limit into a `Vec<u8>`.
+/// This prevents memory exhaustion (DoS) attacks from maliciously large responses.
+pub async fn read_capped_body_bytes(response: Response, limit_bytes: usize) -> Vec<u8> {
     let mut stream = response.bytes_stream();
 
     // ⚡ Bolt: Pre-allocate a reasonable capacity, up to max limit.
@@ -86,7 +93,7 @@ pub async fn read_capped_body(response: Response, limit_bytes: usize) -> String 
         }
     }
 
-    String::from_utf8(bytes).unwrap_or_else(|e| String::from_utf8_lossy(e.as_bytes()).into_owned())
+    bytes
 }
 
 pub async fn response_to_force_error(

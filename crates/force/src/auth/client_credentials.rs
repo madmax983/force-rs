@@ -160,10 +160,12 @@ impl crate::auth::authenticator::Authenticator for ClientCredentials {
         }
 
         // Parse successful token response
-        let token_response = response
-            .json::<TokenResponse>()
-            .await
-            .map_err(|e| ForceError::Http(HttpError::RequestFailed(e)))?;
+        // Limit JSON payloads to 10MB to prevent memory exhaustion (DoS)
+        let limit = 10 * 1024 * 1024;
+        let bytes = crate::http::error::read_capped_body_bytes(response, limit).await;
+
+        let token_response = serde_json::from_slice::<TokenResponse>(&bytes)
+            .map_err(crate::error::SerializationError::from)?;
 
         Ok(AccessToken::from_response(token_response))
     }

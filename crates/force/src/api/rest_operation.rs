@@ -591,10 +591,10 @@ async fn upsert_with_retry_class_impl<A: Authenticator>(
         }
         _ if response.status().is_success() => {
             // Success codes (201 Created, 200 OK) - parse as upsert response
-            response
-                .json::<UpsertResponse>()
-                .await
-                .map_err(|e| crate::error::HttpError::from(e).into())
+            let limit = 100 * 1024 * 1024;
+            let bytes = crate::http::error::read_capped_body_bytes(response, limit).await;
+            serde_json::from_slice::<UpsertResponse>(&bytes)
+                .map_err(|e| crate::error::SerializationError::from(e).into())
         }
         _ => Err(crate::http::response_to_force_error(response, "Upsert request failed").await),
     }

@@ -403,7 +403,13 @@ impl HttpExecutor {
         Fut: std::future::Future<Output = Result<AccessToken>>,
     {
         let response = self.execute(request, token, refresh_token).await?;
-        let json = response.json::<T>().await.map_err(HttpError::from)?;
+
+        // Use a 100MB limit to prevent memory exhaustion (DoS) from maliciously large JSON payloads
+        let limit = 100 * 1024 * 1024;
+        let bytes = crate::http::error::read_capped_body_bytes(response, limit).await;
+
+        let json =
+            serde_json::from_slice::<T>(&bytes).map_err(crate::error::SerializationError::from)?;
         Ok(json)
     }
 }

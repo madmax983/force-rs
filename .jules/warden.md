@@ -51,3 +51,7 @@
 ## 2026-03-27 - [DoS via Unbounded Allocation in Composite Graph]
 **Threat:** `CompositeGraphRequest::add_graph` allowed adding an unlimited number of graphs and subrequests. An attacker could construct a request with millions of subrequests, causing unbounded memory consumption before `execute()` is called, leading to an OOM crash.
 **Defense:** Updated `add_graph` to return `Result<Self>` and strictly enforce the Salesforce API limit of 500 total subrequests across all graphs. Attempts to add a graph that exceeds this limit now return `ForceError::InvalidInput`.
+
+## 2024-03-29 - [DoS via Unbounded Error Response Reading & Unbounded JSON Deserialization]
+**Threat:** Previously, the `execute_json` function, the `send_request_and_decode` function, the `UpsertResponse` parser, and various authentication payload parsers called `response.json::<T>().await`. This unbounded buffering mechanism would exhaust memory if a malicious server (or MITM) supplied a very large payload.
+**Defense:** Replaced calls to `response.json::<T>().await` with `crate::http::error::read_capped_body_bytes(response, limit).await` using a reasonable limit (e.g. 100MB for normal API requests and 10MB for tokens) and using `serde_json::from_slice::<T>()` for deserialization to prevent DoS via unbounded allocations.

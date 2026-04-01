@@ -101,10 +101,12 @@ impl<A: crate::auth::authenticator::Authenticator> Session<A> {
             );
         }
 
-        response
-            .json::<T>()
-            .await
-            .map_err(crate::error::HttpError::from)
+        // Limit JSON payloads to 100MB to prevent memory exhaustion (DoS)
+        let limit = 100 * 1024 * 1024;
+        let bytes = crate::http::error::read_capped_body_bytes(response, limit).await;
+
+        serde_json::from_slice::<T>(&bytes)
+            .map_err(crate::error::SerializationError::from)
             .map_err(Into::into)
     }
 

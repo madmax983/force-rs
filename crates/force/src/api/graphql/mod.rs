@@ -149,10 +149,11 @@ impl<A: crate::auth::Authenticator> GraphqlHandler<A> {
             );
         }
 
-        response
-            .json::<GraphqlResponse<T>>()
-            .await
-            .map_err(crate::error::HttpError::from)
+        let limit = 100 * 1024 * 1024;
+        let bytes = crate::http::error::read_capped_body_bytes(response, limit).await;
+
+        serde_json::from_slice::<GraphqlResponse<T>>(&bytes)
+            .map_err(crate::error::SerializationError::from)
             .map_err(Into::into)
     }
 
