@@ -240,7 +240,7 @@ mod tests {
 
 #[cfg(test)]
 mod integration_tests {
-    #![allow(clippy::unwrap_used, clippy::items_after_statements)]
+    #![allow(clippy::items_after_statements)]
 
     use super::*;
     use crate::client::builder;
