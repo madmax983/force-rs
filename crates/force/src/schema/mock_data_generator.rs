@@ -12,7 +12,11 @@ pub fn generate_mock_data(describe: &SObjectDescribe) -> Value {
         }
 
         let mock_val = match field.type_ {
-            FieldType::String | FieldType::Textarea | FieldType::Email | FieldType::Phone | FieldType::Url => Value::String("mock_string".to_string()),
+            FieldType::String
+            | FieldType::Textarea
+            | FieldType::Email
+            | FieldType::Phone
+            | FieldType::Url => Value::String("mock_string".to_string()),
             FieldType::Boolean => Value::Bool(true),
             FieldType::Int => Value::Number(serde_json::Number::from(42)),
             FieldType::Double | FieldType::Currency | FieldType::Percent => {
@@ -34,7 +38,7 @@ pub fn generate_mock_data(describe: &SObjectDescribe) -> Value {
 #[cfg(feature = "schema")]
 mod tests {
     use super::*;
-    use crate::api::rest::describe::{FieldType, SObjectDescribe, FieldDescribe};
+    use crate::api::rest::describe::{FieldDescribe, FieldType, SObjectDescribe};
 
     fn mock_field(name: &str, type_: FieldType, createable: bool) -> FieldDescribe {
         FieldDescribe {
