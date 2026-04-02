@@ -122,19 +122,7 @@ pub trait RestOperation<A: Authenticator> {
     async fn create(&self, sobject: &str, data: &serde_json::Value) -> Result<CreateResponse> {
         validate_sobject_name(sobject)?;
         let relative = crate::api::path_utils::format_sobject_path(sobject, None);
-        let api_path = self.resolve_api_path(&relative);
-        let url = self.session().resolve_url(&api_path).await?;
-
-        let request = self
-            .session()
-            .post(&url)
-            .json(data)
-            .build()
-            .map_err(crate::error::HttpError::from)?;
-
-        self.session()
-            .send_request_and_decode(request, "Create request failed")
-            .await
+        execute_post_request(self, &relative, data, "Create request failed").await
     }
 
     /// Retrieves a record by its Salesforce ID.
@@ -162,18 +150,7 @@ pub trait RestOperation<A: Authenticator> {
     async fn get(&self, sobject: &str, id: &SalesforceId) -> Result<serde_json::Value> {
         validate_sobject_name(sobject)?;
         let relative = crate::api::path_utils::format_sobject_path(sobject, Some(id.as_str()));
-        let api_path = self.resolve_api_path(&relative);
-        let url = self.session().resolve_url(&api_path).await?;
-
-        let request = self
-            .session()
-            .get(&url)
-            .build()
-            .map_err(crate::error::HttpError::from)?;
-
-        self.session()
-            .send_request_and_decode(request, "Get request failed")
-            .await
+        execute_get_request(self, &relative, None, "Get request failed").await
     }
 
     /// Updates an existing record.
@@ -208,23 +185,9 @@ pub trait RestOperation<A: Authenticator> {
     ) -> Result<UpdateResponse> {
         validate_sobject_name(sobject)?;
         let relative = crate::api::path_utils::format_sobject_path(sobject, Some(id.as_str()));
-        let api_path = self.resolve_api_path(&relative);
-        let url = self.session().resolve_url(&api_path).await?;
-
-        let request = self
-            .session()
-            .patch(&url)
-            .json(data)
-            .build()
-            .map_err(crate::error::HttpError::from)?;
-
-        let response = self.session().execute_request(request).await?;
-
-        if response.status().is_success() {
-            Ok(UpdateResponse::success())
-        } else {
-            Err(crate::http::response_to_force_error(response, "Update request failed").await)
-        }
+        execute_patch_status_request(self, &relative, data, "Update request failed")
+            .await
+            .map(|()| UpdateResponse::success())
     }
 
     /// Deletes a record.
@@ -251,22 +214,9 @@ pub trait RestOperation<A: Authenticator> {
     async fn delete(&self, sobject: &str, id: &SalesforceId) -> Result<DeleteResponse> {
         validate_sobject_name(sobject)?;
         let relative = crate::api::path_utils::format_sobject_path(sobject, Some(id.as_str()));
-        let api_path = self.resolve_api_path(&relative);
-        let url = self.session().resolve_url(&api_path).await?;
-
-        let request = self
-            .session()
-            .delete(&url)
-            .build()
-            .map_err(crate::error::HttpError::from)?;
-
-        let response = self.session().execute_request(request).await?;
-
-        if response.status().is_success() {
-            Ok(DeleteResponse::success())
-        } else {
-            Err(crate::http::response_to_force_error(response, "Delete request failed").await)
-        }
+        execute_delete_status_request(self, &relative, "Delete request failed")
+            .await
+            .map(|()| DeleteResponse::success())
     }
 
     /// Upserts a record using an external ID field.
@@ -393,19 +343,7 @@ pub trait RestOperation<A: Authenticator> {
     where
         T: DeserializeOwned,
     {
-        let api_path = self.resolve_api_path("query");
-        let url = self.session().resolve_url(&api_path).await?;
-
-        let request = self
-            .session()
-            .get(&url)
-            .query(&[("q", soql)])
-            .build()
-            .map_err(crate::error::HttpError::from)?;
-
-        self.session()
-            .send_request_and_decode(request, "SOQL query failed")
-            .await
+        execute_get_request(self, "query", Some(&[("q", soql)]), "SOQL query failed").await
     }
 
     /// Fetches the next page of query results using a `nextRecordsUrl`.
@@ -477,18 +415,7 @@ pub trait RestOperation<A: Authenticator> {
     /// }
     /// ```
     async fn describe_global(&self) -> Result<GlobalDescribe> {
-        let api_path = self.resolve_api_path("sobjects");
-        let url = self.session().resolve_url(&api_path).await?;
-
-        let request = self
-            .session()
-            .get(&url)
-            .build()
-            .map_err(crate::error::HttpError::from)?;
-
-        self.session()
-            .send_request_and_decode(request, "Global describe request failed")
-            .await
+        execute_get_request(self, "sobjects", None, "Global describe request failed").await
     }
 
     /// Retrieves detailed metadata for a specific SObject.
@@ -522,22 +449,92 @@ pub trait RestOperation<A: Authenticator> {
             "{}/describe",
             crate::api::path_utils::format_sobject_path(sobject_type, None)
         );
-        let api_path = self.resolve_api_path(&relative);
-        let url = self.session().resolve_url(&api_path).await?;
-
-        let request = self
-            .session()
-            .get(&url)
-            .build()
-            .map_err(crate::error::HttpError::from)?;
-
-        self.session()
-            .send_request_and_decode(request, "Describe request failed")
-            .await
+        execute_get_request(self, &relative, None, "Describe request failed").await
     }
 }
 
 // ── Private helper methods ───────────────────────────────────────────
+
+async fn execute_get_request<A: Authenticator, T: DeserializeOwned>(
+    operation: &(impl RestOperation<A> + ?Sized),
+    relative_path: &str,
+    query: Option<&[(&str, &str)]>,
+    error_msg: &str,
+) -> Result<T> {
+    let api_path = operation.resolve_api_path(relative_path);
+    let url = operation.session().resolve_url(&api_path).await?;
+    let mut request = operation.session().get(&url);
+    if let Some(params) = query {
+        request = request.query(params);
+    }
+    let request = request.build().map_err(crate::error::HttpError::from)?;
+    operation
+        .session()
+        .send_request_and_decode(request, error_msg)
+        .await
+}
+
+async fn execute_post_request<A: Authenticator, T: DeserializeOwned>(
+    operation: &(impl RestOperation<A> + ?Sized),
+    relative_path: &str,
+    body: &serde_json::Value,
+    error_msg: &str,
+) -> Result<T> {
+    let api_path = operation.resolve_api_path(relative_path);
+    let url = operation.session().resolve_url(&api_path).await?;
+    let request = operation
+        .session()
+        .post(&url)
+        .json(body)
+        .build()
+        .map_err(crate::error::HttpError::from)?;
+    operation
+        .session()
+        .send_request_and_decode(request, error_msg)
+        .await
+}
+
+async fn execute_patch_status_request<A: Authenticator>(
+    operation: &(impl RestOperation<A> + ?Sized),
+    relative_path: &str,
+    body: &serde_json::Value,
+    error_msg: &str,
+) -> Result<()> {
+    let api_path = operation.resolve_api_path(relative_path);
+    let url = operation.session().resolve_url(&api_path).await?;
+    let request = operation
+        .session()
+        .patch(&url)
+        .json(body)
+        .build()
+        .map_err(crate::error::HttpError::from)?;
+    let response = operation.session().execute_request(request).await?;
+    if response.status().is_success() {
+        Ok(())
+    } else {
+        Err(crate::http::response_to_force_error(response, error_msg).await)
+    }
+}
+
+async fn execute_delete_status_request<A: Authenticator>(
+    operation: &(impl RestOperation<A> + ?Sized),
+    relative_path: &str,
+    error_msg: &str,
+) -> Result<()> {
+    let api_path = operation.resolve_api_path(relative_path);
+    let url = operation.session().resolve_url(&api_path).await?;
+    let request = operation
+        .session()
+        .delete(&url)
+        .build()
+        .map_err(crate::error::HttpError::from)?;
+    let response = operation.session().execute_request(request).await?;
+    if response.status().is_success() {
+        Ok(())
+    } else {
+        Err(crate::http::response_to_force_error(response, error_msg).await)
+    }
+}
 
 /// Internal helper shared by [`RestOperation::upsert`] and
 /// [`RestOperation::upsert_idempotent`].
