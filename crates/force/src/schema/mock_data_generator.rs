@@ -3,6 +3,7 @@ use serde_json::{Map, Value};
 
 /// Generates mock data for an SObjectDescribe based on its createable fields.
 #[cfg(feature = "schema")]
+#[allow(clippy::missing_panics_doc)]
 pub fn generate_mock_data(describe: &SObjectDescribe) -> Value {
     let mut map = Map::new();
 
@@ -19,9 +20,9 @@ pub fn generate_mock_data(describe: &SObjectDescribe) -> Value {
             | FieldType::Url => Value::String("mock_string".to_string()),
             FieldType::Boolean => Value::Bool(true),
             FieldType::Int => Value::Number(serde_json::Number::from(42)),
-            FieldType::Double | FieldType::Currency | FieldType::Percent => {
-                Value::Number(serde_json::Number::from_f64(42.0).unwrap())
-            }
+            FieldType::Double | FieldType::Currency | FieldType::Percent => Value::Number(
+                serde_json::Number::from_f64(42.0).unwrap_or_else(|| serde_json::Number::from(42)),
+            ),
             FieldType::Date => Value::String("2023-01-01".to_string()),
             FieldType::Datetime => Value::String("2023-01-01T00:00:00Z".to_string()),
             FieldType::Id | FieldType::Reference => Value::String("001000000000000AAA".to_string()),
@@ -141,14 +142,33 @@ mod tests {
         let result = generate_mock_data(&describe);
 
         // Assert that the result is an object
-        let obj = result.as_object().expect("Expected JSON Object");
+        let obj = result
+            .as_object()
+            .unwrap_or_else(|| panic!("Expected JSON Object"));
 
         // Assert that Id is not present (since it's not createable)
         assert!(!obj.contains_key("Id"));
 
         // Assert that createable fields are present with correct mock values
-        assert_eq!(obj.get("Name").unwrap().as_str().unwrap(), "mock_string");
-        assert_eq!(obj.get("IsActive").unwrap().as_bool().unwrap(), true);
-        assert_eq!(obj.get("NumberOfEmployees").unwrap().as_i64().unwrap(), 42);
+        assert_eq!(
+            obj.get("Name")
+                .unwrap_or_else(|| panic!("Expected Name"))
+                .as_str()
+                .unwrap_or_else(|| panic!("Expected String")),
+            "mock_string"
+        );
+        assert!(
+            obj.get("IsActive")
+                .unwrap_or_else(|| panic!("Expected IsActive"))
+                .as_bool()
+                .unwrap_or_else(|| panic!("Expected Bool"))
+        );
+        assert_eq!(
+            obj.get("NumberOfEmployees")
+                .unwrap_or_else(|| panic!("Expected NumberOfEmployees"))
+                .as_i64()
+                .unwrap_or_else(|| panic!("Expected Int")),
+            42
+        );
     }
 }
