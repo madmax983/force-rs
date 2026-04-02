@@ -2,6 +2,7 @@
 
 pub(crate) mod data_dictionary;
 pub(crate) mod json_schema;
+pub(crate) mod mock_data_generator;
 pub(crate) mod openapi_generator;
 pub(crate) mod postman_generator;
 pub(crate) mod pydantic_generator;
@@ -19,6 +20,7 @@ pub(crate) mod typescript_generator;
 
 pub use data_dictionary::DataDictionary;
 pub use json_schema::generate_json_schema;
+pub use mock_data_generator::generate_mock_data;
 pub use openapi_generator::generate_openapi_schema;
 pub use postman_generator::generate_postman_collection;
 pub use pydantic_generator::generate_pydantic_model;
