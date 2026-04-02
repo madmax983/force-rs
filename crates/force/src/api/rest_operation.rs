@@ -940,6 +940,300 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_create_success_mock() {
+        use crate::client::builder;
+        use serde_json::json;
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let mock_server = MockServer::start().await;
+        let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
+        let client = builder().authenticate(auth).build().await.must();
+
+        Mock::given(method("POST"))
+            .and(path("/services/data/v60.0/sobjects/Account"))
+            .respond_with(ResponseTemplate::new(201).set_body_json(json!({
+                "id": "001xx000003DHP0AAO",
+                "success": true,
+                "errors": []
+            })))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let rest = client.rest();
+        let response = rest
+            .create("Account", &json!({"Name": "New Account"}))
+            .await
+            .must();
+
+        assert!(response.is_success());
+        assert_eq!(response.id.must().as_str(), "001xx000003DHP0AAO");
+    }
+
+    #[tokio::test]
+    async fn test_update_success_mock() {
+        use crate::client::builder;
+        use crate::types::SalesforceId;
+        use serde_json::json;
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let mock_server = MockServer::start().await;
+        let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
+        let client = builder().authenticate(auth).build().await.must();
+
+        Mock::given(method("PATCH"))
+            .and(path(
+                "/services/data/v60.0/sobjects/Account/001xx000003DHP0AAO",
+            ))
+            .respond_with(ResponseTemplate::new(204))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let rest = client.rest();
+        let id = SalesforceId::new("001xx000003DHP0AAO").must();
+        let response = rest
+            .update("Account", &id, &json!({"Name": "Updated Account"}))
+            .await
+            .must();
+
+        assert!(response.is_success());
+    }
+
+    #[tokio::test]
+    async fn test_delete_success_mock() {
+        use crate::client::builder;
+        use crate::types::SalesforceId;
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let mock_server = MockServer::start().await;
+        let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
+        let client = builder().authenticate(auth).build().await.must();
+
+        Mock::given(method("DELETE"))
+            .and(path(
+                "/services/data/v60.0/sobjects/Account/001xx000003DHP0AAO",
+            ))
+            .respond_with(ResponseTemplate::new(204))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let rest = client.rest();
+        let id = SalesforceId::new("001xx000003DHP0AAO").must();
+        let response = rest.delete("Account", &id).await.must();
+
+        assert!(response.is_success());
+    }
+
+    #[tokio::test]
+    async fn test_upsert_idempotent_success_mock() {
+        use crate::client::builder;
+        use serde_json::json;
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let mock_server = MockServer::start().await;
+        let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
+        let client = builder().authenticate(auth).build().await.must();
+
+        Mock::given(method("PATCH"))
+            .and(path(
+                "/services/data/v60.0/sobjects/Account/ExternalId__c/ACME-005",
+            ))
+            .respond_with(ResponseTemplate::new(201).set_body_json(json!({
+                "id": "001xx000003DHP0AAO",
+                "success": true,
+                "created": true,
+                "errors": []
+            })))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let rest = client.rest();
+        let response = rest
+            .upsert_idempotent(
+                "Account",
+                "ExternalId__c",
+                "ACME-005",
+                &json!({"Name": "Idempotent Account"}),
+            )
+            .await
+            .must();
+
+        assert!(response.is_success());
+        assert!(response.is_created());
+        assert_eq!(response.id.as_str(), "001xx000003DHP0AAO");
+    }
+
+    #[tokio::test]
+    async fn test_describe_global_success_mock() {
+        use crate::client::builder;
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let mock_server = MockServer::start().await;
+        let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
+        let client = builder().authenticate(auth).build().await.must();
+
+        let global_describe_json: serde_json::Value = serde_json::from_str(r#"{
+            "encoding": "UTF-8",
+            "maxBatchSize": 200,
+            "sobjects": [
+                {
+                    "name": "Account",
+                    "label": "Account",
+                    "custom": false,
+                    "keyPrefix": "001",
+                    "urls": {},
+                    "activateable": false,
+                    "createable": true,
+                    "customSetting": false,
+                    "deletable": true,
+                    "deprecatedAndHidden": false,
+                    "feedEnabled": false,
+                    "hasSubtypes": false,
+                    "isSubtype": false,
+                    "labelPlural": "Accounts",
+                    "layoutable": true,
+                    "mergeable": true,
+                    "mruEnabled": true,
+                    "queryable": true,
+                    "replicateable": true,
+                    "retrieveable": true,
+                    "searchable": true,
+                    "triggerable": true,
+                    "undeletable": true,
+                    "updateable": true
+                }
+            ]
+        }"#).must();
+
+        Mock::given(method("GET"))
+            .and(path("/services/data/v60.0/sobjects"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(global_describe_json))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let rest = client.rest();
+        let response = rest.describe_global().await.must();
+
+        assert_eq!(response.sobjects.len(), 1);
+        assert_eq!(response.sobjects[0].name, "Account");
+    }
+
+    #[tokio::test]
+    async fn test_describe_success_mock() {
+        use crate::client::builder;
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let mock_server = MockServer::start().await;
+        let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
+        let client = builder().authenticate(auth).build().await.must();
+
+        let describe_json: serde_json::Value = serde_json::from_str(r#"{
+            "name": "Account",
+            "label": "Account",
+            "custom": false,
+            "keyPrefix": "001",
+            "activateable": false,
+            "createable": true,
+            "customSetting": false,
+            "deletable": true,
+            "deprecatedAndHidden": false,
+            "feedEnabled": false,
+            "hasSubtypes": false,
+            "isSubtype": false,
+            "labelPlural": "Accounts",
+            "layoutable": true,
+            "mergeable": true,
+            "mruEnabled": true,
+            "queryable": true,
+            "replicateable": true,
+            "retrieveable": true,
+            "searchable": true,
+            "triggerable": true,
+            "undeletable": true,
+            "updateable": true,
+            "childRelationships": [],
+            "recordTypeInfos": [],
+            "fields": [
+                {
+                    "name": "Id",
+                    "type": "id",
+                    "label": "Record ID",
+                    "length": 18,
+                    "nillable": false,
+                    "custom": false,
+                    "calculated": false,
+                    "aggregatable": true,
+                    "autoNumber": false,
+                    "byteLength": 18,
+                    "caseSensitive": false,
+                    "createable": false,
+                    "defaultedOnCreate": true,
+                    "deprecatedAndHidden": false,
+                    "digits": 0,
+                    "filterable": true,
+                    "groupable": true,
+                    "idLookup": true,
+                    "nameField": false,
+                    "namePointing": false,
+                    "permissionable": false,
+                    "restrictedPicklist": false,
+                    "scale": 0,
+                    "sortable": true,
+                    "unique": false,
+                    "updateable": false,
+                    "cascadeDelete": false,
+                    "dependentPicklist": false,
+                    "deprecatedAndHidden": false,
+                    "displayLocationInDecimal": false,
+                    "encrypted": false,
+                    "externalId": false,
+                    "highScaleNumber": false,
+                    "htmlFormatted": false,
+                    "polymorphicForeignKey": false,
+                    "searchPrefilterable": false,
+                    "writeRequiresMasterRead": false,
+                    "precision": 0,
+                    "queryByDistance": false,
+                    "restrictedDelete": false,
+                    "sortable": true,
+                    "unique": false,
+                    "updateable": false,
+                    "referenceTo": [],
+                    "relationshipName": null,
+                    "relationshipOrder": null,
+                    "referenceTargetField": null,
+                    "soapType": "tns:ID"
+                }
+            ],
+            "urls": {}
+        }"#).must();
+
+        Mock::given(method("GET"))
+            .and(path("/services/data/v60.0/sobjects/Account/describe"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(describe_json))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let rest = client.rest();
+        let response = rest.describe("Account").await.must();
+
+        assert_eq!(response.name, "Account");
+        assert_eq!(response.fields.len(), 1);
+        assert_eq!(response.fields[0].name, "Id");
+    }
+
+    #[tokio::test]
     async fn test_query_success_mock() {
         use crate::client::builder;
         use serde_json::json;
