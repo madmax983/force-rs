@@ -31,7 +31,6 @@ use crate::auth::Authenticator;
 use crate::client::ForceClient;
 use crate::error::Result;
 use std::collections::{HashMap, HashSet};
-use std::fmt::Write;
 
 /// A node in the schema graph representing an SObject.
 #[derive(Debug, Clone)]
@@ -110,7 +109,15 @@ impl<'a, A: Authenticator> SchemaGraph<'a, A> {
     /// Generates a Mermaid.js ER diagram from the scanned objects.
     #[must_use]
     pub fn to_mermaid(&self) -> String {
-        let mut mermaid = String::from("erDiagram\n");
+        let mut mermaid = String::with_capacity(2048);
+        self.write_mermaid(&mut mermaid);
+        mermaid
+    }
+
+    /// Writes a Mermaid.js ER diagram from the scanned objects into the provided string buffer.
+    pub fn write_mermaid(&self, mermaid: &mut String) {
+        use std::fmt::Write;
+        mermaid.push_str("erDiagram\n");
 
         // Sort nodes for deterministic output
         let mut node_names: Vec<_> = self.nodes.keys().collect();
@@ -158,8 +165,6 @@ impl<'a, A: Authenticator> SchemaGraph<'a, A> {
                 }
             }
         }
-
-        mermaid
     }
 }
 
