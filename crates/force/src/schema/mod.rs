@@ -15,8 +15,10 @@ pub(crate) mod sql_exporter;
 #[allow(missing_docs)]
 pub(crate) mod type_generator;
 pub(crate) mod typescript_generator;
+pub(crate) mod mock_data_generator;
 
 pub use data_dictionary::DataDictionary;
+pub use mock_data_generator::generate_mock_data;
 pub use json_schema::generate_json_schema;
 pub use openapi_generator::generate_openapi_schema;
 pub use postman_generator::generate_postman_collection;
