@@ -24,6 +24,10 @@ Design backlog and product-spec notes for incubating `force-rs` capabilities. Th
 - [`sql-ddl-exporter.md`](sql-ddl-exporter.md): SQL DDL export for warehouse and database workflows.
 - [`typescript-interface-generator.md`](typescript-interface-generator.md): TypeScript interface generation.
 
+## Metadata and Tooling
+
+- [`metadata-api.md`](metadata-api.md): Metadata API deployment and retrieval operations.
+
 ## Content and Files
 
 - [`salesforce-files-api.md`](salesforce-files-api.md): streaming multipart file uploads and downloads.
