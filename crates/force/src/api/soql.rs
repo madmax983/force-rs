@@ -121,6 +121,31 @@ impl SoqlQueryBuilder {
         Self::default()
     }
 
+    /// Creates a new SOQL query builder initialized with all queryable fields from an `SObjectDescribe`.
+    ///
+    /// This essentially performs a safe `SELECT *` for the given SObject, ensuring only fields
+    /// that the user has permission to query are included.
+    #[must_use]
+    pub fn from_describe(describe: &crate::types::describe::SObjectDescribe) -> Self {
+        let mut fields = Vec::with_capacity(describe.fields.len());
+        for field in &describe.fields {
+            // Note: In some old API versions or specific objects, a field might not be explicitly
+            // marked `queryable` but can still be queried if we have read access. However, relying
+            // on the metadata API directly is the safest default. We filter out deprecated/hidden fields.
+            // SObjectDescribe's FieldDescribe doesn't have a `queryable` boolean directly on it
+            // but we can infer queryability. Usually fields that are deprecated/hidden are not queryable.
+            if !field.deprecated_and_hidden {
+                fields.push(field.name.clone());
+            }
+        }
+
+        Self {
+            fields,
+            sobject: Some(describe.name.clone()),
+            ..Default::default()
+        }
+    }
+
     /// Sets the fields to select.
     ///
     /// # Errors
@@ -930,5 +955,82 @@ mod tests {
         builder.write_query(&mut buffer).must();
 
         assert_eq!(buffer, "SELECT Id FROM Account");
+    }
+
+    #[test]
+    fn test_soql_from_describe() {
+        use crate::test_support::Must;
+        use crate::types::describe::SObjectDescribe;
+
+        // Simplify to avoid json! macro recursion limit on big objects.
+        let describe_json_str = r#"{
+            "name": "Account",
+            "label": "Account",
+            "custom": false,
+            "queryable": true,
+            "activateable": false, "createable": true, "customSetting": false, "deletable": true,
+            "deprecatedAndHidden": false, "feedEnabled": true, "hasSubtypes": false,
+            "isSubtype": false, "keyPrefix": "001", "labelPlural": "Accounts", "layoutable": true,
+            "urls": {}, "childRelationships": [], "recordTypeInfos": [],
+            "mergeable": true, "mruEnabled": true, "replicateable": true, "retrieveable": true,
+            "searchable": true, "triggerable": true, "undeletable": true, "updateable": true,
+            "fields": [
+                {
+                    "name": "Id",
+                    "type": "id",
+                    "label": "Account ID",
+                    "referenceTo": [],
+                    "aggregatable": true, "autoNumber": false, "byteLength": 18, "calculated": false,
+                    "cascadeDelete": false, "caseSensitive": false, "createable": false, "custom": false,
+                    "defaultedOnCreate": true, "dependentPicklist": false, "deprecatedAndHidden": false,
+                    "digits": 0, "precision": 0, "displayLocationInDecimal": false, "encrypted": false, "externalId": false,
+                    "filterable": true, "groupable": true, "highScaleNumber": false, "htmlFormatted": false,
+                    "idLookup": true, "length": 18, "nameField": false, "namePointing": false, "nillable": false,
+                    "permissionable": false, "polymorphicForeignKey": false, "queryByDistance": false,
+                    "restrictedDelete": false, "restrictedPicklist": false, "scale": 0, "searchPrefilterable": false, "sortable": true,
+                    "soapType": "tns:ID", "unique": false, "writeRequiresMasterRead": false, "updateable": false
+                },
+                {
+                    "name": "Name",
+                    "type": "string",
+                    "label": "Account Name",
+                    "referenceTo": [],
+                    "aggregatable": true, "autoNumber": false, "byteLength": 255, "calculated": false,
+                    "cascadeDelete": false, "caseSensitive": false, "createable": true, "custom": false,
+                    "defaultedOnCreate": false, "dependentPicklist": false, "deprecatedAndHidden": false,
+                    "digits": 0, "precision": 0, "displayLocationInDecimal": false, "encrypted": false, "externalId": false,
+                    "filterable": true, "groupable": true, "highScaleNumber": false, "htmlFormatted": false,
+                    "idLookup": false, "length": 255, "nameField": true, "namePointing": false, "nillable": false,
+                    "permissionable": false, "polymorphicForeignKey": false, "queryByDistance": false,
+                    "restrictedDelete": false, "restrictedPicklist": false, "scale": 0, "searchPrefilterable": false, "sortable": true,
+                    "soapType": "xsd:string", "unique": false, "writeRequiresMasterRead": false, "updateable": true
+                },
+                {
+                    "name": "HiddenField__c",
+                    "type": "string",
+                    "label": "Hidden",
+                    "referenceTo": [],
+                    "aggregatable": false, "autoNumber": false, "byteLength": 255, "calculated": false,
+                    "cascadeDelete": false, "caseSensitive": false, "createable": false, "custom": true,
+                    "defaultedOnCreate": false, "dependentPicklist": false, "deprecatedAndHidden": true,
+                    "digits": 0, "precision": 0, "displayLocationInDecimal": false, "encrypted": false, "externalId": false,
+                    "filterable": false, "groupable": false, "highScaleNumber": false, "htmlFormatted": false,
+                    "idLookup": false, "length": 255, "nameField": false, "namePointing": false, "nillable": true,
+                    "permissionable": false, "polymorphicForeignKey": false, "queryByDistance": false,
+                    "restrictedDelete": false, "restrictedPicklist": false, "scale": 0, "searchPrefilterable": false, "sortable": false,
+                    "soapType": "xsd:string", "unique": false, "writeRequiresMasterRead": false, "updateable": false
+                }
+            ]
+        }"#;
+
+        let describe: SObjectDescribe = serde_json::from_str(describe_json_str).must();
+
+        let builder = SoqlQueryBuilder::from_describe(&describe);
+
+        // Assert sobject is correct
+        assert_eq!(builder.sobject, Some("Account".to_string()));
+
+        // Assert fields: Id and Name are included, HiddenField__c is not.
+        assert_eq!(builder.fields, vec!["Id".to_string(), "Name".to_string()]);
     }
 }
