@@ -1080,7 +1080,8 @@ mod tests {
         let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
         let client = builder().authenticate(auth).build().await.must();
 
-        let global_describe_json: serde_json::Value = serde_json::from_str(r#"{
+        let global_describe_json: serde_json::Value = serde_json::from_str(
+            r#"{
             "encoding": "UTF-8",
             "maxBatchSize": 200,
             "sobjects": [
@@ -1111,7 +1112,9 @@ mod tests {
                     "updateable": true
                 }
             ]
-        }"#).must();
+        }"#,
+        )
+        .must();
 
         Mock::given(method("GET"))
             .and(path("/services/data/v60.0/sobjects"))
@@ -1137,7 +1140,8 @@ mod tests {
         let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
         let client = builder().authenticate(auth).build().await.must();
 
-        let describe_json: serde_json::Value = serde_json::from_str(r#"{
+        let describe_json: serde_json::Value = serde_json::from_str(
+            r#"{
             "name": "Account",
             "label": "Account",
             "custom": false,
@@ -1216,7 +1220,9 @@ mod tests {
                 }
             ],
             "urls": {}
-        }"#).must();
+        }"#,
+        )
+        .must();
 
         Mock::given(method("GET"))
             .and(path("/services/data/v60.0/sobjects/Account/describe"))
