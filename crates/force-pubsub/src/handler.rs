@@ -1,5 +1,6 @@
 //! Pub/Sub API handler.
 
+use futures::StreamExt;
 use std::pin::Pin;
 use std::sync::Arc;
 use tonic::transport::Channel;
@@ -50,7 +51,6 @@ async fn fetch_tenant_id<A: Authenticator>(session: &Arc<Session<A>>) -> Result<
         )));
     }
 
-    use futures::StreamExt;
     let mut stream = resp.bytes_stream();
     let limit_bytes = 10 * 1024 * 1024;
     let mut bytes = Vec::with_capacity(4096);
