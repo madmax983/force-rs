@@ -1,4 +1,4 @@
-pub(crate) trait BuilderUnwrapExt<T> {
+pub trait BuilderUnwrapExt<T> {
     fn unwrap_or_panic(self, context: &str) -> T;
 }
 
