@@ -1,10 +1,10 @@
-use force::auth::{TokenManager, AccessToken, Authenticator, TokenResponse};
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
-use tokio::sync::Barrier;
-use chrono::{Utc, Duration};
-use force::error::Result;
 use async_trait::async_trait;
+use chrono::{Duration, Utc};
+use force::auth::{AccessToken, Authenticator, TokenManager, TokenResponse};
+use force::error::Result;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use tokio::sync::Barrier;
 
 #[derive(Debug)]
 struct RaceAuth {
@@ -19,7 +19,9 @@ impl Authenticator for RaceAuth {
             access_token: format!("auth_{}", val),
             instance_url: "https://test.salesforce.com".to_string(),
             token_type: "Bearer".to_string(),
-            issued_at: (Utc::now() + Duration::hours(2)).timestamp_millis().to_string(),
+            issued_at: (Utc::now() + Duration::hours(2))
+                .timestamp_millis()
+                .to_string(),
             signature: String::new(),
             expires_in: None,
             refresh_token: None,
@@ -33,7 +35,9 @@ impl Authenticator for RaceAuth {
             access_token: format!("refresh_{}", val),
             instance_url: "https://test.salesforce.com".to_string(),
             token_type: "Bearer".to_string(),
-            issued_at: (Utc::now() + Duration::hours(2)).timestamp_millis().to_string(),
+            issued_at: (Utc::now() + Duration::hours(2))
+                .timestamp_millis()
+                .to_string(),
             signature: String::new(),
             expires_in: None,
             refresh_token: None,
@@ -44,7 +48,9 @@ impl Authenticator for RaceAuth {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn test_havoc_token_manager_race() {
-    let auth = RaceAuth { count: AtomicUsize::new(0) };
+    let auth = RaceAuth {
+        count: AtomicUsize::new(0),
+    };
     let manager = Arc::new(TokenManager::new(auth));
 
     let num_tasks = 1000;
@@ -60,9 +66,15 @@ async fn test_havoc_token_manager_race() {
 
             let op = i % 3;
             match op {
-                0 => { let _ = m.token().await; },
-                1 => { let _ = m.force_refresh().await; },
-                2 => { m.clear().await; },
+                0 => {
+                    let _ = m.token().await;
+                }
+                1 => {
+                    let _ = m.force_refresh().await;
+                }
+                2 => {
+                    m.clear().await;
+                }
                 _ => unreachable!(),
             }
         }));
