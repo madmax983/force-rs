@@ -1,5 +1,6 @@
 //! Pub/Sub API handler.
 
+use futures::StreamExt;
 use std::pin::Pin;
 use std::sync::Arc;
 use tonic::transport::Channel;
@@ -50,9 +51,27 @@ async fn fetch_tenant_id<A: Authenticator>(session: &Arc<Session<A>>) -> Result<
         )));
     }
 
-    let info: UserInfo = resp
-        .json()
-        .await
+    let mut stream = resp.bytes_stream();
+    let limit_bytes = 10 * 1024 * 1024;
+    let mut bytes = Vec::with_capacity(4096);
+
+    while let Some(chunk) = stream.next().await {
+        if let Ok(chunk_bytes) = chunk {
+            let remaining = limit_bytes - bytes.len();
+            if remaining == 0 {
+                break;
+            }
+            if chunk_bytes.len() > remaining {
+                bytes.extend_from_slice(&chunk_bytes[..remaining]);
+                break;
+            }
+            bytes.extend_from_slice(&chunk_bytes);
+        } else {
+            break;
+        }
+    }
+
+    let info: UserInfo = serde_json::from_slice(&bytes)
         .map_err(|e| PubSubError::Config(format!("userinfo parse failed: {e}")))?;
 
     Ok(info.organization_id)

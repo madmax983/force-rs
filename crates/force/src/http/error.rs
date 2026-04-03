@@ -74,13 +74,11 @@ pub fn parse_api_error(status_code: u16, body: &str) -> HttpError {
     }
 }
 
-/// Converts an HTTP error response into a `ForceError` using Salesforce-aware parsing.
-///
-/// Reads the body of an HTTP response up to a specified byte limit.
+/// Reads the body of an HTTP response as bytes up to a specified limit.
 /// This prevents memory exhaustion (DoS) attacks from maliciously large error responses.
 ///
 /// It strictly caps the internal allocation and reads chunk by chunk.
-pub async fn read_capped_body(response: Response, limit_bytes: usize) -> String {
+pub async fn read_capped_body_bytes(response: Response, limit_bytes: usize) -> Vec<u8> {
     let mut stream = response.bytes_stream();
 
     // ⚡ Bolt: Pre-allocate a reasonable capacity, up to max limit.
@@ -107,6 +105,17 @@ pub async fn read_capped_body(response: Response, limit_bytes: usize) -> String 
         }
     }
 
+    bytes
+}
+
+/// Converts an HTTP error response into a `ForceError` using Salesforce-aware parsing.
+///
+/// Reads the body of an HTTP response up to a specified byte limit.
+/// This prevents memory exhaustion (DoS) attacks from maliciously large error responses.
+///
+/// It strictly caps the internal allocation and reads chunk by chunk.
+pub async fn read_capped_body(response: Response, limit_bytes: usize) -> String {
+    let bytes = read_capped_body_bytes(response, limit_bytes).await;
     String::from_utf8(bytes).unwrap_or_else(|e| String::from_utf8_lossy(e.as_bytes()).into_owned())
 }
 
@@ -275,5 +284,28 @@ mod integration_tests {
 
         // It should be truncated exactly at 1MB (1048576 bytes)
         assert_eq!(message_len, 1024 * 1024);
+    }
+
+    #[tokio::test]
+    async fn test_read_capped_body_bytes_truncation() {
+        let mock_server = MockServer::start().await;
+
+        // Generate a payload larger than the limit
+        let large_body = "A".repeat(5000);
+
+        Mock::given(method("GET"))
+            .and(path("/bytes"))
+            .respond_with(ResponseTemplate::new(200).set_body_string(large_body))
+            .mount(&mock_server)
+            .await;
+
+        let client = reqwest::Client::new();
+        let url = format!("{}/bytes", mock_server.uri());
+        let response = client.get(&url).send().await.must();
+
+        // 4096 is our typical default init_cap in read_capped_body_bytes
+        let bytes = read_capped_body_bytes(response, 4096).await;
+
+        assert_eq!(bytes.len(), 4096);
     }
 }
