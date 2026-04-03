@@ -3,10 +3,10 @@
 //! This module provides a builder and utilities for constructing SOQL queries
 //! safely, preventing injection vulnerabilities.
 
+use crate::api::builder_unwrap::BuilderUnwrapExt;
 use crate::error::ForceError;
 use crate::types::validator::{validate_field_name, validate_sobject_name};
 use std::borrow::Cow;
-use crate::api::builder_unwrap::BuilderUnwrapExt;
 
 /// Escapes special characters for SOQL string literals.
 ///
@@ -397,7 +397,8 @@ impl SoqlQueryBuilder {
     /// Panics if the field name is invalid.
     #[must_use]
     pub fn where_like(self, field: &str, value: &str) -> Self {
-        self.try_where_like(field, value).unwrap_or_panic("where_like")
+        self.try_where_like(field, value)
+            .unwrap_or_panic("where_like")
     }
 
     /// Sets the LIMIT clause.
@@ -502,7 +503,8 @@ impl SoqlQueryBuilder {
     /// Panics if the field name is invalid.
     #[must_use]
     pub fn order_by_desc(self, field: &str) -> Self {
-        self.try_order_by_desc(field).unwrap_or_panic("order_by_desc")
+        self.try_order_by_desc(field)
+            .unwrap_or_panic("order_by_desc")
     }
 
     /// Validates that the builder has all necessary components to build a query.
@@ -841,7 +843,8 @@ mod tests {
     #[test]
     #[should_panic(expected = "Invalid input in test_context: invalid input: test error")]
     fn test_unwrap_or_panic_helper() {
-        let result: Result<(), ForceError> = Err(ForceError::InvalidInput("test error".to_string()));
+        let result: Result<(), ForceError> =
+            Err(ForceError::InvalidInput("test error".to_string()));
         result.unwrap_or_panic("test_context");
     }
 

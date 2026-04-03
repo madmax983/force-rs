@@ -3,8 +3,8 @@
 //! This module provides types and methods for executing SOSL searches across
 //! multiple objects and fields in Salesforce.
 
-use crate::types::validator::validate_sobject_name;
 use crate::api::builder_unwrap::BuilderUnwrapExt;
+use crate::types::validator::validate_sobject_name;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -207,7 +207,8 @@ impl SearchQueryBuilder {
     /// if field names contain characters other than alphanumeric, underscores, or dots.
     #[must_use]
     pub fn returning(self, sobject: impl Into<String>, fields: &[impl AsRef<str>]) -> Self {
-        self.try_returning(sobject, fields).unwrap_or_panic("returning")
+        self.try_returning(sobject, fields)
+            .unwrap_or_panic("returning")
     }
 
     /// Sets the maximum number of records to return per object.
@@ -723,7 +724,9 @@ mod tests {
     #[test]
     #[should_panic(expected = "Invalid input in test_context: invalid input: test error")]
     fn test_unwrap_or_panic_helper() {
-        let result: Result<(), crate::error::ForceError> = Err(crate::error::ForceError::InvalidInput("test error".to_string()));
+        let result: Result<(), crate::error::ForceError> = Err(
+            crate::error::ForceError::InvalidInput("test error".to_string()),
+        );
         result.unwrap_or_panic("test_context");
     }
 
