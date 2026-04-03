@@ -52,12 +52,12 @@ async fn fetch_tenant_id<A: Authenticator>(session: &Arc<Session<A>>) -> Result<
     }
 
     let mut stream = resp.bytes_stream();
-    let limit_bytes = 10 * 1024 * 1024;
+    let limit_bytes: usize = 10 * 1024 * 1024;
     let mut bytes = Vec::with_capacity(4096);
 
     while let Some(chunk) = stream.next().await {
         if let Ok(chunk_bytes) = chunk {
-            let remaining = limit_bytes - bytes.len();
+            let remaining = limit_bytes.saturating_sub(bytes.len());
             if remaining == 0 {
                 break;
             }
