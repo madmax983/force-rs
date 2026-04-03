@@ -1,8 +1,10 @@
-//! Loom tests to verify TokenManager concurrency safety.
+//! Loom tests to verify `TokenManager` concurrency safety.
 //!
 //! Because `TokenManager` uses `tokio::sync::RwLock` and `tokio::sync::Mutex`,
 //! we model its exact locking protocol here using `loom::sync` primitives to
 //! exhaustively search for deadlocks or race conditions under all thread interleavings.
+
+#![allow(clippy::unwrap_used)]
 
 use loom::sync::{Arc, Mutex, RwLock};
 use loom::thread;
@@ -36,7 +38,8 @@ impl TokenManagerLoomModel {
         {
             let state = self.state.read().unwrap();
             if let Some(token) = state.token {
-                if current_token.is_some() && token > current_token.unwrap() {
+                let is_newer = current_token.is_some_and(|current| token > current);
+                if is_newer {
                     return;
                 }
             }
@@ -69,9 +72,8 @@ fn test_havoc_token_manager_loom() {
             m2.force_refresh();
         }));
 
-        let m3 = manager.clone();
         threads.push(thread::spawn(move || {
-            m3.clear();
+            manager.clear();
         }));
 
         for t in threads {
