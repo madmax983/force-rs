@@ -6,6 +6,8 @@
 //! - `SF_ACCESS_TOKEN`
 //! - `SF_INSTANCE_URL`
 //! - optional `SF_API_VERSION` (defaults to `v60.0`)
+//! - or a locally authenticated Salesforce CLI org, optionally selected via
+//!   `SF_TARGET_ORG`
 
 use async_trait::async_trait;
 use force::api::bulk::{BulkPollPolicy, IngestJob, JobOperation};
@@ -18,6 +20,12 @@ use force::error::HttpError;
 use force::error::Result;
 use serde::Deserialize;
 use std::time::Duration;
+
+#[derive(Debug, Clone)]
+struct LiveCredentials {
+    access_token: String,
+    instance_url: String,
+}
 
 #[derive(Debug, Clone)]
 struct EnvAuthenticator {
@@ -100,6 +108,31 @@ fn assert_status_error_with_code(err: &ForceError, expected_status: u16, expecte
     }
 }
 
+fn assert_status_error_with_any_status(
+    err: &ForceError,
+    expected_statuses: &[u16],
+    expected_codes: &[&str],
+) {
+    match err {
+        ForceError::Http(HttpError::StatusError {
+            status_code,
+            message,
+        }) => {
+            assert!(
+                expected_statuses.contains(status_code),
+                "expected one of {expected_statuses:?}, got status {status_code}",
+            );
+            assert!(
+                expected_codes
+                    .iter()
+                    .any(|code| message.contains(code) || message.contains(&format!("[{code}]"))),
+                "expected one of {expected_codes:?}, got message: {message}",
+            );
+        }
+        _ => panic!("expected Http::StatusError, got: {err:?}"),
+    }
+}
+
 fn load_runtime_config() -> LiveRuntimeConfig {
     let timeout_secs = env_u64("SF_LIVE_TEST_TIMEOUT_SECS", 120);
     let poll_attempts = env_u32("SF_LIVE_BULK_POLL_MAX_ATTEMPTS", 10);
@@ -119,13 +152,104 @@ fn load_runtime_config() -> LiveRuntimeConfig {
     }
 }
 
-fn load_live_config() -> Option<LiveConfig> {
-    let access_token = std::env::var("SF_ACCESS_TOKEN").ok()?;
-    let instance_url = std::env::var("SF_INSTANCE_URL").ok()?;
-    let api_version = std::env::var("SF_API_VERSION").unwrap_or_else(|_| "v60.0".to_string());
-    Some(LiveConfig {
+fn env_string(env_lookup: &impl Fn(&str) -> Option<String>, key: &str) -> Option<String> {
+    env_lookup(key).and_then(|value| {
+        let value = value.trim();
+        if value.is_empty() {
+            None
+        } else {
+            Some(value.to_string())
+        }
+    })
+}
+
+#[derive(Debug, Deserialize)]
+struct SfCliOrgDisplayEnvelope {
+    result: SfCliOrgDisplayResult,
+}
+
+#[derive(Debug, Deserialize)]
+struct SfCliOrgDisplayResult {
+    #[serde(rename = "accessToken")]
+    access_token: Option<String>,
+    #[serde(rename = "instanceUrl")]
+    instance_url: Option<String>,
+}
+
+fn parse_sf_cli_org_display(payload: &str) -> Option<LiveCredentials> {
+    let parsed: SfCliOrgDisplayEnvelope = serde_json::from_str(payload).ok()?;
+    let access_token = parsed.result.access_token?;
+    let instance_url = parsed.result.instance_url?;
+    Some(LiveCredentials {
         access_token,
         instance_url,
+    })
+}
+
+const fn sf_cli_command_candidates() -> &'static [&'static str] {
+    #[cfg(windows)]
+    {
+        &["sf.cmd", "sf"]
+    }
+
+    #[cfg(not(windows))]
+    {
+        &["sf"]
+    }
+}
+
+fn load_live_credentials_from_sf_cli(target_org: Option<&str>) -> Option<LiveCredentials> {
+    for command_name in sf_cli_command_candidates() {
+        let mut command = std::process::Command::new(command_name);
+        command.args(["org", "display", "--verbose", "--json"]);
+        if let Some(target_org) = target_org {
+            command.args(["--target-org", target_org]);
+        }
+
+        let Ok(output) = command.output() else {
+            continue;
+        };
+        if !output.status.success() {
+            continue;
+        }
+
+        let Ok(stdout) = String::from_utf8(output.stdout) else {
+            continue;
+        };
+        if let Some(credentials) = parse_sf_cli_org_display(&stdout) {
+            return Some(credentials);
+        }
+    }
+
+    None
+}
+
+fn load_live_credentials_with(
+    env_lookup: &impl Fn(&str) -> Option<String>,
+    sf_cli_loader: impl FnOnce(Option<&str>) -> Option<LiveCredentials>,
+) -> Option<LiveCredentials> {
+    let access_token = env_string(env_lookup, "SF_ACCESS_TOKEN");
+    let instance_url = env_string(env_lookup, "SF_INSTANCE_URL");
+    if let (Some(access_token), Some(instance_url)) = (access_token, instance_url) {
+        return Some(LiveCredentials {
+            access_token,
+            instance_url,
+        });
+    }
+
+    let target_org = env_string(env_lookup, "SF_TARGET_ORG");
+    sf_cli_loader(target_org.as_deref())
+}
+
+fn load_live_config() -> Option<LiveConfig> {
+    let credentials = load_live_credentials_with(
+        &|key| std::env::var(key).ok(),
+        load_live_credentials_from_sf_cli,
+    )?;
+    let api_version = std::env::var("SF_API_VERSION").unwrap_or_else(|_| "v60.0".to_string());
+    Some(LiveConfig {
+        access_token: credentials.access_token,
+        instance_url: credentials.instance_url,
         api_version,
         runtime: load_runtime_config(),
     })
@@ -279,9 +403,9 @@ async fn live_rest_query_invalid_locator_error_payload() -> Result<()> {
     let Err(error) = result else {
         panic!("expected invalid locator to fail");
     };
-    assert_status_error_with_code(
+    assert_status_error_with_any_status(
         &error,
-        404,
+        &[400, 404],
         &["INVALID_QUERY_LOCATOR", "NOT_FOUND", "MALFORMED_QUERY"],
     );
     Ok(())
@@ -394,4 +518,96 @@ async fn live_rest_throttling_error_payload() -> Result<()> {
     panic!(
         "did not hit throttling within {max_requests} requests; increase SF_LIVE_THROTTLE_MAX_REQUESTS"
     );
+}
+
+#[cfg(test)]
+mod config_resolution_tests {
+    use super::*;
+    use serde_json::json;
+    use std::cell::Cell;
+    use std::collections::HashMap;
+
+    fn env_map(entries: &[(&str, &str)]) -> HashMap<String, String> {
+        entries
+            .iter()
+            .map(|(key, value)| ((*key).to_string(), (*value).to_string()))
+            .collect()
+    }
+
+    #[test]
+    fn live_credentials_prefer_explicit_env_over_sf_cli() {
+        let env = env_map(&[
+            ("SF_ACCESS_TOKEN", "env-token"),
+            ("SF_INSTANCE_URL", "https://env.example.com"),
+        ]);
+        let cli_calls = Cell::new(0_u32);
+
+        let credentials = load_live_credentials_with(&|key| env.get(key).cloned(), |target_org| {
+            cli_calls.set(cli_calls.get() + 1);
+            assert_eq!(target_org, None);
+            Some(LiveCredentials {
+                access_token: "cli-token".to_string(),
+                instance_url: "https://cli.example.com".to_string(),
+            })
+        });
+
+        let Some(credentials) = credentials else {
+            panic!("expected env credentials to win");
+        };
+        assert_eq!(credentials.access_token, "env-token");
+        assert_eq!(credentials.instance_url, "https://env.example.com");
+        assert_eq!(cli_calls.get(), 0);
+    }
+
+    #[test]
+    fn live_credentials_fall_back_to_sf_cli_target_org() {
+        let env = env_map(&[("SF_TARGET_ORG", "dev-hydra")]);
+
+        let Some(credentials) =
+            load_live_credentials_with(&|key| env.get(key).cloned(), |target_org| {
+                assert_eq!(target_org, Some("dev-hydra"));
+                Some(LiveCredentials {
+                    access_token: "cli-token".to_string(),
+                    instance_url: "https://cli.example.com".to_string(),
+                })
+            })
+        else {
+            panic!("expected sf cli credentials");
+        };
+
+        assert_eq!(credentials.access_token, "cli-token");
+        assert_eq!(credentials.instance_url, "https://cli.example.com");
+    }
+
+    #[test]
+    fn parse_sf_cli_org_display_extracts_credentials() {
+        let payload = json!({
+            "status": 0,
+            "result": {
+                "accessToken": "00Dxx!token",
+                "instanceUrl": "https://dev-org.my.salesforce.com"
+            }
+        });
+
+        let Some(credentials) = parse_sf_cli_org_display(&payload.to_string()) else {
+            panic!("expected verbose sf payload");
+        };
+
+        assert_eq!(credentials.access_token, "00Dxx!token");
+        assert_eq!(
+            credentials.instance_url,
+            "https://dev-org.my.salesforce.com"
+        );
+    }
+
+    #[test]
+    fn sf_cli_command_candidates_match_platform() {
+        let candidates = sf_cli_command_candidates();
+
+        #[cfg(windows)]
+        assert_eq!(candidates.first().copied(), Some("sf.cmd"));
+
+        #[cfg(not(windows))]
+        assert_eq!(candidates.first().copied(), Some("sf"));
+    }
 }

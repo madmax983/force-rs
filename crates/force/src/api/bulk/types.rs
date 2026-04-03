@@ -5,6 +5,26 @@
 
 use serde::{Deserialize, Serialize};
 
+pub(super) fn deserialize_optional_string_or_number<'de, D>(
+    deserializer: D,
+) -> Result<Option<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum StringOrNumber {
+        String(String),
+        Number(serde_json::Number),
+    }
+
+    let value = Option::<StringOrNumber>::deserialize(deserializer)?;
+    Ok(value.map(|value| match value {
+        StringOrNumber::String(value) => value,
+        StringOrNumber::Number(value) => value.to_string(),
+    }))
+}
+
 /// Job operation types for Bulk API 2.0.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -117,7 +137,10 @@ pub struct JobInfo {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub total_processing_time: Option<i64>,
     /// API version.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional_string_or_number"
+    )]
     pub api_version: Option<String>,
     /// System modstamp timestamp.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -265,6 +288,22 @@ mod tests {
         assert_eq!(info.number_records_processed, Some(1000));
         assert_eq!(info.number_records_failed, Some(5));
         assert_eq!(info.total_processing_time, Some(45000));
+    }
+
+    #[test]
+    fn test_job_info_with_numeric_api_version() {
+        let json = r#"{
+            "id": "750xx0000000002AAA",
+            "operation": "update",
+            "object": "Contact",
+            "createdDate": "2024-01-01T00:00:00.000Z",
+            "createdById": "005xx0000000001AAA",
+            "state": "JobComplete",
+            "apiVersion": 60.0
+        }"#;
+
+        let info: JobInfo = serde_json::from_str(json).must();
+        assert_eq!(info.api_version, Some("60.0".to_string()));
     }
 
     #[test]
