@@ -13,14 +13,18 @@ pub fn generate_rust_struct(describe: &SObjectDescribe) -> String {
     let mut out = String::with_capacity(describe.fields.len() * 128);
     let _ = writeln!(out, "/// {}", describe.label);
     out.push_str("#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]\n");
-    let _ = writeln!(out, "pub struct {} {{", pascal_case(&describe.name));
+    out.push_str("pub struct ");
+    write_pascal_case(&mut out, &describe.name);
+    out.push_str(" {\n");
 
     for field in &describe.fields {
         let _ = writeln!(out, "    /// {}", field.label);
         let _ = writeln!(out, "    #[serde(rename = \"{}\")]", field.name);
         let rust_type = map_type(&field.type_);
         // ⚡ Bolt: Write type directly to buffer instead of allocating intermediate String via format! or to_string()
-        let _ = write!(out, "    pub {}: ", snake_case(&field.name));
+        out.push_str("    pub ");
+        write_snake_case(&mut out, &field.name);
+        out.push_str(": ");
         if field.nillable {
             let _ = writeln!(out, "Option<{}>,", rust_type);
         } else {
@@ -37,18 +41,23 @@ pub fn generate_rust_struct(describe: &SObjectDescribe) -> String {
 /// ⚡ Bolt: Uses `String::with_capacity` to prevent reallocation.
 fn pascal_case(s: &str) -> String {
     let mut result = String::with_capacity(s.len());
+    write_pascal_case(&mut result, s);
+    result
+}
+
+/// Writes a string as PascalCase directly to a buffer.
+fn write_pascal_case(out: &mut String, s: &str) {
     let mut capitalize_next = true;
     for c in s.chars() {
         if c == '_' {
             capitalize_next = true;
         } else if capitalize_next {
-            result.push(c.to_ascii_uppercase());
+            out.push(c.to_ascii_uppercase());
             capitalize_next = false;
         } else {
-            result.push(c);
+            out.push(c);
         }
     }
-    result
 }
 
 /// Converts a string to snake_case.
@@ -57,26 +66,32 @@ fn pascal_case(s: &str) -> String {
 /// over `chars()` to remove intermediate `Vec<char>` allocation.
 fn snake_case(s: &str) -> String {
     let mut result = String::with_capacity(s.len() + 2);
+    write_snake_case(&mut result, s);
+    result
+}
+
+/// Writes a string as snake_case directly to a buffer.
+fn write_snake_case(out: &mut String, s: &str) {
+    let start_len = out.len();
     let mut prev_char: Option<char> = None;
 
     for c in s.chars() {
         if c.is_ascii_uppercase() {
             if let Some(p) = prev_char {
                 if !p.is_ascii_uppercase() && p != '_' {
-                    result.push('_');
+                    out.push('_');
                 }
             }
-            result.push(c.to_ascii_lowercase());
+            out.push(c.to_ascii_lowercase());
         } else {
-            result.push(c);
+            out.push(c);
         }
         prev_char = Some(c);
     }
 
-    if result == "type" {
-        result.push('_');
+    if &out[start_len..] == "type" {
+        out.push('_');
     }
-    result
 }
 
 fn map_type(ft: &FieldType) -> &'static str {
