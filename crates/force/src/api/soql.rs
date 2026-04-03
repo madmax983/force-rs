@@ -3,6 +3,7 @@
 //! This module provides a builder and utilities for constructing SOQL queries
 //! safely, preventing injection vulnerabilities.
 
+use crate::api::builder_unwrap::BuilderUnwrapExt;
 use crate::error::ForceError;
 use crate::types::validator::{validate_field_name, validate_sobject_name};
 use std::borrow::Cow;
@@ -170,7 +171,7 @@ impl SoqlQueryBuilder {
     /// Panics if any field name contains invalid characters.
     #[must_use]
     pub fn select(self, fields: &[impl AsRef<str>]) -> Self {
-        Self::unwrap_or_panic(self.try_select(fields), "select")
+        self.try_select(fields).unwrap_or_panic("select")
     }
 
     /// Sets the SObject to select from.
@@ -192,7 +193,7 @@ impl SoqlQueryBuilder {
     /// Panics if the SObject name contains invalid characters.
     #[must_use]
     pub fn from(self, sobject: impl Into<String>) -> Self {
-        Self::unwrap_or_panic(self.try_from(sobject), "from")
+        self.try_from(sobject).unwrap_or_panic("from")
     }
 
     /// Adds a raw WHERE condition without escaping.
@@ -246,7 +247,7 @@ impl SoqlQueryBuilder {
     /// Panics if the field name is invalid.
     #[must_use]
     pub fn where_eq(self, field: &str, value: &str) -> Self {
-        Self::unwrap_or_panic(self.try_where_eq(field, value), "where_eq")
+        self.try_where_eq(field, value).unwrap_or_panic("where_eq")
     }
 
     /// Adds a WHERE condition for NOT equality (e.g., `Field != 'Value'`).
@@ -277,7 +278,7 @@ impl SoqlQueryBuilder {
     /// Panics if the field name is invalid.
     #[must_use]
     pub fn where_ne(self, field: &str, value: &str) -> Self {
-        Self::unwrap_or_panic(self.try_where_ne(field, value), "where_ne")
+        self.try_where_ne(field, value).unwrap_or_panic("where_ne")
     }
 
     /// Adds a simple WHERE condition (helper).
@@ -363,7 +364,7 @@ impl SoqlQueryBuilder {
     /// Panics if the field name is invalid.
     #[must_use]
     pub fn where_in(self, field: &str, values: &[impl AsRef<str>]) -> Self {
-        Self::unwrap_or_panic(self.try_where_in(field, values), "where_in")
+        self.try_where_in(field, values).unwrap_or_panic("where_in")
     }
 
     /// Adds a WHERE condition for LIKE clause (e.g., `Field LIKE 'Val%'`).
@@ -396,7 +397,8 @@ impl SoqlQueryBuilder {
     /// Panics if the field name is invalid.
     #[must_use]
     pub fn where_like(self, field: &str, value: &str) -> Self {
-        Self::unwrap_or_panic(self.try_where_like(field, value), "where_like")
+        self.try_where_like(field, value)
+            .unwrap_or_panic("where_like")
     }
 
     /// Sets the LIMIT clause.
@@ -468,7 +470,7 @@ impl SoqlQueryBuilder {
     /// Panics if the field name is invalid.
     #[must_use]
     pub fn order_by(self, field: &str) -> Self {
-        Self::unwrap_or_panic(self.try_order_by(field), "order_by")
+        self.try_order_by(field).unwrap_or_panic("order_by")
     }
 
     /// Sets the ORDER BY clause with direction (DESC).
@@ -501,7 +503,8 @@ impl SoqlQueryBuilder {
     /// Panics if the field name is invalid.
     #[must_use]
     pub fn order_by_desc(self, field: &str) -> Self {
-        Self::unwrap_or_panic(self.try_order_by_desc(field), "order_by_desc")
+        self.try_order_by_desc(field)
+            .unwrap_or_panic("order_by_desc")
     }
 
     /// Validates that the builder has all necessary components to build a query.
@@ -605,10 +608,6 @@ impl SoqlQueryBuilder {
         Ok(())
     }
 
-    fn unwrap_or_panic<T>(result: Result<T, ForceError>, context: &str) -> T {
-        result.unwrap_or_else(|e| panic!("Invalid input in {}: {}", context, e))
-    }
-
     /// Builds the final SOQL query string (panicking version).
     ///
     /// # Panics
@@ -616,7 +615,7 @@ impl SoqlQueryBuilder {
     /// Panics if no fields are selected or no SObject is specified.
     #[must_use]
     pub fn build(self) -> String {
-        Self::unwrap_or_panic(self.try_build(), "build")
+        self.try_build().unwrap_or_panic("build")
     }
 }
 
@@ -844,10 +843,9 @@ mod tests {
     #[test]
     #[should_panic(expected = "Invalid input in test_context: invalid input: test error")]
     fn test_unwrap_or_panic_helper() {
-        SoqlQueryBuilder::unwrap_or_panic::<()>(
-            Err(ForceError::InvalidInput("test error".to_string())),
-            "test_context",
-        );
+        let result: Result<(), ForceError> =
+            Err(ForceError::InvalidInput("test error".to_string()));
+        result.unwrap_or_panic("test_context");
     }
 
     #[test]
