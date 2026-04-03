@@ -7,6 +7,13 @@ use std::fmt::Write;
 #[cfg(feature = "schema")]
 pub fn generate_graphql_schema(describe: &SObjectDescribe) -> String {
     let mut out = String::with_capacity(describe.fields.len() * 64);
+    write_graphql_schema(&mut out, describe);
+    out
+}
+
+/// Writes a GraphQL type definition from an SObject describe result directly to a string buffer.
+#[cfg(feature = "schema")]
+pub fn write_graphql_schema(out: &mut String, describe: &SObjectDescribe) {
     let _ = writeln!(out, "type {} {{", describe.name);
 
     let mut fields: Vec<&_> = describe.fields.iter().collect();
@@ -31,7 +38,6 @@ pub fn generate_graphql_schema(describe: &SObjectDescribe) -> String {
     }
 
     out.push_str("}\n");
-    out
 }
 
 /// Maps a Salesforce `FieldType` to a GraphQL type.

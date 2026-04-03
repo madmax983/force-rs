@@ -8,7 +8,13 @@ use std::fmt::Write;
 /// Generates a TypeScript interface definition from an SObject describe result.
 pub fn generate_typescript_interface(describe: &SObjectDescribe) -> String {
     let mut out = String::with_capacity(describe.fields.len() * 128);
+    write_typescript_interface(&mut out, describe);
+    out
+}
 
+/// Writes a TypeScript interface definition from an SObject describe result directly to a string buffer.
+#[cfg(feature = "schema")]
+pub fn write_typescript_interface(out: &mut String, describe: &SObjectDescribe) {
     out.push_str("/**\n");
     let _ = writeln!(out, " * {}", describe.label);
     out.push_str(" */\n");
@@ -44,7 +50,6 @@ pub fn generate_typescript_interface(describe: &SObjectDescribe) -> String {
     }
 
     out.push_str("}\n");
-    out
 }
 
 /// Maps a Salesforce `FieldType` to a TypeScript type.
