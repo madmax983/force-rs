@@ -37,6 +37,7 @@ pub(crate) mod query_stream;
 pub mod rest_operation;
 pub mod soql;
 
+pub(crate) mod builder_unwrap;
 pub(crate) mod path_utils;
 
 #[cfg(any(feature = "composite", feature = "composite_graph"))]
