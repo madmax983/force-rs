@@ -1,6 +1,7 @@
 //! Schema inspection, analysis, and code-generation utilities.
 
 pub(crate) mod data_dictionary;
+pub(crate) mod graphql_generator;
 pub(crate) mod json_schema;
 pub(crate) mod mock_data_generator;
 pub(crate) mod openapi_generator;
@@ -19,6 +20,7 @@ pub(crate) mod type_generator;
 pub(crate) mod typescript_generator;
 
 pub use data_dictionary::DataDictionary;
+pub use graphql_generator::generate_graphql_schema;
 pub use json_schema::generate_json_schema;
 pub use mock_data_generator::generate_mock_data;
 pub use openapi_generator::generate_openapi_schema;
