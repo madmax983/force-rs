@@ -16,8 +16,8 @@ use force::schema::{
     MissingCustomSuffixRule, SchemaDiffResult, SchemaGraph, SchemaInsights, SchemaLinter,
     TooManyFieldsRule, analyze_schema, compare_schemas, generate_changelog, generate_ddl,
     generate_json_schema, generate_openapi_schema, generate_rust_struct,
-    generate_typescript_interface, generate_visualizer_report, write_changelog,
-    write_ddl, write_graphql_schema, write_openapi_schema, write_pydantic_model, write_typescript_interface,
+    generate_typescript_interface, generate_visualizer_report, write_changelog, write_ddl,
+    write_graphql_schema, write_openapi_schema, write_pydantic_model, write_typescript_interface,
 };
 
 #[cfg(feature = "data_utility")]
