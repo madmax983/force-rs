@@ -20,21 +20,21 @@ pub(crate) mod type_generator;
 pub(crate) mod typescript_generator;
 
 pub use data_dictionary::DataDictionary;
-pub use graphql_generator::generate_graphql_schema;
+pub use graphql_generator::{generate_graphql_schema, write_graphql_schema};
 pub use json_schema::generate_json_schema;
 pub use mock_data_generator::generate_mock_data;
-pub use openapi_generator::generate_openapi_schema;
+pub use openapi_generator::{generate_openapi_schema, write_openapi_schema};
 pub use postman_generator::generate_postman_collection;
-pub use pydantic_generator::generate_pydantic_model;
+pub use pydantic_generator::{generate_pydantic_model, write_pydantic_model};
 pub use scanner::{FieldUsage, FieldUsageScanner};
 pub use schema_analyzer::{SchemaInsights, analyze_schema};
-pub use schema_changelog::generate_changelog;
+pub use schema_changelog::{generate_changelog, write_changelog};
 pub use schema_diff::{FieldChange, SchemaDiffResult, compare_schemas};
 pub use schema_graph::SchemaGraph;
 pub use schema_linter::{
     LintResult, LintRule, LintSeverity, MissingCustomSuffixRule, SchemaLinter, TooManyFieldsRule,
 };
 pub use schema_visualizer::generate_visualizer_report;
-pub use sql_exporter::generate_ddl;
+pub use sql_exporter::{generate_ddl, write_ddl};
 pub use type_generator::generate_rust_struct;
-pub use typescript_generator::generate_typescript_interface;
+pub use typescript_generator::{generate_typescript_interface, write_typescript_interface};

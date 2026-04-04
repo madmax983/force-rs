@@ -41,17 +41,27 @@ use super::schema_diff::compare_schemas;
 /// A String containing the generated Markdown changelog.
 #[must_use]
 pub fn generate_changelog(old_schema: &SObjectDescribe, new_schema: &SObjectDescribe) -> String {
+    let mut md = String::with_capacity(1024);
+    write_changelog(&mut md, old_schema, new_schema);
+    md
+}
+
+/// Writes a Markdown changelog comparing an old and new schema describe directly to a string buffer.
+pub fn write_changelog(
+    md: &mut String,
+    old_schema: &SObjectDescribe,
+    new_schema: &SObjectDescribe,
+) {
     use std::fmt::Write;
 
     let diff = compare_schemas(old_schema, new_schema);
-    let mut md = String::with_capacity(1024);
 
     let _ = writeln!(md, "# Schema Changelog: {}", new_schema.label);
     let _ = writeln!(md, "**API Name:** `{}`\n", new_schema.name);
 
     if diff.is_empty() {
         md.push_str("No changes detected.\n");
-        return md;
+        return;
     }
 
     if !diff.added_fields.is_empty() {
@@ -95,8 +105,6 @@ pub fn generate_changelog(old_schema: &SObjectDescribe, new_schema: &SObjectDesc
         }
         md.push('\n');
     }
-
-    md
 }
 
 #[cfg(test)]

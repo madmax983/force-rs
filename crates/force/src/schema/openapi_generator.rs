@@ -11,7 +11,13 @@ use std::fmt::Write;
 #[cfg(feature = "schema")]
 pub fn generate_openapi_schema(describe: &SObjectDescribe) -> String {
     let mut out = String::with_capacity(describe.fields.len() * 128);
+    write_openapi_schema(&mut out, describe);
+    out
+}
 
+/// Writes an OpenAPI 3.0 component schema definition for a given SObject directly to a string buffer.
+#[cfg(feature = "schema")]
+pub fn write_openapi_schema(out: &mut String, describe: &SObjectDescribe) {
     let _ = writeln!(out, "    {}:", describe.name);
     out.push_str("      type: object\n");
     if !describe.label.is_empty() {
@@ -43,10 +49,8 @@ pub fn generate_openapi_schema(describe: &SObjectDescribe) -> String {
 
     for field in &describe.fields {
         let _ = writeln!(out, "        {}:", field.name);
-        write_field_schema(&mut out, field);
+        write_field_schema(out, field);
     }
-
-    out
 }
 fn write_field_schema(out: &mut String, field: &FieldDescribe) {
     if let Some(help) = &field.inline_help_text {
