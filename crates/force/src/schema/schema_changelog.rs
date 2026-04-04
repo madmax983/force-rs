@@ -47,7 +47,11 @@ pub fn generate_changelog(old_schema: &SObjectDescribe, new_schema: &SObjectDesc
 }
 
 /// Writes a Markdown-formatted changelog between two schema versions into the provided buffer.
-pub fn write_changelog(md: &mut String, old_schema: &SObjectDescribe, new_schema: &SObjectDescribe) {
+pub fn write_changelog(
+    md: &mut String,
+    old_schema: &SObjectDescribe,
+    new_schema: &SObjectDescribe,
+) {
     use std::fmt::Write;
 
     let diff = compare_schemas(old_schema, new_schema);
