@@ -38,9 +38,15 @@ use crate::api::rest::describe::{FieldType, SObjectDescribe};
 /// if it exists.
 #[must_use]
 pub fn generate_ddl(describe: &SObjectDescribe) -> String {
+    let mut ddl = String::with_capacity(1024);
+    write_ddl(&mut ddl, describe);
+    ddl
+}
+
+/// Writes a `CREATE TABLE` SQL statement for the given SObject describe metadata into the provided buffer.
+pub fn write_ddl(ddl: &mut String, describe: &SObjectDescribe) {
     use std::fmt::Write;
 
-    let mut ddl = String::with_capacity(1024);
     let _ = writeln!(ddl, "CREATE TABLE {} (", describe.name);
 
     // Sort fields alphabetically to ensure deterministic output,
@@ -66,7 +72,7 @@ pub fn generate_ddl(describe: &SObjectDescribe) -> String {
         first = false;
 
         let _ = write!(ddl, "    {} ", field.name);
-        write_field_type(&mut ddl, &field.type_, field.length);
+        write_field_type(ddl, &field.type_, field.length);
 
         if field.name == "Id" {
             ddl.push_str(" PRIMARY KEY");
@@ -79,8 +85,6 @@ pub fn generate_ddl(describe: &SObjectDescribe) -> String {
     }
 
     ddl.push_str("\n);");
-
-    ddl
 }
 
 /// Maps a Salesforce `FieldType` to a standard SQL data type.

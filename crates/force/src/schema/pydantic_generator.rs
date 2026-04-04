@@ -8,6 +8,14 @@ use std::fmt::Write;
 pub fn generate_pydantic_model(describe: &SObjectDescribe) -> String {
     let mut out = String::with_capacity(describe.fields.len() * 128);
 
+    write_pydantic_model(&mut out, describe);
+
+    out
+}
+
+/// Writes a Python Pydantic model definition from an SObject describe result into the provided buffer.
+#[cfg(feature = "schema")]
+pub fn write_pydantic_model(out: &mut String, describe: &SObjectDescribe) {
     out.push_str("from typing import Optional\n");
     out.push_str("from pydantic import BaseModel, Field\n\n");
 
@@ -43,8 +51,6 @@ pub fn generate_pydantic_model(describe: &SObjectDescribe) -> String {
             );
         }
     }
-
-    out
 }
 
 /// Maps a Salesforce `FieldType` to a Python type.
