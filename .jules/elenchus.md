@@ -215,6 +215,14 @@ match result {
 **Evidence:** Found over 30 occurrences across `graphql/mod.rs`, `ui/favorites.rs`, `ui/lookups.rs`, `ui/list_views.rs`, `ui/actions.rs`, `ui/layouts.rs`, `ui/object_info.rs`, `ui/records.rs`, `tooling/execute_anonymous.rs`, `tooling/run_tests.rs`, `tooling/completions.rs`, `force-pubsub/src/codec.rs`, `force-pubsub/src/schema_cache.rs`, and `force-pubsub/tests/handler_tests.rs`.
 **Recommendation:** Refactored tests to explicitly unwrap the error using `let Err(err) = result else { panic!("Expected an error"); };` and assertions to ensure tests only pass if they fail exactly as intended.
 
+### [Strengthened] `assert!(result.is_err())` Eradication in `crates/force/src/api/bulk/ingest.rs` and `crates/force/src/api/bulk/smart_ingest.rs`
+
+**Module:** `crates/force/src/api/bulk/ingest.rs` and `crates/force/src/api/bulk/smart_ingest.rs`
+**Severity:** 🔴 Critical
+**Finding:** Weak assertions using the "Ceremony Test" pattern (`assert!(result.is_err())` or string-contains on empty errors) were masking test failures and hiding underlying details. A test simply checked for an error, not whether it was the *correct* error.
+**Evidence:** 9 instances found where operations like `create_job_failure`, `update_job_invalid_state_transition`, and `smart_ingest_upload_batch_failure_triggers_abort` were asserted purely on `.is_err()`, which could falsely pass for unrelated failure modes.
+**Recommendation:** Refactored all affected tests to extract the inner `HttpError::StatusError` to explicitly match against specific expected HTTP status codes (e.g., 400, 404, 500) and explicit payload `errorCode`/`message` contents from mocked JSON payloads. This guarantees they fail when logic is incorrectly bypassed.
+
 ### [Strengthened] `crates/force/src/experimental/schema_analyzer.rs`
 
 **Module:** `crates/force/src/experimental/schema_analyzer.rs`

@@ -974,7 +974,12 @@ mod tests {
 
         Mock::given(method("POST"))
             .and(path("/services/data/v60.0/jobs/ingest"))
-            .respond_with(ResponseTemplate::new(400))
+            .respond_with(
+                ResponseTemplate::new(400).set_body_json(serde_json::json!([{
+                    "message": "Invalid job request",
+                    "errorCode": "INVALID_JOB"
+                }])),
+            )
             .mount(&mock_server)
             .await;
 
@@ -991,10 +996,19 @@ mod tests {
         };
 
         let result = handler.create_job(request).await;
-        let Err(err) = result else {
-            panic!("Expected an error");
+        let Err(crate::error::ForceError::Http(crate::error::HttpError::StatusError {
+            status_code,
+            message,
+        })) = result
+        else {
+            panic!("Expected StatusError, got {:?}", result);
         };
-        assert!(err.to_string().contains(""));
+        assert_eq!(status_code, 400);
+        assert!(
+            message.contains("Invalid job request"),
+            "Actual message: {}",
+            message
+        );
     }
 
     #[cfg(feature = "bulk")]
@@ -1035,7 +1049,12 @@ mod tests {
 
         Mock::given(method("GET"))
             .and(path_regex("/services/data/v60.0/jobs/ingest/.*"))
-            .respond_with(ResponseTemplate::new(404))
+            .respond_with(
+                ResponseTemplate::new(404).set_body_json(serde_json::json!([{
+                    "errorCode": "NOT_FOUND",
+                    "message": "The requested resource does not exist"
+                }])),
+            )
             .mount(&mock_server)
             .await;
 
@@ -1043,10 +1062,19 @@ mod tests {
         let handler = client.bulk();
 
         let result = handler.get_job("750xx0000000999AAA").await;
-        let Err(err) = result else {
-            panic!("Expected an error");
+        let Err(crate::error::ForceError::Http(crate::error::HttpError::StatusError {
+            status_code,
+            message,
+        })) = result
+        else {
+            panic!("Expected StatusError, got {:?}", result);
         };
-        assert!(err.to_string().contains(""));
+        assert_eq!(status_code, 404);
+        assert!(
+            message.contains("The requested resource does not exist"),
+            "Actual message: {}",
+            message
+        );
     }
 
     #[cfg(feature = "bulk")]
@@ -1090,7 +1118,12 @@ mod tests {
 
         Mock::given(method("PATCH"))
             .and(path_regex("/services/data/v60.0/jobs/ingest/.*"))
-            .respond_with(ResponseTemplate::new(400))
+            .respond_with(
+                ResponseTemplate::new(400).set_body_json(serde_json::json!([{
+                    "errorCode": "INVALID_STATE",
+                    "message": "Invalid state transition"
+                }])),
+            )
             .mount(&mock_server)
             .await;
 
@@ -1102,10 +1135,19 @@ mod tests {
         };
 
         let result = handler.update_job("750xx0000000001AAA", request).await;
-        let Err(err) = result else {
-            panic!("Expected an error");
+        let Err(crate::error::ForceError::Http(crate::error::HttpError::StatusError {
+            status_code,
+            message,
+        })) = result
+        else {
+            panic!("Expected StatusError, got {:?}", result);
         };
-        assert!(err.to_string().contains(""));
+        assert_eq!(status_code, 400);
+        assert!(
+            message.contains("Invalid state transition"),
+            "Actual message: {}",
+            message
+        );
     }
 
     #[cfg(feature = "bulk")]
@@ -1134,7 +1176,12 @@ mod tests {
 
         Mock::given(method("DELETE"))
             .and(path_regex("/services/data/v60.0/jobs/ingest/.*"))
-            .respond_with(ResponseTemplate::new(404))
+            .respond_with(
+                ResponseTemplate::new(404).set_body_json(serde_json::json!([{
+                    "errorCode": "NOT_FOUND",
+                    "message": "Job not found"
+                }])),
+            )
             .mount(&mock_server)
             .await;
 
@@ -1142,10 +1189,19 @@ mod tests {
         let handler = client.bulk();
 
         let result = handler.delete_job("750xx0000000999AAA").await;
-        let Err(err) = result else {
-            panic!("Expected an error");
+        let Err(crate::error::ForceError::Http(crate::error::HttpError::StatusError {
+            status_code,
+            message,
+        })) = result
+        else {
+            panic!("Expected StatusError, got {:?}", result);
         };
-        assert!(err.to_string().contains(""));
+        assert_eq!(status_code, 404);
+        assert!(
+            message.contains("Job not found"),
+            "Actual message: {}",
+            message
+        );
     }
 
     #[cfg(feature = "bulk")]
@@ -1602,10 +1658,19 @@ mod tests {
         }];
 
         let result = handler.bulk_insert("Account", &records).await;
-        let Err(err) = result else {
-            panic!("Expected an error");
+        let Err(crate::error::ForceError::Http(crate::error::HttpError::StatusError {
+            status_code,
+            message,
+        })) = result
+        else {
+            panic!("Expected StatusError, got {:?}", result);
         };
-        assert!(err.to_string().contains(""));
+        assert_eq!(status_code, 500);
+        assert!(
+            message.contains("Job failed during processing"),
+            "Actual message: {}",
+            message
+        );
     }
 
     // Include existing tests as well to avoid regression
