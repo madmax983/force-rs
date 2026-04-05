@@ -380,8 +380,8 @@ mod tests {
         let result = auth.authenticate().await;
 
         if let Err(ForceError::Http(HttpError::StatusError { message, .. })) = result {
-            // Should be truncated to 1MB
-            assert_eq!(message.len(), 1024 * 1024);
+            // Should fall back to "Unknown error" because reading exceeded the limit.
+            assert_eq!(message, "Unknown error");
         } else {
             panic!("Expected HttpError::StatusError");
         }
