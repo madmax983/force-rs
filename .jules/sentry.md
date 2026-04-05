@@ -62,3 +62,6 @@
 **[Avoid `#![allow(clippy::unwrap_used)]` in Test Modules]**
 **Learning:** Using `#![allow(clippy::unwrap_used)]` to suppress unwrap warnings in test modules bypasses the project's custom `Must` trait (`.must()`), which provides better diagnostic messages on panics.
 **Action:** Always use the `.must()` or `.must_msg()` extensions from `crate::test_support::Must` instead of `unwrap()` in tests, and avoid suppressing the `clippy::unwrap_used` lint.
+**[Central BuilderUnwrapExt Panic Tests]**
+**Learning:** We rely heavily on centralizing wrapper helpers (`unwrap_or_panic`) within Builders to map underlying validation error outputs (`try_` functions) into unified panic strings for invalid API usage.
+**Action:** Always make sure the shared panic formatting utility functions are covered by at least one explicit test using `#[should_panic(expected = "...")]` to guarantee consistency inside these developer convenience paths and avoid obscure regressions during string mapping refactoring.
