@@ -288,12 +288,9 @@ mod integration_tests {
 
         let error = response_to_force_error(response, "fallback").await;
 
-        let message =
-            if let crate::error::ForceError::Http(HttpError::StatusError { message, .. }) = error {
-                message
-            } else {
-                panic!("Expected StatusError");
-            };
+        let crate::error::ForceError::Http(HttpError::StatusError { message, .. }) = error else {
+            panic!("Expected StatusError");
+        };
 
         // It should fall back to the fallback message because reading exceeded the limit.
         assert_eq!(message, "fallback");
