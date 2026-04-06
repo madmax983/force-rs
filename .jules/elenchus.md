@@ -248,3 +248,10 @@ match result {
 - Missing specific test cases for `get`, `query`, and `query_more` allowing default/mock return mutations to survive.
 **Evidence:** `cargo mutants` output showing missed mutants for default returning `Result` types in `get` and `query` operations, and `is_success()` match arm inversions.
 **Recommendation:** Added `test_upsert_success_other_status` and `test_upsert_failure` to properly test status conditions. Injected `test_get_success_mock`, `test_query_success_mock`, and `test_query_more_success_mock` tests to prevent `Default::default()` returns in REST operations. All mutants now caught or unviable.
+
+**[Missing Password Credentials check in URL resolution]**
+**Module:** `crate::api::rest_operation`
+**Severity:** 🟡 Suspect
+**Finding:** The `resolve_next_records_url` has conditions to reject credentials within URLs (`username().is_empty()` and `password().is_some()`). Only the username condition had a corresponding test, leaving the password branch's behavior uncovered.
+**Evidence:** `cargo mutants` revealed that changing `||` to `&&` between the username and password checks survived the tests. This demonstrated that the `password().is_some()` logic was not independently verified.
+**Recommendation:** Add a test like `test_query_more_security_check_password_mismatch` to cover the `password().is_some()` branch independently. (Implemented).

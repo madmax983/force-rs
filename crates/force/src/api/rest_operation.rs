@@ -1341,4 +1341,16 @@ mod tests {
         };
         assert!(err.to_string().contains("Security Error"));
     }
+
+    #[test]
+    fn test_query_more_security_check_password_mismatch() {
+        let result = resolve_next_records_url(
+            "https://na1.salesforce.com",
+            "https://:password@na1.salesforce.com/services/data/v60.0/query/01g",
+        );
+        let Err(err) = result else {
+            panic!("Expected Err");
+        };
+        assert!(err.to_string().contains("Security Error"));
+    }
 }
