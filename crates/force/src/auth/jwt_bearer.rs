@@ -518,8 +518,8 @@ QcWLHR6ul3bFRWNhXoThNBQ=
             // Because read_capped_body in handle_oauth_error handles the Error from read_capped_body_bytes
             // using .unwrap_or_default() and String::from_utf8_lossy, an empty string is used
             // as the fallback, instead of parsing a truncated 1MB string. The status error will just
-            // be empty.
-            assert!(message.is_empty());
+            // be "Unknown error".
+            assert_eq!(message, "Unknown error");
         } else {
             panic!("Expected HttpError::StatusError");
         }
