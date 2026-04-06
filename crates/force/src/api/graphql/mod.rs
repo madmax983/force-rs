@@ -107,7 +107,7 @@ impl<A: crate::auth::Authenticator> GraphqlHandler<A> {
             );
         }
 
-        let bytes = crate::http::error::read_capped_body_bytes(response, 100 * 1024 * 1024).await;
+        let bytes = crate::http::error::read_capped_body_bytes(response, 100 * 1024 * 1024).await?;
         let envelope: GraphqlResponse<T> =
             serde_json::from_slice(&bytes).map_err(crate::error::SerializationError::from)?;
 
@@ -148,7 +148,7 @@ impl<A: crate::auth::Authenticator> GraphqlHandler<A> {
             );
         }
 
-        let bytes = crate::http::error::read_capped_body_bytes(response, 100 * 1024 * 1024).await;
+        let bytes = crate::http::error::read_capped_body_bytes(response, 100 * 1024 * 1024).await?;
         serde_json::from_slice::<GraphqlResponse<T>>(&bytes)
             .map_err(crate::error::SerializationError::from)
             .map_err(Into::into)
