@@ -18,8 +18,17 @@ This journal records the findings of the Elenchus test audit.
 | **Strengthened** | `crates/force/src/experimental/type_generator.rs` | 🔴 Critical | Replace `.contains()` checks with exact match (`assert_eq!`) against a golden string. Enhance case-conversion tests with comprehensive cases. Added missing coverage for `map_type`. |
 | **Strengthened** | `crates/force/src/experimental/schema_analyzer.rs` | 🔴 Critical | Original test `test_schema_analyzer` provided only 6 total fields, meaning that the `total_fields / 10` division resulted in `0`. Tests did not effectively test logic. |
 | **Strengthened** | `crates/force/src/schema/postman_generator.rs` | 🟡 Suspect | The test suite missed mutations changing `&&` to `||` in the createable/updateable and "Id" field filtering logic. |
+| **Acquitted** | `crates/force/src/api/soql.rs` | 🟢 Acquitted | Mutants targeting capacity calculation math survived but are equivalent performance mutants. |
 
 ## Detailed Findings
+
+### [Acquitted] `crates/force/src/api/soql.rs`
+
+**Module:** `crates/force/src/api/soql.rs`
+**Severity:** 🟢 Acquitted
+**Finding:** Mutants targeting capacity calculation math survived. The math optimizations for `capacity` in `try_add_condition` and `try_where_in` were untested allowing replacing `+` with `*` or `-` to remain uncaught. However, these are purely performance hints passed to `String::with_capacity` and do not affect functional correctness or observable behavior.
+**Evidence:** `cargo mutants` showed multiple mutations (`replace + with *`, `replace + with -`) survived in `capacity` calculation logic.
+**Recommendation:** Mark as equivalent mutants. No tests should be added to test the memory allocator's exact capacity behavior, as this introduces flakiness without testing the business logic.
 
 ### [Strengthened] `crates/force/src/schema/postman_generator.rs`
 
