@@ -23,6 +23,7 @@ Design backlog and product-spec notes for incubating `force-rs` capabilities. Th
 - [`schema-visualizer.md`](schema-visualizer.md): visual schema graphing.
 - [`sql-ddl-exporter.md`](sql-ddl-exporter.md): SQL DDL export for warehouse and database workflows.
 - [`typescript-interface-generator.md`](typescript-interface-generator.md): TypeScript interface generation.
+- [`zod-schema-generator.md`](zod-schema-generator.md): TypeScript Zod schema generation for runtime validation.
 
 ## Metadata and Tooling
 
