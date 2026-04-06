@@ -58,12 +58,10 @@ async fn fetch_tenant_id<A: Authenticator>(session: &Arc<Session<A>>) -> Result<
     while let Some(chunk) = stream.next().await {
         if let Ok(chunk_bytes) = chunk {
             let remaining = limit_bytes.saturating_sub(bytes.len());
-            if remaining == 0 {
-                break;
-            }
             if chunk_bytes.len() > remaining {
-                bytes.extend_from_slice(&chunk_bytes[..remaining]);
-                break;
+                return Err(PubSubError::Config(
+                    "userinfo response exceeded size limit".to_string(),
+                ));
             }
             bytes.extend_from_slice(&chunk_bytes);
         } else {
