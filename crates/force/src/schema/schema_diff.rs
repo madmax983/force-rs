@@ -82,6 +82,7 @@ pub fn compare_schemas(
 ) -> SchemaDiffResult {
     let mut result = SchemaDiffResult::default();
 
+    // ⚡ Bolt: Use .as_str() directly in the map instead of doing a heap allocation (.clone())
     let mut old_fields: HashMap<&str, &FieldDescribe> = old_schema
         .fields
         .iter()
@@ -89,6 +90,7 @@ pub fn compare_schemas(
         .collect();
 
     // Find added and changed fields
+    // ⚡ Bolt: Use new_field.name.as_str() instead of doing a heap allocation (.clone())
     for new_field in &new_schema.fields {
         if let Some(old_field) = old_fields.remove(new_field.name.as_str()) {
             if old_field.type_ != new_field.type_ {
