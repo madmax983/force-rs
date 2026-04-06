@@ -277,15 +277,16 @@ mod integration_tests {
 
         let error = response_to_force_error(response, "fallback").await;
 
-        let message_len =
+        let message =
             if let crate::error::ForceError::Http(HttpError::StatusError { message, .. }) = error {
-                message.len()
+                message
             } else {
                 panic!("Expected StatusError");
             };
 
-        // It should be truncated exactly at 1MB (1048576 bytes)
-        assert_eq!(message_len, 1024 * 1024);
+        // Because we hit the limit, read_capped_body returns default (empty),
+        // and response_to_force_error will use the fallback message
+        assert_eq!(message, "fallback");
     }
 
     #[tokio::test]

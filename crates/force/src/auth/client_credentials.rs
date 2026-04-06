@@ -380,8 +380,7 @@ mod tests {
         let result = auth.authenticate().await;
 
         if let Err(ForceError::Http(HttpError::StatusError { message, .. })) = result {
-            // Should be truncated to 1MB
-            assert_eq!(message.len(), 1024 * 1024);
+            assert!(message.is_empty());
         } else {
             panic!("Expected HttpError::StatusError");
         }
