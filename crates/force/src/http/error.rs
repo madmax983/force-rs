@@ -277,12 +277,9 @@ mod integration_tests {
 
         let error = response_to_force_error(response, "fallback").await;
 
-        let message =
-            if let crate::error::ForceError::Http(HttpError::StatusError { message, .. }) = error {
-                message
-            } else {
-                panic!("Expected StatusError");
-            };
+        let crate::error::ForceError::Http(HttpError::StatusError { message, .. }) = error else {
+            panic!("Expected StatusError");
+        };
 
         // Because we hit the limit, read_capped_body returns default (empty),
         // and response_to_force_error will use the fallback message
