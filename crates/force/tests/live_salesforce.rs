@@ -9,7 +9,7 @@
 
 use async_trait::async_trait;
 use force::api::bulk::{BulkPollPolicy, IngestJob, JobOperation};
-use force::api::rest_operation::RestOperation;
+use force::api::RestOperation;
 use force::auth::{AccessToken, Authenticator, TokenResponse};
 use force::client::{ForceClient, builder};
 use force::config::ClientConfig;

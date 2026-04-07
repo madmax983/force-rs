@@ -2,8 +2,8 @@
 
 use force::{
     api::bulk::{JobInfo, JobOperation},
-    api::rest_operation::RestOperation,
-    api::soql::SoqlQueryBuilder,
+    api::RestOperation,
+    api::SoqlQueryBuilder,
     auth::Authenticator,
     client::ForceClient,
     error::{ForceError, HttpError},
