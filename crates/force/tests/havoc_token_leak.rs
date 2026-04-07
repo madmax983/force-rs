@@ -4,7 +4,7 @@
 #![allow(clippy::expect_used)]
 
 use async_trait::async_trait;
-use force::api::rest_operation::RestOperation;
+use force::api::RestOperation;
 use force::auth::{AccessToken, Authenticator, TokenResponse};
 use force::client::builder;
 use force::error::Result;

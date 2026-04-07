@@ -18,7 +18,7 @@ use std::borrow::Cow;
 /// # Examples
 ///
 /// ```
-/// use force::api::soql::escape_soql;
+/// use force::api::escape_soql;
 ///
 /// assert_eq!(escape_soql("O'Reilly"), r"O\'Reilly");
 /// assert_eq!(escape_soql(r"C:\Docs"), r"C:\\Docs");
@@ -64,9 +64,7 @@ pub fn escape_soql_cow(input: &str) -> Cow<'_, str> {
 /// Validates the builder, then writes the SOQL through URL-encoding.
 /// Used by Composite Batch and Graph APIs to embed queries in subrequests.
 #[cfg(any(feature = "composite", feature = "composite_graph"))]
-pub(crate) fn encode_soql_query_url(
-    query_builder: &SoqlQueryBuilder,
-) -> Result<String, ForceError> {
+pub fn encode_soql_query_url(query_builder: &SoqlQueryBuilder) -> Result<String, ForceError> {
     if let Err(e) = query_builder.validate() {
         return Err(ForceError::InvalidInput(format!(
             "Invalid query builder: {e}"
@@ -94,7 +92,7 @@ pub(crate) fn encode_soql_query_url(
 /// # Examples
 ///
 /// ```
-/// use force::api::soql::SoqlQueryBuilder;
+/// use force::api::SoqlQueryBuilder;
 ///
 /// let query = SoqlQueryBuilder::new()
 ///     .select(&["Id", "Name"])
@@ -205,7 +203,7 @@ impl SoqlQueryBuilder {
     /// # Examples
     ///
     /// ```
-    /// use force::api::soql::SoqlQueryBuilder;
+    /// use force::api::SoqlQueryBuilder;
     /// let query = SoqlQueryBuilder::new()
     ///     .select(&["Id"])
     ///     .from("Account")
@@ -228,7 +226,7 @@ impl SoqlQueryBuilder {
     /// # Examples
     ///
     /// ```
-    /// use force::api::soql::SoqlQueryBuilder;
+    /// use force::api::SoqlQueryBuilder;
     /// let query = SoqlQueryBuilder::new()
     ///     .select(&["Id"])
     ///     .from("Contact")
@@ -259,7 +257,7 @@ impl SoqlQueryBuilder {
     /// # Examples
     ///
     /// ```
-    /// use force::api::soql::SoqlQueryBuilder;
+    /// use force::api::SoqlQueryBuilder;
     /// let query = SoqlQueryBuilder::new()
     ///     .select(&["Id"])
     ///     .from("Contact")
@@ -308,7 +306,7 @@ impl SoqlQueryBuilder {
     /// # Examples
     ///
     /// ```
-    /// use force::api::soql::SoqlQueryBuilder;
+    /// use force::api::SoqlQueryBuilder;
     /// let query = SoqlQueryBuilder::new()
     ///     .select(&["Id"])
     ///     .from("Account")
@@ -378,7 +376,7 @@ impl SoqlQueryBuilder {
     /// # Examples
     ///
     /// ```
-    /// use force::api::soql::SoqlQueryBuilder;
+    /// use force::api::SoqlQueryBuilder;
     /// let query = SoqlQueryBuilder::new()
     ///     .select(&["Id"])
     ///     .from("Account")
@@ -406,7 +404,7 @@ impl SoqlQueryBuilder {
     /// # Examples
     ///
     /// ```
-    /// use force::api::soql::SoqlQueryBuilder;
+    /// use force::api::SoqlQueryBuilder;
     /// let query = SoqlQueryBuilder::new()
     ///     .select(&["Id"])
     ///     .from("Account")
@@ -425,7 +423,7 @@ impl SoqlQueryBuilder {
     /// # Examples
     ///
     /// ```
-    /// use force::api::soql::SoqlQueryBuilder;
+    /// use force::api::SoqlQueryBuilder;
     /// let query = SoqlQueryBuilder::new()
     ///     .select(&["Id"])
     ///     .from("Account")
@@ -449,7 +447,7 @@ impl SoqlQueryBuilder {
     /// # Examples
     ///
     /// ```
-    /// use force::api::soql::SoqlQueryBuilder;
+    /// use force::api::SoqlQueryBuilder;
     /// let query = SoqlQueryBuilder::new()
     ///     .select(&["Id"])
     ///     .from("Account")
@@ -482,7 +480,7 @@ impl SoqlQueryBuilder {
     /// # Examples
     ///
     /// ```
-    /// use force::api::soql::SoqlQueryBuilder;
+    /// use force::api::SoqlQueryBuilder;
     /// let query = SoqlQueryBuilder::new()
     ///     .select(&["Id"])
     ///     .from("Account")
