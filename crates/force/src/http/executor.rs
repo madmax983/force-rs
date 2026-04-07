@@ -399,7 +399,7 @@ impl HttpExecutor {
         Fut: std::future::Future<Output = Result<AccessToken>>,
     {
         let response = self.execute(request, token, refresh_token).await?;
-        let bytes = crate::http::error::read_capped_body_bytes(response, 100 * 1024 * 1024).await;
+        let bytes = crate::http::error::read_capped_body_bytes(response, 100 * 1024 * 1024).await?;
         let json =
             serde_json::from_slice::<T>(&bytes).map_err(crate::error::SerializationError::from)?;
         Ok(json)
