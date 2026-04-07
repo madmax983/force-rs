@@ -283,12 +283,9 @@ mod integration_tests {
 
         let error = response_to_force_error(response, "fallback").await;
 
-        let message =
-            if let crate::error::ForceError::Http(HttpError::StatusError { message, .. }) = error {
-                message
-            } else {
-                panic!("Expected StatusError");
-            };
+        let crate::error::ForceError::Http(HttpError::StatusError { message, .. }) = error else {
+            panic!("Expected StatusError");
+        };
 
         // Because we don't truncate, we get an empty string for the body, which defaults to fallback
         assert_eq!(message, "fallback");
@@ -315,7 +312,9 @@ mod integration_tests {
         let result = read_capped_body_bytes(response, 4096).await;
 
         // With the fail-fast behavior, it should return an InvalidInput error
-        let err = result.expect_err("Expected an error for exceeding limit");
+        let Err(err) = result else {
+            panic!("Expected an error for exceeding limit");
+        };
         if let crate::error::ForceError::InvalidInput(msg) = err {
             assert_eq!(msg, "response body exceeded size limit");
         } else {
