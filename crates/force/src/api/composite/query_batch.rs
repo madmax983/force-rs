@@ -147,3 +147,175 @@ impl<'a, A: Authenticator> QueryBatch<'a, A> {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::client::builder;
+    use crate::test_support::{MockAuthenticator, Must};
+    use serde_json::json;
+    use wiremock::matchers::{method, path, query_param};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    async fn create_mock_server() -> MockServer {
+        MockServer::start().await
+    }
+
+    async fn create_test_client(mock_server: &MockServer) -> ForceClient<MockAuthenticator> {
+        let auth = MockAuthenticator::new("test_token", &mock_server.uri());
+        builder().authenticate(auth).build().await.must()
+    }
+
+    #[tokio::test]
+    async fn test_query_batch_pagination() {
+        let mock_server = create_mock_server().await;
+        let client = create_test_client(&mock_server).await;
+
+        let mut page1_records = Vec::new();
+        for i in 0..20 {
+            page1_records.push(json!({
+                "attributes": { "type": "Account", "url": format!("/services/data/v60.0/sobjects/Account/0010000000000{:02}AAA", i) },
+                "Id": format!("0010000000000{:02}AAA", i)
+            }));
+        }
+
+        let mut page2_records = Vec::new();
+        for i in 20..30 {
+            page2_records.push(json!({
+                "attributes": { "type": "Account", "url": format!("/services/data/v60.0/sobjects/Account/0010000000000{:02}AAA", i) },
+                "Id": format!("0010000000000{:02}AAA", i)
+            }));
+        }
+
+        // Mock the first query response
+        Mock::given(method("GET"))
+            .and(path("/services/data/v60.0/query"))
+            .and(query_param("q", "SELECT Id FROM Account"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "totalSize": 30,
+                "done": false,
+                "nextRecordsUrl": "/services/data/v60.0/query/01gD0000002HU6K",
+                "records": page1_records
+            })))
+            .mount(&mock_server)
+            .await;
+
+        // Mock the next page query response
+        Mock::given(method("GET"))
+            .and(path("/services/data/v60.0/query/01gD0000002HU6K"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "totalSize": 30,
+                "done": true,
+                "records": page2_records
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let mut responses_page1 = Vec::new();
+        for _ in 0..25 {
+            responses_page1.push(json!({ "statusCode": 204, "result": null }));
+        }
+
+        let mut responses_page2 = Vec::new();
+        for _ in 0..5 {
+            responses_page2.push(json!({ "statusCode": 204, "result": null }));
+        }
+
+        Mock::given(method("POST"))
+            .and(path("/services/data/v60.0/composite/batch"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "hasErrors": false,
+                "results": responses_page2
+            })))
+            .up_to_n_times(1)
+            .mount(&mock_server)
+            .await;
+
+        Mock::given(method("POST"))
+            .and(path("/services/data/v60.0/composite/batch"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "hasErrors": false,
+                "results": responses_page1
+            })))
+            .up_to_n_times(1)
+            .mount(&mock_server)
+            .await;
+
+        let query = "SELECT Id FROM Account";
+        let query_batch = QueryBatch::new(&client, query);
+
+        let stats = query_batch
+            .run::<crate::types::DynamicSObject, _>(|record| {
+                let id = record.get_field_as::<String>("Id").ok().flatten().must();
+                Some(BatchOp::Delete(record.object_type().to_string(), id))
+            })
+            .await
+            .must();
+
+        println!("test stats: {:?}", stats);
+
+        assert_eq!(stats.records_processed, 30);
+        assert_eq!(stats.ops_succeeded, 30);
+        assert_eq!(stats.ops_failed, 0);
+    }
+
+    #[tokio::test]
+    async fn test_query_batch_partial_failures() {
+        let mock_server = create_mock_server().await;
+        let client = create_test_client(&mock_server).await;
+
+        let mut records = Vec::new();
+        for i in 0..10 {
+            records.push(json!({
+                "attributes": { "type": "Contact", "url": format!("/services/data/v60.0/sobjects/Contact/0030000000000{:02}AAA", i) },
+                "Id": format!("0030000000000{:02}AAA", i)
+            }));
+        }
+
+        Mock::given(method("GET"))
+            .and(path("/services/data/v60.0/query"))
+            .and(query_param("q", "SELECT Id FROM Contact"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "totalSize": 10,
+                "done": true,
+                "records": records
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let mut results = Vec::new();
+        for i in 0..10 {
+            if i % 2 == 0 {
+                // Succeeded
+                results.push(json!({ "statusCode": 204, "result": null }));
+            } else {
+                // Failed
+                results.push(json!({ "statusCode": 400, "result": [{"message": "Bad Request", "errorCode": "INVALID_FIELD"}] }));
+            }
+        }
+
+        Mock::given(method("POST"))
+            .and(path("/services/data/v60.0/composite/batch"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "hasErrors": true,
+                "results": results
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let query = "SELECT Id FROM Contact";
+        let query_batch = QueryBatch::new(&client, query);
+
+        let stats = query_batch
+            .run::<crate::types::DynamicSObject, _>(|record| {
+                let id = record.get_field_as::<String>("Id").ok().flatten().must();
+                Some(BatchOp::Delete(record.object_type().to_string(), id))
+            })
+            .await
+            .must();
+
+        assert_eq!(stats.records_processed, 10);
+        assert_eq!(stats.ops_succeeded, 5);
+        assert_eq!(stats.ops_failed, 5);
+    }
+}
