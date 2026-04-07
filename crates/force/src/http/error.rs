@@ -121,7 +121,9 @@ pub async fn read_capped_body_bytes(
 ///
 /// It strictly caps the internal allocation and reads chunk by chunk.
 pub async fn read_capped_body(response: Response, limit_bytes: usize) -> String {
-    let bytes = read_capped_body_bytes(response, limit_bytes).await.unwrap_or_default();
+    let bytes = read_capped_body_bytes(response, limit_bytes)
+        .await
+        .unwrap_or_default();
     String::from_utf8(bytes).unwrap_or_else(|e| String::from_utf8_lossy(e.as_bytes()).into_owned())
 }
 
