@@ -94,7 +94,10 @@ pub struct BulkQueryJobInfo {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub total_processing_time: Option<i64>,
     /// API version.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "super::types::deserialize_optional_string_or_number"
+    )]
     pub api_version: Option<String>,
 }
 
@@ -1091,6 +1094,23 @@ mod tests {
         assert_eq!(info.state, JobState::JobComplete);
         assert_eq!(info.number_records_processed, Some(2500));
         assert_eq!(info.total_processing_time, Some(12000));
+        assert_eq!(info.api_version, Some("60.0".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_bulk_query_job_info_deserialization_with_numeric_api_version() {
+        let json = r#"{
+            "id": "750xx0000000001AAA",
+            "operation": "query",
+            "state": "JobComplete",
+            "createdDate": "2024-01-01T00:00:00.000Z",
+            "createdById": "005xx0000000001AAA",
+            "numberRecordsProcessed": 2500,
+            "totalProcessingTime": 12000,
+            "apiVersion": 60.0
+        }"#;
+
+        let info: BulkQueryJobInfo = serde_json::from_str(json).must();
         assert_eq!(info.api_version, Some("60.0".to_string()));
     }
 
