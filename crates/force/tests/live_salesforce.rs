@@ -8,8 +8,8 @@
 //! - optional `SF_API_VERSION` (defaults to `v60.0`)
 
 use async_trait::async_trait;
-use force::api::bulk::{BulkPollPolicy, IngestJob, JobOperation};
 use force::api::RestOperation;
+use force::api::bulk::{BulkPollPolicy, IngestJob, JobOperation};
 use force::auth::{AccessToken, Authenticator, TokenResponse};
 use force::client::{ForceClient, builder};
 use force::config::ClientConfig;

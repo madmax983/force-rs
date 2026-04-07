@@ -1,9 +1,9 @@
 //! Salesforce REST apply helpers.
 
 use force::{
-    api::bulk::{JobInfo, JobOperation},
     api::RestOperation,
     api::SoqlQueryBuilder,
+    api::bulk::{JobInfo, JobOperation},
     auth::Authenticator,
     client::ForceClient,
     error::{ForceError, HttpError},
