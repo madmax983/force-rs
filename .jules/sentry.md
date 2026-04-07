@@ -65,3 +65,6 @@
 **2024-03-28 - [BuilderUnwrapExt Missing Panic Tests]**
 **Learning:** `BuilderUnwrapExt`'s `unwrap_or_panic` method was completely untested, meaning the shared panic formatting utility was unverified.
 **Action:** Always make sure central/shared panic wrapper extensions (like `BuilderUnwrapExt::unwrap_or_panic`) are covered by explicit `#[should_panic]` unit tests within their own module to guarantee consistency across all usage sites.
+**[Wiremock Mount Order evaluation for Partial Failure Tests]
+**Learning:** `wiremock` evaluates mounted mocks in reverse order of mounting (LIFO). When mocking an endpoint where one mock is meant to handle specific first requests (like `up_to_n_times(1)`) and another mock is meant to catch all subsequent requests (the fallback), the fallback must be mounted *first*. Otherwise, the fallback intercepts the first request incorrectly.
+**Action:** When defining multiple mocks for the same endpoint in integration tests using `wiremock`, always mount the generic fallback mock first, and the specific limited mock second.
