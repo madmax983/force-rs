@@ -1,5 +1,7 @@
 //! Schema inspection, analysis, and code-generation utilities.
 
+#[cfg(feature = "schema")]
+pub(crate) mod avro_generator;
 pub(crate) mod data_dictionary;
 pub(crate) mod graphql_generator;
 pub(crate) mod json_schema;
@@ -20,6 +22,8 @@ pub(crate) mod type_generator;
 pub(crate) mod typescript_generator;
 pub(crate) mod zod_generator;
 
+#[cfg(feature = "schema")]
+pub use avro_generator::{generate_avro_schema, write_avro_schema};
 pub use data_dictionary::DataDictionary;
 pub use graphql_generator::{generate_graphql_schema, write_graphql_schema};
 pub use json_schema::generate_json_schema;
