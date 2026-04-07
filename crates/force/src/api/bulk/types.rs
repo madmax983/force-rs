@@ -138,6 +138,7 @@ pub struct JobInfo {
     pub total_processing_time: Option<i64>,
     /// API version.
     #[serde(
+        default,
         skip_serializing_if = "Option::is_none",
         deserialize_with = "deserialize_optional_string_or_number"
     )]
