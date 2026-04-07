@@ -7,7 +7,7 @@
 //! # Example
 //!
 //! ```no_run
-//! # use force::api::rest_operation::RestOperation;
+//! # use force::api::RestOperation;
 //! # use force::client::ForceClientBuilder;
 //! # use force::schema::compare_schemas;
 //! # use force::auth::ClientCredentials;
