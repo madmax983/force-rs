@@ -78,7 +78,10 @@ pub fn parse_api_error(status_code: u16, body: &str) -> HttpError {
 /// This prevents memory exhaustion (DoS) attacks from maliciously large error responses.
 ///
 /// It strictly caps the internal allocation and reads chunk by chunk.
-pub async fn read_capped_body_bytes(response: Response, limit_bytes: usize) -> Vec<u8> {
+pub async fn read_capped_body_bytes(
+    response: Response,
+    limit_bytes: usize,
+) -> Result<Vec<u8>, crate::error::ForceError> {
     let mut stream = response.bytes_stream();
 
     // ⚡ Bolt: Pre-allocate a reasonable capacity, up to max limit.
@@ -92,12 +95,15 @@ pub async fn read_capped_body_bytes(response: Response, limit_bytes: usize) -> V
             let remaining = limit_bytes.saturating_sub(bytes.len());
 
             if remaining == 0 {
-                break;
+                return Err(crate::error::ForceError::InvalidInput(
+                    "response body exceeded size limit".to_string(),
+                ));
             }
 
             if chunk_bytes.len() > remaining {
-                bytes.extend_from_slice(&chunk_bytes[..remaining]);
-                break;
+                return Err(crate::error::ForceError::InvalidInput(
+                    "response body exceeded size limit".to_string(),
+                ));
             }
             bytes.extend_from_slice(&chunk_bytes);
         } else {
@@ -105,7 +111,7 @@ pub async fn read_capped_body_bytes(response: Response, limit_bytes: usize) -> V
         }
     }
 
-    bytes
+    Ok(bytes)
 }
 
 /// Converts an HTTP error response into a `ForceError` using Salesforce-aware parsing.
@@ -115,7 +121,7 @@ pub async fn read_capped_body_bytes(response: Response, limit_bytes: usize) -> V
 ///
 /// It strictly caps the internal allocation and reads chunk by chunk.
 pub async fn read_capped_body(response: Response, limit_bytes: usize) -> String {
-    let bytes = read_capped_body_bytes(response, limit_bytes).await;
+    let bytes = read_capped_body_bytes(response, limit_bytes).await.unwrap_or_default();
     String::from_utf8(bytes).unwrap_or_else(|e| String::from_utf8_lossy(e.as_bytes()).into_owned())
 }
 
@@ -275,15 +281,15 @@ mod integration_tests {
 
         let error = response_to_force_error(response, "fallback").await;
 
-        let message_len =
+        let message =
             if let crate::error::ForceError::Http(HttpError::StatusError { message, .. }) = error {
-                message.len()
+                message
             } else {
                 panic!("Expected StatusError");
             };
 
-        // It should be truncated exactly at 1MB (1048576 bytes)
-        assert_eq!(message_len, 1024 * 1024);
+        // Because we don't truncate, we get an empty string for the body, which defaults to fallback
+        assert_eq!(message, "fallback");
     }
 
     #[tokio::test]
@@ -304,8 +310,14 @@ mod integration_tests {
         let response = client.get(&url).send().await.must();
 
         // 4096 is our typical default init_cap in read_capped_body_bytes
-        let bytes = read_capped_body_bytes(response, 4096).await;
+        let result = read_capped_body_bytes(response, 4096).await;
 
-        assert_eq!(bytes.len(), 4096);
+        // With the fail-fast behavior, it should return an InvalidInput error
+        let err = result.expect_err("Expected an error for exceeding limit");
+        if let crate::error::ForceError::InvalidInput(msg) = err {
+            assert_eq!(msg, "response body exceeded size limit");
+        } else {
+            panic!("Expected InvalidInput error");
+        }
     }
 }
