@@ -37,7 +37,11 @@ pub fn write_protobuf_schema(out: &mut String, describe: &SObjectDescribe) {
 
         let optional_modifier = if field.nillable { "optional " } else { "" };
 
-        let _ = writeln!(out, "  {}{} {} = {};", optional_modifier, proto_type, field.name, field_number);
+        let _ = writeln!(
+            out,
+            "  {}{} {} = {};",
+            optional_modifier, proto_type, field.name, field_number
+        );
         field_number += 1;
     }
 
