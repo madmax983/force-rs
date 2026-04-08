@@ -8,7 +8,7 @@
 //! # Example
 //!
 //! ```no_run
-//! # use force::api::rest_operation::RestOperation;
+//! # use force::api::RestOperation;
 //! # use force::client::ForceClientBuilder;
 //! # use force::data::generate_mock_record;
 //! # use force::auth::ClientCredentials;
