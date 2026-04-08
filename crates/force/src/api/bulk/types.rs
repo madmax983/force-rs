@@ -348,7 +348,7 @@ mod tests {
         // Test an empty string
         let json = r#"{"value": ""}"#;
         let w: Wrapper = serde_json::from_str(json).must();
-        assert_eq!(w.value, Some("".to_string()));
+        assert_eq!(w.value, Some(String::new()));
 
         // Call it directly with an object which should error
         let json = r#"{"value": {}}"#;
