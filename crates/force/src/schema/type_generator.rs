@@ -11,10 +11,18 @@ use std::fmt::Write;
 /// Rust types.
 pub fn generate_rust_struct(describe: &SObjectDescribe) -> String {
     let mut out = String::with_capacity(describe.fields.len() * 128);
+    write_rust_struct(&mut out, describe);
+    out
+}
+
+/// Writes a Rust struct definition from an SObject describe result directly to a string buffer.
+///
+/// ⚡ Bolt: Exposes a `write_` method to prevent allocations when embedding structs into larger code generators.
+pub fn write_rust_struct(out: &mut String, describe: &SObjectDescribe) {
     let _ = writeln!(out, "/// {}", describe.label);
     out.push_str("#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]\n");
     out.push_str("pub struct ");
-    write_pascal_case(&mut out, &describe.name);
+    write_pascal_case(out, &describe.name);
     out.push_str(" {\n");
 
     for field in &describe.fields {
@@ -23,7 +31,7 @@ pub fn generate_rust_struct(describe: &SObjectDescribe) -> String {
         let rust_type = map_type(&field.type_);
         // ⚡ Bolt: Write type directly to buffer instead of allocating intermediate String via format! or to_string()
         out.push_str("    pub ");
-        write_snake_case(&mut out, &field.name);
+        write_snake_case(out, &field.name);
         out.push_str(": ");
         if field.nillable {
             let _ = writeln!(out, "Option<{}>,", rust_type);
@@ -33,7 +41,6 @@ pub fn generate_rust_struct(describe: &SObjectDescribe) -> String {
     }
 
     out.push_str("}\n");
-    out
 }
 
 /// Converts a string to PascalCase.
