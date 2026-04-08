@@ -169,7 +169,8 @@ mod tests {
             ]
         }"#;
 
-        let describe: SObjectDescribe = serde_json::from_str(describe_json).must_msg("failed to parse mock json");
+        let describe: SObjectDescribe =
+            serde_json::from_str(describe_json).must_msg("failed to parse mock json");
 
         let proto_code = generate_protobuf_schema(&describe);
 
