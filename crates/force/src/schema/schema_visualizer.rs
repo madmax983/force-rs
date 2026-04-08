@@ -81,7 +81,7 @@ pub async fn generate_visualizer_report<A: Authenticator>(
         let _ = writeln!(md, "|---|---|---|");
 
         let mut fields = describe.fields;
-        fields.sort_by(|a, b| a.name.cmp(&b.name));
+        fields.sort_by(|a, b| crate::schema::cmp_field_names(&a.name, &b.name));
 
         for field in &fields {
             if let Some(pct) = usage_map.get(&field.name) {

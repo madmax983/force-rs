@@ -22,15 +22,7 @@ pub fn write_typescript_interface(out: &mut String, describe: &SObjectDescribe) 
 
     // Sort fields alphabetically, Id first
     let mut fields: Vec<&_> = describe.fields.iter().collect();
-    fields.sort_by(|a, b| {
-        if a.name == "Id" {
-            std::cmp::Ordering::Less
-        } else if b.name == "Id" {
-            std::cmp::Ordering::Greater
-        } else {
-            a.name.cmp(&b.name)
-        }
-    });
+    fields.sort_by(|a, b| crate::schema::cmp_field_names(&a.name, &b.name));
 
     for field in fields {
         out.push_str("  /**\n");
