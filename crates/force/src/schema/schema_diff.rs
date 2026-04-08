@@ -112,9 +112,15 @@ pub fn compare_schemas(
         .extend(old_fields.into_values().cloned());
 
     // Sort to ensure deterministic output
-    result.added_fields.sort_by(|a, b| a.name.cmp(&b.name));
-    result.removed_fields.sort_by(|a, b| a.name.cmp(&b.name));
-    result.changed_fields.sort_by(|a, b| a.name.cmp(&b.name));
+    result
+        .added_fields
+        .sort_by(|a, b| crate::schema::cmp_field_names(&a.name, &b.name));
+    result
+        .removed_fields
+        .sort_by(|a, b| crate::schema::cmp_field_names(&a.name, &b.name));
+    result
+        .changed_fields
+        .sort_by(|a, b| crate::schema::cmp_field_names(&a.name, &b.name));
 
     result
 }

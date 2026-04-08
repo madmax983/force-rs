@@ -17,15 +17,7 @@ pub fn write_graphql_schema(out: &mut String, describe: &SObjectDescribe) {
     let _ = writeln!(out, "type {} {{", describe.name);
 
     let mut fields: Vec<&_> = describe.fields.iter().collect();
-    fields.sort_by(|a, b| {
-        if a.name == "Id" {
-            std::cmp::Ordering::Less
-        } else if b.name == "Id" {
-            std::cmp::Ordering::Greater
-        } else {
-            a.name.cmp(&b.name)
-        }
-    });
+    fields.sort_by(|a, b| crate::schema::cmp_field_names(&a.name, &b.name));
 
     for field in fields {
         let gql_type = map_type(&field.type_);

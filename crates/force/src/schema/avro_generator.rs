@@ -22,15 +22,7 @@ pub fn write_avro_schema(out: &mut String, describe: &SObjectDescribe) {
     let _ = writeln!(out, "  \"fields\": [");
 
     let mut fields: Vec<&_> = describe.fields.iter().collect();
-    fields.sort_by(|a, b| {
-        if a.name == "Id" {
-            std::cmp::Ordering::Less
-        } else if b.name == "Id" {
-            std::cmp::Ordering::Greater
-        } else {
-            a.name.cmp(&b.name)
-        }
-    });
+    fields.sort_by(|a, b| crate::schema::cmp_field_names(&a.name, &b.name));
 
     let mut first = true;
     for field in fields {

@@ -22,6 +22,15 @@ pub(crate) mod type_generator;
 pub(crate) mod typescript_generator;
 pub(crate) mod zod_generator;
 
+pub(crate) fn cmp_field_names(a: &str, b: &str) -> std::cmp::Ordering {
+    match (a == "Id", b == "Id") {
+        (true, true) => std::cmp::Ordering::Equal,
+        (true, false) => std::cmp::Ordering::Less,
+        (false, true) => std::cmp::Ordering::Greater,
+        (false, false) => a.cmp(b),
+    }
+}
+
 #[cfg(feature = "schema")]
 pub use avro_generator::{generate_avro_schema, write_avro_schema};
 pub use data_dictionary::DataDictionary;
