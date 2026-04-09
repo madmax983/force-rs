@@ -11,16 +11,16 @@
 // through every From impl and call site.
 #![allow(clippy::result_large_err)]
 
-pub mod codec;
-pub mod config;
-pub mod error;
-pub mod handler;
+pub(crate) mod codec;
+pub(crate) mod config;
+pub(crate) mod error;
+pub(crate) mod handler;
 pub(crate) mod interceptor;
-pub mod types;
+pub(crate) mod types;
 
 pub(crate) mod publish_sink;
 pub(crate) mod publisher;
-pub mod schema_cache;
+pub(crate) mod schema_cache;
 pub(crate) mod subscriber;
 
 pub use config::{BackoffConfig, PubSubConfig, ReconnectPolicy, ReplayPreset};
@@ -44,3 +44,5 @@ pub mod proto {
         tonic::include_proto!("eventbus.v1");
     }
 }
+pub use codec::encode_avro;
+pub use codec::decode_avro_typed;
