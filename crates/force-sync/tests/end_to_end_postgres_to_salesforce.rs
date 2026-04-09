@@ -14,9 +14,7 @@ use wiremock::{
     matchers::{body_json, header, method, path},
 };
 
-use force_sync::{
-    ObjectSync, ForceSyncError, SyncEngine, PgStore,
-};
+use force_sync::{ForceSyncError, ObjectSync, PgStore, SyncEngine};
 
 #[derive(Debug, Clone)]
 struct MockAuthenticator {

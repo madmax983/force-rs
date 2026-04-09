@@ -39,4 +39,6 @@ pub use model::{ChangeEnvelope, ChangeOperation, SourceCursor, SourceSystem, pay
 pub use plan::{ApplyLane, MergeOutcome, PlanDecision, PlannerContext, merge_payload, plan_change};
 pub use reconcile::{DriftItem, detect_drift, enqueue_repair, run_reconcile_once};
 pub use runtime::{SyncEngine, SyncEngineBuilder};
-pub use store::pg::{AppendResult, CheckpointState, DeadLetter, LeasedTask, PgStore, SyncConflict, SyncLink, migrate};
+pub use store::pg::{
+    AppendResult, CheckpointState, DeadLetter, LeasedTask, PgStore, SyncConflict, SyncLink, migrate,
+};

@@ -4,7 +4,7 @@ mod support;
 
 use serde_json::json;
 
-use force_sync::{capture_batch, ForceSyncError, PgStore};
+use force_sync::{ForceSyncError, PgStore, capture_batch};
 
 struct OutboxSeed<'a> {
     tenant: &'a str,
