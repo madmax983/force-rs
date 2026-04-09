@@ -2,6 +2,8 @@
 
 #[cfg(feature = "schema")]
 pub(crate) mod avro_generator;
+#[cfg(feature = "schema")]
+pub(crate) mod bigquery_generator;
 pub(crate) mod data_dictionary;
 pub(crate) mod graphql_generator;
 pub(crate) mod json_schema;
@@ -35,6 +37,8 @@ pub(crate) fn cmp_field_names(a: &str, b: &str) -> std::cmp::Ordering {
 
 #[cfg(feature = "schema")]
 pub use avro_generator::{generate_avro_schema, write_avro_schema};
+#[cfg(feature = "schema")]
+pub use bigquery_generator::generate_bigquery_schema;
 pub use data_dictionary::DataDictionary;
 pub use graphql_generator::{generate_graphql_schema, write_graphql_schema};
 pub use json_schema::generate_json_schema;
