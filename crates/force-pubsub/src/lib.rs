@@ -44,5 +44,5 @@ pub mod proto {
         tonic::include_proto!("eventbus.v1");
     }
 }
-pub use codec::encode_avro;
 pub use codec::decode_avro_typed;
+pub use codec::encode_avro;
