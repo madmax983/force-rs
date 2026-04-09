@@ -7,10 +7,10 @@ use futures::stream;
 use serde_json::{Value, json};
 
 use force_sync::{
-    capture::{capture_stream, load_replay_id},
-    config::ObjectSync,
-    error::ForceSyncError,
-    store::pg::PgStore,
+    capture_stream, load_replay_id,
+    ObjectSync,
+    ForceSyncError,
+    PgStore,
 };
 
 fn event(payload: Value, replay_id: &[u8], event_id: &str) -> PubSubEvent<Value> {
@@ -27,7 +27,7 @@ fn event(payload: Value, replay_id: &[u8], event_id: &str) -> PubSubEvent<Value>
 async fn cdc_event_creates_journal_task_and_checkpoint() -> Result<(), ForceSyncError> {
     let pool = support::postgres::test_pool();
     support::postgres::reset_schema(&pool).await?;
-    force_sync::store::pg::migrate(&pool).await?;
+    force_sync::migrate(&pool).await?;
     let store = PgStore::new(pool.clone());
     let object = ObjectSync::new("Account").external_id("ExternalId__c");
 
@@ -88,7 +88,7 @@ async fn cdc_event_creates_journal_task_and_checkpoint() -> Result<(), ForceSync
 async fn duplicate_cdc_event_is_deduped_by_replay_id() -> Result<(), ForceSyncError> {
     let pool = support::postgres::test_pool();
     support::postgres::reset_schema(&pool).await?;
-    force_sync::store::pg::migrate(&pool).await?;
+    force_sync::migrate(&pool).await?;
     let store = PgStore::new(pool.clone());
     let object = ObjectSync::new("Account").external_id("ExternalId__c");
 
@@ -133,7 +133,7 @@ async fn duplicate_cdc_event_is_deduped_by_replay_id() -> Result<(), ForceSyncEr
 async fn restart_uses_the_stored_replay_cursor() -> Result<(), ForceSyncError> {
     let pool = support::postgres::test_pool();
     support::postgres::reset_schema(&pool).await?;
-    force_sync::store::pg::migrate(&pool).await?;
+    force_sync::migrate(&pool).await?;
     let store = PgStore::new(pool.clone());
     let object = ObjectSync::new("Account").external_id("ExternalId__c");
 

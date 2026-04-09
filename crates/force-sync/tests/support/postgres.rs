@@ -5,7 +5,7 @@ use std::env;
 use deadpool_postgres::{Config, Pool, Runtime};
 use tokio_postgres::NoTls;
 
-use force_sync::error::ForceSyncError;
+use force_sync::ForceSyncError;
 
 /// Builds a `Postgres` pool from `FORCE_SYNC_TEST_DATABASE_URL`.
 #[must_use]

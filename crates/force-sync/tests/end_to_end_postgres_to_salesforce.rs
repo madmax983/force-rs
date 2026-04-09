@@ -15,7 +15,7 @@ use wiremock::{
 };
 
 use force_sync::{
-    config::ObjectSync, error::ForceSyncError, runtime::SyncEngine, store::pg::PgStore,
+    ObjectSync, ForceSyncError, SyncEngine, PgStore,
 };
 
 #[derive(Debug, Clone)]
@@ -115,7 +115,7 @@ async fn run_capture_and_apply_once_converges_one_postgres_record() -> Result<()
 
     let pool = support::postgres::test_pool();
     support::postgres::reset_schema(&pool).await?;
-    force_sync::store::pg::migrate(&pool).await?;
+    force_sync::migrate(&pool).await?;
     insert_outbox_row(&pool, "postgres-lsn-1").await?;
 
     let store = PgStore::new(pool.clone());
@@ -186,7 +186,7 @@ async fn replayed_postgres_change_is_not_reapplied_to_salesforce() -> Result<(),
 
     let pool = support::postgres::test_pool();
     support::postgres::reset_schema(&pool).await?;
-    force_sync::store::pg::migrate(&pool).await?;
+    force_sync::migrate(&pool).await?;
 
     insert_outbox_row(&pool, "postgres-lsn-1").await?;
     let engine = SyncEngine::builder(client)

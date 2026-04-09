@@ -11,18 +11,19 @@
 // through every From impl and call site.
 #![allow(clippy::result_large_err)]
 
-pub mod codec;
-pub mod config;
-pub mod error;
-pub mod handler;
+pub(crate) mod codec;
+pub(crate) mod config;
+pub(crate) mod error;
+pub(crate) mod handler;
 pub(crate) mod interceptor;
-pub mod types;
+pub(crate) mod types;
 
 pub(crate) mod publish_sink;
 pub(crate) mod publisher;
-pub mod schema_cache;
+pub(crate) mod schema_cache;
 pub(crate) mod subscriber;
 
+pub use codec::{decode_avro, decode_avro_typed, encode_avro};
 pub use config::{BackoffConfig, PubSubConfig, ReconnectPolicy, ReplayPreset};
 pub use error::{PubSubError, Result};
 pub use handler::{PubSubHandler, SchemaInfo, TopicInfo};
