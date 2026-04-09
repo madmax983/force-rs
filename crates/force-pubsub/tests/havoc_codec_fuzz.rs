@@ -1,5 +1,9 @@
-use force_pubsub::codec::{decode_avro, encode_avro};
+//! Fuzz testing for Avro decoding.
+
+#![allow(clippy::unwrap_used)]
+
 use apache_avro::Schema;
+use force_pubsub::codec::decode_avro;
 use proptest::prelude::*;
 
 const SIMPLE_SCHEMA: &str = r#"
