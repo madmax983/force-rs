@@ -95,8 +95,8 @@ pub struct BulkQueryJobInfo {
     pub total_processing_time: Option<i64>,
     /// API version.
     #[serde(
-        default,
         skip_serializing_if = "Option::is_none",
+        default,
         deserialize_with = "super::types::deserialize_optional_string_or_number"
     )]
     pub api_version: Option<String>,
