@@ -286,7 +286,9 @@ mod tests {
         assert_eq!(resp.topic_name, "/event/Test__e");
         assert_eq!(resp.results.len(), 1);
         assert!(resp.results[0].is_success());
-        let Some(replay_id) = resp.results[0].replay_id.as_ref() else { panic!("expected replay_id") };
+        let Some(replay_id) = resp.results[0].replay_id.as_ref() else {
+            panic!("expected replay_id")
+        };
         assert_eq!(replay_id.as_bytes(), &[1, 2, 3]);
     }
 
