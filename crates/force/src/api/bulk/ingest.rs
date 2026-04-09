@@ -403,11 +403,8 @@ impl<A: Authenticator> IngestJob<JobComplete, A> {
             )
             .await?;
 
-        let bytes = response
-            .bytes()
-            .await
-            .map_err(crate::error::HttpError::from)?;
-        Ok(bytes.to_vec())
+        let bytes = crate::http::error::read_capped_body_bytes(response, 100 * 1024 * 1024).await?;
+        Ok(bytes)
     }
 }
 

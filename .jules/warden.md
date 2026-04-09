@@ -57,3 +57,6 @@
 **2026-04-03 - [DoS / Deserialization Bomb in read_capped_body_bytes]
 **Threat:** The `read_capped_body_bytes` function was designed to prevent memory exhaustion by capping the response body size. However, it silently truncated the payload when the limit was exceeded and returned the partial bytes. In cases where the response was expected to be parsed as JSON (e.g., in `client_credentials`, `jwt_bearer`, `data_cloud`, `graphql`, etc.), passing a truncated payload to `serde_json::from_slice` could lead to deserialization errors, unbounded parsing on corrupted payloads (deserialization bombs), and masking of the actual error (resource exhaustion).
 **Defense:** Refactored `read_capped_body_bytes` to return `Result<Vec<u8>, ForceError>`. It now explicitly fails fast and returns `ForceError::InvalidInput("response body exceeded size limit")` when the size limit is exceeded. All call sites were updated to handle and propagate this error gracefully, ensuring no corrupted data is passed to deserializers.
+**2026-04-09 - [Capped Responses for CSV Parsing]
+**Threat:** [Unbounded memory allocation during CSV and bytes fetching causing DoS attacks]
+**Defense:** [Replaced unbounded .bytes().await with read_capped_body_bytes(response, 100 * 1024 * 1024) inside bulk query and ingest functions]
