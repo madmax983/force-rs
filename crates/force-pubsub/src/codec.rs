@@ -68,7 +68,6 @@ pub fn encode_avro<T: Serialize>(schema: &Schema, value: &T) -> Result<Vec<u8>> 
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
     use apache_avro::Schema;
@@ -86,18 +85,19 @@ mod tests {
 
     #[test]
     fn test_encode_decode_roundtrip_dynamic() {
-        let schema = Schema::parse_str(SIMPLE_SCHEMA).expect("valid schema");
+        let Ok(schema) = Schema::parse_str(SIMPLE_SCHEMA) else { panic!("valid schema") };
         let payload = serde_json::json!({
             "id": "event-001",
             "amount": 99.5
         });
 
-        let encoded = encode_avro(&schema, &payload).expect("encode succeeds");
+        let Ok(encoded) = encode_avro(&schema, &payload) else { panic!("encode succeeds") };
         assert!(!encoded.is_empty());
 
-        let decoded: Value = decode_avro(&schema, &encoded).expect("decode succeeds");
+        let Ok(decoded) = decode_avro(&schema, &encoded) else { panic!("decode succeeds") };
         assert_eq!(decoded["id"], "event-001");
-        assert!((decoded["amount"].as_f64().unwrap() - 99.5).abs() < f64::EPSILON);
+        let Some(amount) = decoded["amount"].as_f64() else { panic!("amount is not a valid f64") };
+        assert!((amount - 99.5).abs() < f64::EPSILON);
     }
 
     #[test]
@@ -108,14 +108,14 @@ mod tests {
             amount: f64,
         }
 
-        let schema = Schema::parse_str(SIMPLE_SCHEMA).expect("valid schema");
+        let Ok(schema) = Schema::parse_str(SIMPLE_SCHEMA) else { panic!("valid schema") };
         let event = TestEvent {
             id: "event-002".to_string(),
             amount: 42.0,
         };
 
-        let encoded = encode_avro(&schema, &event).expect("encode succeeds");
-        let decoded: TestEvent = decode_avro_typed(&schema, &encoded).expect("decode succeeds");
+        let Ok(encoded) = encode_avro(&schema, &event) else { panic!("encode succeeds") };
+        let Ok(decoded) = decode_avro_typed::<TestEvent>(&schema, &encoded) else { panic!("decode succeeds") };
 
         assert_eq!(decoded.id, "event-002");
         assert!((decoded.amount - 42.0).abs() < f64::EPSILON);
@@ -123,7 +123,7 @@ mod tests {
 
     #[test]
     fn test_decode_invalid_bytes_returns_error() {
-        let schema = Schema::parse_str(SIMPLE_SCHEMA).expect("valid schema");
+        let Ok(schema) = Schema::parse_str(SIMPLE_SCHEMA) else { panic!("valid schema") };
         let garbage = vec![0xFF, 0xFE, 0xFD];
         let result = decode_avro(&schema, &garbage);
         let Err(err) = result else {

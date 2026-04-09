@@ -57,7 +57,6 @@ pub fn build_metadata(
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
     use force::auth::TokenResponse;
@@ -77,12 +76,7 @@ mod tests {
     #[test]
     fn test_build_metadata_happy_path() {
         let token = make_token("test-token-value", "https://org.my.salesforce.com");
-        let meta = build_metadata(
-            &token,
-            "https://org.my.salesforce.com",
-            "00Dxx0000001gEREAY",
-        )
-        .expect("build_metadata should succeed");
+        let Ok(meta) = build_metadata(&token, "https://org.my.salesforce.com", "00Dxx0000001gEREAY") else { panic!("build_metadata should succeed") };
 
         assert_eq!(
             meta.get("accesstoken").map(|v| v.to_str().unwrap_or("")),
@@ -101,12 +95,7 @@ mod tests {
     #[test]
     fn test_build_metadata_all_headers_present() {
         let token = make_token("abc123", "https://example.my.salesforce.com");
-        let meta = build_metadata(
-            &token,
-            "https://example.my.salesforce.com",
-            "00Dxx0000001XXXXX",
-        )
-        .expect("should succeed");
+        let Ok(meta) = build_metadata(&token, "https://example.my.salesforce.com", "00Dxx0000001XXXXX") else { panic!("should succeed") };
 
         // All three headers must be present
         assert!(
@@ -131,7 +120,7 @@ mod tests {
         );
 
         assert!(result.is_err(), "should fail with invalid token");
-        assert!(matches!(result.unwrap_err(), PubSubError::Config(_)));
+        let Err(err) = result else { panic!("Expected error") }; assert!(matches!(err, PubSubError::Config(_)));
     }
 
     #[test]
@@ -145,6 +134,6 @@ mod tests {
         );
 
         assert!(result.is_err(), "should fail with invalid tenant id");
-        assert!(matches!(result.unwrap_err(), PubSubError::Config(_)));
+        let Err(err) = result else { panic!("Expected error") }; assert!(matches!(err, PubSubError::Config(_)));
     }
 }
