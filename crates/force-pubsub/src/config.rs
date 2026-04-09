@@ -79,8 +79,12 @@ impl BackoffConfig {
     pub fn delay_for(&self, attempt: u32) -> Duration {
         let exp = attempt.min(63) as i32;
         let multiplied = self.initial_delay.as_secs_f64() * self.multiplier.powi(exp);
-        let capped = multiplied.min(self.max_delay.as_secs_f64());
-        Duration::from_secs_f64(capped)
+        let capped = multiplied.min(self.max_delay.as_secs_f64()).max(0.0);
+        if capped.is_finite() {
+            Duration::from_secs_f64(capped)
+        } else {
+            self.max_delay
+        }
     }
 }
 
@@ -143,5 +147,29 @@ mod tests {
     fn test_replay_preset_variants_exist() {
         let _latest = ReplayPreset::Latest;
         let _earliest = ReplayPreset::Earliest;
+    }
+}
+
+#[cfg(test)]
+mod havoc_tests {
+    use super::*;
+    use proptest::prelude::*;
+
+    proptest! {
+        #[test]
+        fn havoc_delay_for_no_panics(
+            attempt in 0..u32::MAX,
+            initial_delay_secs in 0..1000u64,
+            max_delay_secs in 0..1000u64,
+            multiplier in -100.0..100.0f64,
+        ) {
+            let config = BackoffConfig {
+                initial_delay: Duration::from_secs(initial_delay_secs),
+                max_delay: Duration::from_secs(max_delay_secs),
+                multiplier,
+            };
+            // `delay_for` might panic on Duration::from_secs_f64 if `capped` is negative or NaN or Infinity, etc.
+            let _ = config.delay_for(attempt);
+        }
     }
 }

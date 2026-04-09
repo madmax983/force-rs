@@ -45,3 +45,4 @@ force = { path = "../force", version = "0.1.0" }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 wiremock = { workspace = true }
 futures = { workspace = true }
+proptest = "1.11.0"
