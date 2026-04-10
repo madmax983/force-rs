@@ -6,6 +6,7 @@ use force::auth::AccessToken;
 use force::auth::Authenticator;
 use force::client::builder;
 use proptest::prelude::*;
+use std::sync::LazyLock;
 use tokio::runtime::Runtime;
 
 #[derive(Debug, Clone)]
@@ -31,11 +32,13 @@ impl Authenticator for MyAuth {
     }
 }
 
+// Initialize the Tokio runtime once lazily to avoid overhead of 256 runtimes per test
+static RT: LazyLock<Runtime> = LazyLock::new(|| Runtime::new().unwrap());
+
 proptest! {
     #[test]
     fn havoc_describe_never_makes_network_call_on_invalid_chars(s in "[^a-zA-Z0-9_]+") {
-        let rt = Runtime::new().unwrap();
-        rt.block_on(async {
+        RT.block_on(async {
             let auth = MyAuth;
             let client = builder().authenticate(auth).build().await.unwrap();
             let rest = client.rest();
@@ -57,8 +60,7 @@ proptest! {
 
     #[test]
     fn havoc_query_never_makes_network_call_on_huge_garbage(size in 100_001..200_000usize) {
-        let rt = Runtime::new().unwrap();
-        rt.block_on(async {
+        RT.block_on(async {
             let auth = MyAuth;
             let client = builder().authenticate(auth).build().await.unwrap();
             let rest = client.rest();
@@ -81,8 +83,7 @@ proptest! {
 
     #[test]
     fn havoc_query_more_never_makes_network_call_on_huge_garbage(size in 100_001..200_000usize) {
-        let rt = Runtime::new().unwrap();
-        rt.block_on(async {
+        RT.block_on(async {
             let auth = MyAuth;
             let client = builder().authenticate(auth).build().await.unwrap();
             let rest = client.rest();
