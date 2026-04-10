@@ -27,6 +27,7 @@ Design backlog and product-spec notes for incubating `force-rs` capabilities. Th
 - [`sql-ddl-exporter.md`](sql-ddl-exporter.md): SQL DDL export for warehouse and database workflows.
 - [`typescript-interface-generator.md`](typescript-interface-generator.md): TypeScript interface generation.
 - [`zod-schema-generator.md`](zod-schema-generator.md): TypeScript Zod schema generation for runtime validation.
+- [`bigquery-schema-generator.md`](bigquery-schema-generator.md): Google BigQuery table schema generation.
 
 ## Metadata and Tooling
 
