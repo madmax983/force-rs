@@ -630,24 +630,31 @@ pub fn resolve_next_records_url(instance_url: &str, next_records_url: &str) -> R
     let instance_parsed = url::Url::parse(instance_url)
         .map_err(|e| ForceError::InvalidInput(format!("Invalid instance URL in token: {}", e)))?;
 
-    // Compare schemes and hosts, reject embedded credentials
-    if next_parsed.scheme() != instance_parsed.scheme()
-        || next_parsed.host_str() != instance_parsed.host_str()
-        || next_parsed.port_or_known_default() != instance_parsed.port_or_known_default()
-        || !next_parsed.username().is_empty()
-        || next_parsed.password().is_some()
-    {
+    validate_url_origin_match(&instance_parsed, &next_parsed)?;
+
+    Ok(next_records_url.to_string())
+}
+
+/// Helper function to validate that the origin and credentials of an absolute URL match the instance.
+fn validate_url_origin_match(instance: &url::Url, next: &url::Url) -> Result<()> {
+    let scheme_mismatch = next.scheme() != instance.scheme();
+    let host_mismatch = next.host_str() != instance.host_str();
+    let port_mismatch = next.port_or_known_default() != instance.port_or_known_default();
+    let has_credentials = !next.username().is_empty() || next.password().is_some();
+
+    if scheme_mismatch || host_mismatch || port_mismatch || has_credentials {
         return Err(ForceError::InvalidInput(format!(
             "Security Error: nextRecordsUrl origin ({:?}://{:?}:{:?}) does not match instance origin ({:?}://{:?}:{:?})",
-            next_parsed.scheme(),
-            next_parsed.host_str(),
-            next_parsed.port_or_known_default(),
-            instance_parsed.scheme(),
-            instance_parsed.host_str(),
-            instance_parsed.port_or_known_default()
+            next.scheme(),
+            next.host_str(),
+            next.port_or_known_default(),
+            instance.scheme(),
+            instance.host_str(),
+            instance.port_or_known_default()
         )));
     }
-    Ok(next_records_url.to_string())
+
+    Ok(())
 }
 
 #[cfg(test)]

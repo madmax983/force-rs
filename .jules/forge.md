@@ -62,3 +62,10 @@
 **Removing `allow(clippy::unwrap_used)` in Tests**
 **Learning:** The workspace strictly enforces `-D clippy::unwrap_used`, but many test files bypassed it and used `.unwrap()` instead of the custom `.must()` extension trait.
 **Action:** Remove the `allow` directive, replace `.unwrap()` with `.must()`, and ensure `Must` is imported (`use crate::test_support::Must;`). This maintains strictness and improves code consistency.
+**[Consolidate Match Arms and Flatten Nested IFs]**
+**Learning:** In complex HTTP request execution loops (e.g., `execute_response_with_retry_class`), nested `if/else` and duplicated match arms create a "Pyramid of Doom" that obscures the core retry logic.
+**Action:** Consolidate `Err` match arms using guard clauses (e.g. `if retry_attempt < max_retries && Self::is_retryable_error(&e)`) and flatten subsequent `if` blocks (e.g. combining `status == StatusCode::UNAUTHORIZED && !refreshed`) to reduce indentation and improve top-to-bottom readability.
+
+**[Extract Complex Conditionals]**
+**Learning:** Dense, chained boolean conditions performing security checks inline (e.g., URL validation in `resolve_next_records_url`) obscure the primary control flow.
+**Action:** Extract complex chained conditions into well-named private helper functions (e.g., `validate_url_origin_match`) to abstract the specific validation rules away from the main business logic.
