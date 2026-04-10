@@ -16,6 +16,7 @@ Design backlog and product-spec notes for incubating `force-rs` capabilities. Th
 - [`json-schema-generator.md`](json-schema-generator.md): JSON Schema generation from org metadata.
 - [`openapi-generator.md`](openapi-generator.md): OpenAPI generation for downstream consumers.
 - [`postman-collection-generator.md`](postman-collection-generator.md): Postman collection generation for API testing.
+- [`protobuf-schema-generator.md`](protobuf-schema-generator.md): Protobuf (proto3) schema generation for gRPC services.
 - [`pydantic-model-generator.md`](pydantic-model-generator.md): Python Pydantic model generation for data pipelines.
 - [`rust-struct-generator.md`](rust-struct-generator.md): Rust type generation from Salesforce schema.
 - [`schema-analyzer.md`](schema-analyzer.md): schema quality and risk analysis.
@@ -29,6 +30,7 @@ Design backlog and product-spec notes for incubating `force-rs` capabilities. Th
 ## Metadata and Tooling
 
 - [`metadata-api.md`](metadata-api.md): Metadata API deployment and retrieval operations.
+- [`query-plan-analyzer.md`](query-plan-analyzer.md): SOQL query performance analyzer and cost threshold validation.
 
 ## Content and Files
 
