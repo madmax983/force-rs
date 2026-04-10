@@ -71,3 +71,7 @@
 **[Use Pattern Matching in Tests to Avoid unwrap_used lints]
 **Learning:** When strict `clippy::unwrap_used` and `clippy::expect_used` lints are enforced workspace-wide, and utility traits like `Must` or `MustMsg` are unavailable because they are defined inside a `#[cfg(test)]` block in another crate (like `force::test_support`), it is best to avoid globally suppressing the lints via `#![allow(clippy::unwrap_used)]`. Instead, refactor tests to use standard Rust pattern matching (e.g., `let Ok(val) = result else { panic!("...") };`) which honors the lint while preserving the panic-on-failure semantic required for tests.
 **Action:** Use `let Ok(val) = ...` or `let Some(val) = ...` combined with `else { panic!("...") };` in integration tests and workspace crate tests where helper traits are not accessible, rather than overriding the lints.
+
+**[OAuth Error Parsing Missing Coverage]**
+**Learning:** `handle_oauth_error` in `auth/mod.rs` handles the parsing of OAuth JSON error responses from Salesforce as well as fallback raw text HTTP errors. However, this parsing logic was untested, meaning changes to the error data structure or text fallback mechanisms could regress without being caught.
+**Action:** Always ensure that network layer error parsers and builders are covered by explicit tests simulating both valid JSON error payloads and invalid/empty payloads to ensure fallbacks (e.g. "Unknown error") behave as intended.

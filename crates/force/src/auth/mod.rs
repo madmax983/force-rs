@@ -108,3 +108,133 @@ pub(crate) async fn handle_oauth_error(
         message,
     })
 }
+
+#[cfg(test)]
+#[cfg(feature = "mock")]
+mod tests {
+    use super::*;
+    use wiremock::matchers::{method, path};
+    use crate::test_support::Must;
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    #[tokio::test]
+    async fn test_handle_oauth_error_json_without_context() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/error"))
+            .respond_with(ResponseTemplate::new(400).set_body_json(serde_json::json!({
+                "error": "invalid_client",
+                "error_description": "client identifier invalid"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = reqwest::Client::new();
+        let res = client
+            .get(format!("{}/error", mock_server.uri()))
+            .send()
+            .await
+            .must();
+
+        let err = handle_oauth_error(res, None).await;
+        assert_eq!(
+            err.to_string(),
+            "authentication failed: OAuth token request failed: invalid_client: client identifier invalid"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_handle_oauth_error_json_with_context() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/error"))
+            .respond_with(ResponseTemplate::new(400).set_body_json(serde_json::json!({
+                "error": "invalid_client",
+                "error_description": "client identifier invalid"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = reqwest::Client::new();
+        let res = client
+            .get(format!("{}/error", mock_server.uri()))
+            .send()
+            .await
+            .must();
+
+        let err = handle_oauth_error(res, Some("My context")).await;
+        assert_eq!(
+            err.to_string(),
+            "authentication failed: OAuth token request failed: My context: invalid_client: client identifier invalid"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_handle_oauth_error_non_json_without_context() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/error"))
+            .respond_with(ResponseTemplate::new(500).set_body_string("Internal Server Error"))
+            .mount(&mock_server)
+            .await;
+
+        let client = reqwest::Client::new();
+        let res = client
+            .get(format!("{}/error", mock_server.uri()))
+            .send()
+            .await
+            .must();
+
+        let err = handle_oauth_error(res, None).await;
+        assert_eq!(
+            err.to_string(),
+            "HTTP request failed: HTTP 500: Internal Server Error"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_handle_oauth_error_non_json_with_context() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/error"))
+            .respond_with(ResponseTemplate::new(500).set_body_string("Internal Server Error"))
+            .mount(&mock_server)
+            .await;
+
+        let client = reqwest::Client::new();
+        let res = client
+            .get(format!("{}/error", mock_server.uri()))
+            .send()
+            .await
+            .must();
+
+        let err = handle_oauth_error(res, Some("My context")).await;
+        assert_eq!(
+            err.to_string(),
+            "HTTP request failed: HTTP 500: My context: Internal Server Error"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_handle_oauth_error_empty_body() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/error"))
+            .respond_with(ResponseTemplate::new(401))
+            .mount(&mock_server)
+            .await;
+
+        let client = reqwest::Client::new();
+        let res = client
+            .get(format!("{}/error", mock_server.uri()))
+            .send()
+            .await
+            .must();
+
+        let err = handle_oauth_error(res, None).await;
+        assert_eq!(
+            err.to_string(),
+            "HTTP request failed: HTTP 401: Unknown error"
+        );
+    }
+}
