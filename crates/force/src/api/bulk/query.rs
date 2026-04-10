@@ -248,12 +248,11 @@ impl<T, A: crate::auth::Authenticator> BulkQueryStream<T, A> {
     where
         T: for<'de> Deserialize<'de>,
     {
-        let csv_bytes = response
-            .bytes()
-            .await
-            .map_err(crate::error::HttpError::from)?;
+        // ⚡ Warden: Strict 1GB limit to prevent unbounded memory allocation DoS
+        // from a maliciously large or corrupted CSV response.
+        let csv_bytes = crate::http::error::read_capped_body_bytes(response, 1024 * 1024 * 1024).await?;
 
-        let mut reader = csv::Reader::from_reader(csv_bytes.as_ref());
+        let mut reader = csv::Reader::from_reader(csv_bytes.as_slice());
 
         // Reuse the existing VecDeque allocation across pages
         self.records.clear();
