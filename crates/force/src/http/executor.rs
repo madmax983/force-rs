@@ -161,8 +161,8 @@ impl HttpExecutor {
 
             let response = match self.execute_attempt(req_clone, retry_attempt, &ctx).await {
                 Ok(resp) => resp,
-                Err(e) if retry_attempt < max_retries => {
-                    if Self::is_retryable_error(&e) {
+                Err(e) => {
+                    if retry_attempt < max_retries && Self::is_retryable_error(&e) {
                         self.handle_transient_failure(retry_attempt, &ctx, None)
                             .await;
                         retry_attempt += 1;
@@ -170,7 +170,6 @@ impl HttpExecutor {
                     }
                     return Err(e);
                 }
-                Err(e) => return Err(e),
             };
 
             let status = response.status();
