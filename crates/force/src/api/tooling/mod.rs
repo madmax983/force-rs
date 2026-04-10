@@ -218,6 +218,52 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_tooling_query_stream() {
+        use futures::StreamExt;
+
+        let mock_server = MockServer::start().await;
+        let auth = MockAuthenticator::new("test_token", &mock_server.uri());
+        let client = builder().authenticate(auth).build().await.must();
+
+        Mock::given(method("GET"))
+            .and(path("/services/data/v60.0/tooling/query"))
+            .and(query_param("q", "SELECT Id FROM ApexClass"))
+            .and(header("Authorization", "Bearer test_token"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "totalSize": 2,
+                "done": false,
+                "nextRecordsUrl": "/services/data/v60.0/tooling/query/01g",
+                "records": [{"Id": "01p000000000001AAA"}]
+            })))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path("/services/data/v60.0/tooling/query/01g"))
+            .and(header("Authorization", "Bearer test_token"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "totalSize": 2,
+                "done": true,
+                "records": [{"Id": "01p000000000002BBB"}]
+            })))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let tooling = client.tooling();
+        let mut stream = tooling.query_stream::<serde_json::Value>("SELECT Id FROM ApexClass");
+
+        let first = stream.next().await.must().must();
+        assert_eq!(first["Id"], "01p000000000001AAA");
+
+        let second = stream.next().await.must().must();
+        assert_eq!(second["Id"], "01p000000000002BBB");
+
+        assert!(stream.next().await.must().is_none());
+    }
+
+    #[tokio::test]
     async fn test_tooling_query_hits_tooling_url() {
         let mock_server = MockServer::start().await;
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());

@@ -79,26 +79,6 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
         Self { inner }
     }
 
-    /// Creates a stream of query results for the given SOQL.
-    ///
-    /// This method simplifies paginated queries by returning a stream that automatically
-    /// fetches subsequent pages of results as needed.
-    ///
-    /// # Examples
-    ///
-    /// ```ignore
-    /// let stream = client.rest().query_stream::<Account>("SELECT Id FROM Account");
-    /// ```
-    pub fn query_stream<T>(
-        &self,
-        soql: impl Into<String>,
-    ) -> crate::api::query_stream::QueryStream<T, A, Self>
-    where
-        T: DeserializeOwned + Unpin,
-    {
-        crate::api::query_stream::QueryStream::new(self.clone(), soql)
-    }
-
     /// Constructs the base URL for REST API operations.
     ///
     /// The base URL is constructed as: `{instance_url}/services/data/{api_version}`

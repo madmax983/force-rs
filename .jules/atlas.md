@@ -61,3 +61,7 @@
 **[The Facade: Enforcing Module Boundaries in force-sync and force-pubsub]**
 **Tangle:** The `force-sync` and `force-pubsub` crates leaked internal submodules directly into the public API by declaring them as `pub mod` (e.g. `apply`, `capture`, `config`, `codec`, `error`). This violated the Facade pattern and exposed messy implementation details to consumers.
 **Blueprint:** Refactored module visibility to `pub(crate) mod` across both crates and explicitly re-exported only the necessary public types (e.g., `SalesforceApplier`, `capture_batch`, `encode_avro`) via explicit `pub use` statements at the root `lib.rs`. Fixed integration tests to depend on the explicit public facade. Reduced nested submodule visibility conflicts to satisfy `clippy::redundant_pub_crate` by allowing `pub mod` exclusively inside already private structures.
+
+**2024-06-01 - [The Tangle: Tooling API missing QueryStream]**
+**Tangle:** `ToolingHandler` lacked the `query_stream` method because it was tied specifically to `RestHandler`, despite both implementing `RestOperation` which contains the underlying `query` and `query_more` methods needed for paginated query streams.
+**Blueprint:** Moved `query_stream` as a default method into the `RestOperation` trait, making it natively available to all handlers that implement it (e.g., `RestHandler` and `ToolingHandler`), enforcing DRY, and restoring structural completeness across the graph.
