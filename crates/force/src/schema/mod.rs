@@ -36,5 +36,5 @@ pub use schema_linter::{
 };
 pub use schema_visualizer::generate_visualizer_report;
 pub use sql_exporter::{generate_ddl, write_ddl};
-pub use type_generator::generate_rust_struct;
+pub use type_generator::{generate_rust_struct, write_rust_struct};
 pub use typescript_generator::{generate_typescript_interface, write_typescript_interface};

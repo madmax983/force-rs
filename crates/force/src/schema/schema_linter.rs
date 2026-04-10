@@ -48,7 +48,7 @@ impl LintRule for TooManyFieldsRule {
         let count = describe.fields.len();
         if count > self.max_fields {
             vec![LintResult {
-                rule_name: "TooManyFields".to_string(),
+                rule_name: "TooManyFields".into(),
                 severity: LintSeverity::Warning,
                 message: format!(
                     "SObject '{}' has {} fields, which exceeds the recommended maximum of {}.",
@@ -73,7 +73,7 @@ impl LintRule for MissingCustomSuffixRule {
         for field in &describe.fields {
             if field.custom && !field.name.ends_with("__c") {
                 results.push(LintResult {
-                    rule_name: "MissingCustomSuffix".to_string(),
+                    rule_name: "MissingCustomSuffix".into(),
                     severity: LintSeverity::Warning,
                     message: format!(
                         "Custom field '{}' in SObject '{}' does not end with '__c'.",
