@@ -4,11 +4,7 @@ use async_trait::async_trait;
 use deadpool_postgres::{Config as PgConfig, Pool, Runtime};
 use force::auth::{AccessToken, Authenticator, TokenResponse};
 use force::client::builder;
-use force_sync::{
-    ObjectSync,
-    SyncEngine,
-    PgStore, migrate,
-};
+use force_sync::{ObjectSync, PgStore, SyncEngine, migrate};
 use tokio_postgres::NoTls;
 
 #[derive(Debug, Clone)]

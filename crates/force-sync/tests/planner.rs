@@ -4,10 +4,10 @@ use chrono::Utc;
 use proptest::prelude::*;
 use serde_json::{Value, json};
 
-use force_sync::{ObjectSync, Owner};
 use force_sync::SyncKey;
-use force_sync::{ChangeEnvelope, ChangeOperation, SourceSystem};
 use force_sync::{ApplyLane, MergeOutcome, PlannerContext, merge_payload, plan_change};
+use force_sync::{ChangeEnvelope, ChangeOperation, SourceSystem};
+use force_sync::{ObjectSync, Owner};
 
 fn sync_key() -> SyncKey {
     match SyncKey::new("tenant", "Account", "abc") {

@@ -15,14 +15,9 @@ use wiremock::{
 };
 
 use force_sync::{
-    SalesforceApplier,
-    ObjectSync,
-    ForceSyncError,
-    SyncKey,
-    ChangeEnvelope, ChangeOperation, SourceCursor, SourceSystem,
-    ApplyLane, PlannerContext, plan_change,
-    detect_drift, enqueue_repair, run_reconcile_once,
-    PgStore, SyncLink,
+    ApplyLane, ChangeEnvelope, ChangeOperation, ForceSyncError, ObjectSync, PgStore,
+    PlannerContext, SalesforceApplier, SourceCursor, SourceSystem, SyncKey, SyncLink, detect_drift,
+    enqueue_repair, plan_change, run_reconcile_once,
 };
 
 #[derive(Debug, Clone)]

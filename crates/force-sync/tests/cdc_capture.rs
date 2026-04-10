@@ -6,12 +6,7 @@ use force_pubsub::{EventMessage, PubSubEvent, ReplayId};
 use futures::stream;
 use serde_json::{Value, json};
 
-use force_sync::{
-    capture_stream, load_replay_id,
-    ObjectSync,
-    ForceSyncError,
-    PgStore,
-};
+use force_sync::{ForceSyncError, ObjectSync, PgStore, capture_stream, load_replay_id};
 
 fn event(payload: Value, replay_id: &[u8], event_id: &str) -> PubSubEvent<Value> {
     PubSubEvent::Event(EventMessage {
@@ -151,7 +146,8 @@ async fn restart_uses_the_stored_replay_cursor() -> Result<(), ForceSyncError> {
     ))]);
     let _ = capture_stream(&store, "salesforce:Account", "tenant", &object, stream).await?;
 
-    let replay_id: Option<force_pubsub::ReplayId> = load_replay_id(&store, "salesforce:Account").await?;
+    let replay_id: Option<force_pubsub::ReplayId> =
+        load_replay_id(&store, "salesforce:Account").await?;
     assert_eq!(replay_id.as_ref().map(ReplayId::as_bytes), Some(&[9][..]));
 
     Ok(())

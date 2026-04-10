@@ -12,12 +12,8 @@ use serde_json::json;
 use wiremock::{Mock, MockServer, ResponseTemplate, matchers::method};
 
 use force_sync::{
-    ObjectSync,
-    ForceSyncError,
-    SyncKey,
-    ChangeEnvelope, ChangeOperation, SourceCursor, SourceSystem,
-    SyncEngine,
-    PgStore,
+    ChangeEnvelope, ChangeOperation, ForceSyncError, ObjectSync, PgStore, SourceCursor,
+    SourceSystem, SyncEngine, SyncKey,
 };
 
 #[derive(Debug, Clone)]

@@ -19,12 +19,8 @@ use wiremock::{
 };
 
 use force_sync::{
-    ObjectSync,
-    ForceSyncError,
-    SyncKey,
-    ChangeEnvelope, ChangeOperation, SourceCursor, SourceSystem,
-    SyncEngine,
-    PgStore,
+    ChangeEnvelope, ChangeOperation, ForceSyncError, ObjectSync, PgStore, SourceCursor,
+    SourceSystem, SyncEngine, SyncKey,
 };
 
 // ── Shared helpers ───────────────────────────────────────────────────

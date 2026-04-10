@@ -9,9 +9,7 @@ use futures::FutureExt;
 use serde_json::json;
 
 use force_sync::{
-    SyncKey,
-    ChangeEnvelope, ChangeOperation, SourceCursor, SourceSystem,
-    AppendResult,
+    AppendResult, ChangeEnvelope, ChangeOperation, SourceCursor, SourceSystem, SyncKey,
 };
 
 fn test_envelope(cursor: i64) -> ChangeEnvelope {
@@ -35,8 +33,7 @@ fn test_envelope(cursor: i64) -> ChangeEnvelope {
 
 #[tokio::test]
 #[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
-async fn appending_a_journal_entry_creates_a_row() -> Result<(), force_sync::ForceSyncError>
-{
+async fn appending_a_journal_entry_creates_a_row() -> Result<(), force_sync::ForceSyncError> {
     let pool = support::postgres::test_pool();
     support::postgres::reset_schema(&pool).await?;
     force_sync::migrate(&pool).await?;
@@ -98,8 +95,8 @@ async fn duplicate_source_cursor_is_deduped() -> Result<(), force_sync::ForceSyn
 
 #[tokio::test]
 #[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
-async fn enqueuing_a_task_in_the_same_transaction_works()
--> Result<(), force_sync::ForceSyncError> {
+async fn enqueuing_a_task_in_the_same_transaction_works() -> Result<(), force_sync::ForceSyncError>
+{
     let pool = support::postgres::test_pool();
     support::postgres::reset_schema(&pool).await?;
     force_sync::migrate(&pool).await?;
@@ -110,10 +107,8 @@ async fn enqueuing_a_task_in_the_same_transaction_works()
     let journal_id = store
         .with_transaction(|tx| {
             async move {
-                let journal_id =
-                    force_sync::PgStore::append_journal_in_tx(tx, &envelope).await?;
-                force_sync::PgStore::enqueue_apply_task_in_tx(tx, journal_id, 10)
-                    .await?;
+                let journal_id = force_sync::PgStore::append_journal_in_tx(tx, &envelope).await?;
+                force_sync::PgStore::enqueue_apply_task_in_tx(tx, journal_id, 10).await?;
                 Ok(journal_id)
             }
             .boxed()
@@ -405,8 +400,7 @@ async fn in_tx_lease_and_ack_round_trip() -> Result<(), force_sync::ForceSyncErr
     let journal_id = store
         .with_transaction(|tx| {
             async move {
-                let jid =
-                    force_sync::PgStore::append_journal_in_tx(tx, &envelope).await?;
+                let jid = force_sync::PgStore::append_journal_in_tx(tx, &envelope).await?;
                 force_sync::PgStore::enqueue_apply_task_in_tx(tx, jid, 10).await?;
                 Ok(jid)
             }
@@ -477,10 +471,8 @@ async fn in_tx_retry_and_fail_round_trip() -> Result<(), force_sync::ForceSyncEr
     let past = Utc::now() - chrono::Duration::seconds(1);
     let rows_affected = store
         .with_transaction(|tx| {
-            async move {
-                force_sync::PgStore::retry_task_in_tx(tx, task_id, past, "oops").await
-            }
-            .boxed()
+            async move { force_sync::PgStore::retry_task_in_tx(tx, task_id, past, "oops").await }
+                .boxed()
         })
         .await?;
     assert_eq!(rows_affected, 1);
@@ -494,10 +486,8 @@ async fn in_tx_retry_and_fail_round_trip() -> Result<(), force_sync::ForceSyncEr
     let fail_task_id = leased[0].task_id;
     let rows_affected = store
         .with_transaction(|tx| {
-            async move {
-                force_sync::PgStore::fail_task_in_tx(tx, fail_task_id, "fatal").await
-            }
-            .boxed()
+            async move { force_sync::PgStore::fail_task_in_tx(tx, fail_task_id, "fatal").await }
+                .boxed()
         })
         .await?;
     assert_eq!(rows_affected, 1);

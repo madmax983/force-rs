@@ -7,17 +7,16 @@ use force::{auth::Authenticator, client::ForceClient};
 use serde_json::Value;
 
 use crate::{
+    ApplyLane, ObjectSync, PlannerContext,
     apply::{
         postgres::project_sync_link,
         salesforce::{ApplyError, SalesforceApplier},
     },
     capture,
-    ObjectSync,
     error::ForceSyncError,
     identity::SyncKey,
     model::{ChangeEnvelope, ChangeOperation, SourceCursor, SourceSystem},
-    ApplyLane, PlannerContext, plan_change,
-    reconcile,
+    plan_change, reconcile,
     store::pg::{LeasedTask, PgStore, SyncConflict},
 };
 
@@ -901,7 +900,7 @@ mod tests {
             error::Result as ForceResult,
         };
 
-        use crate::{ObjectSync, error::ForceSyncError, SyncEngine};
+        use crate::{ObjectSync, SyncEngine, error::ForceSyncError};
 
         #[derive(Debug, Clone)]
         struct StubAuth;
