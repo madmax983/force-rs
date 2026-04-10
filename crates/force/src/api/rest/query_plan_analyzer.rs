@@ -15,6 +15,10 @@ pub enum InsightSeverity {
 }
 
 /// A specific insight or recommendation derived from analyzing a query plan.
+///
+/// ⚡ Bolt: Uses borrowed string references (`&'a str`) tied to the underlying `ExplainResponse`
+/// payload instead of owned `String`s, preventing unnecessary heap allocations and `.clone()`
+/// calls during schema analysis hot paths.
 #[derive(Debug, Clone, PartialEq)]
 pub struct QueryInsight<'a> {
     /// The severity of the finding.
@@ -26,6 +30,9 @@ pub struct QueryInsight<'a> {
 }
 
 /// Analysis results for a given Query Plan.
+///
+/// ⚡ Bolt: Uses borrowed string references (`&'a str`) instead of owned `String`s to
+/// significantly reduce heap allocations and memory churn when processing the plan.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct QueryInsights<'a> {
     /// The total number of plans evaluated.
