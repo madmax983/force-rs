@@ -256,7 +256,10 @@ mod tests {
             .must();
 
         let err = handle_oauth_error(res, None).await;
-        assert_eq!(err.to_string(), "HTTP request failed: HTTP 400: Unknown error");
+        assert_eq!(
+            err.to_string(),
+            "HTTP request failed: HTTP 400: Unknown error"
+        );
     }
 
     #[tokio::test]
@@ -278,7 +281,10 @@ mod tests {
             .must();
 
         let err = handle_oauth_error(res, None).await;
-        assert_eq!(err.to_string(), format!("HTTP request failed: HTTP 400: {}", medium_body));
+        assert_eq!(
+            err.to_string(),
+            format!("HTTP request failed: HTTP 400: {}", medium_body)
+        );
     }
 
     #[tokio::test]
@@ -286,12 +292,17 @@ mod tests {
         let mock_server = wiremock::MockServer::start().await;
         wiremock::Mock::given(wiremock::matchers::method("GET"))
             .and(wiremock::matchers::path("/timeout"))
-            .respond_with(wiremock::ResponseTemplate::new(200).set_delay(std::time::Duration::from_secs(31)))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_delay(std::time::Duration::from_secs(31)),
+            )
             .mount(&mock_server)
             .await;
 
         let client = default_auth_http_client();
-        let result = client.get(format!("{}/timeout", mock_server.uri())).send().await;
+        let result = client
+            .get(format!("{}/timeout", mock_server.uri()))
+            .send()
+            .await;
         assert!(result.is_err());
     }
 }

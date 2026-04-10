@@ -310,7 +310,10 @@ mod integration_tests {
 
         let error = response_to_force_error(response, "fallback").await;
 
-        assert_eq!(error.to_string(), format!("HTTP request failed: HTTP 400: {}", medium_body));
+        assert_eq!(
+            error.to_string(),
+            format!("HTTP request failed: HTTP 400: {}", medium_body)
+        );
     }
 
     #[tokio::test]
