@@ -393,6 +393,9 @@ pub trait RestOperation<A: Authenticator> {
     where
         T: DeserializeOwned,
     {
+        if soql.len() > 100_000 {
+            return Err(crate::error::ForceError::InvalidInput("SOQL query is too long".to_string()));
+        }
         let api_path = self.resolve_api_path("query");
         let url = self.session().resolve_url(&api_path).await?;
 
@@ -441,6 +444,9 @@ pub trait RestOperation<A: Authenticator> {
     where
         T: DeserializeOwned,
     {
+        if next_records_url.len() > 100_000 {
+            return Err(crate::error::ForceError::InvalidInput("Next records URL is too long".to_string()));
+        }
         let instance_url = self.session().instance_url().await?;
         let url = resolve_next_records_url(&instance_url, next_records_url)?;
 
@@ -518,6 +524,7 @@ pub trait RestOperation<A: Authenticator> {
     /// }
     /// ```
     async fn describe(&self, sobject_type: &str) -> Result<SObjectDescribe> {
+        validate_sobject_name(sobject_type)?;
         let relative = format!(
             "{}/describe",
             crate::api::path_utils::format_sobject_path(sobject_type, None)
