@@ -44,6 +44,17 @@ pub async fn generate_visualizer_report<A: Authenticator>(
     let _ = writeln!(md, "**API Name:** `{}`", describe.name);
     let _ = writeln!(md, "**Custom:** {}\n", describe.custom);
 
+    write_insights(&mut md, &insights);
+    write_mermaid_diagram(&mut md, &graph);
+
+    if include_usage {
+        write_usage_stats(&mut md, client, sobject, describe.fields).await?;
+    }
+
+    Ok(md)
+}
+
+fn write_insights(md: &mut String, insights: &crate::schema::schema_analyzer::SchemaInsights) {
     let _ = writeln!(md, "## Schema Insights\n");
     let _ = writeln!(
         md,
@@ -62,37 +73,42 @@ pub async fn generate_visualizer_report<A: Authenticator>(
         "*   **Required Fields:** {}\n",
         insights.required_field_count
     );
+}
 
+fn write_mermaid_diagram<A: Authenticator>(md: &mut String, graph: &SchemaGraph<'_, A>) {
     let _ = writeln!(md, "## Entity-Relationship Diagram\n");
     let _ = writeln!(md, "```mermaid");
-    graph.write_mermaid(&mut md);
+    graph.write_mermaid(md);
     let _ = writeln!(md, "```\n");
+}
 
-    if include_usage {
-        let scanner = FieldUsageScanner::new(client);
-        let usages = scanner.scan(sobject).await?;
-        let mut usage_map = HashMap::with_capacity(usages.len());
-        for usage in usages {
-            usage_map.insert(usage.name, usage.percentage);
-        }
-
-        let _ = writeln!(md, "## Field Usage Statistics\n");
-        let _ = writeln!(md, "| Label | API Name | Populated % |");
-        let _ = writeln!(md, "|---|---|---|");
-
-        let mut fields = describe.fields;
-        fields.sort_by(|a, b| a.name.cmp(&b.name));
-
-        for field in &fields {
-            if let Some(pct) = usage_map.get(&field.name) {
-                let _ = writeln!(md, "| {} | `{}` | {:.1}% |", field.label, field.name, pct);
-            } else {
-                let _ = writeln!(md, "| {} | `{}` | N/A |", field.label, field.name);
-            }
-        }
+async fn write_usage_stats<A: Authenticator>(
+    md: &mut String,
+    client: &ForceClient<A>,
+    sobject: &str,
+    mut fields: Vec<crate::api::rest::describe::FieldDescribe>,
+) -> Result<()> {
+    let scanner = FieldUsageScanner::new(client);
+    let usages = scanner.scan(sobject).await?;
+    let mut usage_map = HashMap::with_capacity(usages.len());
+    for usage in usages {
+        usage_map.insert(usage.name, usage.percentage);
     }
 
-    Ok(md)
+    let _ = writeln!(md, "## Field Usage Statistics\n");
+    let _ = writeln!(md, "| Label | API Name | Populated % |");
+    let _ = writeln!(md, "|---|---|---|");
+
+    fields.sort_by(|a, b| a.name.cmp(&b.name));
+
+    for field in &fields {
+        if let Some(pct) = usage_map.get(&field.name) {
+            let _ = writeln!(md, "| {} | `{}` | {:.1}% |", field.label, field.name, pct);
+        } else {
+            let _ = writeln!(md, "| {} | `{}` | N/A |", field.label, field.name);
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]

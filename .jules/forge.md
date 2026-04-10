@@ -62,3 +62,6 @@
 **Removing `allow(clippy::unwrap_used)` in Tests**
 **Learning:** The workspace strictly enforces `-D clippy::unwrap_used`, but many test files bypassed it and used `.unwrap()` instead of the custom `.must()` extension trait.
 **Action:** Remove the `allow` directive, replace `.unwrap()` with `.must()`, and ensure `Must` is imported (`use crate::test_support::Must;`). This maintains strictness and improves code consistency.
+**Extract schema sorting logic and decompose God Functions**
+**Learning:** Repetitive sorting logic across multiple schema exporters is an anti-pattern. Functions over 50 lines (e.g., `analyze_query_plan` and `generate_visualizer_report`) often suffer from poor readability and can be easily decomposed.
+**Action:** Extract common utilities like sorting into a shared `utils` module. Extract sections of large procedural functions into smaller, clearly named helper functions.

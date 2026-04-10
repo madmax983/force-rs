@@ -22,16 +22,7 @@ pub fn write_pydantic_model(out: &mut String, describe: &SObjectDescribe) {
     let _ = writeln!(out, "    {}", describe.label);
     out.push_str("    \"\"\"\n");
 
-    let mut fields: Vec<&_> = describe.fields.iter().collect();
-    fields.sort_by(|a, b| {
-        if a.name == "Id" {
-            std::cmp::Ordering::Less
-        } else if b.name == "Id" {
-            std::cmp::Ordering::Greater
-        } else {
-            a.name.cmp(&b.name)
-        }
-    });
+    let fields = crate::schema::utils::sort_fields_id_first(describe.fields.iter());
 
     for field in fields {
         let py_type = map_type(&field.type_);

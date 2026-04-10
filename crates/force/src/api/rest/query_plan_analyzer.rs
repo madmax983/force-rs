@@ -66,58 +66,76 @@ pub fn analyze_query_plan(response: &ExplainResponse) -> QueryInsights {
             insights.best_operation_type = Some(plan.leading_operation_type.clone());
         }
 
-        // Rule: Warn on TableScan
-        if plan
-            .leading_operation_type
-            .eq_ignore_ascii_case("TableScan")
-        {
-            insights.insights.push(QueryInsight {
-                severity: InsightSeverity::Warning,
-                message: "Full table scan detected. This query will not scale well. Consider adding filters on indexed fields.".to_string(),
-                operation_type: plan.leading_operation_type.clone(),
-            });
-        }
-
-        // Rule: Warn on high relative cost (> 1.0 is generally considered poor)
-        if plan.relative_cost > 1.0 {
-            insights.insights.push(QueryInsight {
-                severity: InsightSeverity::Warning,
-                message: format!("High relative cost detected ({:.2}). The query optimizer is unlikely to use this path efficiently.", plan.relative_cost),
-                operation_type: plan.leading_operation_type.clone(),
-            });
-        }
-
-        // Rule: Surface notes provided by the SFDC optimizer
-        for note in &plan.notes {
-            insights.insights.push(QueryInsight {
-                severity: InsightSeverity::Info,
-                message: format!(
-                    "Optimizer Note on {}: {}",
-                    note.table_enum_or_id, note.description
-                ),
-                operation_type: plan.leading_operation_type.clone(),
-            });
-        }
-
-        // Rule: High cardinality relative to table size (Selectivity)
-        if plan.sobject_cardinality > 0 {
-            let selectivity = (plan.cardinality as f64) / (plan.sobject_cardinality as f64);
-            if selectivity > 0.3
-                && !plan
-                    .leading_operation_type
-                    .eq_ignore_ascii_case("TableScan")
-            {
-                // If a non-tablescan operation is pulling more than 30% of the table, SFDC often falls back to TableScan anyway
-                insights.insights.push(QueryInsight {
-                    severity: InsightSeverity::Warning,
-                    message: format!("Query lacks selectivity (pulling {:.0}% of table). Indexes may be ignored by the optimizer in favor of a TableScan.", selectivity * 100.0),
-                    operation_type: plan.leading_operation_type.clone(),
-                });
-            }
-        }
+        check_table_scan_rule(plan, &mut insights.insights);
+        check_cost_rule(plan, &mut insights.insights);
+        extract_optimizer_notes(plan, &mut insights.insights);
+        check_selectivity_rule(plan, &mut insights.insights);
     }
 
     insights
+}
+
+fn check_table_scan_rule(
+    plan: &crate::api::rest::explain::QueryPlan,
+    insights: &mut Vec<QueryInsight>,
+) {
+    if plan
+        .leading_operation_type
+        .eq_ignore_ascii_case("TableScan")
+    {
+        insights.push(QueryInsight {
+            severity: InsightSeverity::Warning,
+            message: "Full table scan detected. This query will not scale well. Consider adding filters on indexed fields.".to_string(),
+            operation_type: plan.leading_operation_type.clone(),
+        });
+    }
+}
+
+fn check_cost_rule(plan: &crate::api::rest::explain::QueryPlan, insights: &mut Vec<QueryInsight>) {
+    if plan.relative_cost > 1.0 {
+        insights.push(QueryInsight {
+            severity: InsightSeverity::Warning,
+            message: format!("High relative cost detected ({:.2}). The query optimizer is unlikely to use this path efficiently.", plan.relative_cost),
+            operation_type: plan.leading_operation_type.clone(),
+        });
+    }
+}
+
+fn extract_optimizer_notes(
+    plan: &crate::api::rest::explain::QueryPlan,
+    insights: &mut Vec<QueryInsight>,
+) {
+    for note in &plan.notes {
+        insights.push(QueryInsight {
+            severity: InsightSeverity::Info,
+            message: format!(
+                "Optimizer Note on {}: {}",
+                note.table_enum_or_id, note.description
+            ),
+            operation_type: plan.leading_operation_type.clone(),
+        });
+    }
+}
+
+fn check_selectivity_rule(
+    plan: &crate::api::rest::explain::QueryPlan,
+    insights: &mut Vec<QueryInsight>,
+) {
+    if plan.sobject_cardinality > 0 {
+        let selectivity = (plan.cardinality as f64) / (plan.sobject_cardinality as f64);
+        if selectivity > 0.3
+            && !plan
+                .leading_operation_type
+                .eq_ignore_ascii_case("TableScan")
+        {
+            // If a non-tablescan operation is pulling more than 30% of the table, SFDC often falls back to TableScan anyway
+            insights.push(QueryInsight {
+                severity: InsightSeverity::Warning,
+                message: format!("Query lacks selectivity (pulling {:.0}% of table). Indexes may be ignored by the optimizer in favor of a TableScan.", selectivity * 100.0),
+                operation_type: plan.leading_operation_type.clone(),
+            });
+        }
+    }
 }
 
 #[cfg(test)]

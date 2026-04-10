@@ -52,16 +52,7 @@ pub fn write_ddl(ddl: &mut String, describe: &SObjectDescribe) {
     // Sort fields alphabetically to ensure deterministic output,
     // but always put 'Id' first if it exists.
     // ⚡ Bolt: Collecting references to fields instead of deep cloning the entire `describe.fields` Vec avoids significant heap allocation per field.
-    let mut fields: Vec<&_> = describe.fields.iter().collect();
-    fields.sort_by(|a, b| {
-        if a.name == "Id" {
-            std::cmp::Ordering::Less
-        } else if b.name == "Id" {
-            std::cmp::Ordering::Greater
-        } else {
-            a.name.cmp(&b.name)
-        }
-    });
+    let fields = crate::schema::utils::sort_fields_id_first(describe.fields.iter());
 
     // ⚡ Bolt: Append directly to `ddl` buffer instead of collecting into an intermediate `field_defs` Vec and calling `.join(",\n")`.
     let mut first = true;

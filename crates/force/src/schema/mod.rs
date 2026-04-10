@@ -18,6 +18,7 @@ pub(crate) mod sql_exporter;
 #[allow(missing_docs)]
 pub(crate) mod type_generator;
 pub(crate) mod typescript_generator;
+pub(crate) mod utils;
 pub(crate) mod zod_generator;
 
 pub use data_dictionary::DataDictionary;

@@ -21,16 +21,7 @@ pub fn write_zod_schema(out: &mut String, describe: &SObjectDescribe) {
     let _ = writeln!(out, "export const {}Schema = z.object({{", describe.name);
 
     // Sort fields alphabetically, Id first
-    let mut fields: Vec<&_> = describe.fields.iter().collect();
-    fields.sort_by(|a, b| {
-        if a.name == "Id" {
-            std::cmp::Ordering::Less
-        } else if b.name == "Id" {
-            std::cmp::Ordering::Greater
-        } else {
-            a.name.cmp(&b.name)
-        }
-    });
+    let fields = crate::schema::utils::sort_fields_id_first(describe.fields.iter());
 
     for field in fields {
         let ts_type = map_type(&field.type_);
