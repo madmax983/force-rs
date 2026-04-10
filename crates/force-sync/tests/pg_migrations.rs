@@ -4,11 +4,11 @@ mod support;
 
 #[tokio::test]
 #[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
-async fn applies_initial_schema() -> Result<(), force_sync::error::ForceSyncError> {
+async fn applies_initial_schema() -> Result<(), force_sync::ForceSyncError> {
     let pool = support::postgres::test_pool();
     support::postgres::reset_schema(&pool).await?;
 
-    force_sync::store::pg::migrate(&pool).await?;
+    force_sync::migrate(&pool).await?;
 
     let client = pool.get().await?;
     let rows = client

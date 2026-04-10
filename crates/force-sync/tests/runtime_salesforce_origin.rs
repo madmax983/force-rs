@@ -12,12 +12,8 @@ use serde_json::json;
 use wiremock::{Mock, MockServer, ResponseTemplate, matchers::method};
 
 use force_sync::{
-    config::ObjectSync,
-    error::ForceSyncError,
-    identity::SyncKey,
-    model::{ChangeEnvelope, ChangeOperation, SourceCursor, SourceSystem},
-    runtime::SyncEngine,
-    store::pg::PgStore,
+    ChangeEnvelope, ChangeOperation, ForceSyncError, ObjectSync, PgStore, SourceCursor,
+    SourceSystem, SyncEngine, SyncKey,
 };
 
 #[derive(Debug, Clone)]
@@ -117,7 +113,7 @@ async fn salesforce_originated_task_is_projected_locally_without_salesforce_echo
 
     let pool = support::postgres::test_pool();
     support::postgres::reset_schema(&pool).await?;
-    force_sync::store::pg::migrate(&pool).await?;
+    force_sync::migrate(&pool).await?;
     insert_salesforce_journal_row(&pool).await?;
 
     let engine = SyncEngine::builder(client)

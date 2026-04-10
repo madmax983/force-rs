@@ -6,7 +6,7 @@ use serde_json::Value;
 use tokio_postgres::GenericClient;
 
 use crate::{
-    config::ObjectSync,
+    ObjectSync,
     error::ForceSyncError,
     identity::SyncKey,
     model::{ChangeEnvelope, ChangeOperation, SourceCursor, SourceSystem},
