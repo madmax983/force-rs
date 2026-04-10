@@ -15,14 +15,14 @@ use wiremock::{
 };
 
 use force_sync::{
-    apply::SalesforceApplier,
-    config::ObjectSync,
-    error::ForceSyncError,
-    identity::SyncKey,
-    model::{ChangeEnvelope, ChangeOperation, SourceCursor, SourceSystem},
-    plan::{ApplyLane, PlannerContext, plan_change},
-    reconcile::{detect_drift, enqueue_repair, run_reconcile_once},
-    store::pg::{PgStore, SyncLink},
+    SalesforceApplier,
+    ObjectSync,
+    ForceSyncError,
+    SyncKey,
+    ChangeEnvelope, ChangeOperation, SourceCursor, SourceSystem,
+    ApplyLane, PlannerContext, plan_change,
+    detect_drift, enqueue_repair, run_reconcile_once,
+    PgStore, SyncLink,
 };
 
 #[derive(Debug, Clone)]
@@ -215,7 +215,7 @@ async fn bulk_upsert_uses_the_external_id_field() {
 async fn detect_drift_finds_hash_mismatches() -> Result<(), ForceSyncError> {
     let pool = support::postgres::test_pool();
     support::postgres::reset_schema(&pool).await?;
-    force_sync::store::pg::migrate(&pool).await?;
+    force_sync::migrate(&pool).await?;
 
     let store = PgStore::new(pool.clone());
     let envelope = envelope(
@@ -240,7 +240,7 @@ async fn detect_drift_finds_hash_mismatches() -> Result<(), ForceSyncError> {
     };
     store.put_link(&link).await?;
 
-    let drift = detect_drift(&store, 10).await?;
+    let drift: Vec<force_sync::DriftItem> = detect_drift(&store, 10).await?;
     assert_eq!(drift.len(), 1);
     assert_eq!(drift[0].journal_id, journal_id);
     assert_eq!(drift[0].external_id, "external-drift");
@@ -252,7 +252,7 @@ async fn detect_drift_finds_hash_mismatches() -> Result<(), ForceSyncError> {
 async fn reconcile_repair_enqueues_a_new_apply_task() -> Result<(), ForceSyncError> {
     let pool = support::postgres::test_pool();
     support::postgres::reset_schema(&pool).await?;
-    force_sync::store::pg::migrate(&pool).await?;
+    force_sync::migrate(&pool).await?;
 
     let store = PgStore::new(pool.clone());
     let envelope = envelope(
@@ -286,7 +286,7 @@ async fn reconcile_repair_enqueues_a_new_apply_task() -> Result<(), ForceSyncErr
 async fn run_reconcile_once_queues_repairs_for_drift() -> Result<(), ForceSyncError> {
     let pool = support::postgres::test_pool();
     support::postgres::reset_schema(&pool).await?;
-    force_sync::store::pg::migrate(&pool).await?;
+    force_sync::migrate(&pool).await?;
 
     let store = PgStore::new(pool.clone());
     let envelope = envelope(
@@ -329,7 +329,7 @@ async fn run_reconcile_once_queues_repairs_for_drift() -> Result<(), ForceSyncEr
 async fn repeated_reconcile_passes_do_not_duplicate_repair_work() -> Result<(), ForceSyncError> {
     let pool = support::postgres::test_pool();
     support::postgres::reset_schema(&pool).await?;
-    force_sync::store::pg::migrate(&pool).await?;
+    force_sync::migrate(&pool).await?;
 
     let store = PgStore::new(pool.clone());
     let envelope = envelope(

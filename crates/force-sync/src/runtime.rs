@@ -12,11 +12,11 @@ use crate::{
         salesforce::{ApplyError, SalesforceApplier},
     },
     capture,
-    config::ObjectSync,
+    ObjectSync,
     error::ForceSyncError,
     identity::SyncKey,
     model::{ChangeEnvelope, ChangeOperation, SourceCursor, SourceSystem},
-    plan::{ApplyLane, PlannerContext, plan_change},
+    ApplyLane, PlannerContext, plan_change,
     reconcile,
     store::pg::{LeasedTask, PgStore, SyncConflict},
 };
@@ -901,7 +901,7 @@ mod tests {
             error::Result as ForceResult,
         };
 
-        use crate::{config::ObjectSync, error::ForceSyncError, runtime::SyncEngine};
+        use crate::{ObjectSync, error::ForceSyncError, SyncEngine};
 
         #[derive(Debug, Clone)]
         struct StubAuth;
@@ -966,7 +966,7 @@ mod tests {
                     tokio_postgres::NoTls,
                 )
                 .unwrap_or_else(|e| panic!("unexpected pool error: {e}"));
-            let store = crate::store::pg::PgStore::new(pool);
+            let store = crate::PgStore::new(pool);
 
             let result = SyncEngine::builder(client).postgres(store).build();
 

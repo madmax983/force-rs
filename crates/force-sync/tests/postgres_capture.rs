@@ -4,7 +4,7 @@ mod support;
 
 use serde_json::json;
 
-use force_sync::{capture::capture_batch, error::ForceSyncError, store::pg::PgStore};
+use force_sync::{capture_batch, ForceSyncError, PgStore};
 
 struct OutboxSeed<'a> {
     tenant: &'a str,
@@ -84,7 +84,7 @@ async fn outbox_rows_are_captured_into_the_journal_and_marked_processed()
 -> Result<(), ForceSyncError> {
     let pool = support::postgres::test_pool();
     support::postgres::reset_schema(&pool).await?;
-    force_sync::store::pg::migrate(&pool).await?;
+    force_sync::migrate(&pool).await?;
 
     let payload = json!({"Name": "Acme"});
     let seed = OutboxSeed {
@@ -141,7 +141,7 @@ async fn outbox_rows_are_captured_into_the_journal_and_marked_processed()
 async fn duplicate_source_cursors_do_not_enqueue_duplicate_tasks() -> Result<(), ForceSyncError> {
     let pool = support::postgres::test_pool();
     support::postgres::reset_schema(&pool).await?;
-    force_sync::store::pg::migrate(&pool).await?;
+    force_sync::migrate(&pool).await?;
 
     let payload = json!({"Name": "Acme"});
     let first_outbox_id = insert_outbox_row(
@@ -207,7 +207,7 @@ async fn duplicate_source_cursors_do_not_enqueue_duplicate_tasks() -> Result<(),
 async fn contradictory_op_and_tombstone_rows_are_rejected_safely() -> Result<(), ForceSyncError> {
     let pool = support::postgres::test_pool();
     support::postgres::reset_schema(&pool).await?;
-    force_sync::store::pg::migrate(&pool).await?;
+    force_sync::migrate(&pool).await?;
 
     let payload = json!({"Name": "Acme"});
     assert!(
@@ -244,7 +244,7 @@ async fn contradictory_op_and_tombstone_rows_are_rejected_safely() -> Result<(),
 async fn invalid_outbox_row_is_dead_lettered_and_marked_processed() -> Result<(), ForceSyncError> {
     let pool = support::postgres::test_pool();
     support::postgres::reset_schema(&pool).await?;
-    force_sync::store::pg::migrate(&pool).await?;
+    force_sync::migrate(&pool).await?;
 
     let payload = json!({"Name": "Acme"});
     insert_outbox_row(
@@ -296,7 +296,7 @@ async fn invalid_outbox_row_is_dead_lettered_and_marked_processed() -> Result<()
 async fn already_encoded_cursor_is_rejected_safely() -> Result<(), ForceSyncError> {
     let pool = support::postgres::test_pool();
     support::postgres::reset_schema(&pool).await?;
-    force_sync::store::pg::migrate(&pool).await?;
+    force_sync::migrate(&pool).await?;
 
     let payload = json!({"Name": "Acme"});
     assert!(
