@@ -8,6 +8,7 @@ Design backlog and product-spec notes for incubating `force-rs` capabilities. Th
 - [`consent-portability-api.md`](consent-portability-api.md): Consent and Portability API support.
 - [`force-sync-engine.md`](force-sync-engine.md): Postgres-first bidirectional sync engine.
 - [`pub-sub-api.md`](pub-sub-api.md): gRPC event streaming via Salesforce Pub/Sub.
+- [`soap-api.md`](soap-api.md): Legacy Enterprise and Partner SOAP API support.
 
 ## Schema and Codegen
 
