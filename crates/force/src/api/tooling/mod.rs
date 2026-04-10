@@ -219,7 +219,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_tooling_query_stream() {
-        use futures::StreamExt;
+        use futures_util::StreamExt;
 
         let mock_server = MockServer::start().await;
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
