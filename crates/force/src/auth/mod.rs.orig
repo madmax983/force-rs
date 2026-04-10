@@ -280,18 +280,4 @@ mod tests {
         let err = handle_oauth_error(res, None).await;
         assert_eq!(err.to_string(), format!("HTTP request failed: HTTP 400: {}", medium_body));
     }
-
-    #[tokio::test]
-    async fn test_default_auth_http_client_timeout() {
-        let mock_server = wiremock::MockServer::start().await;
-        wiremock::Mock::given(wiremock::matchers::method("GET"))
-            .and(wiremock::matchers::path("/timeout"))
-            .respond_with(wiremock::ResponseTemplate::new(200).set_delay(std::time::Duration::from_secs(31)))
-            .mount(&mock_server)
-            .await;
-
-        let client = default_auth_http_client();
-        let result = client.get(format!("{}/timeout", mock_server.uri())).send().await;
-        assert!(result.is_err());
-    }
 }
