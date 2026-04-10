@@ -113,8 +113,8 @@ pub(crate) async fn handle_oauth_error(
 #[cfg(feature = "mock")]
 mod tests {
     use super::*;
-    use wiremock::matchers::{method, path};
     use crate::test_support::Must;
+    use wiremock::matchers::{method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
     #[tokio::test]
