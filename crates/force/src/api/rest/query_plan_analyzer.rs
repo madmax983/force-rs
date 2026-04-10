@@ -57,6 +57,7 @@ pub struct QueryInsights<'a> {
 #[must_use]
 pub fn analyze_query_plan(response: &ExplainResponse) -> QueryInsights<'_> {
     let mut insights = QueryInsights {
+        insights: Vec::with_capacity(response.plans.len() * 2), // Bolt: Pre-allocate capacity to avoid multiple reallocations during analysis.
         evaluated_plans: response.plans.len(),
         lowest_cost: f64::MAX,
         ..Default::default()
