@@ -99,13 +99,10 @@ impl<A: crate::auth::Authenticator> GraphqlHandler<A> {
             .build()
             .map_err(crate::error::HttpError::from)?;
 
-        let response = self.inner.execute_request(http_request).await?;
-
-        if !response.status().is_success() {
-            return Err(
-                crate::http::response_to_force_error(response, "GraphQL request failed").await,
-            );
-        }
+        let response = self
+            .inner
+            .execute_and_check_success(http_request, "GraphQL request failed")
+            .await?;
 
         let bytes = crate::http::error::read_capped_body_bytes(response, 100 * 1024 * 1024).await?;
         let envelope: GraphqlResponse<T> =
@@ -140,13 +137,10 @@ impl<A: crate::auth::Authenticator> GraphqlHandler<A> {
             .build()
             .map_err(crate::error::HttpError::from)?;
 
-        let response = self.inner.execute_request(http_request).await?;
-
-        if !response.status().is_success() {
-            return Err(
-                crate::http::response_to_force_error(response, "GraphQL request failed").await,
-            );
-        }
+        let response = self
+            .inner
+            .execute_and_check_success(http_request, "GraphQL request failed")
+            .await?;
 
         let bytes = crate::http::error::read_capped_body_bytes(response, 100 * 1024 * 1024).await?;
         serde_json::from_slice::<GraphqlResponse<T>>(&bytes)

@@ -247,13 +247,10 @@ impl<'a, A: crate::auth::Authenticator> SmartIngest<'a, A> {
             .build()
             .map_err(crate::error::HttpError::from)?;
 
-        let response = self.handler.inner.execute_request(request).await?;
-
-        if !response.status().is_success() {
-            return Err(
-                crate::http::response_to_force_error(response, "Batch upload failed").await,
-            );
-        }
+        self.handler
+            .inner
+            .execute_and_check_success(request, "Batch upload failed")
+            .await?;
 
         Ok(size)
     }

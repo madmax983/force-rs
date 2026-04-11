@@ -224,13 +224,10 @@ pub trait RestOperation<A: Authenticator> {
             .build()
             .map_err(crate::error::HttpError::from)?;
 
-        let response = self.session().execute_request(request).await?;
-
-        if response.status().is_success() {
-            Ok(UpdateResponse::success())
-        } else {
-            Err(crate::http::response_to_force_error(response, "Update request failed").await)
-        }
+        self.session()
+            .execute_and_check_success(request, "Update request failed")
+            .await?;
+        Ok(UpdateResponse::success())
     }
 
     /// Deletes a record.
@@ -266,13 +263,10 @@ pub trait RestOperation<A: Authenticator> {
             .build()
             .map_err(crate::error::HttpError::from)?;
 
-        let response = self.session().execute_request(request).await?;
-
-        if response.status().is_success() {
-            Ok(DeleteResponse::success())
-        } else {
-            Err(crate::http::response_to_force_error(response, "Delete request failed").await)
-        }
+        self.session()
+            .execute_and_check_success(request, "Delete request failed")
+            .await?;
+        Ok(DeleteResponse::success())
     }
 
     /// Upserts a record using an external ID field.

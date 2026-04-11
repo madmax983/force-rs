@@ -73,3 +73,7 @@
 **[Extract Complex Conditionals]**
 **Learning:** Dense, chained boolean conditions performing security checks inline (e.g., URL validation in `resolve_next_records_url`) obscure the primary control flow.
 **Action:** Extract complex chained conditions into well-named private helper functions (e.g., `validate_url_origin_match`) to abstract the specific validation rules away from the main business logic.
+
+**[Extract execute_and_check_success helper]**
+**Learning:** Re-implementing HTTP request execution, checking `is_success()`, and converting non-success responses to `ForceError` added boilerplate across handlers for endpoints that do not return JSON bodies.
+**Action:** Consolidate these steps into `execute_and_check_success` inside `Session`, reducing boilerplate for operations like `update` and `delete`.
