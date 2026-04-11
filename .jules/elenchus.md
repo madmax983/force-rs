@@ -18,8 +18,26 @@ This journal records the findings of the Elenchus test audit.
 | **Strengthened** | `crates/force/src/experimental/type_generator.rs` | 🔴 Critical | Replace `.contains()` checks with exact match (`assert_eq!`) against a golden string. Enhance case-conversion tests with comprehensive cases. Added missing coverage for `map_type`. |
 | **Strengthened** | `crates/force/src/experimental/schema_analyzer.rs` | 🔴 Critical | Original test `test_schema_analyzer` provided only 6 total fields, meaning that the `total_fields / 10` division resulted in `0`. Tests did not effectively test logic. |
 | **Strengthened** | `crates/force/src/schema/postman_generator.rs` | 🟡 Suspect | The test suite missed mutations changing `&&` to `||` in the createable/updateable and "Id" field filtering logic. |
+| **Strengthened** | `crates/force/src/data/data_faker.rs` | 🔴 Critical | The `test_generate_mock_record_basic` test previously contained weak assertions and allowed `||` vs `&&` logic mutants to survive. Refactored test suite to explicitly check all permutations of skip logic. |
+| **Strengthened** | `crates/force/src/data/data_seeder.rs` | 🔴 Critical | `DataSeeder::seed` method contained mathematical condition mutants that survived testing. Refactored the boundary logic to clearly separate `needs_execute` and added comprehensive tests. |
 
 ## Detailed Findings
+
+### [Strengthened] `crates/force/src/data/data_faker.rs`
+
+**Module:** `crates/force/src/data/data_faker.rs`
+**Severity:** 🔴 Critical
+**Finding:** The `test_generate_mock_record_basic` test previously contained weak assertions like `assert!(record.keys().len() > 0)` and failed to verify that non-createable, auto-number, or calculated fields were *actually* ignored by the data generation logic properly when mutated. Due to a test execution boundary in the repository structure, `cargo mutants` failed to acknowledge test completion correctly, but analysis identified logical gaps allowing `||` vs `&&` logic mutants to survive.
+**Evidence:** 4 specific logic mutants in the field skip logic `if !field.createable || field.auto_number || field.calculated` were flagged as missed.
+**Recommendation:** Refactored the test suite to include `test_generate_mock_record_mutants` containing explicit checks for combinations of `!createable`, `auto_number`, and `calculated` to kill boolean logic mutants (`&&` vs `||`, and missing `!`). Added exact length assertions (`assert_eq!(record.fields.keys().len(), 4)`) instead of weak existence checks.
+
+### [Strengthened] `crates/force/src/data/data_seeder.rs`
+
+**Module:** `crates/force/src/data/data_seeder.rs`
+**Severity:** 🔴 Critical
+**Finding:** The `DataSeeder::seed` method contained mathematical condition mutants that survived testing. Specifically, the boundary logic determining when a composite batch was full and needed execution (`if current_batch.is_full() || i == count - 1`) and the logic handling success count (`success_count += 1`) allowed mutants modifying `==` to `<`, `<=`, and replacing `+= 1` with `*= 1` or `-= 1` to survive because the test suite only provided `count=2` and mocked a generic response, effectively creating a tautology around math and execution limits.
+**Evidence:** `cargo mutants` identified 15 surviving mutants involving mathematical bounds, logic replacement (`&&` vs `||`), and condition checks in the core batch execution path.
+**Recommendation:** Refactored the condition logic to `is_last_record = (i + 1) == count` and clearly split `needs_execute` to be more strictly testable. Added `test_data_seeder_seed_math_mutants` with exactly 3 counts tracking strict return outputs, and `test_data_seeder_multiple_batches` mocking exactly 300 records to trigger the `is_full()` reset boundary independently of the `is_last_record` boundary, killing all math and logic boundary mutants.
 
 ### [Strengthened] `crates/force/src/schema/postman_generator.rs`
 

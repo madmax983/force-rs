@@ -193,6 +193,12 @@ mod tests {
 
         let record = generate_mock_record(&describe);
 
+        // ensure the record is not empty by default
+        assert!(record.fields.keys().len() > 0);
+
+        // assert exact count to prevent early returns or complete skipping
+        assert_eq!(record.fields.keys().len(), 4, "Expected exactly 4 fields to be generated");
+
         // Id should not be present as it's not createable
         assert!(!record.has_field("Id"));
 
@@ -222,6 +228,55 @@ mod tests {
 
         // AutoNumber field should be ignored
         assert!(!record.has_field("AutoNum"));
+    }
+
+    #[test]
+    fn test_generate_mock_record_mutants() {
+        let describe_only_id = create_mock_describe(&json!([mock_field("Id", "id", false, false, false)]));
+        assert_eq!(generate_mock_record(&describe_only_id).fields.keys().len(), 0);
+
+        let describe_formula = create_mock_describe(&json!([mock_field("Form", "string", true, false, true)]));
+        assert_eq!(generate_mock_record(&describe_formula).fields.keys().len(), 0);
+
+        let describe_autonum = create_mock_describe(&json!([mock_field("Auto", "string", true, true, false)]));
+        assert_eq!(generate_mock_record(&describe_autonum).fields.keys().len(), 0);
+
+        let describe_complex = create_mock_describe(&json!([
+            mock_field("Id", "id", false, false, false), // !createable
+            mock_field("Name", "string", true, false, false), // createable
+            mock_field("AutoNum", "string", true, true, false), // auto_number
+            mock_field("FormulaField", "string", true, false, true), // calculated
+        ]));
+        let complex_record = generate_mock_record(&describe_complex);
+        assert_eq!(complex_record.fields.keys().len(), 1); // Only Name
+        assert!(complex_record.has_field("Name"));
+
+        let describe_default = create_mock_describe(&json!([mock_field("Name", "string", true, false, false)]));
+        let record = generate_mock_record(&describe_default);
+        assert_eq!(record.get_field("Name").and_then(|v| v.as_str()), Some("Mock Name Label"));
+
+        // Tests for `||` mutants and default() mutant.
+        let describe_conds = create_mock_describe(&json!([
+            // !createable, !auto_number, !calculated
+            mock_field("F1", "string", false, false, false),
+            // !createable, auto_number, !calculated
+            mock_field("F2", "string", false, true, false),
+            // !createable, !auto_number, calculated
+            mock_field("F3", "string", false, false, true),
+            // createable, !auto_number, !calculated
+            mock_field("F4", "string", true, false, false),
+            // createable, auto_number, !calculated
+            mock_field("F5", "string", true, true, false),
+            // createable, !auto_number, calculated
+            mock_field("F6", "string", true, false, true),
+        ]));
+
+        let rec = generate_mock_record(&describe_conds);
+        assert_eq!(rec.fields.keys().len(), 1); // Only F4 is createable and !auto_number and !calculated
+        assert!(rec.has_field("F4"));
+
+        let rec_empty = generate_mock_record(&create_mock_describe(&json!([])));
+        assert_eq!(rec_empty.fields.keys().len(), 0);
     }
 
     #[test]
