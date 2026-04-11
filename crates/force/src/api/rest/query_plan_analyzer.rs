@@ -52,7 +52,9 @@ pub fn analyze_query_plan(response: &ExplainResponse) -> QueryInsights {
     let mut insights = QueryInsights {
         evaluated_plans: response.plans.len(),
         lowest_cost: f64::MAX,
-        ..Default::default()
+        // ⚡ Bolt: Tying the initial vector capacity to the context-aware input size (`response.plans.len()`) avoids the overhead of multiple dynamic heap reallocations.
+        insights: Vec::with_capacity(response.plans.len()),
+        best_operation_type: None,
     };
 
     if response.plans.is_empty() {
