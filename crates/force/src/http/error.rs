@@ -268,8 +268,8 @@ mod integration_tests {
     async fn test_response_to_force_error_truncation() {
         let mock_server = MockServer::start().await;
 
-        // Generate a 2MB string.
-        let large_body = "A".repeat(2 * 1024 * 1024);
+        // Generate a payload that exceeds the mutated boundary (1024 + 1024 = 2048) and the original boundary (1024 * 1024)
+        let large_body = "A".repeat(1024 * 1024 + 100);
 
         Mock::given(method("GET"))
             .and(path("/error"))
@@ -289,6 +289,31 @@ mod integration_tests {
 
         // Because we don't truncate, we get an empty string for the body, which defaults to fallback
         assert_eq!(message, "fallback");
+    }
+
+    #[tokio::test]
+    async fn test_response_to_force_error_does_not_truncate_medium_body() {
+        let mock_server = MockServer::start().await;
+
+        // Generate a payload between the mutated boundary (2048) and the actual boundary (1048576)
+        let medium_body = "A".repeat(5000);
+
+        Mock::given(method("GET"))
+            .and(path("/error"))
+            .respond_with(ResponseTemplate::new(400).set_body_string(medium_body.clone()))
+            .mount(&mock_server)
+            .await;
+
+        let client = reqwest::Client::new();
+        let url = format!("{}/error", mock_server.uri());
+        let response = client.get(&url).send().await.must();
+
+        let error = response_to_force_error(response, "fallback").await;
+
+        assert_eq!(
+            error.to_string(),
+            format!("HTTP request failed: HTTP 400: {}", medium_body)
+        );
     }
 
     #[tokio::test]
