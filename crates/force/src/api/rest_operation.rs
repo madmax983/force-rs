@@ -88,7 +88,12 @@ pub trait RestOperation<A: Authenticator> {
         if prefix.is_empty() {
             Cow::Borrowed(relative_path)
         } else {
-            Cow::Owned(format!("{prefix}/{relative_path}"))
+            // ⚡ Bolt: Bypass `format!` overhead for hot path string concatenation
+            let mut path = String::with_capacity(prefix.len() + relative_path.len() + 1);
+            path.push_str(prefix);
+            path.push('/');
+            path.push_str(relative_path);
+            Cow::Owned(path)
         }
     }
 
