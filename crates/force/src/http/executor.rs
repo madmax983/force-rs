@@ -302,7 +302,6 @@ impl HttpExecutor {
         }
     }
 
-    #[allow(clippy::needless_pass_by_value)]
     fn record_retry(
         &self,
         ctx: &TelemetryContext,
@@ -315,7 +314,6 @@ impl HttpExecutor {
         }
     }
 
-    #[allow(clippy::needless_pass_by_value)]
     fn record_completion(
         &self,
         ctx: &TelemetryContext,
@@ -454,8 +452,6 @@ mod tests {
         // Dummy refresh token closure that panics if called
         let refresh_token = || async {
             panic!("Should not be called");
-            #[allow(unreachable_code)]
-            Ok(create_test_token())
         };
 
         let request = executor
@@ -566,8 +562,6 @@ mod tests {
         // Dummy refresh token closure that panics if called
         let refresh_token = || async {
             panic!("Should not be called");
-            #[allow(unreachable_code)]
-            Ok(create_test_token())
         };
 
         let request = executor
@@ -620,8 +614,6 @@ mod tests {
         // Dummy refresh token closure
         let refresh_token = || async {
             panic!("Should not be called");
-            #[allow(unreachable_code)]
-            Ok(create_test_token())
         };
 
         let request = executor
@@ -667,8 +659,6 @@ mod tests {
 
         let refresh_token = || async {
             panic!("Should not be called");
-            #[allow(unreachable_code)]
-            Ok(create_test_token())
         };
 
         let request = executor
@@ -703,8 +693,6 @@ mod tests {
 
         let refresh_token = || async {
             panic!("Should not be called");
-            #[allow(unreachable_code)]
-            Ok(create_test_token())
         };
 
         let request = executor
@@ -781,8 +769,6 @@ mod tests {
 
         let refresh_token = || async {
             panic!("Should not be called");
-            #[allow(unreachable_code)]
-            Ok(create_test_token())
         };
 
         let request = executor
@@ -825,8 +811,6 @@ mod tests {
 
         let refresh_token = || async {
             panic!("Should not be called");
-            #[allow(unreachable_code)]
-            Ok(create_test_token())
         };
 
         let request = executor
@@ -868,8 +852,6 @@ mod tests {
 
         let refresh_token = || async {
             panic!("Should not be called");
-            #[allow(unreachable_code)]
-            Ok(create_test_token())
         };
 
         let request = executor
@@ -962,8 +944,6 @@ mod tests {
 
         let refresh_token = || async {
             panic!("Should not be called");
-            #[allow(unreachable_code)]
-            Ok(create_test_token())
         };
 
         let request = executor

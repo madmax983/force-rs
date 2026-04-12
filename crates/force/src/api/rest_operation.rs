@@ -70,7 +70,7 @@ pub trait RestOperation<A: Authenticator> {
     ///
     /// - `""` (empty string) for the standard REST API
     /// - `"tooling"` for the Tooling API
-    fn path_prefix(&self) -> &str;
+    fn path_prefix(&self) -> &'static str;
 
     /// Resolves a relative API path by prepending the handler's path prefix.
     ///
@@ -781,8 +781,7 @@ mod tests {
         fn session(&self) -> &Arc<Session<crate::test_support::MockAuthenticator>> {
             unimplemented!("not needed for path tests")
         }
-        #[allow(clippy::unnecessary_literal_bound)]
-        fn path_prefix(&self) -> &str {
+        fn path_prefix(&self) -> &'static str {
             ""
         }
     }
@@ -795,8 +794,7 @@ mod tests {
         fn session(&self) -> &Arc<Session<crate::test_support::MockAuthenticator>> {
             unimplemented!("not needed for path tests")
         }
-        #[allow(clippy::unnecessary_literal_bound)]
-        fn path_prefix(&self) -> &str {
+        fn path_prefix(&self) -> &'static str {
             "tooling"
         }
     }
