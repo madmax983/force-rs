@@ -13,6 +13,7 @@ Design backlog and product-spec notes for incubating `force-rs` capabilities. Th
 
 ## Schema and Codegen
 
+- [`avro-schema-generator.md`](avro-schema-generator.md): Apache Avro schema generation.
 - [`data-dictionary-generator.md`](data-dictionary-generator.md): metadata-to-documentation generation.
 - [`field-usage-scanner.md`](field-usage-scanner.md): schema usage analysis for low-value fields.
 - [`json-schema-generator.md`](json-schema-generator.md): JSON Schema generation from org metadata.
