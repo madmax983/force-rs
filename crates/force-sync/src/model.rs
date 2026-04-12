@@ -161,7 +161,10 @@ pub fn payload_hash(payload: &Value) -> [u8; 32] {
     let mut canonical_payload = payload.clone();
     canonical_payload.sort_all_objects();
 
-    *blake3::hash(canonical_payload.to_string().as_bytes()).as_bytes()
+    // ⚡ Bolt: Use `serde_json::to_writer` to write directly into the hasher, avoiding intermediate string allocation.
+    let mut hasher = blake3::Hasher::new();
+    let _ = serde_json::to_writer(&mut hasher, &canonical_payload);
+    *hasher.finalize().as_bytes()
 }
 
 #[cfg(test)]
