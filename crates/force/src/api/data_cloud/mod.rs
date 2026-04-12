@@ -147,12 +147,11 @@ mod tests {
         let _handler = client.data_cloud().must();
     }
 
+    fn assert_clone<T: Clone>() {}
+
     #[tokio::test]
     async fn test_data_cloud_handler_is_cloneable() {
-        let client = test_dc_client().await;
-        let h1 = client.data_cloud().must();
-        #[allow(clippy::redundant_clone)]
-        let _h2 = h1.clone(); // Intentional: verifies Clone impl works
+        assert_clone::<super::DataCloudHandler<MockAuthenticator>>();
     }
 
     #[tokio::test]
@@ -180,8 +179,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_client_clone_preserves_dc_session() {
-        #[allow(clippy::redundant_clone)]
-        let cloned = test_dc_client().await.clone(); // Intentional: verifies Clone preserves DC session
+        let client = test_dc_client().await;
+        let cloned = client.clone(); // Intentional: verifies Clone preserves DC session
+        std::hint::black_box(client);
         assert!(cloned.data_cloud().is_ok());
     }
 

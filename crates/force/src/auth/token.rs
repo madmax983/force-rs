@@ -221,8 +221,10 @@ fn calculate_expiration(
             return None;
         }
         // Safe to cast because we checked <= 3B, which fits in i64 (max ~9e18)
-        #[allow(clippy::cast_possible_wrap)]
-        let duration = Duration::seconds(seconds as i64);
+        let Ok(seconds_i64) = i64::try_from(seconds) else {
+            return None;
+        };
+        let duration = Duration::seconds(seconds_i64);
         issued_at.checked_add_signed(duration)
     })
 }

@@ -64,11 +64,11 @@ pub fn write_changelog(
         return;
     }
 
-    if !diff.added_fields.is_empty() {
+    if !diff.added.is_empty() {
         md.push_str("## Added Fields\n\n");
         md.push_str("| Label | API Name | Type |\n");
         md.push_str("|---|---|---|\n");
-        for field in &diff.added_fields {
+        for field in &diff.added {
             let _ = writeln!(
                 md,
                 "| {} | `{}` | {:?} |",
@@ -78,11 +78,11 @@ pub fn write_changelog(
         md.push('\n');
     }
 
-    if !diff.removed_fields.is_empty() {
+    if !diff.removed.is_empty() {
         md.push_str("## Removed Fields\n\n");
         md.push_str("| Label | API Name | Type |\n");
         md.push_str("|---|---|---|\n");
-        for field in &diff.removed_fields {
+        for field in &diff.removed {
             let _ = writeln!(
                 md,
                 "| {} | `{}` | {:?} |",
@@ -92,15 +92,15 @@ pub fn write_changelog(
         md.push('\n');
     }
 
-    if !diff.changed_fields.is_empty() {
+    if !diff.changed.is_empty() {
         md.push_str("## Changed Fields\n\n");
         md.push_str("| API Name | Old Type | New Type |\n");
         md.push_str("|---|---|---|\n");
-        for field in &diff.changed_fields {
+        for change in &diff.changed {
             let _ = writeln!(
                 md,
                 "| `{}` | {:?} | {:?} |",
-                field.name, field.old_type, field.new_type
+                change.name, change.old_type, change.new_type
             );
         }
         md.push('\n');
