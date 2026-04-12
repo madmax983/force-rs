@@ -106,7 +106,8 @@ impl SchemaLinter {
     /// Evaluates all configured rules against the given SObject describe.
     #[must_use]
     pub fn lint(&self, describe: &SObjectDescribe) -> Vec<LintResult> {
-        let mut results = Vec::new();
+        // ⚡ Bolt: Pre-allocate capacity tied to the number of rules to reduce heap reallocations.
+        let mut results = Vec::with_capacity(self.rules.len());
         for rule in &self.rules {
             results.extend(rule.evaluate(describe));
         }

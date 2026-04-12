@@ -803,6 +803,7 @@ mod tests {
     // ── Input validation unit tests ──────────────────────────────────
 
     #[tokio::test]
+    #[allow(clippy::unwrap_used)]
     async fn test_validation_create() {
         let op = TestRestOp;
         let result = op.create("Account;DROP", &serde_json::json!({})).await;
@@ -810,6 +811,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[allow(clippy::unwrap_used)]
     async fn test_validation_get() {
         let op = TestRestOp;
         let id = crate::types::SalesforceId::new("001xx000003DHP0AAO").unwrap();
@@ -818,6 +820,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[allow(clippy::unwrap_used)]
     async fn test_validation_update() {
         let op = TestRestOp;
         let id = crate::types::SalesforceId::new("001xx000003DHP0AAO").unwrap();
@@ -826,6 +829,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[allow(clippy::unwrap_used)]
     async fn test_validation_delete() {
         let op = TestRestOp;
         let id = crate::types::SalesforceId::new("001xx000003DHP0AAO").unwrap();
@@ -834,6 +838,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[allow(clippy::unwrap_used)]
     async fn test_validation_upsert() {
         let op = TestRestOp;
         let result = op.upsert("Account;DROP", "ExtId", "123", &serde_json::json!({})).await;
