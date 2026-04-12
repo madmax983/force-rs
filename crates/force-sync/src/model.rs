@@ -156,12 +156,17 @@ impl ChangeEnvelope {
 }
 
 /// Returns a stable BLAKE3 hash for a JSON payload.
+///
+/// ⚡ Bolt: Using `serde_json::to_writer` directly into the hasher avoids
+/// a large intermediate string heap allocation from `.to_string()`.
 #[must_use]
 pub fn payload_hash(payload: &Value) -> [u8; 32] {
     let mut canonical_payload = payload.clone();
     canonical_payload.sort_all_objects();
 
-    *blake3::hash(canonical_payload.to_string().as_bytes()).as_bytes()
+    let mut hasher = blake3::Hasher::new();
+    let _ = serde_json::to_writer(&mut hasher, &canonical_payload);
+    *hasher.finalize().as_bytes()
 }
 
 #[cfg(test)]
