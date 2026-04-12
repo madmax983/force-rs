@@ -148,6 +148,8 @@ mod tests {
     use wiremock::matchers::{method, path, query_param};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
+    use crate::api::rest_operation::RestOperation;
+
     #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
     struct TestAccount {
         #[serde(rename = "Id")]

@@ -455,6 +455,27 @@ pub trait RestOperation<A: Authenticator> {
             .await
     }
 
+    /// Creates a stream of query results for the given SOQL.
+    ///
+    /// This method simplifies paginated queries by returning a stream that automatically
+    /// fetches subsequent pages of results as needed.
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// let stream = client.rest().query_stream::<Account>("SELECT Id FROM Account");
+    /// ```
+    fn query_stream<T>(
+        &self,
+        soql: impl Into<String>,
+    ) -> crate::api::query_stream::QueryStream<T, A, Self>
+    where
+        T: DeserializeOwned + Unpin,
+        Self: Sized + Clone,
+    {
+        crate::api::query_stream::QueryStream::new(self.clone(), soql)
+    }
+
     // ── Describe Operations ──────────────────────────────────────────
 
     /// Retrieves global describe information.
@@ -753,6 +774,7 @@ mod tests {
     // ── resolve_api_path unit tests ─────────────────────────────────
 
     /// Minimal test implementor with no prefix (REST API).
+    #[derive(Clone)]
     struct TestRestOp;
 
     impl RestOperation<crate::test_support::MockAuthenticator> for TestRestOp {
@@ -766,6 +788,7 @@ mod tests {
     }
 
     /// Minimal test implementor with "tooling" prefix.
+    #[derive(Clone)]
     struct TestToolingOp;
 
     impl RestOperation<crate::test_support::MockAuthenticator> for TestToolingOp {

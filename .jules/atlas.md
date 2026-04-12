@@ -61,3 +61,7 @@
 **[The Facade: Enforcing Module Boundaries in force-sync and force-pubsub]**
 **Tangle:** The `force-sync` and `force-pubsub` crates leaked internal submodules directly into the public API by declaring them as `pub mod` (e.g. `apply`, `capture`, `config`, `codec`, `error`). This violated the Facade pattern and exposed messy implementation details to consumers.
 **Blueprint:** Refactored module visibility to `pub(crate) mod` across both crates and explicitly re-exported only the necessary public types (e.g., `SalesforceApplier`, `capture_batch`, `encode_avro`) via explicit `pub use` statements at the root `lib.rs`. Fixed integration tests to depend on the explicit public facade. Reduced nested submodule visibility conflicts to satisfy `clippy::redundant_pub_crate` by allowing `pub mod` exclusively inside already private structures.
+
+**[RestOperation: Exposing query_stream]**
+**Tangle:** The `query_stream` method was implemented directly on `RestHandler` in `api/rest/mod.rs`. This prevented other API handlers like `ToolingHandler` (which also implements `RestOperation`) from leveraging paginated streaming queries for SOQL, breaking cohesion and domain reuse.
+**Blueprint:** Moved `query_stream` to be a provided method on the `RestOperation` trait. This required adding a `Self: Sized + Clone` bound to the method signature and updating all consumer test files to import the `RestOperation` trait so the method would be in scope.
