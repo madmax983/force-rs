@@ -101,10 +101,9 @@ impl<A: crate::auth::authenticator::Authenticator> Session<A> {
             );
         }
 
-        response
-            .json::<T>()
-            .await
-            .map_err(crate::error::HttpError::from)
+        let bytes = crate::http::error::read_capped_body_bytes(response, 100 * 1024 * 1024).await?;
+        serde_json::from_slice::<T>(&bytes)
+            .map_err(crate::error::SerializationError::from)
             .map_err(Into::into)
     }
 

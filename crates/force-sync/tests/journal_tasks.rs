@@ -9,9 +9,7 @@ use futures::FutureExt;
 use serde_json::json;
 
 use force_sync::{
-    identity::SyncKey,
-    model::{ChangeEnvelope, ChangeOperation, SourceCursor, SourceSystem},
-    store::pg::AppendResult,
+    AppendResult, ChangeEnvelope, ChangeOperation, SourceCursor, SourceSystem, SyncKey,
 };
 
 fn test_envelope(cursor: i64) -> ChangeEnvelope {
@@ -35,13 +33,12 @@ fn test_envelope(cursor: i64) -> ChangeEnvelope {
 
 #[tokio::test]
 #[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
-async fn appending_a_journal_entry_creates_a_row() -> Result<(), force_sync::error::ForceSyncError>
-{
+async fn appending_a_journal_entry_creates_a_row() -> Result<(), force_sync::ForceSyncError> {
     let pool = support::postgres::test_pool();
     support::postgres::reset_schema(&pool).await?;
-    force_sync::store::pg::migrate(&pool).await?;
+    force_sync::migrate(&pool).await?;
 
-    let store = force_sync::store::pg::PgStore::new(pool.clone());
+    let store = force_sync::PgStore::new(pool.clone());
     let envelope = test_envelope(1);
 
     let journal_id = store.append_journal(&envelope).await?;
@@ -67,12 +64,12 @@ async fn appending_a_journal_entry_creates_a_row() -> Result<(), force_sync::err
 
 #[tokio::test]
 #[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
-async fn duplicate_source_cursor_is_deduped() -> Result<(), force_sync::error::ForceSyncError> {
+async fn duplicate_source_cursor_is_deduped() -> Result<(), force_sync::ForceSyncError> {
     let pool = support::postgres::test_pool();
     support::postgres::reset_schema(&pool).await?;
-    force_sync::store::pg::migrate(&pool).await?;
+    force_sync::migrate(&pool).await?;
 
-    let store = force_sync::store::pg::PgStore::new(pool.clone());
+    let store = force_sync::PgStore::new(pool.clone());
     let envelope = test_envelope(2);
 
     match store.append_journal_if_new(&envelope).await? {
@@ -98,22 +95,20 @@ async fn duplicate_source_cursor_is_deduped() -> Result<(), force_sync::error::F
 
 #[tokio::test]
 #[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
-async fn enqueuing_a_task_in_the_same_transaction_works()
--> Result<(), force_sync::error::ForceSyncError> {
+async fn enqueuing_a_task_in_the_same_transaction_works() -> Result<(), force_sync::ForceSyncError>
+{
     let pool = support::postgres::test_pool();
     support::postgres::reset_schema(&pool).await?;
-    force_sync::store::pg::migrate(&pool).await?;
+    force_sync::migrate(&pool).await?;
 
-    let store = force_sync::store::pg::PgStore::new(pool.clone());
+    let store = force_sync::PgStore::new(pool.clone());
     let envelope = test_envelope(3);
 
     let journal_id = store
         .with_transaction(|tx| {
             async move {
-                let journal_id =
-                    force_sync::store::pg::PgStore::append_journal_in_tx(tx, &envelope).await?;
-                force_sync::store::pg::PgStore::enqueue_apply_task_in_tx(tx, journal_id, 10)
-                    .await?;
+                let journal_id = force_sync::PgStore::append_journal_in_tx(tx, &envelope).await?;
+                force_sync::PgStore::enqueue_apply_task_in_tx(tx, journal_id, 10).await?;
                 Ok(journal_id)
             }
             .boxed()
@@ -134,12 +129,12 @@ async fn enqueuing_a_task_in_the_same_transaction_works()
 
 #[tokio::test]
 #[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
-async fn leasing_a_task_marks_owner_and_until() -> Result<(), force_sync::error::ForceSyncError> {
+async fn leasing_a_task_marks_owner_and_until() -> Result<(), force_sync::ForceSyncError> {
     let pool = support::postgres::test_pool();
     support::postgres::reset_schema(&pool).await?;
-    force_sync::store::pg::migrate(&pool).await?;
+    force_sync::migrate(&pool).await?;
 
-    let store = force_sync::store::pg::PgStore::new(pool.clone());
+    let store = force_sync::PgStore::new(pool.clone());
     let envelope = test_envelope(4);
     let journal_id = store.append_journal(&envelope).await?;
     store.enqueue_apply_task(journal_id, 5).await?;
@@ -167,12 +162,12 @@ async fn leasing_a_task_marks_owner_and_until() -> Result<(), force_sync::error:
 #[tokio::test]
 #[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
 async fn worker_guarded_task_updates_require_the_current_lease_and_clear_retry_state()
--> Result<(), force_sync::error::ForceSyncError> {
+-> Result<(), force_sync::ForceSyncError> {
     let pool = support::postgres::test_pool();
     support::postgres::reset_schema(&pool).await?;
-    force_sync::store::pg::migrate(&pool).await?;
+    force_sync::migrate(&pool).await?;
 
-    let store = force_sync::store::pg::PgStore::new(pool.clone());
+    let store = force_sync::PgStore::new(pool.clone());
     let envelope = test_envelope(5);
     let journal_id = store.append_journal(&envelope).await?;
     store.enqueue_apply_task(journal_id, 5).await?;
@@ -244,12 +239,12 @@ async fn worker_guarded_task_updates_require_the_current_lease_and_clear_retry_s
 
 #[tokio::test]
 #[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
-async fn wrong_worker_cannot_ack_task() -> Result<(), force_sync::error::ForceSyncError> {
+async fn wrong_worker_cannot_ack_task() -> Result<(), force_sync::ForceSyncError> {
     let pool = support::postgres::test_pool();
     support::postgres::reset_schema(&pool).await?;
-    force_sync::store::pg::migrate(&pool).await?;
+    force_sync::migrate(&pool).await?;
 
-    let store = force_sync::store::pg::PgStore::new(pool.clone());
+    let store = force_sync::PgStore::new(pool.clone());
     let envelope = test_envelope(10);
     let journal_id = store.append_journal(&envelope).await?;
     store.enqueue_apply_task(journal_id, 5).await?;
@@ -275,12 +270,12 @@ async fn wrong_worker_cannot_ack_task() -> Result<(), force_sync::error::ForceSy
 
 #[tokio::test]
 #[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
-async fn wrong_worker_cannot_fail_task() -> Result<(), force_sync::error::ForceSyncError> {
+async fn wrong_worker_cannot_fail_task() -> Result<(), force_sync::ForceSyncError> {
     let pool = support::postgres::test_pool();
     support::postgres::reset_schema(&pool).await?;
-    force_sync::store::pg::migrate(&pool).await?;
+    force_sync::migrate(&pool).await?;
 
-    let store = force_sync::store::pg::PgStore::new(pool.clone());
+    let store = force_sync::PgStore::new(pool.clone());
     let envelope = test_envelope(11);
     let journal_id = store.append_journal(&envelope).await?;
     store.enqueue_apply_task(journal_id, 5).await?;
@@ -321,12 +316,12 @@ async fn wrong_worker_cannot_fail_task() -> Result<(), force_sync::error::ForceS
 #[tokio::test]
 #[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
 async fn retry_task_with_future_next_attempt_at_is_not_leasable_until_due()
--> Result<(), force_sync::error::ForceSyncError> {
+-> Result<(), force_sync::ForceSyncError> {
     let pool = support::postgres::test_pool();
     support::postgres::reset_schema(&pool).await?;
-    force_sync::store::pg::migrate(&pool).await?;
+    force_sync::migrate(&pool).await?;
 
-    let store = force_sync::store::pg::PgStore::new(pool.clone());
+    let store = force_sync::PgStore::new(pool.clone());
     let envelope = test_envelope(12);
     let journal_id = store.append_journal(&envelope).await?;
     store.enqueue_apply_task(journal_id, 5).await?;
@@ -365,12 +360,12 @@ async fn retry_task_with_future_next_attempt_at_is_not_leasable_until_due()
 
 #[tokio::test]
 #[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
-async fn done_task_cannot_be_re_leased() -> Result<(), force_sync::error::ForceSyncError> {
+async fn done_task_cannot_be_re_leased() -> Result<(), force_sync::ForceSyncError> {
     let pool = support::postgres::test_pool();
     support::postgres::reset_schema(&pool).await?;
-    force_sync::store::pg::migrate(&pool).await?;
+    force_sync::migrate(&pool).await?;
 
-    let store = force_sync::store::pg::PgStore::new(pool.clone());
+    let store = force_sync::PgStore::new(pool.clone());
     let envelope = test_envelope(13);
     let journal_id = store.append_journal(&envelope).await?;
     store.enqueue_apply_task(journal_id, 5).await?;
@@ -393,21 +388,20 @@ async fn done_task_cannot_be_re_leased() -> Result<(), force_sync::error::ForceS
 
 #[tokio::test]
 #[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
-async fn in_tx_lease_and_ack_round_trip() -> Result<(), force_sync::error::ForceSyncError> {
+async fn in_tx_lease_and_ack_round_trip() -> Result<(), force_sync::ForceSyncError> {
     let pool = support::postgres::test_pool();
     support::postgres::reset_schema(&pool).await?;
-    force_sync::store::pg::migrate(&pool).await?;
+    force_sync::migrate(&pool).await?;
 
-    let store = force_sync::store::pg::PgStore::new(pool.clone());
+    let store = force_sync::PgStore::new(pool.clone());
     let envelope = test_envelope(14);
 
     // Enqueue inside a transaction using _in_tx variant.
     let journal_id = store
         .with_transaction(|tx| {
             async move {
-                let jid =
-                    force_sync::store::pg::PgStore::append_journal_in_tx(tx, &envelope).await?;
-                force_sync::store::pg::PgStore::enqueue_apply_task_in_tx(tx, jid, 10).await?;
+                let jid = force_sync::PgStore::append_journal_in_tx(tx, &envelope).await?;
+                force_sync::PgStore::enqueue_apply_task_in_tx(tx, jid, 10).await?;
                 Ok(jid)
             }
             .boxed()
@@ -418,7 +412,7 @@ async fn in_tx_lease_and_ack_round_trip() -> Result<(), force_sync::error::Force
     let leased = store
         .with_transaction(|tx| {
             async move {
-                let tasks = force_sync::store::pg::PgStore::lease_ready_tasks_in_tx(
+                let tasks = force_sync::PgStore::lease_ready_tasks_in_tx(
                     tx,
                     "tx-worker",
                     1,
@@ -437,7 +431,7 @@ async fn in_tx_lease_and_ack_round_trip() -> Result<(), force_sync::error::Force
     let rows_affected = store
         .with_transaction(|tx| {
             let task_id = leased[0].task_id;
-            async move { force_sync::store::pg::PgStore::ack_task_in_tx(tx, task_id).await }.boxed()
+            async move { force_sync::PgStore::ack_task_in_tx(tx, task_id).await }.boxed()
         })
         .await?;
     assert_eq!(rows_affected, 1);
@@ -457,12 +451,12 @@ async fn in_tx_lease_and_ack_round_trip() -> Result<(), force_sync::error::Force
 
 #[tokio::test]
 #[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
-async fn in_tx_retry_and_fail_round_trip() -> Result<(), force_sync::error::ForceSyncError> {
+async fn in_tx_retry_and_fail_round_trip() -> Result<(), force_sync::ForceSyncError> {
     let pool = support::postgres::test_pool();
     support::postgres::reset_schema(&pool).await?;
-    force_sync::store::pg::migrate(&pool).await?;
+    force_sync::migrate(&pool).await?;
 
-    let store = force_sync::store::pg::PgStore::new(pool.clone());
+    let store = force_sync::PgStore::new(pool.clone());
     let envelope = test_envelope(15);
     let journal_id = store.append_journal(&envelope).await?;
     store.enqueue_apply_task(journal_id, 5).await?;
@@ -477,10 +471,8 @@ async fn in_tx_retry_and_fail_round_trip() -> Result<(), force_sync::error::Forc
     let past = Utc::now() - chrono::Duration::seconds(1);
     let rows_affected = store
         .with_transaction(|tx| {
-            async move {
-                force_sync::store::pg::PgStore::retry_task_in_tx(tx, task_id, past, "oops").await
-            }
-            .boxed()
+            async move { force_sync::PgStore::retry_task_in_tx(tx, task_id, past, "oops").await }
+                .boxed()
         })
         .await?;
     assert_eq!(rows_affected, 1);
@@ -494,10 +486,8 @@ async fn in_tx_retry_and_fail_round_trip() -> Result<(), force_sync::error::Forc
     let fail_task_id = leased[0].task_id;
     let rows_affected = store
         .with_transaction(|tx| {
-            async move {
-                force_sync::store::pg::PgStore::fail_task_in_tx(tx, fail_task_id, "fatal").await
-            }
-            .boxed()
+            async move { force_sync::PgStore::fail_task_in_tx(tx, fail_task_id, "fatal").await }
+                .boxed()
         })
         .await?;
     assert_eq!(rows_affected, 1);
@@ -517,12 +507,12 @@ async fn in_tx_retry_and_fail_round_trip() -> Result<(), force_sync::error::Forc
 
 #[tokio::test]
 #[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
-async fn failed_task_cannot_be_re_leased() -> Result<(), force_sync::error::ForceSyncError> {
+async fn failed_task_cannot_be_re_leased() -> Result<(), force_sync::ForceSyncError> {
     let pool = support::postgres::test_pool();
     support::postgres::reset_schema(&pool).await?;
-    force_sync::store::pg::migrate(&pool).await?;
+    force_sync::migrate(&pool).await?;
 
-    let store = force_sync::store::pg::PgStore::new(pool.clone());
+    let store = force_sync::PgStore::new(pool.clone());
     let envelope = test_envelope(16);
     let journal_id = store.append_journal(&envelope).await?;
     store.enqueue_apply_task(journal_id, 5).await?;

@@ -19,6 +19,7 @@ Upgrade supported Salesforce API versions with controlled compatibility and rele
 3. Run live contract tests in a dev org:
    - REST smoke + negative payload assertions
    - Bulk stream + optional partial-failure test
+   - use either explicit `SF_ACCESS_TOKEN` / `SF_INSTANCE_URL` env vars or a locally authenticated Salesforce CLI org (`SF_TARGET_ORG` optional)
 4. Evaluate breaking behavior:
    - removed fields/endpoints
    - status/error-code changes

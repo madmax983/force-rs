@@ -1,0 +1,28 @@
+--- crates/force/src/api/files.rs
++++ crates/force/src/api/files.rs
+@@ -107,7 +107,7 @@
+         let status = response.status();
+         let bytes = response.bytes().await.map_err(|e| ForceError::Http(crate::error::HttpError::RequestFailed(e)))?;
+
+-        if !status.is_success() && status.as_u16() != 201 {
++        if !status.is_success() {
+             return Err(ForceError::InvalidInput("Failed to upload ContentVersion".into()));
+         }
+
+@@ -149,7 +149,7 @@
+         let status = response.status();
+         let bytes = response.bytes().await.map_err(|e| ForceError::Http(crate::error::HttpError::RequestFailed(e)))?;
+
+-        if !status.is_success() && status.as_u16() != 200 {
++        if !status.is_success() {
+             return Err(ForceError::InvalidInput("Failed to download ContentVersion".into()));
+         }
+
+@@ -194,7 +194,7 @@
+         let status = response.status();
+         let bytes = response.bytes().await.map_err(|e| ForceError::Http(crate::error::HttpError::RequestFailed(e)))?;
+
+-        if !status.is_success() && status.as_u16() != 201 {
++        if !status.is_success() {
+             return Err(ForceError::InvalidInput("Failed to insert ContentDocumentLink".into()));
+         }

@@ -62,3 +62,16 @@
 **[Avoid `#![allow(clippy::unwrap_used)]` in Test Modules]**
 **Learning:** Using `#![allow(clippy::unwrap_used)]` to suppress unwrap warnings in test modules bypasses the project's custom `Must` trait (`.must()`), which provides better diagnostic messages on panics.
 **Action:** Always use the `.must()` or `.must_msg()` extensions from `crate::test_support::Must` instead of `unwrap()` in tests, and avoid suppressing the `clippy::unwrap_used` lint.
+**2024-03-28 - [BuilderUnwrapExt Missing Panic Tests]**
+**Learning:** `BuilderUnwrapExt`'s `unwrap_or_panic` method was completely untested, meaning the shared panic formatting utility was unverified.
+**Action:** Always make sure central/shared panic wrapper extensions (like `BuilderUnwrapExt::unwrap_or_panic`) are covered by explicit `#[should_panic]` unit tests within their own module to guarantee consistency across all usage sites.
+**[Wiremock Mount Order evaluation for Partial Failure Tests]
+**Learning:** `wiremock` evaluates mounted mocks in reverse order of mounting (LIFO). When mocking an endpoint where one mock is meant to handle specific first requests (like `up_to_n_times(1)`) and another mock is meant to catch all subsequent requests (the fallback), the fallback must be mounted *first*. Otherwise, the fallback intercepts the first request incorrectly.
+**Action:** When defining multiple mocks for the same endpoint in integration tests using `wiremock`, always mount the generic fallback mock first, and the specific limited mock second.
+**[Use Pattern Matching in Tests to Avoid unwrap_used lints]
+**Learning:** When strict `clippy::unwrap_used` and `clippy::expect_used` lints are enforced workspace-wide, and utility traits like `Must` or `MustMsg` are unavailable because they are defined inside a `#[cfg(test)]` block in another crate (like `force::test_support`), it is best to avoid globally suppressing the lints via `#![allow(clippy::unwrap_used)]`. Instead, refactor tests to use standard Rust pattern matching (e.g., `let Ok(val) = result else { panic!("...") };`) which honors the lint while preserving the panic-on-failure semantic required for tests.
+**Action:** Use `let Ok(val) = ...` or `let Some(val) = ...` combined with `else { panic!("...") };` in integration tests and workspace crate tests where helper traits are not accessible, rather than overriding the lints.
+
+**[OAuth Error Parsing Missing Coverage]**
+**Learning:** `handle_oauth_error` in `auth/mod.rs` handles the parsing of OAuth JSON error responses from Salesforce as well as fallback raw text HTTP errors. However, this parsing logic was untested, meaning changes to the error data structure or text fallback mechanisms could regress without being caught.
+**Action:** Always ensure that network layer error parsers and builders are covered by explicit tests simulating both valid JSON error payloads and invalid/empty payloads to ensure fallbacks (e.g. "Unknown error") behave as intended.

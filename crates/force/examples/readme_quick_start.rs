@@ -2,7 +2,7 @@
 
 #[cfg(feature = "rest")]
 mod example {
-    use force::api::rest_operation::RestOperation;
+    use force::api::RestOperation;
     use force::auth::ClientCredentials;
     use force::client::ForceClientBuilder;
     use serde::Deserialize;

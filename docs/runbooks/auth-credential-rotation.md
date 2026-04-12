@@ -35,7 +35,10 @@ Rotate Salesforce authentication material (client secret, JWT private key, acces
 cargo test -p force --all-features --test live_salesforce -- --ignored --test-threads=1
 ```
 
-Run only after setting valid `SF_ACCESS_TOKEN` and `SF_INSTANCE_URL`.
+Run after either:
+
+- setting valid `SF_ACCESS_TOKEN` and `SF_INSTANCE_URL`, or
+- authenticating a Salesforce CLI org locally (`sf org login ...`) and optionally setting `SF_TARGET_ORG`.
 
 ## Rollback
 

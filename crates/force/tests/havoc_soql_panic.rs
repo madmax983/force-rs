@@ -9,7 +9,7 @@
 
 #[cfg(test)]
 mod tests {
-    use force::api::soql::SoqlQueryBuilder;
+    use force::api::SoqlQueryBuilder;
     use proptest::prelude::*;
 
     proptest! {

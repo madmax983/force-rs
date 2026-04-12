@@ -8,7 +8,7 @@
 //! # Example
 //!
 //! ```no_run
-//! # use force::api::rest_operation::RestOperation;
+//! # use force::api::RestOperation;
 //! # use force::client::ForceClientBuilder;
 //! # use force::schema::generate_ddl;
 //! # use force::auth::ClientCredentials;
@@ -38,24 +38,22 @@ use crate::api::rest::describe::{FieldType, SObjectDescribe};
 /// if it exists.
 #[must_use]
 pub fn generate_ddl(describe: &SObjectDescribe) -> String {
+    let mut ddl = String::with_capacity(1024);
+    write_ddl(&mut ddl, describe);
+    ddl
+}
+
+/// Writes a `CREATE TABLE` SQL statement for the given SObject describe metadata directly to a string buffer.
+pub fn write_ddl(ddl: &mut String, describe: &SObjectDescribe) {
     use std::fmt::Write;
 
-    let mut ddl = String::with_capacity(1024);
     let _ = writeln!(ddl, "CREATE TABLE {} (", describe.name);
 
     // Sort fields alphabetically to ensure deterministic output,
     // but always put 'Id' first if it exists.
     // ⚡ Bolt: Collecting references to fields instead of deep cloning the entire `describe.fields` Vec avoids significant heap allocation per field.
     let mut fields: Vec<&_> = describe.fields.iter().collect();
-    fields.sort_by(|a, b| {
-        if a.name == "Id" {
-            std::cmp::Ordering::Less
-        } else if b.name == "Id" {
-            std::cmp::Ordering::Greater
-        } else {
-            a.name.cmp(&b.name)
-        }
-    });
+    fields.sort_by(|a, b| crate::schema::cmp_field_names(&a.name, &b.name));
 
     // ⚡ Bolt: Append directly to `ddl` buffer instead of collecting into an intermediate `field_defs` Vec and calling `.join(",\n")`.
     let mut first = true;
@@ -66,7 +64,7 @@ pub fn generate_ddl(describe: &SObjectDescribe) -> String {
         first = false;
 
         let _ = write!(ddl, "    {} ", field.name);
-        write_field_type(&mut ddl, &field.type_, field.length);
+        write_field_type(ddl, &field.type_, field.length);
 
         if field.name == "Id" {
             ddl.push_str(" PRIMARY KEY");
@@ -79,8 +77,6 @@ pub fn generate_ddl(describe: &SObjectDescribe) -> String {
     }
 
     ddl.push_str("\n);");
-
-    ddl
 }
 
 /// Maps a Salesforce `FieldType` to a standard SQL data type.

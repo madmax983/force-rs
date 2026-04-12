@@ -110,7 +110,6 @@ impl Default for SchemaCache {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
 
@@ -135,9 +134,9 @@ mod tests {
     #[test]
     fn test_parse_and_insert() {
         let cache = SchemaCache::new();
-        cache
-            .parse_and_insert("schema-001".to_string(), SIMPLE_SCHEMA_JSON)
-            .expect("valid schema JSON");
+        let Ok(_) = cache.parse_and_insert("schema-001".to_string(), SIMPLE_SCHEMA_JSON) else {
+            panic!("valid schema JSON")
+        };
         assert_eq!(cache.len(), 1);
         assert!(!cache.is_empty());
         assert!(cache.get("schema-001").is_some());
@@ -165,9 +164,9 @@ mod tests {
         let cache = SchemaCache::new();
         let cache2 = cache.clone();
 
-        cache
-            .parse_and_insert("shared".to_string(), SIMPLE_SCHEMA_JSON)
-            .expect("valid");
+        let Ok(_) = cache.parse_and_insert("shared".to_string(), SIMPLE_SCHEMA_JSON) else {
+            panic!("valid")
+        };
 
         // Clone shares the same underlying DashMap via Arc
         assert_eq!(cache2.len(), 1);

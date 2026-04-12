@@ -1,0 +1,22 @@
+--- crates/force/src/api/files.rs
++++ crates/force/src/api/files.rs
+@@ -216,7 +216,7 @@
+             .respond_with(ResponseTemplate::new(201).set_body_json(json!({
+                 "id": "068000000000001AAA",
+                 "success": true,
+                 "errors": []
+             })))
+             .mount(&mock_server)
+             .await;
+@@ -242,7 +242,7 @@
+             .respond_with(ResponseTemplate::new(200).set_body_bytes(expected_bytes.clone()))
+             .mount(&mock_server)
+             .await;
+@@ -270,7 +270,7 @@
+             .respond_with(ResponseTemplate::new(201).set_body_json(json!({
+                 "id": "06A000000000001AAA",
+                 "success": true,
+                 "errors": []
+             })))
+             .mount(&mock_server)
+             .await;

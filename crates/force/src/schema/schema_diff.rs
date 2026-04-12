@@ -7,7 +7,7 @@
 //! # Example
 //!
 //! ```no_run
-//! # use force::api::rest_operation::RestOperation;
+//! # use force::api::RestOperation;
 //! # use force::client::ForceClientBuilder;
 //! # use force::schema::compare_schemas;
 //! # use force::auth::ClientCredentials;
@@ -82,6 +82,7 @@ pub fn compare_schemas(
 ) -> SchemaDiffResult {
     let mut result = SchemaDiffResult::default();
 
+    // ⚡ Bolt: Use .as_str() directly in the map instead of doing a heap allocation (.clone())
     let mut old_fields: HashMap<&str, &FieldDescribe> = old_schema
         .fields
         .iter()
@@ -89,6 +90,7 @@ pub fn compare_schemas(
         .collect();
 
     // Find added and changed fields
+    // ⚡ Bolt: Use new_field.name.as_str() instead of doing a heap allocation (.clone())
     for new_field in &new_schema.fields {
         if let Some(old_field) = old_fields.remove(new_field.name.as_str()) {
             if old_field.type_ != new_field.type_ {
@@ -110,9 +112,15 @@ pub fn compare_schemas(
         .extend(old_fields.into_values().cloned());
 
     // Sort to ensure deterministic output
-    result.added_fields.sort_by(|a, b| a.name.cmp(&b.name));
-    result.removed_fields.sort_by(|a, b| a.name.cmp(&b.name));
-    result.changed_fields.sort_by(|a, b| a.name.cmp(&b.name));
+    result
+        .added_fields
+        .sort_by(|a, b| crate::schema::cmp_field_names(&a.name, &b.name));
+    result
+        .removed_fields
+        .sort_by(|a, b| crate::schema::cmp_field_names(&a.name, &b.name));
+    result
+        .changed_fields
+        .sort_by(|a, b| crate::schema::cmp_field_names(&a.name, &b.name));
 
     result
 }

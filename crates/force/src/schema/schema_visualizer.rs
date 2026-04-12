@@ -35,7 +35,6 @@ pub async fn generate_visualizer_report<A: Authenticator>(
 
     let mut graph = SchemaGraph::new(client);
     graph.add_describe(describe.clone());
-    let mermaid = graph.to_mermaid();
 
     let mut md = String::with_capacity(2048);
 
@@ -66,7 +65,7 @@ pub async fn generate_visualizer_report<A: Authenticator>(
 
     let _ = writeln!(md, "## Entity-Relationship Diagram\n");
     let _ = writeln!(md, "```mermaid");
-    md.push_str(&mermaid);
+    graph.write_mermaid(&mut md);
     let _ = writeln!(md, "```\n");
 
     if include_usage {
@@ -82,7 +81,7 @@ pub async fn generate_visualizer_report<A: Authenticator>(
         let _ = writeln!(md, "|---|---|---|");
 
         let mut fields = describe.fields;
-        fields.sort_by(|a, b| a.name.cmp(&b.name));
+        fields.sort_by(|a, b| crate::schema::cmp_field_names(&a.name, &b.name));
 
         for field in &fields {
             if let Some(pct) = usage_map.get(&field.name) {

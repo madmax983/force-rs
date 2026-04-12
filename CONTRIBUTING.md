@@ -280,10 +280,13 @@ Thank you for contributing to `force-rs`!
 
 Live tests are in `crates/force/tests/live_salesforce.rs` and use `#[ignore]` by default.
 
-Required environment:
+Credential sources:
 
-- `SF_ACCESS_TOKEN`
-- `SF_INSTANCE_URL`
+- explicit environment variables:
+  - `SF_ACCESS_TOKEN`
+  - `SF_INSTANCE_URL`
+- or a locally authenticated Salesforce CLI org discovered via `sf org display --verbose --json`
+  - optional `SF_TARGET_ORG` to select a non-default org alias or username
 - optional `SF_API_VERSION` (default `v60.0`)
 
 Optional runtime tuning:
@@ -303,4 +306,19 @@ Run manually:
 
 ```bash
 cargo test -p force --all-features --test live_salesforce -- --ignored --test-threads=1
+```
+
+Examples:
+
+```bash
+# Use explicit env vars
+SF_ACCESS_TOKEN=... SF_INSTANCE_URL=https://your-org.my.salesforce.com \
+  cargo test -p force --all-features --test live_salesforce -- --ignored --test-threads=1
+
+# Use the default authenticated Salesforce CLI org
+cargo test -p force --all-features --test live_salesforce -- --ignored --test-threads=1
+
+# Use a specific authenticated Salesforce CLI org
+SF_TARGET_ORG=my-dev-org \
+  cargo test -p force --all-features --test live_salesforce -- --ignored --test-threads=1
 ```

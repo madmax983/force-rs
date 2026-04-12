@@ -8,6 +8,7 @@ Design backlog and product-spec notes for incubating `force-rs` capabilities. Th
 - [`consent-portability-api.md`](consent-portability-api.md): Consent and Portability API support.
 - [`force-sync-engine.md`](force-sync-engine.md): Postgres-first bidirectional sync engine.
 - [`pub-sub-api.md`](pub-sub-api.md): gRPC event streaming via Salesforce Pub/Sub.
+- [`soap-api.md`](soap-api.md): Legacy Enterprise and Partner SOAP API support.
 
 ## Schema and Codegen
 
@@ -16,6 +17,8 @@ Design backlog and product-spec notes for incubating `force-rs` capabilities. Th
 - [`json-schema-generator.md`](json-schema-generator.md): JSON Schema generation from org metadata.
 - [`openapi-generator.md`](openapi-generator.md): OpenAPI generation for downstream consumers.
 - [`postman-collection-generator.md`](postman-collection-generator.md): Postman collection generation for API testing.
+- [`protobuf-schema-generator.md`](protobuf-schema-generator.md): Protobuf (proto3) schema generation for gRPC services.
+- [`pydantic-model-generator.md`](pydantic-model-generator.md): Python Pydantic model generation for data pipelines.
 - [`rust-struct-generator.md`](rust-struct-generator.md): Rust type generation from Salesforce schema.
 - [`schema-analyzer.md`](schema-analyzer.md): schema quality and risk analysis.
 - [`schema-changelog-generator.md`](schema-changelog-generator.md): schema diff and release changelog generation.
@@ -23,6 +26,13 @@ Design backlog and product-spec notes for incubating `force-rs` capabilities. Th
 - [`schema-visualizer.md`](schema-visualizer.md): visual schema graphing.
 - [`sql-ddl-exporter.md`](sql-ddl-exporter.md): SQL DDL export for warehouse and database workflows.
 - [`typescript-interface-generator.md`](typescript-interface-generator.md): TypeScript interface generation.
+- [`zod-schema-generator.md`](zod-schema-generator.md): TypeScript Zod schema generation for runtime validation.
+- [`bigquery-schema-generator.md`](bigquery-schema-generator.md): Google BigQuery table schema generation.
+
+## Metadata and Tooling
+
+- [`metadata-api.md`](metadata-api.md): Metadata API deployment and retrieval operations.
+- [`query-plan-analyzer.md`](query-plan-analyzer.md): SOQL query performance analyzer and cost threshold validation.
 
 ## Content and Files
 

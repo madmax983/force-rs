@@ -22,7 +22,7 @@
 #[cfg(feature = "tooling")]
 mod example {
     use anyhow::Context;
-    use force::api::rest_operation::RestOperation;
+    use force::api::RestOperation;
     use force::api::tooling::{CompletionsType, RunTestsRequest, TestItem};
     use force::auth::ClientCredentials;
     use force::client::ForceClientBuilder;
