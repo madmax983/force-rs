@@ -216,16 +216,12 @@ impl<T, A: crate::auth::Authenticator> BulkQueryStream<T, A> {
         let request = request_builder
             .build()
             .map_err(crate::error::HttpError::from)?;
-        let response = self.inner.execute_request(request).await?;
-
-        if !response.status().is_success() {
-            return Err(crate::http::response_to_force_error(
-                response,
+        self.inner
+            .execute_and_check_success(
+                request,
                 &format!("Failed to fetch query results for job {}", self.job_id),
             )
-            .await);
-        }
-        Ok(response)
+            .await
     }
 
     fn update_locator(&mut self, response: &reqwest::Response) {
@@ -463,16 +459,12 @@ impl<A: crate::auth::Authenticator> super::BulkHandler<A> {
             .delete(&url)
             .build()
             .map_err(crate::error::HttpError::from)?;
-        let response = inner.execute_request(request).await?;
-
-        if !response.status().is_success() {
-            return Err(crate::http::response_to_force_error(
-                response,
+        inner
+            .execute_and_check_success(
+                request,
                 &format!("Delete query job request failed for job {}", job_id),
             )
-            .await);
-        }
-
+            .await?;
         Ok(())
     }
 

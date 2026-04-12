@@ -137,13 +137,9 @@ impl<S: Send + Sync, A: Authenticator> IngestJob<S, A> {
         }
 
         let request = builder.build().map_err(crate::error::HttpError::from)?;
-        let response = self.inner.execute_request(request).await?;
-
-        if !response.status().is_success() {
-            return Err(crate::http::response_to_force_error(response, error_context).await);
-        }
-
-        Ok(response)
+        self.inner
+            .execute_and_check_success(request, error_context)
+            .await
     }
 }
 
@@ -606,16 +602,12 @@ impl<A: Authenticator> BulkHandler<A> {
             .delete(&url)
             .build()
             .map_err(crate::error::HttpError::from)?;
-        let response = self.inner.execute_request(request).await?;
-
-        if !response.status().is_success() {
-            return Err(crate::http::response_to_force_error(
-                response,
+        self.inner
+            .execute_and_check_success(
+                request,
                 &format!("Delete job request failed for job {}", job_id),
             )
-            .await);
-        }
-
+            .await?;
         Ok(())
     }
 

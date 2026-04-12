@@ -157,12 +157,10 @@ impl<A: crate::auth::Authenticator> UiHandler<A> {
             .delete(&url)
             .build()
             .map_err(crate::error::HttpError::from)?;
-        let response = self.inner.execute_request(request).await?;
-        if response.status().is_success() {
-            Ok(())
-        } else {
-            Err(crate::http::response_to_force_error(response, error_msg).await)
-        }
+        self.inner
+            .execute_and_check_success(request, error_msg)
+            .await?;
+        Ok(())
     }
 }
 
