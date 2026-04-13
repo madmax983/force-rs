@@ -404,6 +404,12 @@ pub trait RestOperation<A: Authenticator> {
     where
         T: DeserializeOwned,
     {
+        if soql.len() > 100_000 {
+            return Err(ForceError::InvalidInput(
+                "SOQL query exceeds maximum allowed length of 100,000 bytes".to_string(),
+            ));
+        }
+
         let api_path = self.resolve_api_path("query");
         let url = self.session().resolve_url(&api_path).await?;
 
@@ -452,6 +458,12 @@ pub trait RestOperation<A: Authenticator> {
     where
         T: DeserializeOwned,
     {
+        if next_records_url.len() > 100_000 {
+            return Err(ForceError::InvalidInput(
+                "next_records_url exceeds maximum allowed length of 100,000 bytes".to_string(),
+            ));
+        }
+
         let instance_url = self.session().instance_url().await?;
         let url = resolve_next_records_url(&instance_url, next_records_url)?;
 
