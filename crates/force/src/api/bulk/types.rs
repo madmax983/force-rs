@@ -16,13 +16,16 @@ where
     enum StringOrNumber {
         String(String),
         Number(serde_json::Number),
+        // To handle explicit null correctly since we are untagged, we fallback
+        Null,
     }
 
     let value = Option::<StringOrNumber>::deserialize(deserializer)?;
-    Ok(value.map(|value| match value {
-        StringOrNumber::String(value) => value,
-        StringOrNumber::Number(value) => value.to_string(),
-    }))
+    Ok(match value {
+        Some(StringOrNumber::String(value)) => Some(value),
+        Some(StringOrNumber::Number(value)) => Some(value.to_string()),
+        Some(StringOrNumber::Null) | None => None,
+    })
 }
 
 /// Job operation types for Bulk API 2.0.
@@ -321,7 +324,7 @@ mod tests {
     fn test_deserialize_optional_string_or_number() {
         #[derive(Deserialize, PartialEq, Debug)]
         struct Wrapper {
-            #[serde(deserialize_with = "deserialize_optional_string_or_number")]
+            #[serde(default, deserialize_with = "deserialize_optional_string_or_number")]
             value: Option<String>,
         }
 
@@ -354,6 +357,21 @@ mod tests {
         let json = r#"{"value": {}}"#;
         let w_res: Result<Wrapper, _> = serde_json::from_str(json);
         assert!(w_res.is_err());
+
+        // Test completely missing field
+        let json = r"{}";
+        let w: Wrapper = serde_json::from_str(json).must();
+        assert_eq!(w.value, None);
+
+        // Test an arbitrary string that mutants might generate
+        let json = r#"{"value": "xyzzy"}"#;
+        let w: Wrapper = serde_json::from_str(json).must();
+        assert_eq!(w.value, Some("xyzzy".to_string()));
+
+        // Test an empty string
+        let json = r#"{"value": ""}"#;
+        let w: Wrapper = serde_json::from_str(json).must();
+        assert_eq!(w.value, Some(String::new()));
     }
 
     #[test]
