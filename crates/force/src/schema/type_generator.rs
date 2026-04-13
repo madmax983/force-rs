@@ -160,170 +160,50 @@ mod tests {
     }
 
     #[test]
-    #[allow(clippy::too_many_lines)]
     fn test_generate_struct() {
-        use crate::test_support::Must;
-        // Construct JSON since SObjectDescribe has many required fields
-        let json = r#"{
-            "activateable": false,
-            "createable": true,
-            "custom": false,
-            "customSetting": false,
-            "deletable": true,
-            "deprecatedAndHidden": false,
-            "feedEnabled": true,
-            "hasSubtypes": false,
-            "isSubtype": false,
-            "keyPrefix": "001",
-            "label": "Account Object",
-            "labelPlural": "Accounts",
-            "layoutable": true,
-            "mergeable": true,
-            "mruEnabled": true,
-            "name": "Account",
-            "queryable": true,
-            "replicateable": true,
-            "retrieveable": true,
-            "searchable": true,
-            "triggerable": true,
-            "undeletable": true,
-            "updateable": true,
-            "urls": {
-                "sobject": "/services/data/v60.0/sobjects/Account"
-            },
-            "fields": [
-                {
-                    "aggregatable": true,
-                    "autoNumber": false,
-                    "byteLength": 18,
-                    "calculated": false,
-                    "cascadeDelete": false,
-                    "caseSensitive": false,
-                    "createable": false,
-                    "custom": false,
-                    "defaultedOnCreate": true,
-                    "dependentPicklist": false,
-                    "deprecatedAndHidden": false,
-                    "digits": 0,
-                    "displayLocationInDecimal": false,
-                    "encrypted": false,
-                    "externalId": false,
-                    "filterable": true,
-                    "groupable": true,
-                    "highScaleNumber": false,
-                    "htmlFormatted": false,
-                    "idLookup": true,
-                    "label": "Account ID",
-                    "length": 18,
-                    "name": "Id",
-                    "nameField": false,
-                    "namePointing": false,
-                    "nillable": false,
-                    "permissionable": false,
-                    "polymorphicForeignKey": false,
-                    "precision": 0,
-                    "queryByDistance": false,
-                    "referenceTo": [],
-                    "restrictedDelete": false,
-                    "restrictedPicklist": false,
-                    "scale": 0,
-                    "soapType": "tns:ID",
-                    "sortable": true,
-                    "type": "id",
-                    "unique": false,
-                    "updateable": false,
-                    "writeRequiresMasterRead": false
-                },
-                {
-                    "aggregatable": true,
-                    "autoNumber": false,
-                    "byteLength": 255,
-                    "calculated": false,
-                    "cascadeDelete": false,
-                    "caseSensitive": false,
-                    "createable": true,
-                    "custom": false,
-                    "defaultedOnCreate": true,
-                    "dependentPicklist": false,
-                    "deprecatedAndHidden": false,
-                    "digits": 0,
-                    "displayLocationInDecimal": false,
-                    "encrypted": false,
-                    "externalId": false,
-                    "filterable": true,
-                    "groupable": true,
-                    "highScaleNumber": false,
-                    "htmlFormatted": false,
-                    "idLookup": false,
-                    "label": "Account Name",
-                    "length": 255,
-                    "name": "Name",
-                    "nameField": true,
-                    "namePointing": false,
-                    "nillable": true,
-                    "permissionable": false,
-                    "polymorphicForeignKey": false,
-                    "precision": 0,
-                    "queryByDistance": false,
-                    "referenceTo": [],
-                    "restrictedDelete": false,
-                    "restrictedPicklist": false,
-                    "scale": 0,
-                    "soapType": "xsd:string",
-                    "sortable": true,
-                    "type": "string",
-                    "unique": false,
-                    "updateable": true,
-                    "writeRequiresMasterRead": false
-                },
-                {
-                    "aggregatable": true,
-                    "autoNumber": false,
-                    "byteLength": 0,
-                    "calculated": false,
-                    "cascadeDelete": false,
-                    "caseSensitive": false,
-                    "createable": true,
-                    "custom": false,
-                    "defaultedOnCreate": true,
-                    "dependentPicklist": false,
-                    "deprecatedAndHidden": false,
-                    "digits": 0,
-                    "displayLocationInDecimal": false,
-                    "encrypted": false,
-                    "externalId": false,
-                    "filterable": true,
-                    "groupable": true,
-                    "highScaleNumber": false,
-                    "htmlFormatted": false,
-                    "idLookup": false,
-                    "label": "Active",
-                    "length": 0,
-                    "name": "IsActive",
-                    "nameField": false,
-                    "namePointing": false,
-                    "nillable": false,
-                    "permissionable": false,
-                    "polymorphicForeignKey": false,
-                    "precision": 0,
-                    "queryByDistance": false,
-                    "referenceTo": [],
-                    "restrictedDelete": false,
-                    "restrictedPicklist": false,
-                    "scale": 0,
-                    "soapType": "xsd:boolean",
-                    "sortable": true,
-                    "type": "boolean",
-                    "unique": false,
-                    "updateable": true,
-                    "writeRequiresMasterRead": false
-                }
-            ],
-            "childRelationships": [],
-            "recordTypeInfos": []
-        }"#;
+        use crate::test_support::{MockFieldDescribeBuilder, MockSObjectDescribeBuilder};
 
-        let describe: SObjectDescribe = serde_json::from_str(json).must();
+        let describe = MockSObjectDescribeBuilder::new("Account")
+            .field(
+                MockFieldDescribeBuilder::new("Id", FieldType::Id)
+                    .label("Account ID")
+                    .length(18)
+                    .byte_length(18)
+                    .nillable(false)
+                    .createable(false)
+                    .updateable(false)
+                    .permissionable(false)
+                    .defaulted_on_create(true)
+                    .build(),
+            )
+            .field(
+                MockFieldDescribeBuilder::new("Name", FieldType::String)
+                    .label("Account Name")
+                    .length(255)
+                    .byte_length(255)
+                    .nillable(true)
+                    .createable(true)
+                    .updateable(true)
+                    .permissionable(false)
+                    .defaulted_on_create(true)
+                    .build(),
+            )
+            .field(
+                MockFieldDescribeBuilder::new("IsActive", FieldType::Boolean)
+                    .label("Active")
+                    .length(0)
+                    .byte_length(0)
+                    .nillable(false)
+                    .createable(true)
+                    .updateable(true)
+                    .permissionable(false)
+                    .defaulted_on_create(true)
+                    .build(),
+            )
+            .build();
+
+        let mut describe = describe;
+        describe.label = "Account Object".to_string(); // override default label from the builder
 
         let result = generate_rust_struct(&describe);
 
