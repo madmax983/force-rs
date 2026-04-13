@@ -760,7 +760,9 @@ mod tests {
 
     impl RestOperation<crate::test_support::MockAuthenticator> for TestRestOp {
         fn session(&self) -> &Arc<Session<crate::test_support::MockAuthenticator>> {
-            unreachable!("this is a dummy test stub and should not be accessed if validation fails early")
+            unreachable!(
+                "this is a dummy test stub and should not be accessed if validation fails early"
+            )
         }
         #[allow(clippy::unnecessary_literal_bound)]
         fn path_prefix(&self) -> &str {
@@ -807,7 +809,12 @@ mod tests {
     async fn test_validation_create() {
         let op = TestRestOp;
         let result = op.create("Account;DROP", &serde_json::json!({})).await;
-        assert!(result.unwrap_err().to_string().contains("SObject name contains invalid characters"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("SObject name contains invalid characters")
+        );
     }
 
     #[tokio::test]
@@ -816,7 +823,12 @@ mod tests {
         let op = TestRestOp;
         let id = crate::types::SalesforceId::new("001xx000003DHP0AAO").unwrap();
         let result = op.get("Account;DROP", &id).await;
-        assert!(result.unwrap_err().to_string().contains("SObject name contains invalid characters"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("SObject name contains invalid characters")
+        );
     }
 
     #[tokio::test]
@@ -825,7 +837,12 @@ mod tests {
         let op = TestRestOp;
         let id = crate::types::SalesforceId::new("001xx000003DHP0AAO").unwrap();
         let result = op.update("Account;DROP", &id, &serde_json::json!({})).await;
-        assert!(result.unwrap_err().to_string().contains("SObject name contains invalid characters"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("SObject name contains invalid characters")
+        );
     }
 
     #[tokio::test]
@@ -834,18 +851,37 @@ mod tests {
         let op = TestRestOp;
         let id = crate::types::SalesforceId::new("001xx000003DHP0AAO").unwrap();
         let result = op.delete("Account;DROP", &id).await;
-        assert!(result.unwrap_err().to_string().contains("SObject name contains invalid characters"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("SObject name contains invalid characters")
+        );
     }
 
     #[tokio::test]
     #[allow(clippy::unwrap_used)]
     async fn test_validation_upsert() {
         let op = TestRestOp;
-        let result = op.upsert("Account;DROP", "ExtId", "123", &serde_json::json!({})).await;
-        assert!(result.unwrap_err().to_string().contains("SObject name contains invalid characters"));
+        let result = op
+            .upsert("Account;DROP", "ExtId", "123", &serde_json::json!({}))
+            .await;
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("SObject name contains invalid characters")
+        );
 
-        let result = op.upsert("Account", "ExtId;DROP", "123", &serde_json::json!({})).await;
-        assert!(result.unwrap_err().to_string().contains("External ID field name contains invalid characters"));
+        let result = op
+            .upsert("Account", "ExtId;DROP", "123", &serde_json::json!({}))
+            .await;
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("External ID field name contains invalid characters")
+        );
     }
 
     #[tokio::test]
