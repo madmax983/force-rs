@@ -11,6 +11,8 @@ pub(crate) mod mock_data_generator;
 pub(crate) mod openapi_generator;
 pub(crate) mod postman_generator;
 #[cfg(feature = "schema")]
+pub(crate) mod prisma_generator;
+#[cfg(feature = "schema")]
 pub(crate) mod protobuf_generator;
 pub(crate) mod pydantic_generator;
 pub(crate) mod scanner;
@@ -45,6 +47,8 @@ pub use json_schema::generate_json_schema;
 pub use mock_data_generator::generate_mock_data;
 pub use openapi_generator::{generate_openapi_schema, write_openapi_schema};
 pub use postman_generator::generate_postman_collection;
+#[cfg(feature = "schema")]
+pub use prisma_generator::{generate_prisma_model, write_prisma_model};
 #[cfg(feature = "schema")]
 pub use protobuf_generator::{generate_protobuf_schema, write_protobuf_schema};
 pub use pydantic_generator::{generate_pydantic_model, write_pydantic_model};
