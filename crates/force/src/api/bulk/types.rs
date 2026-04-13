@@ -321,7 +321,7 @@ mod tests {
     fn test_deserialize_optional_string_or_number() {
         #[derive(Deserialize, PartialEq, Debug)]
         struct Wrapper {
-            #[serde(deserialize_with = "deserialize_optional_string_or_number")]
+            #[serde(default, deserialize_with = "deserialize_optional_string_or_number")]
             value: Option<String>,
         }
 
@@ -354,6 +354,11 @@ mod tests {
         let json = r#"{"value": {}}"#;
         let w_res: Result<Wrapper, _> = serde_json::from_str(json);
         assert!(w_res.is_err());
+
+        // Test missing field entirely
+        let json = "{}";
+        let w: Wrapper = serde_json::from_str(json).must();
+        assert_eq!(w.value, None);
     }
 
     #[test]
