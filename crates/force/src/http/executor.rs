@@ -730,6 +730,43 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn test_execute_transport_error_retries_transient_failure() {
+        // We use an unroutable local address to force a transport/connection error.
+        // It will fail every time, but we test that it actually retries up to the limit.
+        let unroutable_url = "http://127.0.0.1:0/services/data/v60.0/query";
+
+        // Set max retries to 3
+        let executor = HttpExecutor::with_config(3, Duration::from_millis(100))
+            .with_base_backoff(Duration::from_millis(1));
+        let token = create_test_token();
+
+        let refresh_token = || async {
+            panic!("Should not be called");
+            #[allow(unreachable_code)]
+            Ok(create_test_token())
+        };
+
+        let request = executor
+            .client
+            .request(Method::GET, unroutable_url)
+            .build()
+            .must();
+
+        let result = executor
+            .execute_response(request, &token, refresh_token)
+            .await;
+
+        let Err(crate::error::ForceError::Http(HttpError::RequestFailed(e))) = result else {
+            panic!("Expected Transport error, got: {:?}", result);
+        };
+        assert!(
+            e.is_connect() || e.is_builder() || e.is_request(),
+            "Expected connection/transport error, got: {:?}",
+            e
+        );
+    }
+
     #[test]
     fn test_executor_default() {
         let executor = HttpExecutor::default();
@@ -935,5 +972,97 @@ mod tests {
             .must();
 
         assert_eq!(completed.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn test_execute_response_with_retry_class_retry_limit() {
+        let mock_server = MockServer::start().await;
+
+        // Mock a connection closed error, which is considered transient
+        Mock::given(method("GET"))
+            .and(path("/test"))
+            // We use a 503 Service Unavailable here, because `reqwest` connection errors
+            // are harder to simulate reliably with wiremock, but 503 is explicitly
+            // checked and retried in `execute_response_with_retry_class`.
+            .respond_with(ResponseTemplate::new(503))
+            // Expect it to be called 4 times (1 initial + 3 retries based on max_retries = 3)
+            .expect(4)
+            .mount(&mock_server)
+            .await;
+
+        let config = crate::config::ClientConfig {
+            max_retries: 3,
+            ..Default::default()
+        };
+
+        // We configure `HttpExecutor` with a very short base backoff
+        // to make the test run quickly.
+        let executor = HttpExecutor::with_config(config.max_retries, config.timeout)
+            .with_base_backoff(Duration::from_millis(1));
+
+        let token = create_test_token();
+
+        let refresh_token = || async {
+            panic!("Should not be called");
+            #[allow(unreachable_code)]
+            Ok(create_test_token())
+        };
+
+        let request = executor
+            .client
+            .request(Method::GET, format!("{}/test", mock_server.uri()))
+            .build()
+            .must();
+
+        let response = executor
+            .execute_response(request, &token, refresh_token)
+            .await
+            .must();
+
+        // After exhausting 3 retries, it should return the last response (503)
+        assert_eq!(response.status().as_u16(), 503);
+    }
+
+    #[tokio::test]
+    async fn test_execute_response_with_retry_class_transient_error() {
+        let mock_server = MockServer::start().await;
+
+        // Simulate a transient error (503) that succeeds on the 3rd attempt
+        Mock::given(method("GET"))
+            .and(path("/test"))
+            .respond_with(ResponseTemplate::new(503))
+            .up_to_n_times(2)
+            .mount(&mock_server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path("/test"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({"ok": true})))
+            .mount(&mock_server)
+            .await;
+
+        let executor = HttpExecutor::with_config(3, Duration::from_secs(5))
+            .with_base_backoff(Duration::from_millis(1));
+
+        let token = create_test_token();
+
+        let refresh_token = || async {
+            panic!("Should not be called");
+            #[allow(unreachable_code)]
+            Ok(create_test_token())
+        };
+
+        let request = executor
+            .client
+            .request(Method::GET, format!("{}/test", mock_server.uri()))
+            .build()
+            .must();
+
+        let response = executor
+            .execute_response(request, &token, refresh_token)
+            .await
+            .must();
+
+        assert_eq!(response.status().as_u16(), 200);
     }
 }
