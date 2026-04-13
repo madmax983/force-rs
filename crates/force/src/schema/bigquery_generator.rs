@@ -48,166 +48,48 @@ pub fn generate_bigquery_schema(describe: &SObjectDescribe) -> Value {
 #[cfg(feature = "schema")]
 mod tests {
     use super::*;
-    use crate::test_support::{Must, MustMsg};
+    use crate::test_support::{MockFieldDescribeBuilder, MockSObjectDescribeBuilder, MustMsg};
 
     #[test]
-    #[allow(clippy::too_many_lines)]
     fn test_generate_bigquery_schema() {
-        let json_data = r#"{
-            "activateable": false,
-            "createable": true,
-            "custom": false,
-            "customSetting": false,
-            "deletable": true,
-            "deprecatedAndHidden": false,
-            "feedEnabled": false,
-            "hasSubtypes": false,
-            "isSubtype": false,
-            "label": "Account",
-            "labelPlural": "Accounts",
-            "layoutable": true,
-            "mergeable": true,
-            "mruEnabled": true,
-            "name": "Account",
-            "queryable": true,
-            "replicateable": true,
-            "retrieveable": true,
-            "searchable": true,
-            "triggerable": true,
-            "undeletable": true,
-            "updateable": true,
-            "urls": {},
-            "childRelationships": [], "recordTypeInfos": [], "fields": [
-                {
-                    "aggregatable": true,
-                    "autoNumber": false,
-                    "byteLength": 18,
-                    "calculated": false,
-                    "cascadeDelete": false,
-                    "caseSensitive": false,
-                    "createable": false,
-                    "custom": false,
-                    "defaultedOnCreate": true,
-                    "dependentPicklist": false,
-                    "deprecatedAndHidden": false,
-                    "digits": 0,
-                    "displayLocationInDecimal": false,
-                    "encrypted": false,
-                    "externalId": false,
-                    "filterable": true,
-                    "groupable": true,
-                    "highScaleNumber": false,
-                    "htmlFormatted": false,
-                    "idLookup": true,
-                    "label": "Account ID",
-                    "length": 18,
-                    "name": "Id",
-                    "nameField": false,
-                    "namePointing": false,
-                    "nillable": false,
-                    "permissionable": false,
-                    "polymorphicForeignKey": false,
-                    "precision": 0,
-                    "queryByDistance": false,
-                    "referenceTo": [],
-                    "restrictedDelete": false,
-                    "restrictedPicklist": false,
-                    "scale": 0,
-                    "soapType": "tns:ID",
-                    "sortable": true,
-                    "type": "id",
-                    "unique": false,
-                    "updateable": false,
-                    "writeRequiresMasterRead": false
-                },
-                {
-                    "aggregatable": true,
-                    "autoNumber": false,
-                    "byteLength": 765,
-                    "calculated": false,
-                    "cascadeDelete": false,
-                    "caseSensitive": false,
-                    "createable": true,
-                    "custom": false,
-                    "defaultedOnCreate": false,
-                    "dependentPicklist": false,
-                    "deprecatedAndHidden": false,
-                    "digits": 0,
-                    "displayLocationInDecimal": false,
-                    "encrypted": false,
-                    "externalId": false,
-                    "filterable": true,
-                    "groupable": true,
-                    "highScaleNumber": false,
-                    "htmlFormatted": false,
-                    "idLookup": false,
-                    "label": "Account Name",
-                    "length": 255,
-                    "name": "Name",
-                    "nameField": true,
-                    "namePointing": false,
-                    "nillable": false,
-                    "permissionable": true,
-                    "polymorphicForeignKey": false,
-                    "precision": 0,
-                    "queryByDistance": false,
-                    "referenceTo": [],
-                    "restrictedDelete": false,
-                    "restrictedPicklist": false,
-                    "scale": 0,
-                    "soapType": "xsd:string",
-                    "sortable": true,
-                    "type": "string",
-                    "unique": false,
-                    "updateable": true,
-                    "writeRequiresMasterRead": false
-                },
-                {
-                    "aggregatable": true,
-                    "autoNumber": false,
-                    "byteLength": 0,
-                    "calculated": false,
-                    "cascadeDelete": false,
-                    "caseSensitive": false,
-                    "createable": true,
-                    "custom": false,
-                    "defaultedOnCreate": false,
-                    "dependentPicklist": false,
-                    "deprecatedAndHidden": false,
-                    "digits": 0,
-                    "displayLocationInDecimal": false,
-                    "encrypted": false,
-                    "externalId": false,
-                    "filterable": true,
-                    "groupable": true,
-                    "highScaleNumber": false,
-                    "htmlFormatted": false,
-                    "idLookup": false,
-                    "label": "Employees",
-                    "length": 0,
-                    "name": "NumberOfEmployees",
-                    "nameField": false,
-                    "namePointing": false,
-                    "nillable": true,
-                    "permissionable": true,
-                    "polymorphicForeignKey": false,
-                    "precision": 8,
-                    "queryByDistance": false,
-                    "referenceTo": [],
-                    "restrictedDelete": false,
-                    "restrictedPicklist": false,
-                    "scale": 0,
-                    "soapType": "xsd:int",
-                    "sortable": true,
-                    "type": "int",
-                    "unique": false,
-                    "updateable": true,
-                    "writeRequiresMasterRead": false
-                }
-            ]
-        }"#;
+        let describe = MockSObjectDescribeBuilder::new("Account")
+            .field(
+                MockFieldDescribeBuilder::new("Id", FieldType::Id)
+                    .label("Account ID")
+                    .length(18)
+                    .byte_length(18)
+                    .nillable(false)
+                    .createable(false)
+                    .updateable(false)
+                    .permissionable(false)
+                    .defaulted_on_create(true)
+                    .build(),
+            )
+            .field(
+                MockFieldDescribeBuilder::new("Name", FieldType::String)
+                    .label("Account Name")
+                    .length(255)
+                    .byte_length(765)
+                    .nillable(false)
+                    .createable(true)
+                    .updateable(true)
+                    .permissionable(true)
+                    .build(),
+            )
+            .field(
+                MockFieldDescribeBuilder::new("NumberOfEmployees", FieldType::Int)
+                    .label("Employees")
+                    .length(0)
+                    .byte_length(0)
+                    .nillable(true)
+                    .createable(true)
+                    .updateable(true)
+                    .permissionable(true)
+                    .precision(8)
+                    .build(),
+            )
+            .build();
 
-        let describe: SObjectDescribe = serde_json::from_str(json_data).must();
         let schema = generate_bigquery_schema(&describe);
 
         let arr = schema.as_array().must_msg("Expected JSON array");

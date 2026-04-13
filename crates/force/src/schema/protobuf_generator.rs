@@ -67,110 +67,71 @@ fn map_type(ft: &FieldType) -> &'static str {
 mod tests {
     use super::*;
 
-    use crate::test_support::MustMsg;
+    use crate::test_support::{MockFieldDescribeBuilder, MockSObjectDescribeBuilder};
 
     #[test]
-    #[allow(clippy::too_many_lines)]
     fn test_protobuf_generator() {
-        // Use JSON to instantiate the complex SObjectDescribe struct securely against layout changes.
-        let describe_json = r#"{
-            "activateable": false,
-            "createable": true,
-            "custom": false,
-            "customSetting": false,
-            "deletable": true,
-            "deprecatedAndHidden": false,
-            "feedEnabled": false,
-            "hasSubtypes": false,
-            "isSubtype": false,
-            "keyPrefix": "001",
-            "label": "Account",
-            "labelPlural": "Accounts",
-            "layoutable": true,
-            "mergeable": true,
-            "mruEnabled": true,
-            "name": "Account",
-            "queryable": true,
-            "replicateable": true,
-            "retrieveable": true,
-            "searchable": true,
-            "triggerable": true,
-            "undeletable": true,
-            "updateable": true,
-            "urls": {},
-            "childRelationships": [],
-            "recordTypeInfos": [],
-            "fields": [
-                {
-                    "name": "Id", "type": "id", "label": "Id", "nillable": false,
-                    "aggregatable": true, "autoNumber": false, "byteLength": 18, "calculated": false,
-                    "cascadeDelete": false, "caseSensitive": false, "createable": false, "custom": false,
-                    "defaultedOnCreate": true, "dependentPicklist": false, "deprecatedAndHidden": false,
-                    "digits": 0, "displayLocationInDecimal": false, "encrypted": false, "externalId": false,
-                    "filterable": true, "groupable": true, "highScaleNumber": false, "htmlFormatted": false,
-                    "idLookup": true, "length": 18, "nameField": false, "namePointing": false,
-                    "permissionable": false, "polymorphicForeignKey": false, "precision": 0, "queryByDistance": false,
-                    "restrictedDelete": false, "restrictedPicklist": false, "scale": 0, "soapType": "tns:ID",
-                    "sortable": true, "unique": false, "updateable": false, "writeRequiresMasterRead": false,
-                    "referenceTo": []
-                },
-                {
-                    "name": "Name", "type": "string", "label": "Name", "nillable": false,
-                    "aggregatable": true, "autoNumber": false, "byteLength": 255, "calculated": false,
-                    "cascadeDelete": false, "caseSensitive": false, "createable": true, "custom": false,
-                    "defaultedOnCreate": false, "dependentPicklist": false, "deprecatedAndHidden": false,
-                    "digits": 0, "displayLocationInDecimal": false, "encrypted": false, "externalId": false,
-                    "filterable": true, "groupable": true, "highScaleNumber": false, "htmlFormatted": false,
-                    "idLookup": false, "length": 255, "nameField": true, "namePointing": false,
-                    "permissionable": false, "polymorphicForeignKey": false, "precision": 0, "queryByDistance": false,
-                    "restrictedDelete": false, "restrictedPicklist": false, "scale": 0, "soapType": "xsd:string",
-                    "sortable": true, "unique": false, "updateable": true, "writeRequiresMasterRead": false,
-                    "referenceTo": []
-                },
-                {
-                    "name": "NumberOfEmployees", "type": "int", "label": "Employees", "nillable": true,
-                    "aggregatable": true, "autoNumber": false, "byteLength": 0, "calculated": false,
-                    "cascadeDelete": false, "caseSensitive": false, "createable": true, "custom": false,
-                    "defaultedOnCreate": false, "dependentPicklist": false, "deprecatedAndHidden": false,
-                    "digits": 8, "displayLocationInDecimal": false, "encrypted": false, "externalId": false,
-                    "filterable": true, "groupable": true, "highScaleNumber": false, "htmlFormatted": false,
-                    "idLookup": false, "length": 0, "nameField": false, "namePointing": false,
-                    "permissionable": false, "polymorphicForeignKey": false, "precision": 0, "queryByDistance": false,
-                    "restrictedDelete": false, "restrictedPicklist": false, "scale": 0, "soapType": "xsd:int",
-                    "sortable": true, "unique": false, "updateable": true, "writeRequiresMasterRead": false,
-                    "referenceTo": []
-                },
-                {
-                    "name": "AnnualRevenue", "type": "currency", "label": "Annual Revenue", "nillable": true,
-                    "aggregatable": true, "autoNumber": false, "byteLength": 0, "calculated": false,
-                    "cascadeDelete": false, "caseSensitive": false, "createable": true, "custom": false,
-                    "defaultedOnCreate": false, "dependentPicklist": false, "deprecatedAndHidden": false,
-                    "digits": 18, "displayLocationInDecimal": false, "encrypted": false, "externalId": false,
-                    "filterable": true, "groupable": true, "highScaleNumber": false, "htmlFormatted": false,
-                    "idLookup": false, "length": 0, "nameField": false, "namePointing": false,
-                    "permissionable": false, "polymorphicForeignKey": false, "precision": 18, "queryByDistance": false,
-                    "restrictedDelete": false, "restrictedPicklist": false, "scale": 0, "soapType": "xsd:double",
-                    "sortable": true, "unique": false, "updateable": true, "writeRequiresMasterRead": false,
-                    "referenceTo": []
-                },
-                {
-                    "name": "IsActive", "type": "boolean", "label": "Active", "nillable": true,
-                    "aggregatable": true, "autoNumber": false, "byteLength": 0, "calculated": false,
-                    "cascadeDelete": false, "caseSensitive": false, "createable": true, "custom": false,
-                    "defaultedOnCreate": false, "dependentPicklist": false, "deprecatedAndHidden": false,
-                    "digits": 0, "displayLocationInDecimal": false, "encrypted": false, "externalId": false,
-                    "filterable": true, "groupable": true, "highScaleNumber": false, "htmlFormatted": false,
-                    "idLookup": false, "length": 0, "nameField": false, "namePointing": false,
-                    "permissionable": false, "polymorphicForeignKey": false, "precision": 0, "queryByDistance": false,
-                    "restrictedDelete": false, "restrictedPicklist": false, "scale": 0, "soapType": "xsd:boolean",
-                    "sortable": true, "unique": false, "updateable": true, "writeRequiresMasterRead": false,
-                    "referenceTo": []
-                }
-            ]
-        }"#;
-
-        let describe: SObjectDescribe =
-            serde_json::from_str(describe_json).must_msg("failed to parse mock json");
+        let describe = MockSObjectDescribeBuilder::new("Account")
+            .field(
+                MockFieldDescribeBuilder::new("Id", FieldType::Id)
+                    .label("Id")
+                    .length(18)
+                    .byte_length(18)
+                    .nillable(false)
+                    .createable(false)
+                    .updateable(false)
+                    .permissionable(false)
+                    .defaulted_on_create(true)
+                    .build(),
+            )
+            .field(
+                MockFieldDescribeBuilder::new("Name", FieldType::String)
+                    .label("Name")
+                    .length(255)
+                    .byte_length(255)
+                    .nillable(false)
+                    .createable(true)
+                    .updateable(true)
+                    .permissionable(false)
+                    .build(),
+            )
+            .field(
+                MockFieldDescribeBuilder::new("NumberOfEmployees", FieldType::Int)
+                    .label("Employees")
+                    .length(0)
+                    .byte_length(0)
+                    .nillable(true)
+                    .createable(true)
+                    .updateable(true)
+                    .permissionable(false)
+                    .digits(8)
+                    .build(),
+            )
+            .field(
+                MockFieldDescribeBuilder::new("AnnualRevenue", FieldType::Currency)
+                    .label("Annual Revenue")
+                    .length(0)
+                    .byte_length(0)
+                    .nillable(true)
+                    .createable(true)
+                    .updateable(true)
+                    .permissionable(false)
+                    .digits(18)
+                    .precision(18)
+                    .build(),
+            )
+            .field(
+                MockFieldDescribeBuilder::new("IsActive", FieldType::Boolean)
+                    .label("Active")
+                    .length(0)
+                    .byte_length(0)
+                    .nillable(true)
+                    .createable(true)
+                    .updateable(true)
+                    .permissionable(false)
+                    .build(),
+            )
+            .build();
 
         let proto_code = generate_protobuf_schema(&describe);
 

@@ -134,124 +134,36 @@ fn generate_field_schema(field: &FieldDescribe) -> Value {
 #[cfg(feature = "schema")]
 mod tests {
     use super::*;
-    use crate::test_support::Must;
+    use crate::test_support::{MockFieldDescribeBuilder, MockSObjectDescribeBuilder};
 
     #[test]
-    #[allow(clippy::too_many_lines)]
     fn test_json_schema_generator_basic() {
-        let json = r#"{
-            "activateable": false,
-            "createable": true,
-            "custom": false,
-            "customSetting": false,
-            "deletable": true,
-            "deprecatedAndHidden": false,
-            "feedEnabled": false,
-            "hasSubtypes": false,
-            "isSubtype": false,
-            "label": "Account",
-            "labelPlural": "Accounts",
-            "layoutable": true,
-            "mergeable": true,
-            "mruEnabled": true,
-            "name": "Account",
-            "queryable": true,
-            "replicateable": true,
-            "retrieveable": true,
-            "searchable": true,
-            "triggerable": true,
-            "undeletable": true,
-            "updateable": true,
-            "urls": {},
-            "childRelationships": [], "recordTypeInfos": [], "supportedScopes": [], "fields": [
-                {
-                    "aggregatable": true,
-                    "autoNumber": false,
-                    "byteLength": 18,
-                    "calculated": false,
-                    "cascadeDelete": false,
-                    "caseSensitive": false,
-                    "createable": false,
-                    "custom": false,
-                    "defaultedOnCreate": true,
-                    "dependentPicklist": false,
-                    "deprecatedAndHidden": false,
-                    "digits": 0,
-                    "displayLocationInDecimal": false,
-                    "encrypted": false,
-                    "externalId": false,
-                    "filterable": true,
-                    "groupable": true,
-                    "highScaleNumber": false,
-                    "htmlFormatted": false,
-                    "idLookup": true,
-                    "label": "Account ID",
-                    "length": 18,
-                    "name": "Id",
-                    "nameField": false,
-                    "namePointing": false,
-                    "nillable": false,
-                    "permissionable": false,
-                    "polymorphicForeignKey": false,
-                    "precision": 0,
-                    "queryByDistance": false,
-                    "referenceTo": [],
-                    "restrictedDelete": false,
-                    "restrictedPicklist": false,
-                    "scale": 0,
-                    "soapType": "tns:ID",
-                    "sortable": true,
-                    "type": "id",
-                    "unique": false,
-                    "updateable": false,
-                    "writeRequiresMasterRead": false
-                },
-                {
-                    "aggregatable": true,
-                    "autoNumber": false,
-                    "byteLength": 765,
-                    "calculated": false,
-                    "cascadeDelete": false,
-                    "caseSensitive": false,
-                    "createable": true,
-                    "custom": false,
-                    "defaultedOnCreate": false,
-                    "dependentPicklist": false,
-                    "deprecatedAndHidden": false,
-                    "digits": 0,
-                    "displayLocationInDecimal": false,
-                    "encrypted": false,
-                    "externalId": false,
-                    "filterable": true,
-                    "groupable": true,
-                    "highScaleNumber": false,
-                    "htmlFormatted": false,
-                    "idLookup": false,
-                    "label": "Account Name",
-                    "length": 255,
-                    "name": "Name",
-                    "nameField": true,
-                    "namePointing": false,
-                    "nillable": false,
-                    "permissionable": true,
-                    "polymorphicForeignKey": false,
-                    "precision": 0,
-                    "queryByDistance": false,
-                    "referenceTo": [],
-                    "restrictedDelete": false,
-                    "restrictedPicklist": false,
-                    "scale": 0,
-                    "soapType": "xsd:string",
-                    "sortable": true,
-                    "type": "string",
-                    "unique": false,
-                    "updateable": true,
-                    "writeRequiresMasterRead": false
-                }
-            ]
-        }"#;
+        let describe = MockSObjectDescribeBuilder::new("Account")
+            .field(
+                MockFieldDescribeBuilder::new("Id", FieldType::Id)
+                    .label("Account ID")
+                    .length(18)
+                    .byte_length(18)
+                    .nillable(false)
+                    .createable(false)
+                    .updateable(false)
+                    .permissionable(false)
+                    .defaulted_on_create(true)
+                    .build(),
+            )
+            .field(
+                MockFieldDescribeBuilder::new("Name", FieldType::String)
+                    .label("Account Name")
+                    .length(255)
+                    .byte_length(765)
+                    .nillable(false)
+                    .createable(true)
+                    .updateable(true)
+                    .permissionable(true)
+                    .build(),
+            )
+            .build();
 
-        let describe: SObjectDescribe = serde_json::from_str(json).must();
         let schema = generate_json_schema(&describe);
 
         assert_eq!(schema["$schema"], "http://json-schema.org/draft-07/schema#");
