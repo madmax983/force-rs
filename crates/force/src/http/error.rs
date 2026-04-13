@@ -59,7 +59,10 @@ pub fn parse_api_error(status_code: u16, body: &str) -> HttpError {
 /// This prevents memory exhaustion (DoS) attacks from maliciously large error responses.
 ///
 /// It strictly caps the internal allocation and reads chunk by chunk.
-pub async fn read_capped_body(response: Response, limit_bytes: usize) -> String {
+pub async fn read_capped_body(
+    response: Response,
+    limit_bytes: usize,
+) -> Result<String, HttpError> {
     let mut stream = response.bytes_stream();
 
     // ⚡ Bolt: Pre-allocate a reasonable capacity, up to max limit.
@@ -73,12 +76,11 @@ pub async fn read_capped_body(response: Response, limit_bytes: usize) -> String 
             let remaining = limit_bytes.saturating_sub(bytes.len());
 
             if remaining == 0 {
-                break;
+                return Err(HttpError::PayloadTooLarge { limit_bytes });
             }
 
             if chunk_bytes.len() > remaining {
-                bytes.extend_from_slice(&chunk_bytes[..remaining]);
-                break;
+                return Err(HttpError::PayloadTooLarge { limit_bytes });
             }
             bytes.extend_from_slice(&chunk_bytes);
         } else {
@@ -86,7 +88,8 @@ pub async fn read_capped_body(response: Response, limit_bytes: usize) -> String 
         }
     }
 
-    String::from_utf8(bytes).unwrap_or_else(|e| String::from_utf8_lossy(e.as_bytes()).into_owned())
+    Ok(String::from_utf8(bytes)
+        .unwrap_or_else(|e| String::from_utf8_lossy(e.as_bytes()).into_owned()))
 }
 
 pub async fn response_to_force_error(
@@ -95,7 +98,10 @@ pub async fn response_to_force_error(
 ) -> crate::error::ForceError {
     let status_code = response.status().as_u16();
 
-    let body = read_capped_body(response, 1024 * 1024).await;
+    let body = match read_capped_body(response, 1024 * 1024).await {
+        Ok(body) => body,
+        Err(e) => return crate::error::ForceError::Http(e),
+    };
 
     let payload = if body.trim().is_empty() {
         fallback_message.to_string()
@@ -227,11 +233,12 @@ mod integration_tests {
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
     #[tokio::test]
-    async fn test_response_to_force_error_truncation() {
+    async fn test_response_to_force_error_payload_too_large() {
         let mock_server = MockServer::start().await;
 
-        // Generate a 2MB string.
-        let large_body = "A".repeat(2 * 1024 * 1024);
+        // Generate a payload that exceeds the limit
+        // (1024 * 1024 + 1024 to intentionally break boundary false confidence)
+        let large_body = "A".repeat(1024 * 1024 + 1024);
 
         Mock::given(method("GET"))
             .and(path("/error"))
@@ -245,14 +252,10 @@ mod integration_tests {
 
         let error = response_to_force_error(response, "fallback").await;
 
-        let message_len =
-            if let crate::error::ForceError::Http(HttpError::StatusError { message, .. }) = error {
-                message.len()
-            } else {
-                panic!("Expected StatusError");
-            };
-
-        // It should be truncated exactly at 1MB (1048576 bytes)
-        assert_eq!(message_len, 1024 * 1024);
+        if let crate::error::ForceError::Http(HttpError::PayloadTooLarge { limit_bytes }) = error {
+            assert_eq!(limit_bytes, 1024 * 1024);
+        } else {
+            panic!("Expected PayloadTooLarge error, got: {:?}", error);
+        }
     }
 }

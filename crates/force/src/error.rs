@@ -120,6 +120,13 @@ pub enum HttpError {
     /// Invalid URL.
     #[error("invalid URL: {0}")]
     InvalidUrl(String),
+
+    /// Response payload too large.
+    #[error("response payload exceeded the safety limit of {limit_bytes} bytes")]
+    PayloadTooLarge {
+        /// The byte limit that was exceeded.
+        limit_bytes: usize,
+    },
 }
 
 /// Salesforce API-specific errors.
