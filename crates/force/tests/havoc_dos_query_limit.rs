@@ -1,6 +1,9 @@
-//! Havoc resource exhaustion (DoS) test for unbounded string inputs.
+#![allow(clippy::unwrap_used)]
+#![allow(clippy::collapsible_match)]
+#![allow(clippy::collapsible_if)]
+//! Havoc resource exhaustion (`DoS`) test for unbounded string inputs.
 //!
-//! # 👺 Havoc: Unbounded SOQL and Pagination URL DoS
+//! # 👺 Havoc: Unbounded SOQL and Pagination URL `DoS`
 //!
 //! **The Trigger:** Passing a massive string to `query` or `query_more`.
 //! **The Stack Trace:** Massive memory allocation via `reqwest` URL construction leading to OOM.
@@ -75,10 +78,11 @@ mod tests {
             result.is_err(),
             "👺 Havoc: query() allowed an input string > 100,000, risking DoS!"
         );
-        let err_msg = result.unwrap_err().to_string();
+        let Err(e) = result else { panic!("expected error") };
+        let err_msg = e.to_string();
         assert!(
             err_msg.contains("100,000 bytes"),
-            "Expected error mentioning 100,000 bytes, got: {}", err_msg
+            "Expected error mentioning 100,000 bytes, got: {err_msg}"
         );
 
         // 3. Mutational boundary limit
@@ -119,10 +123,11 @@ mod tests {
             result.is_err(),
             "👺 Havoc: query_more() allowed an input string > 100,000, risking DoS!"
         );
-        let err_msg = result.unwrap_err().to_string();
+        let Err(e) = result else { panic!("expected error") };
+        let err_msg = e.to_string();
         assert!(
             err_msg.contains("100,000 bytes"),
-            "Expected error mentioning 100,000 bytes, got: {}", err_msg
+            "Expected error mentioning 100,000 bytes, got: {err_msg}"
         );
 
         // 3. Mutational boundary limit

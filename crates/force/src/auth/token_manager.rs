@@ -217,9 +217,9 @@ impl<A: Authenticator> TokenManager<A> {
     /// ```
     pub async fn force_refresh(&self) -> Result<AccessToken> {
         // Capture the current token's issued_at timestamp (if any)
-        let current_issued_at = {
+        let current_token_arc = {
             let state = self.state.read().await;
-            state.token.as_ref().map(|t| t.issued_at())
+            state.token.clone()
         };
 
         // Acquire refresh lock to serialize force_refresh calls
@@ -231,7 +231,7 @@ impl<A: Authenticator> TokenManager<A> {
             if let Some(token) = &state.token {
                 // If the token in state is strictly newer than what we captured,
                 // another thread just refreshed it. Return that one!
-                if Some(token.issued_at()) > current_issued_at {
+                if match &current_token_arc { Some(current_arc) => !Arc::ptr_eq(token, current_arc), None => true, } {
                     return Ok((*token.clone()).clone());
                 }
             }
