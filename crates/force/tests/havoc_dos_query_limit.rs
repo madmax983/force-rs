@@ -1,6 +1,6 @@
-//! Havoc resource exhaustion (DoS) test for unbounded string inputs.
+//! Havoc resource exhaustion (`DoS`) test for unbounded string inputs.
 //!
-//! # 👺 Havoc: Unbounded SOQL and Pagination URL DoS
+//! # 👺 Havoc: Unbounded SOQL and Pagination URL `DoS`
 //!
 //! **The Trigger:** Passing a massive string to `query` or `query_more`.
 //! **The Stack Trace:** Massive memory allocation via `reqwest` URL construction leading to OOM.
@@ -8,15 +8,15 @@
 
 #[cfg(test)]
 mod tests {
+    use async_trait::async_trait;
     use force::api::rest_operation::RestOperation;
     use force::auth::{AccessToken, Authenticator, TokenResponse};
     use force::client::builder;
-    use force::error::Result;
     use force::error::ForceError;
+    use force::error::Result;
     use serde::Deserialize;
-    use async_trait::async_trait;
-    use wiremock::{MockServer, Mock, ResponseTemplate};
-    use wiremock::matchers::{method};
+    use wiremock::matchers::method;
+    use wiremock::{Mock, MockServer, ResponseTemplate};
 
     #[derive(Debug, Clone)]
     struct MockAuthenticator(String);
@@ -55,30 +55,34 @@ mod tests {
             .await;
 
         let auth = MockAuthenticator(server.uri());
-        let client = builder().authenticate(auth).build().await.unwrap();
+        let client = builder()
+            .authenticate(auth)
+            .build()
+            .await
+            .unwrap_or_else(|_| panic!("Failed to build client"));
 
         // 1. Exact limit (should pass validation, but may fail due to URL parsing error)
         let max_query = "A".repeat(100_000);
         let result = client.rest().query::<Dummy>(&max_query).await;
         // Even if it fails (e.g. invalid URI), it should NOT fail with our InvalidInput > 100000 limit error.
-        if let Err(e) = &result {
-            if let ForceError::InvalidInput(msg) = e {
-                assert!(!msg.contains("100,000 bytes"), "100,000 should not trigger the limit error");
-            }
+        if let Err(ForceError::InvalidInput(msg)) = &result {
+            assert!(
+                !msg.contains("100,000 bytes"),
+                "100,000 should not trigger the limit error"
+            );
         }
 
         // 2. Off-by-one limit (should fail validation)
         let massive_query = "A".repeat(100_001);
         let result = client.rest().query::<Dummy>(&massive_query).await;
 
-        assert!(
-            result.is_err(),
-            "👺 Havoc: query() allowed an input string > 100,000, risking DoS!"
-        );
-        let err_msg = result.unwrap_err().to_string();
+        let Err(err) = result else {
+            panic!("Expected an error but got Ok");
+        };
+        let err_msg = err.to_string();
         assert!(
             err_msg.contains("100,000 bytes"),
-            "Expected error mentioning 100,000 bytes, got: {}", err_msg
+            "Expected error mentioning 100,000 bytes, got: {err_msg}"
         );
 
         // 3. Mutational boundary limit
@@ -100,29 +104,33 @@ mod tests {
             .await;
 
         let auth = MockAuthenticator(server.uri());
-        let client = builder().authenticate(auth).build().await.unwrap();
+        let client = builder()
+            .authenticate(auth)
+            .build()
+            .await
+            .unwrap_or_else(|_| panic!("Failed to build client"));
 
         // 1. Exact limit
         let max_url = format!("/services/data/v60.0/query/{}", "A".repeat(100_000 - 32));
         let result = client.rest().query_more::<Dummy>(&max_url).await;
-        if let Err(e) = &result {
-            if let ForceError::InvalidInput(msg) = e {
-                assert!(!msg.contains("100,000 bytes"), "100,000 should not trigger the limit error");
-            }
+        if let Err(ForceError::InvalidInput(msg)) = &result {
+            assert!(
+                !msg.contains("100,000 bytes"),
+                "100,000 should not trigger the limit error"
+            );
         }
 
         // 2. Off-by-one limit
         let massive_url = "A".repeat(100_001);
         let result = client.rest().query_more::<Dummy>(&massive_url).await;
 
-        assert!(
-            result.is_err(),
-            "👺 Havoc: query_more() allowed an input string > 100,000, risking DoS!"
-        );
-        let err_msg = result.unwrap_err().to_string();
+        let Err(err) = result else {
+            panic!("Expected an error but got Ok");
+        };
+        let err_msg = err.to_string();
         assert!(
             err_msg.contains("100,000 bytes"),
-            "Expected error mentioning 100,000 bytes, got: {}", err_msg
+            "Expected error mentioning 100,000 bytes, got: {err_msg}"
         );
 
         // 3. Mutational boundary limit
