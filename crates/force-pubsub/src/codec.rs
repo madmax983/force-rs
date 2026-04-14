@@ -84,6 +84,7 @@ mod tests {
     "#;
 
     #[test]
+    #[allow(clippy::items_after_statements)]
     fn test_encode_decode_roundtrip_dynamic() {
         let Ok(schema) = Schema::parse_str(SIMPLE_SCHEMA) else {
             panic!("valid schema")
@@ -95,6 +96,7 @@ mod tests {
             id: &'a str,
             amount: f64,
         }
+
         let payload = Payload {
             id: "event-001",
             amount: 99.5,
@@ -102,13 +104,13 @@ mod tests {
 
         let encoded = match encode_avro(&schema, &payload) {
             Ok(enc) => enc,
-            Err(e) => panic!("encode failed with: {:?}", e),
+            Err(e) => panic!("encode failed with: {e:?}"),
         };
         assert!(!encoded.is_empty());
 
         let decoded = match decode_avro(&schema, &encoded) {
             Ok(dec) => dec,
-            Err(e) => panic!("decode failed with: {:?}", e),
+            Err(e) => panic!("decode failed with: {e:?}"),
         };
         assert_eq!(decoded["id"], "event-001");
         let Some(amount) = decoded["amount"].as_f64() else {
