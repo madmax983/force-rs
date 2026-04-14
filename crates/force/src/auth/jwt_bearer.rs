@@ -515,11 +515,10 @@ QcWLHR6ul3bFRWNhXoThNBQ=
 
         let result = flow.authenticate().await;
 
-        if let Err(ForceError::Http(HttpError::StatusError { message, .. })) = result {
-            // Should be truncated to 1MB
-            assert_eq!(message.len(), 1024 * 1024);
+        if let Err(ForceError::Http(HttpError::PayloadTooLarge { limit_bytes })) = result {
+            assert_eq!(limit_bytes, 1024 * 1024);
         } else {
-            panic!("Expected HttpError::StatusError");
+            panic!("Expected HttpError::PayloadTooLarge, got {:?}", result);
         }
     }
 
