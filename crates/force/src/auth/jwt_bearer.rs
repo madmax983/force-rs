@@ -231,10 +231,9 @@ impl Authenticator for JwtBearerFlow {
             return Err(crate::auth::handle_oauth_error(response, None).await);
         }
 
-        let token_response = response
-            .json::<TokenResponse>()
-            .await
-            .map_err(|e| ForceError::Http(HttpError::RequestFailed(e)))?;
+        let body = crate::http::error::read_capped_body(response, 1024 * 1024).await?;
+        let token_response = serde_json::from_str::<TokenResponse>(&body)
+            .map_err(|e| ForceError::Serialization(e.into()))?;
 
         Ok(AccessToken::from_response(token_response))
     }
@@ -515,11 +514,10 @@ QcWLHR6ul3bFRWNhXoThNBQ=
 
         let result = flow.authenticate().await;
 
-        if let Err(ForceError::Http(HttpError::StatusError { message, .. })) = result {
-            // Should be truncated to 1MB
-            assert_eq!(message.len(), 1024 * 1024);
+        if let Err(ForceError::Http(HttpError::PayloadTooLarge { limit_bytes })) = result {
+            assert_eq!(limit_bytes, 1024 * 1024);
         } else {
-            panic!("Expected HttpError::StatusError");
+            panic!("Expected HttpError::PayloadTooLarge");
         }
     }
 

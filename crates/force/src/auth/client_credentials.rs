@@ -160,10 +160,9 @@ impl crate::auth::authenticator::Authenticator for ClientCredentials {
         }
 
         // Parse successful token response
-        let token_response = response
-            .json::<TokenResponse>()
-            .await
-            .map_err(|e| ForceError::Http(HttpError::RequestFailed(e)))?;
+        let body = crate::http::error::read_capped_body(response, 1024 * 1024).await?;
+        let token_response = serde_json::from_str::<TokenResponse>(&body)
+            .map_err(|e| ForceError::Serialization(e.into()))?;
 
         Ok(AccessToken::from_response(token_response))
     }

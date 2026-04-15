@@ -403,7 +403,9 @@ impl HttpExecutor {
         Fut: std::future::Future<Output = Result<AccessToken>>,
     {
         let response = self.execute(request, token, refresh_token).await?;
-        let json = response.json::<T>().await.map_err(HttpError::from)?;
+        let body = crate::http::error::read_capped_body(response, 10 * 1024 * 1024).await?;
+        let json = serde_json::from_str::<T>(&body)
+            .map_err(|e| crate::error::ForceError::Serialization(e.into()))?;
         Ok(json)
     }
 }

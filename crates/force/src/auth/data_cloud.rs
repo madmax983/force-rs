@@ -201,10 +201,9 @@ impl<A: Authenticator> Authenticator for DataCloudAuthenticator<A> {
         }
 
         // Parse successful DC token response
-        let dc_response = response
-            .json::<DataCloudTokenResponse>()
-            .await
-            .map_err(|e| ForceError::Http(HttpError::RequestFailed(e)))?;
+        let body = crate::http::error::read_capped_body(response, 1024 * 1024).await?;
+        let dc_response = serde_json::from_str::<DataCloudTokenResponse>(&body)
+            .map_err(|e| ForceError::Serialization(e.into()))?;
 
         Ok(AccessToken::from_response(
             dc_response.into_token_response(),

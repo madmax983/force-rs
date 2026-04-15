@@ -34,28 +34,28 @@ use std::collections::HashMap;
 
 /// Represents a change in a field's definition.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FieldChange {
+pub struct FieldChange<'a> {
     /// The name of the field.
-    pub name: String,
+    pub name: &'a str,
     /// The old type of the field.
-    pub old_type: FieldType,
+    pub old_type: &'a FieldType,
     /// The new type of the field.
-    pub new_type: FieldType,
+    pub new_type: &'a FieldType,
 }
 
 /// The result of comparing two schema definitions.
 #[derive(Debug, Clone, PartialEq, Default)]
 #[allow(clippy::struct_field_names)]
-pub struct SchemaDiffResult {
+pub struct SchemaDiffResult<'a> {
     /// Fields that were added in the new schema.
-    pub added_fields: Vec<FieldDescribe>,
+    pub added_fields: Vec<&'a FieldDescribe>,
     /// Fields that were removed in the new schema.
-    pub removed_fields: Vec<FieldDescribe>,
+    pub removed_fields: Vec<&'a FieldDescribe>,
     /// Fields whose types have changed.
-    pub changed_fields: Vec<FieldChange>,
+    pub changed_fields: Vec<FieldChange<'a>>,
 }
 
-impl SchemaDiffResult {
+impl SchemaDiffResult<'_> {
     /// Returns true if there are no differences between the schemas.
     #[must_use]
     pub fn is_empty(&self) -> bool {
@@ -76,10 +76,10 @@ impl SchemaDiffResult {
 ///
 /// A `SchemaDiffResult` containing added, removed, and changed fields.
 #[must_use]
-pub fn compare_schemas(
-    old_schema: &SObjectDescribe,
-    new_schema: &SObjectDescribe,
-) -> SchemaDiffResult {
+pub fn compare_schemas<'a>(
+    old_schema: &'a SObjectDescribe,
+    new_schema: &'a SObjectDescribe,
+) -> SchemaDiffResult<'a> {
     let mut result = SchemaDiffResult::default();
 
     // ⚡ Bolt: Using `HashMap::with_capacity` avoids multiple reallocations when building the map.
@@ -95,26 +95,24 @@ pub fn compare_schemas(
         if let Some(old_field) = old_fields.remove(new_field.name.as_str()) {
             if old_field.type_ != new_field.type_ {
                 result.changed_fields.push(FieldChange {
-                    name: new_field.name.clone(),
-                    old_type: old_field.type_.clone(),
-                    new_type: new_field.type_.clone(),
+                    name: new_field.name.as_str(),
+                    old_type: &old_field.type_,
+                    new_type: &new_field.type_,
                 });
             }
         } else {
-            result.added_fields.push(new_field.clone());
+            result.added_fields.push(new_field);
         }
     }
 
     // Find removed fields
     // ⚡ Bolt: Using `extend` automatically pre-allocates the exact capacity needed from the iterator's size hint, preventing multiple vector reallocations.
-    result
-        .removed_fields
-        .extend(old_fields.into_values().cloned());
+    result.removed_fields.extend(old_fields.into_values());
 
     // Sort to ensure deterministic output
     result.added_fields.sort_by(|a, b| a.name.cmp(&b.name));
     result.removed_fields.sort_by(|a, b| a.name.cmp(&b.name));
-    result.changed_fields.sort_by(|a, b| a.name.cmp(&b.name));
+    result.changed_fields.sort_by(|a, b| a.name.cmp(b.name));
 
     result
 }
@@ -239,7 +237,7 @@ mod tests {
         assert_eq!(diff.changed_fields.len(), 1);
 
         assert_eq!(diff.changed_fields[0].name, "Age");
-        assert_eq!(diff.changed_fields[0].old_type, FieldType::Int);
-        assert_eq!(diff.changed_fields[0].new_type, FieldType::Double);
+        assert_eq!(diff.changed_fields[0].old_type, &FieldType::Int);
+        assert_eq!(diff.changed_fields[0].new_type, &FieldType::Double);
     }
 }

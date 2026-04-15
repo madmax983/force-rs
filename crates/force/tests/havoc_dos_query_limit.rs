@@ -59,7 +59,7 @@ mod tests {
             .authenticate(auth)
             .build()
             .await
-            .unwrap_or_else(|_| panic!("failed to build client"));
+            .unwrap_or_else(|_| panic!("Failed to build client"));
 
         // 1. Exact limit (should pass validation, but may fail due to URL parsing error)
         let max_query = "A".repeat(100_000);
@@ -76,12 +76,10 @@ mod tests {
         let massive_query = "A".repeat(100_001);
         let result = client.rest().query::<Dummy>(&massive_query).await;
 
-        assert!(
-            result.is_err(),
-            "👺 Havoc: query() allowed an input string > 100,000, risking DoS!"
-        );
-        #[allow(clippy::unwrap_used)]
-        let err_msg = result.unwrap_err().to_string();
+        let Err(err) = result else {
+            panic!("Expected an error but got Ok");
+        };
+        let err_msg = err.to_string();
         assert!(
             err_msg.contains("100,000 bytes"),
             "Expected error mentioning 100,000 bytes, got: {err_msg}"
@@ -110,7 +108,7 @@ mod tests {
             .authenticate(auth)
             .build()
             .await
-            .unwrap_or_else(|_| panic!("failed to build client"));
+            .unwrap_or_else(|_| panic!("Failed to build client"));
 
         // 1. Exact limit
         let max_url = format!("/services/data/v60.0/query/{}", "A".repeat(100_000 - 32));
@@ -126,12 +124,10 @@ mod tests {
         let massive_url = "A".repeat(100_001);
         let result = client.rest().query_more::<Dummy>(&massive_url).await;
 
-        assert!(
-            result.is_err(),
-            "👺 Havoc: query_more() allowed an input string > 100,000, risking DoS!"
-        );
-        #[allow(clippy::unwrap_used)]
-        let err_msg = result.unwrap_err().to_string();
+        let Err(err) = result else {
+            panic!("Expected an error but got Ok");
+        };
+        let err_msg = err.to_string();
         assert!(
             err_msg.contains("100,000 bytes"),
             "Expected error mentioning 100,000 bytes, got: {err_msg}"

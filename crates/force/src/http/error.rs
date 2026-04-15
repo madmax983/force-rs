@@ -25,6 +25,7 @@ struct SalesforceError {
     fields: Vec<String>,
 }
 
+/// Parses Salesforce API error from response body or returns generic error.
 pub fn parse_api_error(status_code: u16, body: &str) -> HttpError {
     // Try to parse as Salesforce error array
     if let Ok(errors) = serde_json::from_str::<Vec<SalesforceError>>(body) {
@@ -89,6 +90,7 @@ pub async fn read_capped_body(response: Response, limit_bytes: usize) -> Result<
         .unwrap_or_else(|e| String::from_utf8_lossy(e.as_bytes()).into_owned()))
 }
 
+/// Helper function to convert an error response from `reqwest::Response` to `ForceError`.
 pub async fn response_to_force_error(
     response: Response,
     fallback_message: &str,

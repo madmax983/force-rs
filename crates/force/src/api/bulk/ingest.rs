@@ -350,10 +350,9 @@ impl<A: Authenticator> IngestJob<InProgress, A> {
             )
             .await?;
 
-        let job_info = response
-            .json::<JobInfo>()
-            .await
-            .map_err(crate::error::HttpError::from)?;
+        let body = crate::http::error::read_capped_body(response, 10 * 1024 * 1024).await?;
+        let job_info = serde_json::from_str::<JobInfo>(&body)
+            .map_err(crate::error::SerializationError::from)?;
         Ok(job_info)
     }
 }
