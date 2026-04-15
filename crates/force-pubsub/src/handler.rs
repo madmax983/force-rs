@@ -50,9 +50,11 @@ async fn fetch_tenant_id<A: Authenticator>(session: &Arc<Session<A>>) -> Result<
         )));
     }
 
-    let info: UserInfo = resp
-        .json()
+    let body = force::http::error::read_capped_body(resp, 1024 * 1024)
         .await
+        .map_err(|e| PubSubError::Config(format!("userinfo parse failed: {e}")))?;
+
+    let info: UserInfo = serde_json::from_str(&body)
         .map_err(|e| PubSubError::Config(format!("userinfo parse failed: {e}")))?;
 
     Ok(info.organization_id)

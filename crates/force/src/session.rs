@@ -101,11 +101,9 @@ impl<A: crate::auth::authenticator::Authenticator> Session<A> {
             );
         }
 
-        response
-            .json::<T>()
-            .await
-            .map_err(crate::error::HttpError::from)
-            .map_err(Into::into)
+        let body = crate::http::error::read_capped_body(response, 10 * 1024 * 1024).await?;
+        serde_json::from_str::<T>(&body)
+            .map_err(|e| crate::error::ForceError::Serialization(e.into()))
     }
 
     /// Resolves a path to a full Apex REST URL.
