@@ -395,21 +395,19 @@ mod tests {
 
         // Collect all records by manually paginating
         let mut all_records = Vec::new();
-        let mut result: QueryResult<TestAccount> = client
+        let result: QueryResult<TestAccount> = client
             .rest()
             .query("SELECT Id, Name FROM Account")
             .await
             .must();
 
-        all_records.extend(result.records.clone());
+        let mut next_url = result.next_records_url.clone();
+        all_records.extend(result.records);
 
-        while !result.is_done() {
-            if let Some(next_url) = result.next_records_url.as_ref() {
-                result = client.rest().query_more(next_url).await.must();
-                all_records.extend(result.records.clone());
-            } else {
-                break;
-            }
+        while let Some(url) = next_url {
+            let result = client.rest().query_more::<TestAccount>(&url).await.must();
+            next_url = result.next_records_url.clone();
+            all_records.extend(result.records);
         }
 
         // Verify we got all 6 records
