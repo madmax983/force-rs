@@ -91,11 +91,20 @@ mod tests {
 
         // Use a generic Map instead of serde_json to avoid serde_json::Number internal struct issues with apache_avro 0.18+
         let mut payload = std::collections::HashMap::new();
-        payload.insert("id", apache_avro::types::Value::String("event-001".to_string()));
+        payload.insert(
+            "id",
+            apache_avro::types::Value::String("event-001".to_string()),
+        );
         payload.insert("amount", apache_avro::types::Value::Double(99.5));
         let record = apache_avro::types::Value::Record(vec![
-            ("id".to_string(), apache_avro::types::Value::String("event-001".to_string())),
-            ("amount".to_string(), apache_avro::types::Value::Double(99.5))
+            (
+                "id".to_string(),
+                apache_avro::types::Value::String("event-001".to_string()),
+            ),
+            (
+                "amount".to_string(),
+                apache_avro::types::Value::Double(99.5),
+            ),
         ]);
 
         let resolved = record.resolve(&schema).unwrap();
