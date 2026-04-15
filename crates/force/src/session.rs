@@ -114,41 +114,68 @@ impl<A: crate::auth::authenticator::Authenticator> Session<A> {
     ///
     /// Unlike [`resolve_url`](Self::resolve_url), this does **not** include the
     /// API version in the path, because Apex REST endpoints are version-less.
+    ///
+    /// ⚡ **Performance:** Bypasses `format!` and `std::fmt` overhead by pre-allocating
+    /// a string with exact capacity and pushing directly. This avoids string allocation
+    /// bottlenecks on high-throughput API routing paths.
     #[cfg(feature = "apex_rest")]
     pub(crate) async fn resolve_apex_rest_url(&self, path: &str) -> crate::error::Result<String> {
         let token = self.token_manager.get_token_arc().await?;
+        let instance_url = token.instance_url();
         let clean_path = path.trim_start_matches('/');
+
+        let path_prefix = "/services/apexrest";
+
         if clean_path.is_empty() {
-            Ok(format!("{}/services/apexrest", token.instance_url()))
+            let mut out = String::with_capacity(instance_url.len() + path_prefix.len());
+            out.push_str(instance_url);
+            out.push_str(path_prefix);
+            Ok(out)
         } else {
-            Ok(format!(
-                "{}/services/apexrest/{}",
-                token.instance_url(),
-                clean_path
-            ))
+            let mut out = String::with_capacity(
+                instance_url.len() + path_prefix.len() + 1 + clean_path.len(),
+            );
+            out.push_str(instance_url);
+            out.push_str(path_prefix);
+            out.push('/');
+            out.push_str(clean_path);
+            Ok(out)
         }
     }
 
     /// Resolves a path to a full Salesforce API URL.
     ///
     /// Constructs: `{instance_url}/services/data/{api_version}/{path}`
+    ///
+    /// ⚡ **Performance:** Bypasses `format!` and `std::fmt` overhead by pre-allocating
+    /// a string with exact capacity and pushing directly. This avoids string allocation
+    /// bottlenecks on high-throughput API routing paths.
     pub(crate) async fn resolve_url(&self, path: &str) -> crate::error::Result<String> {
         let token = self.token_manager.get_token_arc().await?;
+        let instance_url = token.instance_url();
         // Handle empty path or path starting with slash
         let clean_path = path.trim_start_matches('/');
+
+        let path_prefix = "/services/data/";
+        let api_version = &self.config.api_version;
+
         if clean_path.is_empty() {
-            Ok(format!(
-                "{}/services/data/{}",
-                token.instance_url(),
-                self.config.api_version
-            ))
+            let mut out =
+                String::with_capacity(instance_url.len() + path_prefix.len() + api_version.len());
+            out.push_str(instance_url);
+            out.push_str(path_prefix);
+            out.push_str(api_version);
+            Ok(out)
         } else {
-            Ok(format!(
-                "{}/services/data/{}/{}",
-                token.instance_url(),
-                self.config.api_version,
-                clean_path
-            ))
+            let mut out = String::with_capacity(
+                instance_url.len() + path_prefix.len() + api_version.len() + 1 + clean_path.len(),
+            );
+            out.push_str(instance_url);
+            out.push_str(path_prefix);
+            out.push_str(api_version);
+            out.push('/');
+            out.push_str(clean_path);
+            Ok(out)
         }
     }
 

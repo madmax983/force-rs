@@ -107,10 +107,9 @@ impl<A: crate::auth::Authenticator> GraphqlHandler<A> {
             );
         }
 
-        let envelope: GraphqlResponse<T> = response
-            .json()
-            .await
-            .map_err(crate::error::HttpError::from)?;
+        let body = crate::http::error::read_capped_body(response, 10 * 1024 * 1024).await?;
+        let envelope: GraphqlResponse<T> =
+            serde_json::from_str(&body).map_err(crate::error::SerializationError::from)?;
 
         match (envelope.data, envelope.errors) {
             (Some(data), _) => Ok(data),
@@ -149,10 +148,9 @@ impl<A: crate::auth::Authenticator> GraphqlHandler<A> {
             );
         }
 
-        response
-            .json::<GraphqlResponse<T>>()
-            .await
-            .map_err(crate::error::HttpError::from)
+        let body = crate::http::error::read_capped_body(response, 10 * 1024 * 1024).await?;
+        serde_json::from_str(&body)
+            .map_err(crate::error::SerializationError::from)
             .map_err(Into::into)
     }
 
