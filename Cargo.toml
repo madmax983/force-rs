@@ -69,7 +69,7 @@ wiremock = "0.6"
 # gRPC/Protobuf (for pub_sub)
 tonic = "0.13"
 prost = "0.13"
-apache-avro = "0.17"
+apache-avro = "0.14.0"
 dashmap = "6"
 tokio-stream = "0.1"
 

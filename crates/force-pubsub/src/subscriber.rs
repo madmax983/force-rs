@@ -42,6 +42,7 @@ fn preset_to_proto(preset: &ReplayPreset) -> i32 {
 /// Visibility is `pub` so tests in the child `tests` module can call it
 /// directly. The `pub(crate) mod subscriber` declaration in `lib.rs` ensures
 /// this function cannot escape the crate boundary.
+#[must_use]
 pub fn build_fetch_request(topic: &str, preset: &ReplayPreset, batch_size: i32) -> FetchRequest {
     let replay_id = match preset {
         ReplayPreset::Custom(id) => id.as_bytes().to_vec(),
@@ -241,6 +242,7 @@ async fn subscribe_loop<A: Authenticator + Send + Sync + 'static>(
 ///
 /// `tenant_id` is the 18-char Salesforce org ID required as the `tenantid`
 /// gRPC header on every subscribe call.
+#[must_use]
 pub fn subscribe_dynamic<A: Authenticator + Send + Sync + 'static>(
     session: Arc<Session<A>>,
     config: PubSubConfig,
@@ -273,6 +275,7 @@ pub fn subscribe_dynamic<A: Authenticator + Send + Sync + 'static>(
 ///
 /// `tenant_id` is the 18-char Salesforce org ID required as the `tenantid`
 /// gRPC header on every subscribe call.
+#[must_use]
 pub fn subscribe_typed_dynamic<A, T>(
     session: Arc<Session<A>>,
     config: PubSubConfig,

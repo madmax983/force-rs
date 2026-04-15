@@ -65,3 +65,11 @@
 **[RestOperation: Exposing query_stream]**
 **Tangle:** The `query_stream` method was implemented directly on `RestHandler` in `api/rest/mod.rs`. This prevented other API handlers like `ToolingHandler` (which also implements `RestOperation`) from leveraging paginated streaming queries for SOQL, breaking cohesion and domain reuse.
 **Blueprint:** Moved `query_stream` to be a provided method on the `RestOperation` trait. This required adding a `Self: Sized + Clone` bound to the method signature and updating all consumer test files to import the `RestOperation` trait so the method would be in scope.
+
+**[Fix Clippy Warnings in force-pubsub]**
+**Tangle:** The `force-pubsub` crate had missing `#[must_use]` attributes for several public builder and subscriber methods.
+**Blueprint:** Added `#[must_use]` to `build_fetch_request`, `subscribe_dynamic`, and `subscribe_typed_dynamic` in `crates/force-pubsub/src/subscriber.rs`.
+
+**[Fix Clippy Warnings for Redundant Pub Crate]**
+**Tangle:** The `force-sync` and `force-pubsub` crates generated `clippy::redundant_pub_crate` warnings when their inner submodules were defined as `pub(crate) mod` inside already `pub(crate)` parent modules.
+**Blueprint:** Changed visibility of submodules in `force-sync` (e.g. `store::pg::*`, `capture::postgres::*`, `apply::salesforce::*`) and `force-pubsub` (`proto::*`) from `pub(crate) mod` to `pub mod` while keeping the parent module `pub(crate) mod` to satisfy the lint while maintaining strict boundary encapsulation.

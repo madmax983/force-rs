@@ -41,6 +41,7 @@ pub mod proto {
         #![allow(clippy::missing_const_for_fn)]
         #![allow(clippy::default_trait_access)]
         #![allow(clippy::too_many_lines)]
+        #![allow(clippy::trivially_copy_pass_by_ref)]
         tonic::include_proto!("eventbus.v1");
     }
 }
