@@ -20,7 +20,7 @@ force = { path = "../force", version = "0.1.0" }
 reqwest = { workspace = true }
 tonic = { workspace = true, features = ["tls-webpki-roots"] }
 prost = { workspace = true }
-apache-avro = "0.18.0"
+apache-avro = { workspace = true }
 tokio = { workspace = true }
 tokio-stream = { workspace = true }
 futures = { workspace = true }

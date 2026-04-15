@@ -84,29 +84,33 @@ mod tests {
     "#;
 
     #[test]
+    #[allow(clippy::items_after_statements)]
     fn test_encode_decode_roundtrip_dynamic() {
         let Ok(schema) = Schema::parse_str(SIMPLE_SCHEMA) else {
             panic!("valid schema")
         };
+        // apache-avro 0.18 fails to encode serde_json::Value with arbitrary_precision enabled,
+        // so we must use a typed struct to test the encode functionality, mimicking dynamic behavior.
+        #[derive(Serialize)]
+        struct Payload<'a> {
+            id: &'a str,
+            amount: f64,
+        }
 
-        // Use a generic Map instead of serde_json to avoid serde_json::Number internal struct issues with apache_avro 0.18+
-        let record = apache_avro::types::Value::Record(vec![
-            (
-                "id".to_string(),
-                apache_avro::types::Value::String("event-001".to_string()),
-            ),
-            (
-                "amount".to_string(),
-                apache_avro::types::Value::Double(99.5),
-            ),
-        ]);
+        let payload = Payload {
+            id: "event-001",
+            amount: 99.5,
+        };
 
-        let resolved = record.resolve(&schema).unwrap_or_else(|_| panic!("resolve failed"));
-        let encoded = apache_avro::to_avro_datum(&schema, resolved).unwrap_or_else(|_| panic!("encode failed"));
+        let encoded = match encode_avro(&schema, &payload) {
+            Ok(enc) => enc,
+            Err(e) => panic!("encode failed with: {e:?}"),
+        };
         assert!(!encoded.is_empty());
 
-        let Ok(decoded) = decode_avro(&schema, &encoded) else {
-            panic!("decode succeeds")
+        let decoded = match decode_avro(&schema, &encoded) {
+            Ok(dec) => dec,
+            Err(e) => panic!("decode failed with: {e:?}"),
         };
         assert_eq!(decoded["id"], "event-001");
         let Some(amount) = decoded["amount"].as_f64() else {
