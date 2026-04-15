@@ -27,3 +27,9 @@
 **Finding:** `QueryStream::next()` failed to loop properly when an empty middle page was fetched, immediately marking the stream as exhausted. `cargo mutants` exposed that this path was not tested at all.
 **Evidence:** `cargo mutants` mutated `if self.records.is_empty()` replacing the condition causing early termination and no tests failed.
 **Recommendation:** Wrap the fetching logic inside `QueryStream::next()` in a `loop` so that if an empty page is fetched but `next_locator` is still present, the stream fetches the next page. Add a test `test_query_results_fetch_csv_data_empty_middle_page` to simulate an empty middle page using `wiremock`.
+**[Elenchus: QueryStream empty middle page early termination test]**
+**Module:** `crates/force/src/api/bulk/query.rs`
+**Severity:** 🔴 Critical
+**Finding:** The `QueryStream::next()` loop conditionally relied on `self.records.is_empty() && self.next_locator.is_none()` for early termination. `cargo mutants` revealed that this conditional was weakly tested: mutating `&&` to `||` went uncaught by the existing test suite, meaning there was no guarantee the stream correctly handled empty middle pages where `next_locator` is *not* none.
+**Evidence:** `cargo mutants -f crates/force/src/api/bulk/query.rs` flagged the `&& -> ||` mutation at line 189 as surviving.
+**Recommendation:** Added `test_query_results_fetch_csv_data_empty_middle_page` using `wiremock` to simulate an exact sequence of fetching a populated page, an empty middle page with a locator, and a final populated page. This strongly tests the logic and successfully kills the mutation.
