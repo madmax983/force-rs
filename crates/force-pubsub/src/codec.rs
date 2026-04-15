@@ -90,12 +90,6 @@ mod tests {
         };
 
         // Use a generic Map instead of serde_json to avoid serde_json::Number internal struct issues with apache_avro 0.18+
-        let mut payload = std::collections::HashMap::new();
-        payload.insert(
-            "id",
-            apache_avro::types::Value::String("event-001".to_string()),
-        );
-        payload.insert("amount", apache_avro::types::Value::Double(99.5));
         let record = apache_avro::types::Value::Record(vec![
             (
                 "id".to_string(),
@@ -107,8 +101,8 @@ mod tests {
             ),
         ]);
 
-        let resolved = record.resolve(&schema).unwrap();
-        let encoded = apache_avro::to_avro_datum(&schema, resolved).unwrap();
+        let resolved = record.resolve(&schema).unwrap_or_else(|_| panic!("resolve failed"));
+        let encoded = apache_avro::to_avro_datum(&schema, resolved).unwrap_or_else(|_| panic!("encode failed"));
         assert!(!encoded.is_empty());
 
         let Ok(decoded) = decode_avro(&schema, &encoded) else {
