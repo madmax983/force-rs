@@ -8,7 +8,7 @@
 //! - Sforce-Limit-Info header tracking for API limits
 //! - Detailed error parsing from Salesforce API responses
 
-pub(crate) mod error;
+pub mod error;
 pub(crate) mod executor;
 pub(crate) mod retry;
 pub(crate) mod telemetry;

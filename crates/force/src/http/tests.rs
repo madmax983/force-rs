@@ -531,7 +531,7 @@ mod integration_tests {
         // Assert
 
         // Should get an HTTP error when parsing JSON fails
-        assert!(matches!(result, Err(ForceError::Http(_))));
+        assert!(matches!(result, Err(ForceError::Serialization(_))));
     }
 
     #[tokio::test]
