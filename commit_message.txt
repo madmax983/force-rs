@@ -1,0 +1,20 @@
+🛡️ Sentry: Replace `unwrap()` and `unwrap_err()` in force and force-pubsub for correctness
+
+🎯 Target:
+- `crates/force/src/api/rest_operation.rs`
+- `crates/force-pubsub/src/codec.rs`
+- `crates/force-pubsub/src/publish_sink.rs`
+- `crates/force-pubsub/src/interceptor.rs`
+
+💣 Risk:
+Reduces panic risks in test infrastructure, resolving `clippy::unwrap_used` violations by replacing `unwrap()` with explicit `.must()` or `.expect("...")` statements, and `unwrap_err()` with the `let Err(e) = ... else { panic!("...") }` pattern. By enforcing this across tests, we ensure better error tracing.
+
+🧪 Strategy:
+- In `crates/force/src/api/rest_operation.rs`, replace `.unwrap()` with the existing `.must()` custom trait from `test_support` by importing the trait.
+- In `crates/force/src/api/rest_operation.rs`, replace `.unwrap_err()` with `let Err(e) = ... else { ... }` pattern.
+- Removed `#[allow(clippy::unwrap_used)]` on tests in `rest_operation.rs` as it's no longer necessary.
+- In `crates/force-pubsub/src/codec.rs` and `publish_sink.rs`, replace `.unwrap()` with descriptive `.expect("...")`.
+- In `crates/force-pubsub/src/interceptor.rs`, replace `.unwrap_err()` with `let Err(e) = ... else { ... }` pattern.
+
+🔬 Verification:
+Run `cargo test` and `cargo clippy --all-targets --all-features -- -D warnings`
