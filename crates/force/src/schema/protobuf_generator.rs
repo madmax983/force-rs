@@ -33,7 +33,6 @@ pub fn write_protobuf_schema(out: &mut String, describe: &SObjectDescribe) {
         }
     });
 
-
     for (field_number, field) in (1..).zip(fields.into_iter()) {
         let proto_type = map_type(&field.type_);
 
@@ -44,7 +43,6 @@ pub fn write_protobuf_schema(out: &mut String, describe: &SObjectDescribe) {
             "  {}{} {} = {};",
             optional_modifier, proto_type, field.name, field_number
         );
-
     }
 
     let _ = writeln!(out, "}}");
