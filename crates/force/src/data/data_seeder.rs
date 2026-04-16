@@ -11,62 +11,38 @@ use crate::error::Result;
 
 use super::data_faker::generate_mock_record;
 
-/// Utility for generating and inserting mock records from schema metadata.
-#[derive(Debug)]
-pub struct DataSeeder<'a, A: Authenticator> {
-    client: &'a ForceClient<A>,
+/// Generates and inserts a specified number of fake records for an SObject.
+///
+/// This method fetches the object's describe information, generates mock
+/// data using `DataFaker`, and inserts them using the Composite Batch API.
+///
+/// # Arguments
+///
+/// * `client` - The Force client.
+/// * `sobject` - The name of the SObject (e.g., "Account").
+/// * `count` - The number of records to generate and insert.
+/// * `halt_on_error` - Whether to stop processing if a batch operation fails.
+///
+/// # Errors
+///
+/// Returns an error if the describe call fails or if executing the batch fails.
+pub async fn seed_data<A: Authenticator>(
+    client: &ForceClient<A>,
+    sobject: &str,
+    count: usize,
     halt_on_error: bool,
-}
-
-impl<'a, A: Authenticator> DataSeeder<'a, A> {
-    /// Creates a new data seeder.
-    ///
-    /// # Arguments
-    ///
-    /// * `client` - The Force client.
-    #[must_use]
-    pub fn new(client: &'a ForceClient<A>) -> Self {
-        Self {
-            client,
-            halt_on_error: false,
-        }
-    }
-
-    /// Sets whether to stop processing if a batch operation fails.
-    ///
-    /// Default is false.
-    #[must_use]
-    pub fn halt_on_error(mut self, halt: bool) -> Self {
-        self.halt_on_error = halt;
-        self
-    }
-
-    /// Generates and inserts a specified number of fake records for an SObject.
-    ///
-    /// This method fetches the object's describe information, generates mock
-    /// data using `DataFaker`, and inserts them using the Composite Batch API.
-    ///
-    /// # Arguments
-    ///
-    /// * `sobject` - The name of the SObject (e.g., "Account").
-    /// * `count` - The number of records to generate and insert.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the describe call fails or if executing the batch fails.
-    pub async fn seed(&self, sobject: &str, count: usize) -> Result<usize> {
+) -> Result<usize> {
         if count == 0 {
             return Ok(0);
         }
 
-        let describe = self.client.rest().describe(sobject).await?;
+        let describe = client.rest().describe(sobject).await?;
 
         let mut success_count = 0;
-        let mut current_batch = self
-            .client
+        let mut current_batch = client
             .composite()
             .batch()
-            .halt_on_error(self.halt_on_error);
+            .halt_on_error(halt_on_error);
 
         for i in 0..count {
             let record = generate_mock_record(&describe);
@@ -83,7 +59,7 @@ impl<'a, A: Authenticator> DataSeeder<'a, A> {
                 for result in response.results {
                     if result.status_code >= 200 && result.status_code < 300 {
                         success_count += 1;
-                    } else if self.halt_on_error {
+                    } else if halt_on_error {
                         return Err(crate::error::ForceError::InvalidInput(
                             "Seed operation failed".into(),
                         ));
@@ -91,16 +67,14 @@ impl<'a, A: Authenticator> DataSeeder<'a, A> {
                 }
 
                 // Reset the batch for the next chunk
-                current_batch = self
-                    .client
+                current_batch = client
                     .composite()
                     .batch()
-                    .halt_on_error(self.halt_on_error);
+                    .halt_on_error(halt_on_error);
             }
         }
 
         Ok(success_count)
-    }
 }
 
 #[cfg(test)]
@@ -174,8 +148,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let seeder = DataSeeder::new(&client);
-        let success_count = seeder.seed("Account", 2).await.must();
+        let success_count = seed_data(&client, "Account", 2, false).await.must();
 
         assert_eq!(success_count, 2);
     }

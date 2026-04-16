@@ -65,3 +65,6 @@
 **[RestOperation: Exposing query_stream]**
 **Tangle:** The `query_stream` method was implemented directly on `RestHandler` in `api/rest/mod.rs`. This prevented other API handlers like `ToolingHandler` (which also implements `RestOperation`) from leveraging paginated streaming queries for SOQL, breaking cohesion and domain reuse.
 **Blueprint:** Moved `query_stream` to be a provided method on the `RestOperation` trait. This required adding a `Self: Sized + Clone` bound to the method signature and updating all consumer test files to import the `RestOperation` trait so the method would be in scope.
+**2024-06-01 - [The Facade: Eliminating Empty Static Structs for Utilities]**
+**Tangle:** Several utilities (`DataDictionary`, `FieldUsageScanner`, `DataSeeder`, `DataArchiver`) were implemented as empty, stateless structs with methods. This is a Java-style object-oriented anti-pattern in Rust that introduces unnecessary namespacing, obfuscates intent, and requires boilerplate instantiations.
+**Blueprint:** Refactored these structs into simple module-level free functions (`generate_data_dictionary`, `scan_field_usage`, `seed_data`, `archive_to_jsonl`). This aligns with idiomatic Rust, enforces simplicity (KISS), and cleans up the public API by removing empty structs that carry no data.

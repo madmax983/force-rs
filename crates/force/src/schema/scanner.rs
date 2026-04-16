@@ -27,133 +27,123 @@ pub struct FieldUsage {
     pub percentage: f64,
 }
 
-/// Scanner for analyzing field usage.
-#[derive(Debug)]
-pub struct FieldUsageScanner<'a, A: Authenticator> {
-    client: &'a ForceClient<A>,
+/// Scans the specified SObject to determine field usage.
+///
+/// This method fetches the object definition using the Describe API,
+/// then executes SOQL aggregate queries to count non-null values for each field.
+///
+/// # Arguments
+///
+/// * `client` - The Force client.
+/// * `sobject` - The API name of the SObject to scan (e.g., "Account").
+///
+/// # Returns
+///
+/// A list of `FieldUsage` stats for all scanable fields.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The Describe API call fails.
+/// - Any SOQL query fails.
+/// - The response cannot be parsed.
+pub async fn scan_field_usage<A: Authenticator>(
+    client: &ForceClient<A>,
+    sobject: &str,
+) -> Result<Vec<FieldUsage>> {
+    // 1. Describe the object to get fields
+    let describe = client.rest().describe(sobject).await?;
+
+    // 2. Filter scanable fields
+    let scanable_fields: Vec<_> = describe
+        .fields
+        .iter()
+        .filter(|f| is_scanable(&f.type_))
+        .collect();
+
+    if scanable_fields.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    #[allow(unused_doc_comments)]
+    /// ⚡ Bolt: Pre-allocate capacity to avoid heap reallocations when extending results.
+    let mut results = Vec::with_capacity(scanable_fields.len());
+
+    // 3. Batch fields to avoid SOQL character limits (safe chunk size: 20)
+    for chunk in scanable_fields.chunks(20) {
+        let usage = scan_batch(client, sobject, chunk).await?;
+        results.extend(usage);
+    }
+
+    Ok(results)
 }
 
-impl<'a, A: Authenticator> FieldUsageScanner<'a, A> {
-    /// Creates a new scanner using the provided client.
-    #[must_use]
-    pub fn new(client: &'a ForceClient<A>) -> Self {
-        Self { client }
-    }
+async fn scan_batch<A: Authenticator>(
+    client: &ForceClient<A>,
+    sobject: &str,
+    fields: &[&crate::api::rest::describe::FieldDescribe],
+) -> Result<Vec<FieldUsage>> {
+    use std::fmt::Write;
 
-    /// Scans the specified SObject to determine field usage.
-    ///
-    /// This method fetches the object definition using the Describe API,
-    /// then executes SOQL aggregate queries to count non-null values for each field.
-    ///
-    /// # Arguments
-    ///
-    /// * `sobject` - The API name of the SObject to scan (e.g., "Account").
-    ///
-    /// # Returns
-    ///
-    /// A list of `FieldUsage` stats for all scanable fields.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if:
-    /// - The Describe API call fails.
-    /// - Any SOQL query fails.
-    /// - The response cannot be parsed.
-    pub async fn scan(&self, sobject: &str) -> Result<Vec<FieldUsage>> {
-        // 1. Describe the object to get fields
-        let describe = self.client.rest().describe(sobject).await?;
+    // Build query: SELECT COUNT(Id) total, COUNT(Field1) f0, COUNT(Field2) f1...
+    // Performance: Pre-allocate capacity to avoid 20+ intermediate String allocations per batch.
+    // Assuming ~20 bytes per field selection + base query size.
+    let mut query = String::with_capacity(128 + (fields.len() * 25));
 
-        // 2. Filter scanable fields
-        let scanable_fields: Vec<_> = describe
-            .fields
-            .iter()
-            .filter(|f| is_scanable(&f.type_))
-            .collect();
+    query.push_str("SELECT COUNT(Id) total");
 
-        if scanable_fields.is_empty() {
-            return Ok(Vec::new());
-        }
-
-        #[allow(unused_doc_comments)]
-        /// ⚡ Bolt: Pre-allocate capacity to avoid heap reallocations when extending results.
-        let mut results = Vec::with_capacity(scanable_fields.len());
-
-        // 3. Batch fields to avoid SOQL character limits (safe chunk size: 20)
-        for chunk in scanable_fields.chunks(20) {
-            let usage = self.scan_batch(sobject, chunk).await?;
-            results.extend(usage);
-        }
-
-        Ok(results)
-    }
-
-    async fn scan_batch(
-        &self,
-        sobject: &str,
-        fields: &[&crate::api::rest::describe::FieldDescribe],
-    ) -> Result<Vec<FieldUsage>> {
-        use std::fmt::Write;
-
-        // Build query: SELECT COUNT(Id) total, COUNT(Field1) f0, COUNT(Field2) f1...
-        // Performance: Pre-allocate capacity to avoid 20+ intermediate String allocations per batch.
-        // Assuming ~20 bytes per field selection + base query size.
-        let mut query = String::with_capacity(128 + (fields.len() * 25));
-
-        query.push_str("SELECT COUNT(Id) total");
-
-        for (i, field) in fields.iter().enumerate() {
-            write!(query, ", COUNT({}) f{}", field.name, i)
-                .unwrap_or_else(|_| unreachable!("writing to String is infallible"));
-        }
-
-        write!(query, " FROM {}", sobject)
+    for (i, field) in fields.iter().enumerate() {
+        write!(query, ", COUNT({}) f{}", field.name, i)
             .unwrap_or_else(|_| unreachable!("writing to String is infallible"));
-
-        // Execute query
-        let response = self.client.rest().query::<Value>(&query).await?;
-
-        if response.records.is_empty() {
-            // Should not happen for aggregate queries unless table is empty?
-            // Actually aggregate query always returns 1 row (unless grouped, which we aren't).
-            // Wait, if table is empty, COUNT returns 0 in one row.
-            return Ok(fields
-                .iter()
-                .map(|f| FieldUsage {
-                    name: f.name.clone(),
-                    type_: format!("{:?}", f.type_),
-                    populated_count: 0,
-                    total_count: 0,
-                    percentage: 0.0,
-                })
-                .collect());
-        }
-
-        let record = &response.records[0];
-        let total = record.get("total").and_then(|v| v.as_u64()).unwrap_or(0);
-
-        let mut batch_results = Vec::with_capacity(fields.len());
-
-        for (i, field) in fields.iter().enumerate() {
-            let alias = format!("f{}", i);
-            let count = record.get(&alias).and_then(|v| v.as_u64()).unwrap_or(0);
-
-            let percentage = if total > 0 {
-                (count as f64 / total as f64) * 100.0
-            } else {
-                0.0
-            };
-
-            batch_results.push(FieldUsage {
-                name: field.name.clone(),
-                type_: format!("{:?}", field.type_),
-                populated_count: count,
-                total_count: total,
-                percentage,
-            });
-        }
-
-        Ok(batch_results)
     }
+
+    write!(query, " FROM {}", sobject)
+        .unwrap_or_else(|_| unreachable!("writing to String is infallible"));
+
+    // Execute query
+    let response = client.rest().query::<Value>(&query).await?;
+
+    if response.records.is_empty() {
+        // Should not happen for aggregate queries unless table is empty?
+        // Actually aggregate query always returns 1 row (unless grouped, which we aren't).
+        // Wait, if table is empty, COUNT returns 0 in one row.
+        return Ok(fields
+            .iter()
+            .map(|f| FieldUsage {
+                name: f.name.clone(),
+                type_: format!("{:?}", f.type_),
+                populated_count: 0,
+                total_count: 0,
+                percentage: 0.0,
+            })
+            .collect());
+    }
+
+    let record = &response.records[0];
+    let total = record.get("total").and_then(|v| v.as_u64()).unwrap_or(0);
+
+    let mut batch_results = Vec::with_capacity(fields.len());
+
+    for (i, field) in fields.iter().enumerate() {
+        let alias = format!("f{}", i);
+        let count = record.get(&alias).and_then(|v| v.as_u64()).unwrap_or(0);
+
+        let percentage = if total > 0 {
+            (count as f64 / total as f64) * 100.0
+        } else {
+            0.0
+        };
+
+        batch_results.push(FieldUsage {
+            name: field.name.clone(),
+            type_: format!("{:?}", field.type_),
+            populated_count: count,
+            total_count: total,
+            percentage,
+        });
+    }
+
+    Ok(batch_results)
 }
 
 fn is_scanable(field_type: &FieldType) -> bool {
@@ -185,8 +175,7 @@ mod tests {
         setup_mock_describe(&mock_server).await;
         setup_mock_query(&mock_server).await;
 
-        let scanner = FieldUsageScanner::new(&client);
-        let usage = scanner.scan("Account").await.must();
+        let usage = scan_field_usage(&client, "Account").await.must();
 
         assert_eq!(usage.len(), 2);
 
@@ -378,8 +367,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let scanner = FieldUsageScanner::new(&client);
-        let usage = scanner.scan("Account").await.must();
+        let usage = scan_field_usage(&client, "Account").await.must();
 
         assert_eq!(usage.len(), 1);
         assert_eq!(usage[0].name, "Id");
@@ -411,8 +399,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let scanner = FieldUsageScanner::new(&client);
-        let usage = scanner.scan("Account").await.must();
+        let usage = scan_field_usage(&client, "Account").await.must();
 
         assert_eq!(usage.len(), 1);
         assert_eq!(usage[0].populated_count, 0);
@@ -552,8 +539,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let scanner = FieldUsageScanner::new(&client);
-        let usage = scanner.scan("Account").await.must();
+        let usage = scan_field_usage(&client, "Account").await.must();
 
         assert_eq!(usage.len(), 25);
     }
@@ -571,8 +557,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let scanner = FieldUsageScanner::new(&client);
-        let result = scanner.scan("Account").await;
+        let result = scan_field_usage(&client, "Account").await;
         let Err(err) = result else {
             panic!("Expected an error");
         };
@@ -589,7 +574,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let result = scanner.scan("Account").await;
+        let result = scan_field_usage(&client, "Account").await;
         let Err(err) = result else {
             panic!("Expected an error");
         };

@@ -13,40 +13,28 @@ use std::path::Path;
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
 
-/// Utility for exporting query results to disk.
-#[derive(Debug)]
-pub struct DataArchiver<'a, A: Authenticator> {
-    client: &'a ForceClient<A>,
-}
-
-impl<'a, A: Authenticator> DataArchiver<'a, A> {
-    /// Creates a new data archiver.
-    ///
-    /// # Arguments
-    ///
-    /// * `client` - The Force client.
-    #[must_use]
-    pub fn new(client: &'a ForceClient<A>) -> Self {
-        Self { client }
-    }
-
-    /// Exports a SOQL query to a JSON Lines (JSONL) file.
-    ///
-    /// Each returned record will be serialized as a single JSON object per line.
-    ///
-    /// # Arguments
-    ///
-    /// * `soql` - The SOQL query string.
-    /// * `path` - The file path to write the JSONL output.
-    ///
-    /// # Returns
-    ///
-    /// Returns the number of records written.
-    pub async fn export_to_jsonl<T>(&self, soql: &str, path: impl AsRef<Path>) -> Result<usize>
-    where
-        T: DeserializeOwned + Serialize + Unpin,
-    {
-        let mut stream = self.client.rest().query_stream::<T>(soql);
+/// Exports a SOQL query to a JSON Lines (JSONL) file.
+///
+/// Each returned record will be serialized as a single JSON object per line.
+///
+/// # Arguments
+///
+/// * `client` - The Force client.
+/// * `soql` - The SOQL query string.
+/// * `path` - The file path to write the JSONL output.
+///
+/// # Returns
+///
+/// Returns the number of records written.
+pub async fn archive_to_jsonl<A: Authenticator, T>(
+    client: &ForceClient<A>,
+    soql: &str,
+    path: impl AsRef<Path>,
+) -> Result<usize>
+where
+    T: DeserializeOwned + Serialize + Unpin,
+{
+        let mut stream = client.rest().query_stream::<T>(soql);
         let mut file = File::create(path).await?;
         let mut count = 0;
 
@@ -62,7 +50,6 @@ impl<'a, A: Authenticator> DataArchiver<'a, A> {
 
         file.flush().await?;
         Ok(count)
-    }
 }
 
 #[cfg(test)]
@@ -108,13 +95,10 @@ mod tests {
             .build()
             .await
             .must();
-        let archiver = DataArchiver::new(&client);
-
         let file_path = env::temp_dir().join(format!("export_{}.jsonl", std::process::id()));
 
         let soql = "SELECT Id, Name FROM Account";
-        let count = archiver
-            .export_to_jsonl::<serde_json::Value>(soql, &file_path)
+        let count = archive_to_jsonl::<_, serde_json::Value>(&client, soql, &file_path)
             .await
             .must();
 

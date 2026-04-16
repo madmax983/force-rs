@@ -12,16 +12,17 @@ use force::api::rest::{
 
 #[cfg(feature = "schema")]
 use force::schema::{
-    DataDictionary, FieldChange, FieldUsage, FieldUsageScanner, LintResult, LintRule, LintSeverity,
-    MissingCustomSuffixRule, SchemaDiffResult, SchemaGraph, SchemaInsights, SchemaLinter,
-    TooManyFieldsRule, analyze_schema, compare_schemas, generate_changelog, generate_ddl,
+    FieldChange, FieldUsage, LintResult, LintRule, LintSeverity, MissingCustomSuffixRule,
+    SchemaDiffResult, SchemaGraph, SchemaInsights, SchemaLinter, TooManyFieldsRule, analyze_schema,
+    compare_schemas, generate_changelog, generate_data_dictionary, generate_ddl,
     generate_json_schema, generate_openapi_schema, generate_rust_struct,
-    generate_typescript_interface, generate_visualizer_report, write_changelog, write_ddl,
-    write_graphql_schema, write_openapi_schema, write_pydantic_model, write_typescript_interface,
+    generate_typescript_interface, generate_visualizer_report, scan_field_usage, write_changelog,
+    write_ddl, write_graphql_schema, write_openapi_schema, write_pydantic_model,
+    write_typescript_interface,
 };
 
 #[cfg(feature = "data_utility")]
-use force::data::{DataSeeder, generate_mock_record};
+use force::data::{seed_data, generate_mock_record};
 
 #[cfg(feature = "composite")]
 use force::api::composite::{BatchOp, BatchStats, QueryBatch, SoqlMassOp};

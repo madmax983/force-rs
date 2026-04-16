@@ -5,7 +5,7 @@ use crate::error::Result;
 use std::collections::HashMap;
 use std::fmt::Write;
 
-use super::scanner::FieldUsageScanner;
+use super::scanner::scan_field_usage;
 use super::schema_analyzer::analyze_schema;
 use super::schema_graph::SchemaGraph;
 
@@ -69,8 +69,7 @@ pub async fn generate_visualizer_report<A: Authenticator>(
     let _ = writeln!(md, "```\n");
 
     if include_usage {
-        let scanner = FieldUsageScanner::new(client);
-        let usages = scanner.scan(sobject).await?;
+        let usages = scan_field_usage(client, sobject).await?;
         let mut usage_map = HashMap::with_capacity(usages.len());
         for usage in usages {
             usage_map.insert(usage.name, usage.percentage);

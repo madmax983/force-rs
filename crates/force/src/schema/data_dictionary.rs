@@ -13,105 +13,93 @@ use crate::error::Result;
 use std::collections::HashMap;
 use std::fmt::Write;
 
-use super::scanner::FieldUsageScanner;
+use super::scanner::scan_field_usage;
 
 /// Generator for SObject data dictionaries in Markdown format.
-#[derive(Debug)]
-pub struct DataDictionary<'a, A: Authenticator> {
-    client: &'a ForceClient<A>,
-}
 
-impl<'a, A: Authenticator> DataDictionary<'a, A> {
-    /// Creates a new data dictionary generator.
-    ///
-    /// # Arguments
-    ///
-    /// * `client` - The authenticated Force client.
-    #[must_use]
-    pub fn new(client: &'a ForceClient<A>) -> Self {
-        Self { client }
+/// Generates a Markdown data dictionary for the specified SObject.
+///
+/// # Arguments
+///
+/// * `client` - The authenticated Force client.
+/// * `sobject` - The API name of the SObject (e.g., "Account").
+/// * `include_usage` - Whether to scan and include field population statistics.
+///
+/// # Returns
+///
+/// A String containing the generated Markdown document.
+pub async fn generate_data_dictionary<A: Authenticator>(
+    client: &ForceClient<A>,
+    sobject: &str,
+    include_usage: bool,
+) -> Result<String> {
+    let describe = client.rest().describe(sobject).await?;
+
+    let mut usage_map = HashMap::new();
+    if include_usage {
+        let usages = scan_field_usage(client, sobject).await?;
+        for usage in usages {
+            usage_map.insert(usage.name.clone(), usage);
+        }
     }
 
-    /// Generates a Markdown data dictionary for the specified SObject.
-    ///
-    /// # Arguments
-    ///
-    /// * `sobject` - The API name of the SObject (e.g., "Account").
-    /// * `include_usage` - Whether to scan and include field population statistics.
-    ///
-    /// # Returns
-    ///
-    /// A String containing the generated Markdown document.
-    pub async fn generate(&self, sobject: &str, include_usage: bool) -> Result<String> {
-        let describe = self.client.rest().describe(sobject).await?;
+    let mut md = String::with_capacity(1024);
 
-        let mut usage_map = HashMap::new();
-        if include_usage {
-            let scanner = FieldUsageScanner::new(self.client);
-            let usages = scanner.scan(sobject).await?;
-            for usage in usages {
-                usage_map.insert(usage.name.clone(), usage);
-            }
-        }
+    // ⚡ Bolt: Use `writeln!` directly to the `md` buffer instead of `format!` and `push_str`
+    // to avoid intermediate String heap allocations for the header and each table row.
+    let _ = writeln!(md, "# Data Dictionary: {}", describe.label);
+    let _ = writeln!(md, "**API Name:** `{}`", describe.name);
+    let _ = writeln!(md, "**Custom:** {}", describe.custom);
+    md.push('\n');
 
-        let mut md = String::with_capacity(1024);
+    md.push_str("## Fields\n\n");
 
-        // ⚡ Bolt: Use `writeln!` directly to the `md` buffer instead of `format!` and `push_str`
-        // to avoid intermediate String heap allocations for the header and each table row.
-        let _ = writeln!(md, "# Data Dictionary: {}", describe.label);
-        let _ = writeln!(md, "**API Name:** `{}`", describe.name);
-        let _ = writeln!(md, "**Custom:** {}", describe.custom);
-        md.push('\n');
+    if include_usage {
+        md.push_str("| Label | API Name | Type | Required | Reference To | Populated % |\n");
+        md.push_str("|---|---|---|---|---|---|\n");
+    } else {
+        md.push_str("| Label | API Name | Type | Required | Reference To |\n");
+        md.push_str("|---|---|---|---|---|\n");
+    }
 
-        md.push_str("## Fields\n\n");
+    let mut fields = describe.fields;
+    fields.sort_by(|a, b| crate::schema::cmp_field_names(&a.name, &b.name));
 
-        if include_usage {
-            md.push_str("| Label | API Name | Type | Required | Reference To | Populated % |\n");
-            md.push_str("|---|---|---|---|---|---|\n");
+    for field in fields {
+        let required = if !field.nillable && !field.defaulted_on_create {
+            "Yes"
         } else {
-            md.push_str("| Label | API Name | Type | Required | Reference To |\n");
-            md.push_str("|---|---|---|---|---|\n");
+            "No"
+        };
+
+        let _ = write!(
+            md,
+            "| {} | `{}` | {:?} | {} | ",
+            field.label, field.name, field.type_, required
+        );
+
+        // ⚡ Bolt: Write reference_to directly without allocating a `join(", ")` String.
+        let mut first = true;
+        for r in &field.reference_to {
+            if !first {
+                md.push_str(", ");
+            }
+            md.push_str(r);
+            first = false;
         }
 
-        let mut fields = describe.fields;
-        fields.sort_by(|a, b| crate::schema::cmp_field_names(&a.name, &b.name));
-
-        for field in fields {
-            let required = if !field.nillable && !field.defaulted_on_create {
-                "Yes"
+        if include_usage {
+            if let Some(usage) = usage_map.get(&field.name) {
+                let _ = writeln!(md, " | {:.1}% |", usage.percentage);
             } else {
-                "No"
-            };
-
-            let _ = write!(
-                md,
-                "| {} | `{}` | {:?} | {} | ",
-                field.label, field.name, field.type_, required
-            );
-
-            // ⚡ Bolt: Write reference_to directly without allocating a `join(", ")` String.
-            let mut first = true;
-            for r in &field.reference_to {
-                if !first {
-                    md.push_str(", ");
-                }
-                md.push_str(r);
-                first = false;
+                md.push_str(" | N/A |\n");
             }
-
-            if include_usage {
-                if let Some(usage) = usage_map.get(&field.name) {
-                    let _ = writeln!(md, " | {:.1}% |", usage.percentage);
-                } else {
-                    md.push_str(" | N/A |\n");
-                }
-            } else {
-                md.push_str(" |\n");
-            }
+        } else {
+            md.push_str(" |\n");
         }
-
-        Ok(md)
     }
+
+    Ok(md)
 }
 
 #[cfg(test)]
@@ -176,8 +164,9 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let dict = DataDictionary::new(&client);
-        let md = dict.generate("Account", false).await.must();
+        let md = generate_data_dictionary(&client, "Account", false)
+            .await
+            .must();
 
         assert!(md.contains("# Data Dictionary: Account"));
         assert!(md.contains("**Custom:** true"));
@@ -275,8 +264,9 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let dict = DataDictionary::new(&client);
-        let md = dict.generate("Account", true).await.must();
+        let md = generate_data_dictionary(&client, "Account", true)
+            .await
+            .must();
 
         assert!(md.contains("# Data Dictionary: Account"));
         assert!(md.contains("**API Name:** `Account`"));

@@ -5,7 +5,7 @@
 
 use force::auth::ClientCredentials;
 use force::client::ForceClientBuilder;
-use force::schema::DataDictionary;
+use force::schema::generate_data_dictionary;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -23,8 +23,7 @@ async fn main() -> anyhow::Result<()> {
     let sobject = "Account";
     println!("Generating data dictionary for {sobject}...");
 
-    let dict = DataDictionary::new(&client);
-    let md = dict.generate(sobject, true).await?;
+    let md = generate_data_dictionary(&client, sobject, true).await?;
 
     println!("---");
     println!("{md}");

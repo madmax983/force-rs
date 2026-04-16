@@ -41,7 +41,7 @@ pub(crate) fn cmp_field_names(a: &str, b: &str) -> std::cmp::Ordering {
 pub use avro_generator::{generate_avro_schema, write_avro_schema};
 #[cfg(feature = "schema")]
 pub use bigquery_generator::generate_bigquery_schema;
-pub use data_dictionary::DataDictionary;
+pub use data_dictionary::generate_data_dictionary;
 pub use graphql_generator::{generate_graphql_schema, write_graphql_schema};
 pub use json_schema::generate_json_schema;
 pub use mock_data_generator::generate_mock_data;
@@ -52,7 +52,7 @@ pub use prisma_generator::{generate_prisma_model, write_prisma_model};
 #[cfg(feature = "schema")]
 pub use protobuf_generator::{generate_protobuf_schema, write_protobuf_schema};
 pub use pydantic_generator::{generate_pydantic_model, write_pydantic_model};
-pub use scanner::{FieldUsage, FieldUsageScanner};
+pub use scanner::{FieldUsage, scan_field_usage};
 pub use schema_analyzer::{SchemaInsights, analyze_schema};
 pub use schema_changelog::{generate_changelog, write_changelog};
 pub use schema_diff::{FieldChange, SchemaDiffResult, compare_schemas};
