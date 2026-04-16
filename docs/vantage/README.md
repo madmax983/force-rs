@@ -10,6 +10,7 @@ Design backlog and product-spec notes for incubating `force-rs` capabilities. Th
 - [`force-sync-engine.md`](force-sync-engine.md): Postgres-first bidirectional sync engine.
 - [`pub-sub-api.md`](pub-sub-api.md): gRPC event streaming via Salesforce Pub/Sub.
 - [`soap-api.md`](soap-api.md): Legacy Enterprise and Partner SOAP API support.
+- [`streaming-api.md`](streaming-api.md): CometD/Bayeux streaming API support.
 
 ## Schema and Codegen
 
