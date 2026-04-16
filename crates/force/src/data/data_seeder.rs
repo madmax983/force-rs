@@ -32,49 +32,41 @@ pub async fn seed_data<A: Authenticator>(
     count: usize,
     halt_on_error: bool,
 ) -> Result<usize> {
-        if count == 0 {
-            return Ok(0);
-        }
+    if count == 0 {
+        return Ok(0);
+    }
 
-        let describe = client.rest().describe(sobject).await?;
+    let describe = client.rest().describe(sobject).await?;
 
-        let mut success_count = 0;
-        let mut current_batch = client
-            .composite()
-            .batch()
-            .halt_on_error(halt_on_error);
+    let mut success_count = 0;
+    let mut current_batch = client.composite().batch().halt_on_error(halt_on_error);
 
-        for i in 0..count {
-            let record = generate_mock_record(&describe);
-            let value = serde_json::to_value(&record.fields).map_err(|e| {
-                crate::error::ForceError::InvalidInput(format!(
-                    "Failed to serialize mock record: {e}"
-                ))
-            })?;
+    for i in 0..count {
+        let record = generate_mock_record(&describe);
+        let value = serde_json::to_value(&record.fields).map_err(|e| {
+            crate::error::ForceError::InvalidInput(format!("Failed to serialize mock record: {e}"))
+        })?;
 
-            current_batch = current_batch.post(sobject, value)?;
+        current_batch = current_batch.post(sobject, value)?;
 
-            if current_batch.is_full() || i == count - 1 {
-                let response = current_batch.execute().await?;
-                for result in response.results {
-                    if result.status_code >= 200 && result.status_code < 300 {
-                        success_count += 1;
-                    } else if halt_on_error {
-                        return Err(crate::error::ForceError::InvalidInput(
-                            "Seed operation failed".into(),
-                        ));
-                    }
+        if current_batch.is_full() || i == count - 1 {
+            let response = current_batch.execute().await?;
+            for result in response.results {
+                if result.status_code >= 200 && result.status_code < 300 {
+                    success_count += 1;
+                } else if halt_on_error {
+                    return Err(crate::error::ForceError::InvalidInput(
+                        "Seed operation failed".into(),
+                    ));
                 }
-
-                // Reset the batch for the next chunk
-                current_batch = client
-                    .composite()
-                    .batch()
-                    .halt_on_error(halt_on_error);
             }
-        }
 
-        Ok(success_count)
+            // Reset the batch for the next chunk
+            current_batch = client.composite().batch().halt_on_error(halt_on_error);
+        }
+    }
+
+    Ok(success_count)
 }
 
 #[cfg(test)]

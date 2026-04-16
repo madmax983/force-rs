@@ -34,22 +34,22 @@ pub async fn archive_to_jsonl<A: Authenticator, T>(
 where
     T: DeserializeOwned + Serialize + Unpin,
 {
-        let mut stream = client.rest().query_stream::<T>(soql);
-        let mut file = File::create(path).await?;
-        let mut count = 0;
+    let mut stream = client.rest().query_stream::<T>(soql);
+    let mut file = File::create(path).await?;
+    let mut count = 0;
 
-        while let Some(record) = stream.next().await? {
-            let json = serde_json::to_string(&record)
-                .map_err(|e| ForceError::from(SerializationError::from(e)))?;
+    while let Some(record) = stream.next().await? {
+        let json = serde_json::to_string(&record)
+            .map_err(|e| ForceError::from(SerializationError::from(e)))?;
 
-            file.write_all(json.as_bytes()).await?;
-            file.write_all(b"\n").await?;
+        file.write_all(json.as_bytes()).await?;
+        file.write_all(b"\n").await?;
 
-            count += 1;
-        }
+        count += 1;
+    }
 
-        file.flush().await?;
-        Ok(count)
+    file.flush().await?;
+    Ok(count)
 }
 
 #[cfg(test)]

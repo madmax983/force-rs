@@ -22,7 +22,7 @@ use force::schema::{
 };
 
 #[cfg(feature = "data_utility")]
-use force::data::{seed_data, generate_mock_record};
+use force::data::{generate_mock_record, seed_data};
 
 #[cfg(feature = "composite")]
 use force::api::composite::{BatchOp, BatchStats, QueryBatch, SoqlMassOp};
