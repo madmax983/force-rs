@@ -168,14 +168,16 @@ fn merge_object_payload(
     let mut conflicts = Vec::new();
 
     for (field, incoming_value) in incoming {
-        match merged.get(field) {
+        match merged.get_mut(field) {
             Some(existing_value) if existing_value == incoming_value => {}
-            Some(_existing_value) => match object.field_owner_for(field) {
+            Some(existing_value) => match object.field_owner_for(field) {
                 Some(Owner::Salesforce) if source == SourceSystem::Salesforce => {
-                    merged.insert(field.clone(), incoming_value.clone());
+                    // ⚡ Bolt: Mutate existing value in-place to avoid `field.clone()` string allocation
+                    *existing_value = incoming_value.clone();
                 }
                 Some(Owner::Postgres) if source == SourceSystem::Postgres => {
-                    merged.insert(field.clone(), incoming_value.clone());
+                    // ⚡ Bolt: Mutate existing value in-place to avoid `field.clone()` string allocation
+                    *existing_value = incoming_value.clone();
                 }
                 Some(Owner::Salesforce | Owner::Postgres) => {}
                 Some(Owner::Shared) | None => conflicts.push(field.clone()),
