@@ -59,7 +59,7 @@ impl<A: Authenticator> TokenManager<A> {
         let mut state = self.state.write().await;
 
         if let Some(current) = &state.token {
-            if current.issued_at() >= arc_token.issued_at() {
+            if current.issued_at() > arc_token.issued_at() || Arc::ptr_eq(current, &arc_token) {
                 return Ok(current.clone());
             }
             state.token = Some(arc_token.clone());
@@ -216,10 +216,10 @@ impl<A: Authenticator> TokenManager<A> {
     /// let new_token = manager.force_refresh().await?;
     /// ```
     pub async fn force_refresh(&self) -> Result<AccessToken> {
-        // Capture the current token's issued_at timestamp (if any)
-        let current_issued_at = {
+        // Capture the current token's Arc pointer (if any)
+        let current_arc = {
             let state = self.state.read().await;
-            state.token.as_ref().map(|t| t.issued_at())
+            state.token.clone()
         };
 
         // Acquire refresh lock to serialize force_refresh calls
@@ -229,9 +229,13 @@ impl<A: Authenticator> TokenManager<A> {
         {
             let state = self.state.read().await;
             if let Some(token) = &state.token {
-                // If the token in state is strictly newer than what we captured,
+                // If the token in state is a different allocation (Arc::ptr_eq is false) than what we captured,
                 // another thread just refreshed it. Return that one!
-                if Some(token.issued_at()) > current_issued_at {
+                let is_same = match &current_arc {
+                    Some(arc) => Arc::ptr_eq(token, arc),
+                    None => false,
+                };
+                if !is_same {
                     return Ok((*token.clone()).clone());
                 }
             }
@@ -846,8 +850,8 @@ mod tests {
         let result = eq_manager.force_refresh().await.must();
         assert_eq!(
             result.as_str(),
-            "old_token",
-            "Equality should not trigger an overwrite in force_refresh"
+            "new_token",
+            "Equality should trigger an overwrite in force_refresh"
         );
 
         // Now let's test equality overwrite for hard expiration (line 114)
@@ -872,8 +876,8 @@ mod tests {
         let result = hard_eq_manager.token().await.must();
         assert_eq!(
             result.as_str(),
-            "hard_old_token",
-            "Equality should not trigger an overwrite in hard refresh"
+            "new_token",
+            "Equality should trigger an overwrite in hard refresh"
         );
 
         // Now let's test equality overwrite for soft expiration (line 146)
@@ -897,8 +901,8 @@ mod tests {
         let result = soft_eq_manager.token().await.must();
         assert_eq!(
             result.as_str(),
-            "soft_old_token",
-            "Equality should not trigger an overwrite in soft refresh"
+            "new_token",
+            "Equality should trigger an overwrite in soft refresh"
         );
     }
 
