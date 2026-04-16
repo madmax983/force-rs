@@ -82,11 +82,13 @@ pub fn compare_schemas<'a>(
 ) -> SchemaDiffResult<'a> {
     let mut result = SchemaDiffResult::default();
 
-    let mut old_fields: HashMap<&str, &FieldDescribe> = old_schema
-        .fields
-        .iter()
-        .map(|f| (f.name.as_str(), f))
-        .collect();
+    // ⚡ Bolt: Using `HashMap::with_capacity` avoids multiple reallocations when building the map.
+    // Iterating and inserting directly replaces the `.collect()` overhead.
+    let mut old_fields: HashMap<&str, &FieldDescribe> =
+        HashMap::with_capacity(old_schema.fields.len());
+    for f in &old_schema.fields {
+        old_fields.insert(f.name.as_str(), f);
+    }
 
     // Find added and changed fields
     for new_field in &new_schema.fields {
