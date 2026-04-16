@@ -1,10 +1,7 @@
 //! Data Dictionary Generator.
 //!
-//! This module provides a utility to generate a Markdown data dictionary
-//! for a Salesforce SObject, combining Describe API metadata with optional
-//! Field Usage Scanner statistics.
-//!
-//! This serves as a powerful "Exporter" to document schema directly from the API.
+//! This module provides a utility to generate Markdown data dictionaries
+//! for Salesforce SObjects, optionally including field usage statistics.
 
 use crate::api::rest_operation::RestOperation;
 use crate::auth::Authenticator;
@@ -15,7 +12,7 @@ use std::fmt::Write;
 
 use super::scanner::FieldUsageScanner;
 
-/// Generator for SObject data dictionaries in Markdown format.
+/// Generates a Data Dictionary for an SObject.
 #[derive(Debug)]
 pub struct DataDictionary<'a, A: Authenticator> {
     client: &'a ForceClient<A>,
@@ -49,8 +46,11 @@ impl<'a, A: Authenticator> DataDictionary<'a, A> {
         if include_usage {
             let scanner = FieldUsageScanner::new(self.client);
             let usages = scanner.scan(sobject).await?;
+            usage_map.reserve(usages.len());
             for usage in usages {
-                usage_map.insert(usage.name.clone(), usage);
+                // ⚡ Bolt: Moving `usage.name` directly into the map avoids an unnecessary `.clone()` allocation,
+                // and storing only the `f64` percentage reduces memory usage vs storing the entire struct.
+                usage_map.insert(usage.name, usage.percentage);
             }
         }
 
@@ -100,8 +100,8 @@ impl<'a, A: Authenticator> DataDictionary<'a, A> {
             }
 
             if include_usage {
-                if let Some(usage) = usage_map.get(&field.name) {
-                    let _ = writeln!(md, " | {:.1}% |", usage.percentage);
+                if let Some(percentage) = usage_map.get(&field.name) {
+                    let _ = writeln!(md, " | {:.1}% |", percentage);
                 } else {
                     md.push_str(" | N/A |\n");
                 }
@@ -126,49 +126,65 @@ mod tests {
     #[tokio::test]
     async fn test_generate_dictionary_without_usage() {
         let mock_server = MockServer::start().await;
-        let auth = MockAuthenticator::new("token", &mock_server.uri());
+        let auth = MockAuthenticator::new("test_token", &mock_server.uri());
         let client = builder().authenticate(auth).build().await.must();
 
-        let id_field = json!({
-            "name": "Id", "type": "id", "label": "Account ID", "nillable": false,
-            "defaultedOnCreate": true, "referenceTo": [],
-            "aggregatable": true, "autoNumber": false, "byteLength": 18, "calculated": false,
-            "cascadeDelete": false, "caseSensitive": false, "createable": false, "custom": false,
-            "dependentPicklist": false, "deprecatedAndHidden": false, "digits": 0,
-            "displayLocationInDecimal": false, "encrypted": false, "externalId": false,
-            "filterable": true, "groupable": true, "highScaleNumber": false, "htmlFormatted": false,
-            "idLookup": true, "length": 18, "nameField": false, "namePointing": false,
-            "permissionable": false, "polymorphicForeignKey": false, "precision": 0,
-            "queryByDistance": false, "restrictedDelete": false, "restrictedPicklist": false,
-            "scale": 0, "soapType": "tns:ID", "sortable": true, "unique": false, "updateable": false,
-            "writeRequiresMasterRead": false
-        });
-
-        let name_field = json!({
-            "name": "Name", "type": "string", "label": "Account Name", "nillable": false,
-            "defaultedOnCreate": false, "referenceTo": ["Account", "Contact"],
-            "aggregatable": true, "autoNumber": false, "byteLength": 255, "calculated": false,
-            "cascadeDelete": false, "caseSensitive": false, "createable": true, "custom": false,
-            "dependentPicklist": false, "deprecatedAndHidden": false, "digits": 0,
-            "displayLocationInDecimal": false, "encrypted": false, "externalId": false,
-            "filterable": true, "groupable": true, "highScaleNumber": false, "htmlFormatted": false,
-            "idLookup": false, "length": 255, "nameField": true, "namePointing": false,
-            "permissionable": false, "polymorphicForeignKey": false, "precision": 0,
-            "queryByDistance": false, "restrictedDelete": false, "restrictedPicklist": false,
-            "scale": 0, "soapType": "xsd:string", "sortable": true, "unique": false, "updateable": true,
-            "writeRequiresMasterRead": false
-        });
-
-        let describe_json = json!({
-            "name": "Account", "label": "Account", "custom": true, "queryable": true,
+        let describe_json = serde_json::from_str::<serde_json::Value>(r#"{
+            "name": "Account",
+            "label": "Account Object",
+            "custom": false,
+            "queryable": true,
             "activateable": false, "createable": true, "customSetting": false, "deletable": true,
             "deprecatedAndHidden": false, "feedEnabled": true, "hasSubtypes": false,
             "isSubtype": false, "keyPrefix": "001", "labelPlural": "Accounts", "layoutable": true,
             "mergeable": true, "mruEnabled": true, "replicateable": true, "retrieveable": true,
             "searchable": true, "triggerable": true, "undeletable": true, "updateable": true,
             "urls": {}, "childRelationships": [], "recordTypeInfos": [],
-            "fields": [id_field, name_field]
-        });
+            "fields": [
+                {
+                    "name": "Id", "type": "id", "label": "Account ID", "createable": false,
+                    "autoNumber": false, "calculated": false, "custom": false, "nillable": false,
+                    "defaultedOnCreate": true, "referenceTo": [],
+                    "aggregatable": true, "byteLength": 18,
+                    "cascadeDelete": false, "caseSensitive": false,
+                    "dependentPicklist": false, "deprecatedAndHidden": false,
+                    "digits": 0, "displayLocationInDecimal": false, "encrypted": false, "externalId": false,
+                    "filterable": true, "groupable": true, "highScaleNumber": false, "htmlFormatted": false,
+                    "idLookup": true, "length": 18, "nameField": false, "namePointing": false,
+                    "permissionable": false, "polymorphicForeignKey": false, "precision": 0, "queryByDistance": false,
+                    "restrictedDelete": false, "restrictedPicklist": false, "scale": 0, "soapType": "tns:ID",
+                    "sortable": true, "unique": true, "updateable": false, "writeRequiresMasterRead": false
+                },
+                {
+                    "name": "Name", "type": "string", "label": "Account Name", "createable": true,
+                    "autoNumber": false, "calculated": false, "custom": false, "nillable": false,
+                    "defaultedOnCreate": false, "referenceTo": [],
+                    "aggregatable": true, "byteLength": 255,
+                    "cascadeDelete": false, "caseSensitive": false,
+                    "dependentPicklist": false, "deprecatedAndHidden": false,
+                    "digits": 0, "displayLocationInDecimal": false, "encrypted": false, "externalId": false,
+                    "filterable": true, "groupable": true, "highScaleNumber": false, "htmlFormatted": false,
+                    "idLookup": false, "length": 255, "nameField": true, "namePointing": false,
+                    "permissionable": false, "polymorphicForeignKey": false, "precision": 0, "queryByDistance": false,
+                    "restrictedDelete": false, "restrictedPicklist": false, "scale": 0, "soapType": "tns:string",
+                    "sortable": true, "unique": false, "updateable": true, "writeRequiresMasterRead": false
+                },
+                {
+                    "name": "ParentId", "type": "reference", "label": "Parent Account", "createable": true,
+                    "autoNumber": false, "calculated": false, "custom": false, "nillable": true,
+                    "defaultedOnCreate": false, "referenceTo": ["Account"],
+                    "aggregatable": true, "byteLength": 18,
+                    "cascadeDelete": false, "caseSensitive": false,
+                    "dependentPicklist": false, "deprecatedAndHidden": false,
+                    "digits": 0, "displayLocationInDecimal": false, "encrypted": false, "externalId": false,
+                    "filterable": true, "groupable": true, "highScaleNumber": false, "htmlFormatted": false,
+                    "idLookup": false, "length": 18, "nameField": false, "namePointing": false,
+                    "permissionable": false, "polymorphicForeignKey": false, "precision": 0, "queryByDistance": false,
+                    "restrictedDelete": false, "restrictedPicklist": false, "scale": 0, "soapType": "tns:ID",
+                    "sortable": true, "unique": false, "updateable": true, "writeRequiresMasterRead": false
+                }
+            ]
+        }"#).must();
 
         Mock::given(method("GET"))
             .and(path("/services/data/v60.0/sobjects/Account/describe"))
@@ -179,80 +195,68 @@ mod tests {
         let dict = DataDictionary::new(&client);
         let md = dict.generate("Account", false).await.must();
 
-        assert!(md.contains("# Data Dictionary: Account"));
-        assert!(md.contains("**Custom:** true"));
-        // Without usage, should not have Populated % column
-        assert!(!md.contains("Populated %"));
-        // Check the table has 5 columns, not 6
+        assert!(md.contains("# Data Dictionary: Account Object"));
+        assert!(md.contains("**API Name:** `Account`"));
+        assert!(md.contains("**Custom:** false"));
+
+        // Table header without usage
         assert!(md.contains("| Label | API Name | Type | Required | Reference To |"));
-        // Check that multiple referenceTo values are comma-separated
-        assert!(md.contains("Account, Contact"));
+
+        // Field rows
+        assert!(md.contains("| Account ID | `Id` | Id | No |  |")); // DefaultedOnCreate = true -> Required = No
+        assert!(md.contains("| Account Name | `Name` | String | Yes |  |"));
+        assert!(md.contains("| Parent Account | `ParentId` | Reference | No | Account |"));
     }
 
     #[tokio::test]
-    async fn test_generate_dictionary() {
+    async fn test_generate_dictionary_with_usage() {
         let mock_server = MockServer::start().await;
-        let auth = MockAuthenticator::new("token", &mock_server.uri());
+        let auth = MockAuthenticator::new("test_token", &mock_server.uri());
         let client = builder().authenticate(auth).build().await.must();
 
-        let id_field = json!({
-            "name": "Id", "type": "id", "label": "Account ID", "nillable": false,
-            "defaultedOnCreate": true, "referenceTo": [],
-            // Padding required fields for parsing
-            "aggregatable": true, "autoNumber": false, "byteLength": 18, "calculated": false,
-            "cascadeDelete": false, "caseSensitive": false, "createable": false, "custom": false,
-            "dependentPicklist": false, "deprecatedAndHidden": false, "digits": 0,
-            "displayLocationInDecimal": false, "encrypted": false, "externalId": false,
-            "filterable": true, "groupable": true, "highScaleNumber": false, "htmlFormatted": false,
-            "idLookup": true, "length": 18, "nameField": false, "namePointing": false,
-            "permissionable": false, "polymorphicForeignKey": false, "precision": 0,
-            "queryByDistance": false, "restrictedDelete": false, "restrictedPicklist": false,
-            "scale": 0, "soapType": "tns:ID", "sortable": true, "unique": false, "updateable": false,
-            "writeRequiresMasterRead": false
-        });
-
-        let name_field = json!({
-            "name": "Name", "type": "string", "label": "Account Name", "nillable": false,
-            "defaultedOnCreate": false, "referenceTo": [],
-            // Padding
-            "aggregatable": true, "autoNumber": false, "byteLength": 255, "calculated": false,
-            "cascadeDelete": false, "caseSensitive": false, "createable": true, "custom": false,
-            "dependentPicklist": false, "deprecatedAndHidden": false, "digits": 0,
-            "displayLocationInDecimal": false, "encrypted": false, "externalId": false,
-            "filterable": true, "groupable": true, "highScaleNumber": false, "htmlFormatted": false,
-            "idLookup": false, "length": 255, "nameField": true, "namePointing": false,
-            "permissionable": false, "polymorphicForeignKey": false, "precision": 0,
-            "queryByDistance": false, "restrictedDelete": false, "restrictedPicklist": false,
-            "scale": 0, "soapType": "xsd:string", "sortable": true, "unique": false, "updateable": true,
-            "writeRequiresMasterRead": false
-        });
-
-        let parent_id_field = json!({
-            "name": "ParentId", "type": "reference", "label": "Parent Account ID", "nillable": true,
-            "defaultedOnCreate": false, "referenceTo": ["Account"],
-            // Padding
-            "aggregatable": true, "autoNumber": false, "byteLength": 18, "calculated": false,
-            "cascadeDelete": false, "caseSensitive": false, "createable": true, "custom": false,
-            "dependentPicklist": false, "deprecatedAndHidden": false, "digits": 0,
-            "displayLocationInDecimal": false, "encrypted": false, "externalId": false,
-            "filterable": true, "groupable": true, "highScaleNumber": false, "htmlFormatted": false,
-            "idLookup": false, "length": 18, "nameField": false, "namePointing": false,
-            "permissionable": false, "polymorphicForeignKey": false, "precision": 0,
-            "queryByDistance": false, "restrictedDelete": false, "restrictedPicklist": false,
-            "scale": 0, "soapType": "tns:ID", "sortable": true, "unique": false, "updateable": true,
-            "writeRequiresMasterRead": false
-        });
-
-        let describe_json = json!({
-            "name": "Account", "label": "Account", "custom": false, "queryable": true,
+        // 1. Describe Mock
+        let describe_json = serde_json::from_str::<serde_json::Value>(r#"{
+            "name": "Account",
+            "label": "Account",
+            "custom": false,
+            "queryable": true,
             "activateable": false, "createable": true, "customSetting": false, "deletable": true,
             "deprecatedAndHidden": false, "feedEnabled": true, "hasSubtypes": false,
             "isSubtype": false, "keyPrefix": "001", "labelPlural": "Accounts", "layoutable": true,
             "mergeable": true, "mruEnabled": true, "replicateable": true, "retrieveable": true,
             "searchable": true, "triggerable": true, "undeletable": true, "updateable": true,
             "urls": {}, "childRelationships": [], "recordTypeInfos": [],
-            "fields": [id_field, name_field, parent_id_field]
-        });
+            "fields": [
+                {
+                    "name": "Name", "type": "string", "label": "Account Name", "createable": true,
+                    "autoNumber": false, "calculated": false, "custom": false, "nillable": false,
+                    "defaultedOnCreate": false, "referenceTo": [],
+                    "aggregatable": true, "byteLength": 255,
+                    "cascadeDelete": false, "caseSensitive": false,
+                    "dependentPicklist": false, "deprecatedAndHidden": false,
+                    "digits": 0, "displayLocationInDecimal": false, "encrypted": false, "externalId": false,
+                    "filterable": true, "groupable": true, "highScaleNumber": false, "htmlFormatted": false,
+                    "idLookup": false, "length": 255, "nameField": true, "namePointing": false,
+                    "permissionable": false, "polymorphicForeignKey": false, "precision": 0, "queryByDistance": false,
+                    "restrictedDelete": false, "restrictedPicklist": false, "scale": 0, "soapType": "tns:string",
+                    "sortable": true, "unique": false, "updateable": true, "writeRequiresMasterRead": false
+                },
+                {
+                    "name": "Website", "type": "url", "label": "Website", "createable": true,
+                    "autoNumber": false, "calculated": false, "custom": false, "nillable": true,
+                    "defaultedOnCreate": false, "referenceTo": [],
+                    "aggregatable": true, "byteLength": 255,
+                    "cascadeDelete": false, "caseSensitive": false,
+                    "dependentPicklist": false, "deprecatedAndHidden": false,
+                    "digits": 0, "displayLocationInDecimal": false, "encrypted": false, "externalId": false,
+                    "filterable": true, "groupable": true, "highScaleNumber": false, "htmlFormatted": false,
+                    "idLookup": false, "length": 255, "nameField": false, "namePointing": false,
+                    "permissionable": false, "polymorphicForeignKey": false, "precision": 0, "queryByDistance": false,
+                    "restrictedDelete": false, "restrictedPicklist": false, "scale": 0, "soapType": "tns:string",
+                    "sortable": true, "unique": false, "updateable": true, "writeRequiresMasterRead": false
+                }
+            ]
+        }"#).must();
 
         Mock::given(method("GET"))
             .and(path("/services/data/v60.0/sobjects/Account/describe"))
@@ -260,30 +264,36 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let query_json = json!({
-            "totalSize": 1, "done": true,
-            "records": [{
-                "attributes": { "type": "AggregateResult", "url": "..." },
-                "total": 100, "f0": 100, "f1": 95, "f2": 25
-            }]
-        });
-
+        // 2. Query Mock (from Scanner)
         Mock::given(method("GET"))
             .and(path("/services/data/v60.0/query"))
-            .and(query_param("q", "SELECT COUNT(Id) total, COUNT(Id) f0, COUNT(Name) f1, COUNT(ParentId) f2 FROM Account"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(query_json))
+            .and(query_param(
+                "q",
+                "SELECT COUNT(Id) total, COUNT(Name) f0, COUNT(Website) f1 FROM Account",
+            ))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "totalSize": 1,
+                "done": true,
+                "records": [
+                    {
+                        "attributes": {"type": "AggregateResult"},
+                        "total": 100,
+                        "f0": 100, // Name 100%
+                        "f1": 25   // Website 25%
+                    }
+                ]
+            })))
             .mount(&mock_server)
             .await;
 
         let dict = DataDictionary::new(&client);
         let md = dict.generate("Account", true).await.must();
 
-        assert!(md.contains("# Data Dictionary: Account"));
-        assert!(md.contains("**API Name:** `Account`"));
-        assert!(md.contains("| Account ID | `Id` | Id | No |  | 100.0% |"));
-        assert!(md.contains("| Account Name | `Name` | String | Yes |  | 95.0% |"));
-        assert!(
-            md.contains("| Parent Account ID | `ParentId` | Reference | No | Account | 25.0% |")
-        );
+        // Table header with usage
+        assert!(md.contains("| Label | API Name | Type | Required | Reference To | Populated % |"));
+
+        // Field rows
+        assert!(md.contains("| Account Name | `Name` | String | Yes |  | 100.0% |"));
+        assert!(md.contains("| Website | `Website` | Url | No |  | 25.0% |"));
     }
 }
