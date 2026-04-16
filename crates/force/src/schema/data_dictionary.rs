@@ -15,7 +15,7 @@ use std::fmt::Write;
 
 use super::scanner::scan_field_usage;
 
-/// Generator for SObject data dictionaries in Markdown format.
+
 
 /// Generates a Markdown data dictionary for the specified SObject.
 ///
