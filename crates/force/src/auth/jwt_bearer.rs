@@ -517,7 +517,7 @@ QcWLHR6ul3bFRWNhXoThNBQ=
         if let Err(ForceError::Http(HttpError::PayloadTooLarge { limit_bytes })) = result {
             assert_eq!(limit_bytes, 1024 * 1024);
         } else {
-            panic!("Expected HttpError::PayloadTooLarge");
+            panic!("Expected HttpError::PayloadTooLarge, got {:?}", result);
         }
     }
 

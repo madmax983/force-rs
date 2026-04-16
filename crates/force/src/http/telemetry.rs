@@ -176,3 +176,94 @@ impl TelemetryContext {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_telemetry_hooks_debug() {
+        let hooks = TelemetryHooks::new();
+        let debug_str = format!("{:?}", hooks);
+        assert!(debug_str.contains("TelemetryHooks"));
+        assert!(debug_str.contains("has_on_retry: false"));
+        assert!(debug_str.contains("has_on_complete: false"));
+
+        let hooks = hooks.on_retry(|_| {});
+        let debug_str = format!("{:?}", hooks);
+        assert!(debug_str.contains("has_on_retry: true"));
+        assert!(debug_str.contains("has_on_complete: false"));
+
+        let hooks = hooks.on_complete(|_| {});
+        let debug_str = format!("{:?}", hooks);
+        assert!(debug_str.contains("has_on_retry: true"));
+        assert!(debug_str.contains("has_on_complete: true"));
+    }
+
+    #[test]
+    fn test_telemetry_hooks_has_hooks() {
+        let mut hooks = TelemetryHooks::new();
+        assert!(!hooks.has_hooks());
+
+        hooks = hooks.on_retry(|_| {});
+        assert!(hooks.has_hooks());
+
+        let hooks2 = TelemetryHooks::new().on_complete(|_| {});
+        assert!(hooks2.has_hooks());
+    }
+
+    #[test]
+    fn test_telemetry_context_creation() {
+        let ctx = TelemetryContext::new("GET", "/test", RequestRetryClass::Read, true);
+        assert_eq!(ctx.method.as_deref(), Some("GET"));
+        assert_eq!(ctx.path.as_deref(), Some("/test"));
+        assert_eq!(ctx.request_class, "read");
+
+        let ctx_no_capture =
+            TelemetryContext::new("POST", "/test2", RequestRetryClass::Mutation, false);
+        assert_eq!(ctx_no_capture.method, None);
+        assert_eq!(ctx_no_capture.path, None);
+        assert_eq!(ctx_no_capture.request_class, "mutation");
+    }
+
+    #[test]
+    fn test_create_completion() {
+        let ctx = TelemetryContext::new("GET", "/test", RequestRetryClass::Read, true);
+        let completion = ctx.create_completion(Some(200), None, 1);
+
+        assert_eq!(completion.method, "GET");
+        assert_eq!(completion.path, "/test");
+        assert_eq!(completion.request_class, "read");
+        assert_eq!(completion.status_code, Some(200));
+        assert_eq!(completion.error_kind, None);
+        assert_eq!(completion.retries, 1);
+
+        let ctx_no_capture = TelemetryContext::new("GET", "/test", RequestRetryClass::Read, false);
+        let completion2 =
+            ctx_no_capture.create_completion(None, Some(RequestErrorKind::Timeout), 0);
+
+        assert_eq!(completion2.method, "");
+        assert_eq!(completion2.path, "");
+        assert_eq!(completion2.error_kind, Some(RequestErrorKind::Timeout));
+    }
+
+    #[test]
+    fn test_create_retry_event() {
+        let ctx = TelemetryContext::new("GET", "/test", RequestRetryClass::Read, true);
+        let retry = ctx.create_retry_event(2, 503, 1000);
+
+        assert_eq!(retry.method, "GET");
+        assert_eq!(retry.path, "/test");
+        assert_eq!(retry.request_class, "read");
+        assert_eq!(retry.attempt, 2);
+        assert_eq!(retry.status_code, 503);
+        assert_eq!(retry.backoff_ms, 1000);
+
+        let ctx_no_capture = TelemetryContext::new("GET", "/test", RequestRetryClass::Read, false);
+        let retry2 = ctx_no_capture.create_retry_event(1, 429, 500);
+
+        assert_eq!(retry2.method, "");
+        assert_eq!(retry2.path, "");
+        assert_eq!(retry2.status_code, 429);
+    }
+}

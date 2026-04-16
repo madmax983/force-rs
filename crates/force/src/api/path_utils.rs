@@ -10,3 +10,21 @@ pub fn format_sobject_path(sobject: &str, id: Option<&str>) -> String {
         None => format!("sobjects/{}", sobject),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_format_sobject_path_with_id() {
+        assert_eq!(
+            format_sobject_path("Account", Some("001000000000000")),
+            "sobjects/Account/001000000000000"
+        );
+    }
+
+    #[test]
+    fn test_format_sobject_path_without_id() {
+        assert_eq!(format_sobject_path("Account", None), "sobjects/Account");
+    }
+}
