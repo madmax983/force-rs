@@ -54,13 +54,11 @@ pub fn parse_api_error(status_code: u16, body: &str) -> HttpError {
     }
 }
 
-/// Converts an HTTP error response into a `ForceError` using Salesforce-aware parsing.
-///
-/// Reads the body of an HTTP response up to a specified byte limit.
+/// Reads the body of an HTTP response as bytes up to a specified byte limit.
 /// This prevents memory exhaustion (DoS) attacks from maliciously large error responses.
 ///
 /// It strictly caps the internal allocation and reads chunk by chunk.
-pub async fn read_capped_body(response: Response, limit_bytes: usize) -> Result<String, HttpError> {
+pub async fn read_capped_bytes(response: Response, limit_bytes: usize) -> Result<Vec<u8>, HttpError> {
     let mut stream = response.bytes_stream();
 
     // ⚡ Bolt: Pre-allocate a reasonable capacity, up to max limit.
@@ -86,6 +84,17 @@ pub async fn read_capped_body(response: Response, limit_bytes: usize) -> Result<
         }
     }
 
+    Ok(bytes)
+}
+
+/// Converts an HTTP error response into a `ForceError` using Salesforce-aware parsing.
+///
+/// Reads the body of an HTTP response up to a specified byte limit.
+/// This prevents memory exhaustion (DoS) attacks from maliciously large error responses.
+///
+/// It strictly caps the internal allocation and reads chunk by chunk.
+pub async fn read_capped_body(response: Response, limit_bytes: usize) -> Result<String, HttpError> {
+    let bytes = read_capped_bytes(response, limit_bytes).await?;
     Ok(String::from_utf8(bytes)
         .unwrap_or_else(|e| String::from_utf8_lossy(e.as_bytes()).into_owned()))
 }
