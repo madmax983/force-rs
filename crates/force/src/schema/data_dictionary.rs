@@ -15,8 +15,6 @@ use std::fmt::Write;
 
 use super::scanner::scan_field_usage;
 
-
-
 /// Generates a Markdown data dictionary for the specified SObject.
 ///
 /// # Arguments
