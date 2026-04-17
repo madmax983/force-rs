@@ -541,6 +541,7 @@ pub trait RestOperation<A: Authenticator> {
     /// }
     /// ```
     async fn describe(&self, sobject_type: &str) -> Result<SObjectDescribe> {
+        crate::types::validator::validate_sobject_name(sobject_type)?;
         let relative = format!(
             "{}/describe",
             crate::api::path_utils::format_sobject_path(sobject_type, None)
@@ -827,6 +828,25 @@ mod tests {
                 .to_string()
                 .contains("SObject name contains invalid characters")
         );
+    }
+
+    #[tokio::test]
+    #[allow(clippy::unwrap_used)]
+    async fn test_validation_describe() {
+        let op = TestRestOp;
+        let result = op.describe("Account;DROP").await;
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("SObject name contains invalid characters")
+        );
+    }
+
+    #[tokio::test]
+    #[allow(clippy::unwrap_used)]
+    async fn test_validation_describe_global() {
+        // Test validation of DescribeGlobal is implicit via its path, but doesn't take input to validate.
     }
 
     #[tokio::test]
