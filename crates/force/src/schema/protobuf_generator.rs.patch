@@ -1,0 +1,25 @@
+<<<<<<< SEARCH
+    for (field_number, field) in (1..).zip(fields.into_iter()) {
+        let proto_type = map_type(&field.type_);
+
+        let optional_modifier = if field.nillable { "optional " } else { "" };
+
+        let _ = writeln!(
+            out,
+            "  {}{} {} = {};",
+            optional_modifier, proto_type, field.name, field_number
+        );
+    }
+=======
+    for (field_number, field) in (1..).zip(fields) {
+        let proto_type = map_type(&field.type_);
+
+        let optional_modifier = if field.nillable { "optional " } else { "" };
+
+        let _ = writeln!(
+            out,
+            "  {}{} {} = {};",
+            optional_modifier, proto_type, field.name, field_number
+        );
+    }
+>>>>>>> REPLACE
