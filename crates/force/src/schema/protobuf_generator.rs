@@ -41,7 +41,8 @@ pub fn write_protobuf_schema(out: &mut String, describe: &SObjectDescribe) {
         let _ = writeln!(
             out,
             "  {}{} {} = {};",
-            optional_modifier, proto_type, field.name, field_number);
+            optional_modifier, proto_type, field.name, field_number
+        );
     }
 
     let _ = writeln!(out, "}}");
