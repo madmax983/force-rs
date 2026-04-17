@@ -7,8 +7,8 @@ mod tests {
     use async_trait::async_trait;
     use force::auth::{AccessToken, Authenticator, TokenManager, TokenResponse};
     use force::error::Result;
-    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc as StdArc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::time::Duration;
     use tokio::time::sleep;
 
@@ -32,7 +32,7 @@ mod tests {
             sleep(Duration::from_millis(50)).await;
 
             Ok(AccessToken::from_response(TokenResponse {
-                access_token: format!("token_{}", count),
+                access_token: format!("token_{count}"),
                 instance_url: "https://test.salesforce.com".to_string(),
                 token_type: "Bearer".to_string(),
                 // FIXED timestamp to simulate low resolution or same-millisecond refreshes

@@ -155,7 +155,11 @@ mod tests {
 
         let client = reqwest::Client::new();
         let url = format!("{}/", mock_server.uri());
-        let response = client.get(&url).send().await.unwrap_or_else(|_| panic!("Failed to fetch"));
+        let response = client
+            .get(&url)
+            .send()
+            .await
+            .unwrap_or_else(|_| panic!("Failed to fetch"));
 
         let error = read_capped_bytes(response, 10).await;
 
