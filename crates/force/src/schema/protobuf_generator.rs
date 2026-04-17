@@ -1,6 +1,6 @@
 //! Protocol Buffers schema generator for Salesforce SObject Describe metadata.
 #[cfg(feature = "schema")]
-use crate::api::rest::describe::{FieldType, SObjectDescribe};
+use crate::types::describe::{FieldType, SObjectDescribe};
 use std::fmt::Write;
 
 /// Generates a Protocol Buffers schema definition from an SObject describe result.

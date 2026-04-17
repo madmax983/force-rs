@@ -1,5 +1,5 @@
 #[cfg(feature = "schema")]
-use crate::api::rest::describe::{FieldType, SObjectDescribe};
+use crate::types::describe::{FieldType, SObjectDescribe};
 use std::fmt::Write;
 
 /// Preview utility to generate Rust structs from SObject describe metadata.

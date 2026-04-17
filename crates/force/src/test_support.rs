@@ -5,9 +5,9 @@ use std::collections::HashMap;
 
 use async_trait::async_trait;
 
-use crate::api::rest::describe::{FieldDescribe, FieldType, SObjectDescribe};
 use crate::auth::{AccessToken, Authenticator, TokenResponse};
 use crate::error::Result as ForceResult;
+use crate::types::describe::{FieldDescribe, FieldType, SObjectDescribe};
 
 /// Extension trait for unwrapping `Result`/`Option` in tests without `unwrap()`.
 pub trait Must<T> {
@@ -204,10 +204,7 @@ impl MockFieldDescribeBuilder {
         self
     }
 
-    pub fn picklist_values(
-        mut self,
-        values: Vec<crate::api::rest::describe::PicklistValue>,
-    ) -> Self {
+    pub fn picklist_values(mut self, values: Vec<crate::types::describe::PicklistValue>) -> Self {
         self.field.picklist_values = Some(values);
         self
     }

@@ -1,5 +1,5 @@
 //! Prisma schema generator for Salesforce SObject Describe metadata.
-use crate::api::rest::describe::{FieldType, SObjectDescribe};
+use crate::types::describe::{FieldType, SObjectDescribe};
 use std::fmt::Write;
 
 /// Generates a Prisma schema model from an SObject describe result.
@@ -57,7 +57,7 @@ fn map_type(ft: &FieldType) -> &'static str {
 #[cfg(feature = "schema")]
 mod tests {
     use super::*;
-    use crate::api::rest::describe::FieldDescribe;
+    use crate::types::describe::FieldDescribe;
 
     fn mock_field(name: &str, type_: FieldType, nillable: bool, unique: bool) -> FieldDescribe {
         FieldDescribe {

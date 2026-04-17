@@ -3,7 +3,7 @@
 //! Generates JSON Schema draft-07 schemas based on Salesforce object schemas.
 
 #[cfg(feature = "schema")]
-use crate::api::rest::describe::{FieldDescribe, FieldType, SObjectDescribe};
+use crate::types::describe::{FieldDescribe, FieldType, SObjectDescribe};
 #[cfg(feature = "schema")]
 use serde_json::{Value, json};
 

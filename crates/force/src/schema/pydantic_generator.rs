@@ -1,6 +1,6 @@
 //! Pydantic model generator for Salesforce SObject Describe metadata.
 #[cfg(feature = "schema")]
-use crate::api::rest::describe::{FieldType, SObjectDescribe};
+use crate::types::describe::{FieldType, SObjectDescribe};
 use std::fmt::Write;
 
 /// Generates a Python Pydantic model definition from an SObject describe result.
@@ -59,7 +59,7 @@ fn map_type(ft: &FieldType) -> &'static str {
 #[cfg(feature = "schema")]
 mod tests {
     use super::*;
-    use crate::api::rest::describe::FieldDescribe;
+    use crate::types::describe::FieldDescribe;
 
     fn mock_field(name: &str, type_: FieldType, nillable: bool, updateable: bool) -> FieldDescribe {
         FieldDescribe {

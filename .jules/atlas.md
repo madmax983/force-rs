@@ -65,3 +65,6 @@
 **[RestOperation: Exposing query_stream]**
 **Tangle:** The `query_stream` method was implemented directly on `RestHandler` in `api/rest/mod.rs`. This prevented other API handlers like `ToolingHandler` (which also implements `RestOperation`) from leveraging paginated streaming queries for SOQL, breaking cohesion and domain reuse.
 **Blueprint:** Moved `query_stream` to be a provided method on the `RestOperation` trait. This required adding a `Self: Sized + Clone` bound to the method signature and updating all consumer test files to import the `RestOperation` trait so the method would be in scope.
+**[Extracted describe types]
+**Tangle:** [A confusing re-export of `types::describe` under `api::rest::describe` acted as a module but merely leaked types and kept tests away from the types themselves, confusing the architecture.]
+**Blueprint:** [Removed `api::rest::describe`, updated `api::rest::mod.rs` to stop exporting `describe`, moved tests to `types::describe.rs`, and updated schemas and examples to directly use `types::describe` rather than routing through `api::rest`.]

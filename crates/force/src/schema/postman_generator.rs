@@ -6,7 +6,7 @@
 //! based on the object's schema.
 
 #[cfg(feature = "schema")]
-use crate::api::rest::describe::SObjectDescribe;
+use crate::types::describe::SObjectDescribe;
 #[cfg(feature = "schema")]
 use serde_json::{Value, json};
 
@@ -162,8 +162,8 @@ pub fn generate_postman_collection(describe: &SObjectDescribe) -> Value {
 #[cfg(feature = "schema")]
 mod tests {
     use super::*;
-    use crate::api::rest::describe::FieldType;
     use crate::test_support::{MockFieldDescribeBuilder, MockSObjectDescribeBuilder, MustMsg};
+    use crate::types::describe::FieldType;
 
     #[test]
     fn test_generate_postman_collection() {
