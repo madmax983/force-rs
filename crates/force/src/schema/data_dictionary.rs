@@ -49,8 +49,10 @@ impl<'a, A: Authenticator> DataDictionary<'a, A> {
         if include_usage {
             let scanner = FieldUsageScanner::new(self.client);
             let usages = scanner.scan(sobject).await?;
+            usage_map.reserve(usages.len());
             for usage in usages {
-                usage_map.insert(usage.name.clone(), usage);
+                // ⚡ Bolt: Moving `name` out of `usage` and storing just `percentage` avoids a `.clone()` heap allocation and reduces map memory overhead.
+                usage_map.insert(usage.name, usage.percentage);
             }
         }
 
@@ -100,8 +102,8 @@ impl<'a, A: Authenticator> DataDictionary<'a, A> {
             }
 
             if include_usage {
-                if let Some(usage) = usage_map.get(&field.name) {
-                    let _ = writeln!(md, " | {:.1}% |", usage.percentage);
+                if let Some(&percentage) = usage_map.get(&field.name) {
+                    let _ = writeln!(md, " | {:.1}% |", percentage);
                 } else {
                     md.push_str(" | N/A |\n");
                 }
