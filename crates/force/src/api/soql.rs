@@ -127,14 +127,16 @@ impl SoqlQueryBuilder {
     ///
     /// Returns an error if any field name contains invalid characters.
     pub fn try_select(mut self, fields: &[impl AsRef<str>]) -> Result<Self, ForceError> {
-        self.fields = fields
-            .iter()
-            .map(|f| {
-                let s = f.as_ref();
-                validate_field_name(s)?;
-                Ok(s.to_string())
-            })
-            .collect::<Result<Vec<_>, ForceError>>()?;
+        #[allow(unused_doc_comments)]
+        /// ⚡ Bolt: Pre-allocating capacity avoids multiple heap reallocations
+        /// that would occur when using `.collect::<Result<Vec<_>, _>>()`
+        let mut new_fields = Vec::with_capacity(fields.len());
+        for f in fields {
+            let s = f.as_ref();
+            validate_field_name(s)?;
+            new_fields.push(s.to_string());
+        }
+        self.fields = new_fields;
         Ok(self)
     }
 

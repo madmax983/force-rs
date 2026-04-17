@@ -179,15 +179,15 @@ impl SearchQueryBuilder {
         let sobject = sobject.into();
         validate_sobject_name(&sobject)?;
 
-        let safe_fields = fields
-            .iter()
-            .map(|f| {
-                let f_str = f.as_ref();
-                validate_field_syntax_safe(f_str)
-                    .map(|()| f_str.to_string())
-                    .map_err(crate::error::ForceError::InvalidInput)
-            })
-            .collect::<Result<Vec<_>, crate::error::ForceError>>()?;
+        #[allow(unused_doc_comments)]
+        /// ⚡ Bolt: Pre-allocating capacity avoids multiple heap reallocations
+        /// that would occur when using `.collect::<Result<Vec<_>, _>>()`
+        let mut safe_fields = Vec::with_capacity(fields.len());
+        for f in fields {
+            let f_str = f.as_ref();
+            validate_field_syntax_safe(f_str).map_err(crate::error::ForceError::InvalidInput)?;
+            safe_fields.push(f_str.to_string());
+        }
 
         self.returning.push((sobject, safe_fields));
         Ok(self)
