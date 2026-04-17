@@ -5,7 +5,7 @@
 
 pub(crate) mod api_version;
 pub(crate) mod common;
-pub(crate) mod describe;
+pub mod describe;
 pub(crate) mod query;
 pub(crate) mod salesforce_id;
 pub(crate) mod sobject;
