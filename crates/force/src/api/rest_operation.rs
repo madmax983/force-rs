@@ -86,16 +86,16 @@ pub trait RestOperation<A: Authenticator> {
     fn resolve_api_path<'a>(&self, relative_path: &'a str) -> Cow<'a, str> {
         let prefix = self.path_prefix();
         if prefix.is_empty() {
-            Cow::Borrowed(relative_path)
-        } else {
-            // ⚡ Bolt: Avoid intermediate string allocation in `format!` macro by pre-allocating
-            // the exact capacity needed and writing directly to the buffer.
-            let mut out = String::with_capacity(prefix.len() + relative_path.len() + 1);
-            out.push_str(prefix);
-            out.push('/');
-            out.push_str(relative_path);
-            Cow::Owned(out)
+            return Cow::Borrowed(relative_path);
         }
+
+        // ⚡ Bolt: Avoid intermediate string allocation in `format!` macro by pre-allocating
+        // the exact capacity needed and writing directly to the buffer.
+        let mut out = String::with_capacity(prefix.len() + relative_path.len() + 1);
+        out.push_str(prefix);
+        out.push('/');
+        out.push_str(relative_path);
+        Cow::Owned(out)
     }
 
     // ── CRUD Operations ──────────────────────────────────────────────

@@ -385,11 +385,10 @@ impl<'a> FieldSyntaxValidator<'a> {
             if c == quote_char {
                 self.in_quote = None;
             }
-        } else {
-            self.process_unquoted_char(c)?;
+            return Ok(());
         }
 
-        Ok(())
+        self.process_unquoted_char(c)
     }
 
     fn process_unquoted_char(&mut self, c: char) -> Result<(), String> {
