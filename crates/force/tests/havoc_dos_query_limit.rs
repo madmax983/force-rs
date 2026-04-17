@@ -138,4 +138,31 @@ mod tests {
         let result = client.rest().query_more::<Dummy>(&mutational_url).await;
         assert!(result.is_err(), "Mutational boundary length should fail");
     }
+
+    #[tokio::test]
+    async fn test_bulk_query_csv_dos_limit() {
+        use force::http::error::read_capped_bytes;
+
+        let mock_server = MockServer::start().await;
+
+        // Generate a payload that exceeds the limit (e.g. limit is 10 bytes, payload is 11)
+        let large_body = "A".repeat(11);
+
+        Mock::given(method("GET"))
+            .respond_with(ResponseTemplate::new(200).set_body_string(large_body))
+            .mount(&mock_server)
+            .await;
+
+        let client = reqwest::Client::new();
+        let url = format!("{}/", mock_server.uri());
+        let response = client.get(&url).send().await.unwrap_or_else(|_| panic!("Failed to fetch"));
+
+        let error = read_capped_bytes(response, 10).await;
+
+        if let Err(force::error::HttpError::PayloadTooLarge { limit_bytes }) = error {
+            assert_eq!(limit_bytes, 10);
+        } else {
+            panic!("Expected PayloadTooLarge error, got: {error:?}");
+        }
+    }
 }
