@@ -22,6 +22,7 @@ Design backlog and product-spec notes for incubating `force-rs` capabilities. Th
 - [`openapi-generator.md`](openapi-generator.md): OpenAPI generation for downstream consumers.
 - [`postman-collection-generator.md`](postman-collection-generator.md): Postman collection generation for API testing.
 - [`protobuf-schema-generator.md`](protobuf-schema-generator.md): Protobuf (proto3) schema generation for gRPC services.
+- [`prisma-schema-generator.md`](prisma-schema-generator.md): Prisma ORM schema generation.
 - [`pydantic-model-generator.md`](pydantic-model-generator.md): Python Pydantic model generation for data pipelines.
 - [`rust-struct-generator.md`](rust-struct-generator.md): Rust type generation from Salesforce schema.
 - [`schema-analyzer.md`](schema-analyzer.md): schema quality and risk analysis.
