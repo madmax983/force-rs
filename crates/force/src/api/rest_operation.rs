@@ -675,6 +675,7 @@ pub fn resolve_next_records_url(instance_url: &str, next_records_url: &str) -> R
 mod tests {
     use super::*;
     use crate::test_support::Must;
+    use serde_json::json;
 
     // ── resolve_next_records_url unit tests ──────────────────────────
 
@@ -898,7 +899,6 @@ mod tests {
     #[tokio::test]
     async fn test_upsert_returns_not_implemented_on_204() {
         use crate::client::builder;
-        use serde_json::json;
         use wiremock::matchers::{method, path};
         use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -934,7 +934,6 @@ mod tests {
     #[tokio::test]
     async fn test_upsert_success_other_status() {
         use crate::client::builder;
-        use serde_json::json;
         use wiremock::matchers::{method, path};
         use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -976,7 +975,6 @@ mod tests {
     #[tokio::test]
     async fn test_upsert_failure() {
         use crate::client::builder;
-        use serde_json::json;
         use wiremock::matchers::{method, path};
         use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -1016,7 +1014,6 @@ mod tests {
     async fn test_get_success_mock() {
         use crate::client::builder;
         use crate::types::SalesforceId;
-        use serde_json::json;
         use wiremock::matchers::{method, path};
         use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -1046,7 +1043,6 @@ mod tests {
     #[tokio::test]
     async fn test_query_success_mock() {
         use crate::client::builder;
-        use serde_json::json;
         use wiremock::matchers::{method, path};
         use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -1080,7 +1076,6 @@ mod tests {
     #[tokio::test]
     async fn test_query_more_success_mock() {
         use crate::client::builder;
-        use serde_json::json;
         use wiremock::matchers::{method, path};
         use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -1145,5 +1140,222 @@ mod tests {
             panic!("Expected Err");
         };
         assert!(err.to_string().contains("Security Error"));
+    }
+
+    #[tokio::test]
+    async fn test_create_success_mock() {
+        use crate::client::builder;
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let mock_server = MockServer::start().await;
+        let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
+        let client = builder().authenticate(auth).build().await.must();
+
+        Mock::given(method("POST"))
+            .and(path("/services/data/v60.0/sobjects/Account"))
+            .respond_with(ResponseTemplate::new(201).set_body_json(json!({
+                "id": "001xx000003DHP0AAO",
+                "success": true,
+                "errors": []
+            })))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let rest = client.rest();
+        let response = rest
+            .create("Account", &json!({"Name": "Test Account"}))
+            .await
+            .must();
+
+        assert!(response.success);
+        assert_eq!(response.id.as_ref().must().as_str(), "001xx000003DHP0AAO");
+    }
+
+    #[tokio::test]
+    async fn test_delete_success_mock() {
+        use crate::client::builder;
+        use crate::types::SalesforceId;
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let mock_server = MockServer::start().await;
+        let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
+        let client = builder().authenticate(auth).build().await.must();
+
+        Mock::given(method("DELETE"))
+            .and(path(
+                "/services/data/v60.0/sobjects/Account/001xx000003DHP0AAO",
+            ))
+            .respond_with(ResponseTemplate::new(204))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let rest = client.rest();
+        let id = SalesforceId::new("001xx000003DHP0AAO").must();
+        let response = rest.delete("Account", &id).await.must();
+
+        assert!(response.is_success());
+    }
+
+    #[tokio::test]
+    async fn test_describe_global_success_mock() {
+        use crate::client::builder;
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let mock_server = MockServer::start().await;
+        let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
+        let client = builder().authenticate(auth).build().await.must();
+
+        Mock::given(method("GET"))
+            .and(path("/services/data/v60.0/sobjects"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "encoding": "UTF-8",
+                "maxBatchSize": 200,
+                "sobjects": [
+                    {
+                        "name": "Account",
+                        "label": "Account",
+                        "labelPlural": "Accounts",
+                        "custom": false,
+                        "keyPrefix": "001",
+                        "activateable": false,
+                        "createable": true,
+                        "customSetting": false,
+                        "deletable": true,
+                        "deprecatedAndHidden": false,
+                        "feedEnabled": false,
+                        "hasSubtypes": false,
+                        "isSubtype": false,
+                        "layoutable": true,
+                        "mergeable": true,
+                        "mruEnabled": true,
+                        "queryable": true,
+                        "replicateable": true,
+                        "retrieveable": true,
+                        "searchable": true,
+                        "triggerable": true,
+                        "undeletable": true,
+                        "updateable": true,
+                        "urls": {}
+                    }
+                ]
+            })))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let rest = client.rest();
+        let response = rest.describe_global().await.must();
+
+        assert_eq!(response.sobjects.len(), 1);
+        assert_eq!(response.sobjects[0].name, "Account");
+        assert_eq!(response.sobjects[0].label, "Account");
+        assert!(!response.sobjects[0].custom);
+    }
+
+    #[tokio::test]
+    async fn test_describe_success_mock() {
+        use crate::client::builder;
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let mock_server = MockServer::start().await;
+        let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
+        let client = builder().authenticate(auth).build().await.must();
+
+        let body = serde_json::from_str::<serde_json::Value>(
+            r#"{
+                "name": "Account",
+                "label": "Account",
+                "labelPlural": "Accounts",
+                "custom": false,
+                "activateable": false,
+                "createable": true,
+                "customSetting": false,
+                "deletable": true,
+                "deprecatedAndHidden": false,
+                "feedEnabled": false,
+                "hasSubtypes": false,
+                "isSubtype": false,
+                "layoutable": true,
+                "mergeable": true,
+                "mruEnabled": true,
+                "queryable": true,
+                "replicateable": true,
+                "retrieveable": true,
+                "searchable": true,
+                "triggerable": true,
+                "undeletable": true,
+                "updateable": true,
+                "childRelationships": [],
+                "recordTypeInfos": [],
+                "urls": {},
+                "fields": [
+                    {
+                        "name": "Id",
+                        "label": "Record ID",
+                        "type": "id",
+                        "length": 18,
+                        "aggregatable": true,
+                        "autoNumber": false,
+                        "byteLength": 18,
+                        "calculated": false,
+                        "cascadeDelete": false,
+                        "caseSensitive": false,
+                        "createable": false,
+                        "custom": false,
+                        "defaultedOnCreate": true,
+                        "dependentPicklist": false,
+                        "deprecatedAndHidden": false,
+                        "digits": 0,
+                        "displayLocationInDecimal": false,
+                        "encrypted": false,
+                        "externalId": false,
+                        "filterable": true,
+                        "groupable": true,
+                        "highScaleNumber": false,
+                        "htmlFormatted": false,
+                        "idLookup": true,
+                        "nameField": false,
+                        "namePointing": false,
+                        "nillable": false,
+                        "permissionable": false,
+                        "polymorphicForeignKey": false,
+                        "precision": 0,
+                        "queryByDistance": false,
+                        "referenceTo": [],
+                        "restrictedDelete": false,
+                        "restrictedPicklist": false,
+                        "scale": 0,
+                        "soapType": "tns:ID",
+                        "sortable": true,
+                        "unique": false,
+                        "updateable": false,
+                        "writeRequiresMasterRead": false
+                    }
+                ]
+            }"#,
+        )
+        .must();
+
+        Mock::given(method("GET"))
+            .and(path("/services/data/v60.0/sobjects/Account/describe"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(body))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let rest = client.rest();
+        let response = rest.describe("Account").await.must();
+
+        assert_eq!(response.name, "Account");
+        assert_eq!(response.label, "Account");
+        assert!(!response.custom);
+        assert_eq!(response.fields.len(), 1);
+        assert_eq!(response.fields[0].name, "Id");
     }
 }
