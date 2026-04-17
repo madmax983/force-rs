@@ -168,30 +168,27 @@ fn merge_object_payload(
     let mut conflicts = Vec::new();
 
     for (field, incoming_value) in incoming {
-        match merged.get(field) {
-            Some(existing_value) if existing_value == incoming_value => {}
-            Some(_existing_value) => match object.field_owner_for(field) {
-                Some(Owner::Salesforce) if source == SourceSystem::Salesforce => {
+        if let Some(existing_value) = merged.get(field) {
+            if existing_value == incoming_value {
+                continue;
+            }
+        }
+
+        match object.field_owner_for(field) {
+            Some(Owner::Salesforce) if source == SourceSystem::Salesforce => {
+                merged.insert(field.clone(), incoming_value.clone());
+            }
+            Some(Owner::Postgres) if source == SourceSystem::Postgres => {
+                merged.insert(field.clone(), incoming_value.clone());
+            }
+            Some(Owner::Salesforce | Owner::Postgres) => {}
+            Some(Owner::Shared) | None => {
+                if merged.contains_key(field) {
+                    conflicts.push(field.clone());
+                } else {
                     merged.insert(field.clone(), incoming_value.clone());
                 }
-                Some(Owner::Postgres) if source == SourceSystem::Postgres => {
-                    merged.insert(field.clone(), incoming_value.clone());
-                }
-                Some(Owner::Salesforce | Owner::Postgres) => {}
-                Some(Owner::Shared) | None => conflicts.push(field.clone()),
-            },
-            None => match object.field_owner_for(field) {
-                Some(Owner::Salesforce) if source == SourceSystem::Salesforce => {
-                    merged.insert(field.clone(), incoming_value.clone());
-                }
-                Some(Owner::Postgres) if source == SourceSystem::Postgres => {
-                    merged.insert(field.clone(), incoming_value.clone());
-                }
-                Some(Owner::Salesforce | Owner::Postgres) => {}
-                Some(Owner::Shared) | None => {
-                    merged.insert(field.clone(), incoming_value.clone());
-                }
-            },
+            }
         }
     }
 

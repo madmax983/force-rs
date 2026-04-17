@@ -80,3 +80,6 @@
 **[Extract Builder for Complex Mocks]**
 **Learning:** Large JSON string literals in tests trigger the `clippy::too_many_lines` lint. Instead of bypassing it with `#[allow(clippy::too_many_lines)]`, use the builder pattern (e.g., `MockSObjectDescribeBuilder` and `MockFieldDescribeBuilder` in `crate::test_support`) to programmatically construct complex mock data like `SObjectDescribe`. This keeps tests clean while preserving the ability to assert on specific field types and attributes (like `nillable` or `soap_type`).
 **Action:** When mocking large structs, prefer implementing a fluent builder instead of injecting raw JSON strings.
+**[Flatten merge_object_payload loops]**
+**Learning:** Dense nested `match` statements inside `for` loops (e.g. `merge_object_payload` in `plan.rs`) checking for the same keys in map-like structures create a "Pyramid of Doom" that obscures the core logic.
+**Action:** Consolidate and extract early returns using `if let` guard clauses at the top of the loop (e.g. `if let Some(existing) = merged.get(field) { if existing == incoming { continue; } }`) to reduce nesting and improve readability of the subsequent ownership logic.
