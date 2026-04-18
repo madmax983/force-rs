@@ -528,7 +528,6 @@ pub struct FilteredLookupInfo {
 // Type definitions live in [`crate::types::describe`]. This module re-exports them
 // for backward compatibility and contains the tests for deserialization.
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
