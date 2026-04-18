@@ -244,7 +244,9 @@ impl<T, A: crate::auth::Authenticator> BulkQueryStream<T, A> {
     where
         T: for<'de> Deserialize<'de>,
     {
-        let csv_bytes = crate::http::error::read_capped_bytes(response, 1024 * 1024 * 1024).await.map_err(crate::error::ForceError::Http)?;
+        let csv_bytes = crate::http::error::read_capped_bytes(response, 1024 * 1024 * 1024)
+            .await
+            .map_err(crate::error::ForceError::Http)?;
 
         let mut reader = csv::Reader::from_reader(csv_bytes.as_slice());
 

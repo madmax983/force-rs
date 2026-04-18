@@ -33,10 +33,6 @@ pub async fn generate_visualizer_report<A: Authenticator>(
 
     let insights = analyze_schema(&describe);
 
-    let mut graph = SchemaGraph::new(client);
-    graph.add_describe(describe.clone());
-    let mermaid = graph.to_mermaid();
-
     let mut md = String::with_capacity(2048);
 
     // ⚡ Bolt: Use `writeln!` directly to the `md` buffer instead of `format!` and `push_str`
@@ -64,6 +60,19 @@ pub async fn generate_visualizer_report<A: Authenticator>(
         insights.required_field_count
     );
 
+    // ⚡ Bolt: Clone only `describe.fields` (if usage is requested) instead of deep cloning
+    // the entire `SObjectDescribe` AST (which contains huge vectors like childRelationships).
+    // Then, move the original `describe` into `SchemaGraph`.
+    let fields_for_usage = if include_usage {
+        Some(describe.fields.clone())
+    } else {
+        None
+    };
+
+    let mut graph = SchemaGraph::new(client);
+    graph.add_describe(describe);
+    let mermaid = graph.to_mermaid();
+
     let _ = writeln!(md, "## Entity-Relationship Diagram\n");
     let _ = writeln!(md, "```mermaid");
     md.push_str(&mermaid);
@@ -81,7 +90,7 @@ pub async fn generate_visualizer_report<A: Authenticator>(
         let _ = writeln!(md, "| Label | API Name | Populated % |");
         let _ = writeln!(md, "|---|---|---|");
 
-        let mut fields = describe.fields;
+        let mut fields = fields_for_usage.unwrap_or_default();
         fields.sort_by(|a, b| a.name.cmp(&b.name));
 
         for field in &fields {

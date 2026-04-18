@@ -58,7 +58,10 @@ pub fn parse_api_error(status_code: u16, body: &str) -> HttpError {
 /// This prevents memory exhaustion (DoS) attacks from maliciously large error responses.
 ///
 /// It strictly caps the internal allocation and reads chunk by chunk.
-pub async fn read_capped_bytes(response: Response, limit_bytes: usize) -> Result<Vec<u8>, HttpError> {
+pub async fn read_capped_bytes(
+    response: Response,
+    limit_bytes: usize,
+) -> Result<Vec<u8>, HttpError> {
     let mut stream = response.bytes_stream();
 
     // ⚡ Bolt: Pre-allocate a reasonable capacity, up to max limit.
