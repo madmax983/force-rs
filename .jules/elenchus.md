@@ -27,3 +27,10 @@
 **Finding:** `QueryStream::next()` failed to loop properly when an empty middle page was fetched, immediately marking the stream as exhausted. `cargo mutants` exposed that this path was not tested at all.
 **Evidence:** `cargo mutants` mutated `if self.records.is_empty()` replacing the condition causing early termination and no tests failed.
 **Recommendation:** Wrap the fetching logic inside `QueryStream::next()` in a `loop` so that if an empty page is fetched but `next_locator` is still present, the stream fetches the next page. Add a test `test_query_results_fetch_csv_data_empty_middle_page` to simulate an empty middle page using `wiremock`.
+
+**[Weak Response Verification]**
+**Module:** crates::force::http::tests
+**Severity:** 🟡 Suspect
+**Finding:** Multiple integration tests in the HTTP executor test suite verified successful execution by asserting the result was `Ok` via `.must()` but neglected to assert the resulting response payload (e.g. `assert_eq!(response.status(), 200)`). A test that merely executes logic and drops the output can mask behavioral changes.
+**Evidence:** `test_401_triggers_token_refresh_and_retry`, `test_503_retries_with_exponential_backoff`, `test_503_can_retry_mutation_with_explicit_policy`, `test_telemetry_hooks_capture_retry_and_completion`, and `test_network_timeout_retries` all used `let _ = result.must();` without verifying the actual `reqwest::Response` status code.
+**Recommendation:** Replaced `let _ = result.must();` with explicit `let response = result.must(); assert_eq!(response.status(), 200);` to ensure the mock endpoint successfully returned the expected success status.
