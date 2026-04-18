@@ -275,4 +275,52 @@ mod tests {
         assert_eq!(stats.ops_succeeded, 1);
         assert_eq!(stats.ops_failed, 0);
     }
+
+    #[tokio::test]
+    async fn test_delete_all_missing_id_is_skipped() {
+        let mock_server = create_mock_server().await;
+        let client = create_test_client(&mock_server).await;
+
+        Mock::given(method("GET"))
+            .and(path("/services/data/v60.0/query"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "totalSize": 1,
+                "done": true,
+                "records": [
+                    { "attributes": { "type": "Account", "url": "/services/data/v60.0/sobjects/Account/001000000000001AAA" }, "Name": "Test" }
+                ]
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let query = SoqlQueryBuilder::new().select(&["Name"]).from("Account");
+        let op = SoqlMassOp::new(&client, query);
+        let stats = op.delete_all().await.must();
+        assert_eq!(stats.ops_succeeded, 0);
+        assert_eq!(stats.ops_failed, 0);
+    }
+
+    #[tokio::test]
+    async fn test_update_all_missing_id_is_skipped() {
+        let mock_server = create_mock_server().await;
+        let client = create_test_client(&mock_server).await;
+
+        Mock::given(method("GET"))
+            .and(path("/services/data/v60.0/query"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "totalSize": 1,
+                "done": true,
+                "records": [
+                    { "attributes": { "type": "Account", "url": "/services/data/v60.0/sobjects/Account/001000000000001AAA" }, "Name": "Test" }
+                ]
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let query = SoqlQueryBuilder::new().select(&["Name"]).from("Account");
+        let op = SoqlMassOp::new(&client, query);
+        let stats = op.update_all(json!({"Name": "Updated"})).await.must();
+        assert_eq!(stats.ops_succeeded, 0);
+        assert_eq!(stats.ops_failed, 0);
+    }
 }
