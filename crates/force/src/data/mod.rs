@@ -9,3 +9,5 @@ pub use data_archiver::DataArchiver;
 pub use data_faker::generate_mock_record;
 pub use data_masker::DataMasker;
 pub use data_seeder::DataSeeder;
+mod data_validator;
+pub use data_validator::DataValidator;
