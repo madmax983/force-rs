@@ -4,7 +4,6 @@
 //! REST API operations including CRUD, queries, and metadata operations.
 
 pub(crate) mod crud;
-pub(crate) mod describe;
 pub(crate) mod explain;
 pub(crate) mod limits;
 pub(crate) mod query;
@@ -12,7 +11,7 @@ pub(crate) mod query_plan_analyzer;
 pub(crate) mod search;
 
 pub use crate::api::soql::{SoqlQueryBuilder, escape_soql};
-pub use describe::{
+pub use crate::types::describe::{
     ChildRelationship, FieldDescribe, FieldType, FilteredLookupInfo, GlobalDescribe,
     GlobalSObjectDescribe, PicklistValue, RecordTypeInfo, SObjectDescribe,
 };

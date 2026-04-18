@@ -28,7 +28,7 @@
 //! # }
 //! ```
 
-use crate::api::rest::describe::{FieldType, SObjectDescribe};
+use crate::types::describe::{FieldType, SObjectDescribe};
 use crate::types::{Attributes, DynamicSObject, SalesforceId};
 
 /// Utility for generating mock data based on Salesforce schema metadata.
