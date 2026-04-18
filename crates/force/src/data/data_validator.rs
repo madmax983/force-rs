@@ -45,7 +45,6 @@ impl<'a> DataValidator<'a> {
         let mut errors = Vec::new();
 
         for field in &self.describe.fields {
-
             let value = record.get_field(&field.name);
 
             // 1. Check required fields
