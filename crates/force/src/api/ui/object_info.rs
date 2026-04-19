@@ -100,6 +100,8 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
         &self,
         object: &str,
     ) -> crate::error::Result<ObjectInfoRepresentation> {
+        crate::types::validator::validate_sobject_name(object)?;
+
         let path = format!("object-info/{object}");
         self.get(&path, None, "Failed to fetch object info").await
     }
@@ -118,6 +120,10 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
         &self,
         objects: &[&str],
     ) -> crate::error::Result<BatchObjectInfoRepresentation> {
+        for object in objects {
+            crate::types::validator::validate_sobject_name(object)?;
+        }
+
         // ⚡ Bolt: Construct path directly to avoid intermediate `.join(",")` allocation
         let capacity = 18 + objects.iter().map(|s| s.len() + 1).sum::<usize>();
         let mut path = String::with_capacity(capacity);
@@ -372,5 +378,42 @@ mod tests {
         let ref_info = &field.reference_to_infos[0];
         assert_eq!(ref_info.api_name, "Account");
         assert_eq!(ref_info.name_fields, vec!["Name"]);
+    }
+
+    #[tokio::test]
+    async fn test_object_info_invalid_sobject_name() {
+        let server = MockServer::start().await;
+        let client = make_client(&server).await;
+
+        let result = client.ui().object_info("Account; DROP TABLE").await;
+        assert!(result.is_err());
+        assert!(
+            match result {
+                Err(e) => e,
+                Ok(_) => panic!("Expected error"),
+            }
+            .to_string()
+            .contains("contains invalid characters")
+        );
+    }
+
+    #[tokio::test]
+    async fn test_object_infos_batch_invalid_sobject_name() {
+        let server = MockServer::start().await;
+        let client = make_client(&server).await;
+
+        let result = client
+            .ui()
+            .object_infos_batch(&["Account", "Contact; DROP TABLE"])
+            .await;
+        assert!(result.is_err());
+        assert!(
+            match result {
+                Err(e) => e,
+                Ok(_) => panic!("Expected error"),
+            }
+            .to_string()
+            .contains("contains invalid characters")
+        );
     }
 }

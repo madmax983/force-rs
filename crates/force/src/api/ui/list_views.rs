@@ -122,6 +122,8 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
     ///
     /// Returns an error if the list view is not found or the request fails.
     pub async fn list_ui(&self, list_view_id: &str) -> crate::error::Result<ListUiRepresentation> {
+        crate::types::validator::validate_identifier(list_view_id, "list_view_id")?;
+
         let path = format!("list-ui/{list_view_id}");
         self.get(&path, None, "Failed to fetch list UI").await
     }
@@ -139,6 +141,8 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
         &self,
         object: &str,
     ) -> crate::error::Result<ListViewSummaryCollection> {
+        crate::types::validator::validate_sobject_name(object)?;
+
         let path = format!("list-ui/{object}");
         self.get(&path, None, "Failed to fetch list views").await
     }
@@ -160,6 +164,8 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
         page_size: Option<u32>,
         page_token: Option<&str>,
     ) -> crate::error::Result<ListRecordsRepresentation> {
+        crate::types::validator::validate_identifier(list_view_id, "list_view_id")?;
+
         let path = format!("list-records/{list_view_id}");
 
         let page_size_str;
@@ -199,6 +205,8 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
         &self,
         list_view_id: &str,
     ) -> crate::error::Result<ListInfoRepresentation> {
+        crate::types::validator::validate_identifier(list_view_id, "list_view_id")?;
+
         let path = format!("list-info/{list_view_id}");
         self.get(&path, None, "Failed to fetch list info").await
     }
@@ -661,5 +669,79 @@ mod tests {
         assert_eq!(records.next_page_token.as_deref(), Some("next_tok"));
         assert_eq!(records.previous_page_token.as_deref(), Some("prev_tok"));
         assert_eq!(records.records.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_list_ui_invalid_identifier() {
+        let server = MockServer::start().await;
+        let client = make_client(&server).await;
+
+        let result = client.ui().list_ui("00B000000000001AAA; DROP TABLE").await;
+        assert!(result.is_err());
+        assert!(
+            match result {
+                Err(e) => e,
+                Ok(_) => panic!("Expected error"),
+            }
+            .to_string()
+            .contains("contains invalid characters")
+        );
+    }
+
+    #[tokio::test]
+    async fn test_list_views_invalid_sobject_name() {
+        let server = MockServer::start().await;
+        let client = make_client(&server).await;
+
+        let result = client.ui().list_views("Account; DROP TABLE").await;
+        assert!(result.is_err());
+        assert!(
+            match result {
+                Err(e) => e,
+                Ok(_) => panic!("Expected error"),
+            }
+            .to_string()
+            .contains("contains invalid characters")
+        );
+    }
+
+    #[tokio::test]
+    async fn test_list_records_invalid_identifier() {
+        let server = MockServer::start().await;
+        let client = make_client(&server).await;
+
+        let result = client
+            .ui()
+            .list_records("00B000000000001AAA; DROP TABLE", None, None)
+            .await;
+        assert!(result.is_err());
+        assert!(
+            match result {
+                Err(e) => e,
+                Ok(_) => panic!("Expected error"),
+            }
+            .to_string()
+            .contains("contains invalid characters")
+        );
+    }
+
+    #[tokio::test]
+    async fn test_list_info_invalid_identifier() {
+        let server = MockServer::start().await;
+        let client = make_client(&server).await;
+
+        let result = client
+            .ui()
+            .list_info("00B000000000001AAA; DROP TABLE")
+            .await;
+        assert!(result.is_err());
+        assert!(
+            match result {
+                Err(e) => e,
+                Ok(_) => panic!("Expected error"),
+            }
+            .to_string()
+            .contains("contains invalid characters")
+        );
     }
 }
