@@ -22,6 +22,7 @@ use crate::types::{QueryResult, SalesforceId};
 use percent_encoding::{AsciiSet, NON_ALPHANUMERIC, utf8_percent_encode};
 use serde::de::DeserializeOwned;
 use std::borrow::Cow;
+use std::fmt::Write;
 use std::sync::Arc;
 
 /// Custom encode set for External ID values in upsert paths.
@@ -582,21 +583,27 @@ async fn upsert_with_retry_class_impl<A: Authenticator>(
     // ⚡ Bolt: Pass `utf8_percent_encode` directly to `format!` to avoid an intermediate `String` allocation.
     let encoded_value = utf8_percent_encode(external_id_value, UPSERT_ENCODE_SET);
 
-    let relative = format!(
+    // ⚡ Bolt: Avoid intermediate `format!` allocation for relative path by writing directly to `api_path`.
+    let mut api_path = String::with_capacity(
+        if api_path_prefix.is_empty() {
+            0
+        } else {
+            api_path_prefix.len() + 1
+        } + 9
+            + sobject.len()
+            + 1
+            + external_id_field.len()
+            + 1
+            + external_id_value.len() * 3, // Approximate max encoded len
+    );
+    if !api_path_prefix.is_empty() {
+        let _ = write!(api_path, "{}/", api_path_prefix);
+    }
+    let _ = write!(
+        api_path,
         "sobjects/{}/{}/{}",
         sobject, external_id_field, encoded_value
     );
-
-    let api_path = if api_path_prefix.is_empty() {
-        relative
-    } else {
-        // ⚡ Bolt: Bypass `format!` overhead for hot path string concatenation
-        let mut path = String::with_capacity(api_path_prefix.len() + 1 + relative.len());
-        path.push_str(api_path_prefix);
-        path.push('/');
-        path.push_str(&relative);
-        path
-    };
     let url = session.resolve_url(&api_path).await?;
 
     let request = session
