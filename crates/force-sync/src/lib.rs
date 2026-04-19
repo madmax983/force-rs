@@ -4,25 +4,38 @@
 #![warn(missing_docs)]
 
 /// Apply lanes for target systems.
-pub mod apply;
+pub(crate) mod apply;
 /// Capture workers for source systems.
-pub mod capture;
+pub(crate) mod capture;
 /// Object-level sync configuration and conflict policy types.
-pub mod config;
+pub(crate) mod config;
 /// Error types for force-sync.
-pub mod error;
+pub(crate) mod error;
 /// Canonical identity types for synced records.
-pub mod identity;
+pub(crate) mod identity;
 /// Change envelope and cursor types for sync events.
-pub mod model;
+pub(crate) mod model;
 /// Pure planner and merge logic for sync envelopes.
-pub mod plan;
+pub(crate) mod plan;
 /// Reconciliation helpers for drift detection and repair.
-pub mod reconcile;
+pub(crate) mod reconcile;
 /// Explicit runtime orchestration for the v0.1 vertical slice.
-pub mod runtime;
+pub(crate) mod runtime;
 /// Storage backends and migration helpers.
-pub mod store;
+pub(crate) mod store;
+
+pub use apply::{ApplyError, RestApplyResult, SalesforceApplier, project_sync_link};
+pub use capture::{capture_batch, capture_stream, load_replay_id};
+pub use config::{ConflictPolicy, LaneThresholds, ObjectSync, Owner};
+pub use error::ForceSyncError;
+pub use identity::SyncKey;
+pub use model::{ChangeEnvelope, ChangeOperation, SourceCursor, SourceSystem};
+pub use plan::{ApplyLane, MergeOutcome, PlanDecision, PlannerContext, merge_payload, plan_change};
+pub use reconcile::{DriftItem, detect_drift, enqueue_repair, run_reconcile_once};
+pub use runtime::{SyncEngine, SyncEngineBuilder};
+pub use store::pg::{
+    AppendResult, CheckpointState, DeadLetter, LeasedTask, PgStore, SyncConflict, SyncLink, migrate,
+};
 
 /// Returns the crate version for smoke tests and runtime diagnostics.
 #[must_use]

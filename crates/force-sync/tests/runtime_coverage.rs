@@ -19,12 +19,8 @@ use wiremock::{
 };
 
 use force_sync::{
-    config::ObjectSync,
-    error::ForceSyncError,
-    identity::SyncKey,
-    model::{ChangeEnvelope, ChangeOperation, SourceCursor, SourceSystem},
-    runtime::SyncEngine,
-    store::pg::PgStore,
+    ForceSyncError, ObjectSync, PgStore, SyncEngine, SyncKey,
+    {ChangeEnvelope, ChangeOperation, SourceCursor, SourceSystem},
 };
 
 // ── Shared helpers ───────────────────────────────────────────────────
@@ -114,7 +110,7 @@ async fn insert_link(
     external_id: &str,
 ) -> Result<(), ForceSyncError> {
     let store = PgStore::new(pool.clone());
-    let link = force_sync::store::pg::SyncLink {
+    let link = force_sync::SyncLink {
         tenant: "tenant".to_owned(),
         object_name: "Account".to_owned(),
         external_id: external_id.to_owned(),
@@ -169,7 +165,7 @@ async fn runtime_coverage_combined_tests() -> Result<(), ForceSyncError> {
 
     let pool = support::postgres::test_pool();
     support::postgres::reset_schema(&pool).await?;
-    force_sync::store::pg::migrate(&pool).await?;
+    force_sync::migrate(&pool).await?;
 
     // ── Subtest 1: Empty apply batch returns zero ────────────────────
     {
