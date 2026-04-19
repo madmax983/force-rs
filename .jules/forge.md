@@ -80,3 +80,7 @@
 **[Extract Builder for Complex Mocks]**
 **Learning:** Large JSON string literals in tests trigger the `clippy::too_many_lines` lint. Instead of bypassing it with `#[allow(clippy::too_many_lines)]`, use the builder pattern (e.g., `MockSObjectDescribeBuilder` and `MockFieldDescribeBuilder` in `crate::test_support`) to programmatically construct complex mock data like `SObjectDescribe`. This keeps tests clean while preserving the ability to assert on specific field types and attributes (like `nillable` or `soap_type`).
 **Action:** When mocking large structs, prefer implementing a fluent builder instead of injecting raw JSON strings.
+
+**[Flatten Match Statements into Guard Clauses]**
+**Learning:** Dense `match` statements over `Result`, `Option`, or `enum` patterns often create an unnecessary level of nesting, forming a "Pyramid of Doom." This makes the primary flow harder to read and increases visual noise.
+**Action:** Always prefer `if let` guard clauses (e.g., `let Err(e) = result else { panic!(...) }`) and the `matches!` macro over explicit `match` blocks for simple conditional checks or unwraps. This flattens the code and enforces early returns.

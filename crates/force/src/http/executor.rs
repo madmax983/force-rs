@@ -242,13 +242,8 @@ impl HttpExecutor {
             return false;
         };
 
-        match http_err {
-            HttpError::Timeout { .. } => true,
-            HttpError::RequestFailed(re) => {
-                !re.is_builder() && !re.is_redirect() && !re.is_status()
-            }
-            _ => false,
-        }
+        matches!(http_err, HttpError::Timeout { .. })
+            || matches!(http_err, HttpError::RequestFailed(re) if !re.is_builder() && !re.is_redirect() && !re.is_status())
     }
 
     fn handle_rate_limit(

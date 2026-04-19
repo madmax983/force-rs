@@ -843,15 +843,13 @@ mod tests {
             .upsert("Account", "ExternalId__c", "123", &json!({"Name": "Acme"}))
             .await;
 
-        match result {
-            Err(crate::error::ForceError::NotImplemented(msg)) => {
-                assert_eq!(
-                    msg,
-                    "Upsert update (204) response does not include record ID - use query to retrieve"
-                );
-            }
-            _ => panic!("Expected NotImplemented error for 204 response"),
-        }
+        let Err(crate::error::ForceError::NotImplemented(msg)) = result else {
+            panic!("Expected NotImplemented error for 204 response");
+        };
+        assert_eq!(
+            msg,
+            "Upsert update (204) response does not include record ID - use query to retrieve"
+        );
     }
 
     #[tokio::test]
