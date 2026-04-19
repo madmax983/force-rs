@@ -5,8 +5,7 @@ mod support;
 use serde_json::{Value, json};
 
 use force_sync::{
-    error::ForceSyncError,
-    store::pg::{DeadLetter, SyncConflict, SyncLink},
+    ForceSyncError, {DeadLetter, SyncConflict, SyncLink},
 };
 
 #[tokio::test]
@@ -14,9 +13,9 @@ use force_sync::{
 async fn put_link_upserts_the_latest_values() -> Result<(), ForceSyncError> {
     let pool = support::postgres::test_pool();
     support::postgres::reset_schema(&pool).await?;
-    force_sync::store::pg::migrate(&pool).await?;
+    force_sync::migrate(&pool).await?;
 
-    let store = force_sync::store::pg::PgStore::new(pool.clone());
+    let store = force_sync::PgStore::new(pool.clone());
 
     let first = SyncLink {
         tenant: "tenant".to_string(),
@@ -68,9 +67,9 @@ async fn put_link_upserts_the_latest_values() -> Result<(), ForceSyncError> {
 async fn checkpoint_advances_only_when_the_position_increases() -> Result<(), ForceSyncError> {
     let pool = support::postgres::test_pool();
     support::postgres::reset_schema(&pool).await?;
-    force_sync::store::pg::migrate(&pool).await?;
+    force_sync::migrate(&pool).await?;
 
-    let store = force_sync::store::pg::PgStore::new(pool.clone());
+    let store = force_sync::PgStore::new(pool.clone());
 
     assert_eq!(
         store
@@ -109,9 +108,9 @@ async fn checkpoint_advances_only_when_the_position_increases() -> Result<(), Fo
 async fn insert_conflict_writes_a_row() -> Result<(), ForceSyncError> {
     let pool = support::postgres::test_pool();
     support::postgres::reset_schema(&pool).await?;
-    force_sync::store::pg::migrate(&pool).await?;
+    force_sync::migrate(&pool).await?;
 
-    let store = force_sync::store::pg::PgStore::new(pool.clone());
+    let store = force_sync::PgStore::new(pool.clone());
     let conflict = SyncConflict {
         tenant: "tenant".to_string(),
         object_name: "Account".to_string(),
@@ -149,9 +148,9 @@ async fn insert_conflict_writes_a_row() -> Result<(), ForceSyncError> {
 async fn insert_dead_letter_writes_a_row() -> Result<(), ForceSyncError> {
     let pool = support::postgres::test_pool();
     support::postgres::reset_schema(&pool).await?;
-    force_sync::store::pg::migrate(&pool).await?;
+    force_sync::migrate(&pool).await?;
 
-    let store = force_sync::store::pg::PgStore::new(pool.clone());
+    let store = force_sync::PgStore::new(pool.clone());
     let dead_letter = DeadLetter {
         task_id: Some(42),
         tenant: Some("tenant".to_string()),

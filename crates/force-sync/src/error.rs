@@ -87,9 +87,6 @@ pub enum ForceSyncError {
     NotImplemented,
 }
 
-/// Backward-compatible alias for the crate's top-level error type.
-pub type Error = ForceSyncError;
-
 impl From<force_pubsub::PubSubError> for ForceSyncError {
     fn from(error: force_pubsub::PubSubError) -> Self {
         Self::PubSub(Box::new(error))

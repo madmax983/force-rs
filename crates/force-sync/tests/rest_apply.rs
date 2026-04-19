@@ -13,7 +13,7 @@ use wiremock::{
     matchers::{body_json, header, method, path, query_param},
 };
 
-use force_sync::apply::{ApplyError, RestApplyResult, SalesforceApplier};
+use force_sync::{ApplyError, RestApplyResult, SalesforceApplier};
 
 #[derive(Debug, Clone)]
 struct MockAuthenticator {

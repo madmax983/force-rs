@@ -5,9 +5,7 @@ use deadpool_postgres::{Config as PgConfig, Pool, Runtime};
 use force::auth::{AccessToken, Authenticator, TokenResponse};
 use force::client::builder;
 use force_sync::{
-    config::ObjectSync,
-    runtime::SyncEngine,
-    store::pg::{PgStore, migrate},
+    ObjectSync, SyncEngine, {PgStore, migrate},
 };
 use tokio_postgres::NoTls;
 
