@@ -542,10 +542,9 @@ pub trait RestOperation<A: Authenticator> {
     /// ```
     async fn describe(&self, sobject_type: &str) -> Result<SObjectDescribe> {
         crate::types::validator::validate_sobject_name(sobject_type)?;
-        let relative = format!(
-            "{}/describe",
-            crate::api::path_utils::format_sobject_path(sobject_type, None)
-        );
+        // ⚡ Bolt: Use existing owned string from `format_sobject_path` and append directly
+        let mut relative = crate::api::path_utils::format_sobject_path(sobject_type, None);
+        relative.push_str("/describe");
         let api_path = self.resolve_api_path(&relative);
         let url = self.session().resolve_url(&api_path).await?;
 
@@ -587,10 +586,16 @@ async fn upsert_with_retry_class_impl<A: Authenticator>(
         "sobjects/{}/{}/{}",
         sobject, external_id_field, encoded_value
     );
+
     let api_path = if api_path_prefix.is_empty() {
         relative
     } else {
-        format!("{}/{}", api_path_prefix, relative)
+        // ⚡ Bolt: Bypass `format!` overhead for hot path string concatenation
+        let mut path = String::with_capacity(api_path_prefix.len() + 1 + relative.len());
+        path.push_str(api_path_prefix);
+        path.push('/');
+        path.push_str(&relative);
+        path
     };
     let url = session.resolve_url(&api_path).await?;
 
@@ -643,7 +648,11 @@ async fn upsert_with_retry_class_impl<A: Authenticator>(
 /// - Credentials are embedded in the URL
 pub fn resolve_next_records_url(instance_url: &str, next_records_url: &str) -> Result<String> {
     if !next_records_url.starts_with("http") {
-        return Ok(format!("{}{}", instance_url, next_records_url));
+        // ⚡ Bolt: Bypass `format!` overhead for hot path string concatenation
+        let mut full_url = String::with_capacity(instance_url.len() + next_records_url.len());
+        full_url.push_str(instance_url);
+        full_url.push_str(next_records_url);
+        return Ok(full_url);
     }
 
     // Security check: absolute URL must match the instance host
