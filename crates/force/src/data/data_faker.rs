@@ -339,3 +339,97 @@ mod tests {
         assert!(!record.has_field("DataCatF"));
     }
 }
+
+/// Utility for generating a mock SOQL query based on Salesforce schema metadata.
+///
+/// Generates a valid SOQL query selecting up to 50 createable fields
+/// from the given SObject describe payload, appending a `LIMIT 10` clause.
+///
+/// # Arguments
+///
+/// * `describe` - The metadata describing the SObject's fields.
+///
+/// # Returns
+///
+/// A String representing a valid SOQL query.
+#[must_use]
+pub fn generate_mock_query(describe: &SObjectDescribe) -> String {
+    let fields: Vec<String> = describe
+        .fields
+        .iter()
+        .filter(|f| f.createable)
+        .take(50)
+        .map(|f| f.name.clone())
+        .collect();
+
+    crate::api::soql::SoqlQueryBuilder::new()
+        .select(&fields)
+        .from(&describe.name)
+        .limit(10)
+        .build()
+}
+
+#[cfg(test)]
+mod additional_tests {
+    use super::*;
+    use crate::api::rest::describe::SObjectDescribe;
+    use crate::test_support::Must;
+    use serde_json::json;
+
+    fn create_mock_describe(fields_json: &serde_json::Value) -> SObjectDescribe {
+        let describe_json = json!({
+            "name": "Account",
+            "label": "Account",
+            "custom": false,
+            "queryable": true,
+            "activateable": false, "createable": true, "customSetting": false, "deletable": true,
+            "deprecatedAndHidden": false, "feedEnabled": true, "hasSubtypes": false,
+            "isSubtype": false, "keyPrefix": "001", "labelPlural": "Accounts", "layoutable": true,
+            "mergeable": true, "mruEnabled": true, "replicateable": true, "retrieveable": true,
+            "searchable": true, "triggerable": true, "undeletable": true, "updateable": true,
+            "urls": {}, "childRelationships": [], "recordTypeInfos": [],
+            "fields": fields_json.clone()
+        });
+        serde_json::from_value(describe_json).must()
+    }
+
+    fn mock_field(
+        name: &str,
+        field_type: &str,
+        createable: bool,
+        auto_number: bool,
+        calculated: bool,
+    ) -> serde_json::Value {
+        json!({
+            "name": name,
+            "type": field_type,
+            "label": format!("{} Label", name),
+            "createable": createable,
+            "autoNumber": auto_number,
+            "calculated": calculated,
+            "aggregatable": true, "byteLength": 18,
+            "cascadeDelete": false, "caseSensitive": false, "custom": false,
+            "defaultedOnCreate": true, "dependentPicklist": false, "deprecatedAndHidden": false,
+            "digits": 0, "displayLocationInDecimal": false, "encrypted": false, "externalId": false,
+            "filterable": true, "groupable": true, "highScaleNumber": false, "htmlFormatted": false,
+            "idLookup": true, "length": 18, "nameField": false, "namePointing": false, "nillable": false,
+            "permissionable": false, "polymorphicForeignKey": false, "precision": 0, "queryByDistance": false,
+            "referenceTo": [], "restrictedDelete": false, "restrictedPicklist": false, "scale": 0,
+            "soapType": "tns:ID", "sortable": true, "unique": false, "updateable": false,
+            "writeRequiresMasterRead": false
+        })
+    }
+
+    #[test]
+    fn test_generate_mock_query() {
+        let describe = create_mock_describe(&json!([
+            mock_field("Name", "string", true, false, false),
+            mock_field("CustomField__c", "string", true, false, false),
+            mock_field("NotCreateable", "string", false, false, false)
+        ]));
+
+        let query = generate_mock_query(&describe);
+
+        assert_eq!(query, "SELECT Name, CustomField__c FROM Account LIMIT 10");
+    }
+}
