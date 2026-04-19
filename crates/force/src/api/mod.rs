@@ -34,9 +34,13 @@ pub mod cpq;
 pub mod consent;
 
 pub(crate) mod query_stream;
-pub mod rest_operation;
-pub mod soql;
+pub(crate) mod rest_operation;
+pub(crate) mod soql;
 
+pub use rest_operation::RestOperation;
+pub use soql::{SoqlQueryBuilder, escape_soql};
+
+pub(crate) mod builder_unwrap;
 pub(crate) mod path_utils;
 
 #[cfg(any(feature = "composite", feature = "composite_graph"))]

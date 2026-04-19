@@ -32,6 +32,8 @@ const UPSERT_ENCODE_SET: &AsciiSet = &NON_ALPHANUMERIC
     .remove(b'.')
     .remove(b'~');
 
+const MAX_QUERY_INPUT_BYTES: usize = 100_000;
+
 /// Trait providing default REST operation implementations for Salesforce API handlers.
 ///
 /// Both `RestHandler` and `ToolingHandler` implement this trait. The only difference
@@ -70,7 +72,7 @@ pub trait RestOperation<A: Authenticator> {
     ///
     /// - `""` (empty string) for the standard REST API
     /// - `"tooling"` for the Tooling API
-    fn path_prefix(&self) -> &str;
+    fn path_prefix(&self) -> &'static str;
 
     /// Resolves a relative API path by prepending the handler's path prefix.
     ///
@@ -86,15 +88,16 @@ pub trait RestOperation<A: Authenticator> {
     fn resolve_api_path<'a>(&self, relative_path: &'a str) -> Cow<'a, str> {
         let prefix = self.path_prefix();
         if prefix.is_empty() {
-            Cow::Borrowed(relative_path)
-        } else {
-            // ⚡ Bolt: Bypass `format!` overhead for hot path string concatenation
-            let mut path = String::with_capacity(prefix.len() + relative_path.len() + 1);
-            path.push_str(prefix);
-            path.push('/');
-            path.push_str(relative_path);
-            Cow::Owned(path)
+            return Cow::Borrowed(relative_path);
         }
+
+        // ⚡ Bolt: Avoid intermediate string allocation in `format!` macro by pre-allocating
+        // the exact capacity needed and writing directly to the buffer.
+        let mut out = String::with_capacity(prefix.len() + relative_path.len() + 1);
+        out.push_str(prefix);
+        out.push('/');
+        out.push_str(relative_path);
+        Cow::Owned(out)
     }
 
     // ── CRUD Operations ──────────────────────────────────────────────
@@ -223,13 +226,10 @@ pub trait RestOperation<A: Authenticator> {
             .build()
             .map_err(crate::error::HttpError::from)?;
 
-        let response = self.session().execute_request(request).await?;
-
-        if response.status().is_success() {
-            Ok(UpdateResponse::success())
-        } else {
-            Err(crate::http::response_to_force_error(response, "Update request failed").await)
-        }
+        self.session()
+            .execute_and_check_success(request, "Update request failed")
+            .await?;
+        Ok(UpdateResponse::success())
     }
 
     /// Deletes a record.
@@ -265,13 +265,10 @@ pub trait RestOperation<A: Authenticator> {
             .build()
             .map_err(crate::error::HttpError::from)?;
 
-        let response = self.session().execute_request(request).await?;
-
-        if response.status().is_success() {
-            Ok(DeleteResponse::success())
-        } else {
-            Err(crate::http::response_to_force_error(response, "Delete request failed").await)
-        }
+        self.session()
+            .execute_and_check_success(request, "Delete request failed")
+            .await?;
+        Ok(DeleteResponse::success())
     }
 
     /// Upserts a record using an external ID field.
@@ -404,11 +401,7 @@ pub trait RestOperation<A: Authenticator> {
     where
         T: DeserializeOwned,
     {
-        if soql.len() > 100_000 {
-            return Err(ForceError::InvalidInput(
-                "SOQL query exceeds maximum allowed length of 100,000 bytes".to_string(),
-            ));
-        }
+        validate_query_input_len("SOQL query", soql)?;
 
         let api_path = self.resolve_api_path("query");
         let url = self.session().resolve_url(&api_path).await?;
@@ -458,11 +451,7 @@ pub trait RestOperation<A: Authenticator> {
     where
         T: DeserializeOwned,
     {
-        if next_records_url.len() > 100_000 {
-            return Err(ForceError::InvalidInput(
-                "next_records_url exceeds maximum allowed length of 100,000 bytes".to_string(),
-            ));
-        }
+        validate_query_input_len("next_records_url", next_records_url)?;
 
         let instance_url = self.session().instance_url().await?;
         let url = resolve_next_records_url(&instance_url, next_records_url)?;
@@ -476,6 +465,27 @@ pub trait RestOperation<A: Authenticator> {
         self.session()
             .send_request_and_decode(request, "Query pagination failed")
             .await
+    }
+
+    /// Creates a stream of query results for the given SOQL.
+    ///
+    /// This method simplifies paginated queries by returning a stream that automatically
+    /// fetches subsequent pages of results as needed.
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// let stream = client.rest().query_stream::<Account>("SELECT Id FROM Account");
+    /// ```
+    fn query_stream<T>(
+        &self,
+        soql: impl Into<String>,
+    ) -> crate::api::query_stream::QueryStream<T, A, Self>
+    where
+        T: DeserializeOwned + Unpin,
+        Self: Sized + Clone,
+    {
+        crate::api::query_stream::QueryStream::new(self.clone(), soql)
     }
 
     // ── Describe Operations ──────────────────────────────────────────
@@ -541,8 +551,7 @@ pub trait RestOperation<A: Authenticator> {
     /// }
     /// ```
     async fn describe(&self, sobject_type: &str) -> Result<SObjectDescribe> {
-        crate::types::validator::validate_sobject_name(sobject_type)?;
-        // ⚡ Bolt: Use existing owned string from `format_sobject_path` and append directly
+        validate_sobject_name(sobject_type)?;
         let mut relative = crate::api::path_utils::format_sobject_path(sobject_type, None);
         relative.push_str("/describe");
         let api_path = self.resolve_api_path(&relative);
@@ -562,6 +571,16 @@ pub trait RestOperation<A: Authenticator> {
 
 // ── Private helper methods ───────────────────────────────────────────
 
+fn validate_query_input_len(name: &str, value: &str) -> Result<()> {
+    if value.len() > MAX_QUERY_INPUT_BYTES {
+        return Err(ForceError::InvalidInput(format!(
+            "{name} exceeds maximum allowed length of 100,000 bytes"
+        )));
+    }
+
+    Ok(())
+}
+
 /// Internal helper shared by [`RestOperation::upsert`] and
 /// [`RestOperation::upsert_idempotent`].
 ///
@@ -576,8 +595,8 @@ async fn upsert_with_retry_class_impl<A: Authenticator>(
     data: &serde_json::Value,
     retry_class: crate::http::RequestRetryClass,
 ) -> Result<UpsertResponse> {
-    // Note: The validations `validate_sobject_name` and `validate_external_id_field`
-    // are now handled by the caller before `session()` is evaluated.
+    validate_sobject_name(sobject)?;
+    validate_external_id_field(external_id_field)?;
 
     // ⚡ Bolt: Pass `utf8_percent_encode` directly to `format!` to avoid an intermediate `String` allocation.
     let encoded_value = utf8_percent_encode(external_id_value, UPSERT_ENCODE_SET);
@@ -586,16 +605,10 @@ async fn upsert_with_retry_class_impl<A: Authenticator>(
         "sobjects/{}/{}/{}",
         sobject, external_id_field, encoded_value
     );
-
     let api_path = if api_path_prefix.is_empty() {
         relative
     } else {
-        // ⚡ Bolt: Bypass `format!` overhead for hot path string concatenation
-        let mut path = String::with_capacity(api_path_prefix.len() + 1 + relative.len());
-        path.push_str(api_path_prefix);
-        path.push('/');
-        path.push_str(&relative);
-        path
+        format!("{}/{}", api_path_prefix, relative)
     };
     let url = session.resolve_url(&api_path).await?;
 
@@ -609,23 +622,25 @@ async fn upsert_with_retry_class_impl<A: Authenticator>(
         .execute_request_with_retry_class(request, retry_class)
         .await?;
 
-    match response.status().as_u16() {
-        204 => {
-            // 204 No Content means an existing record was updated
-            // But the response does not include the record ID
-            Err(ForceError::NotImplemented(
-                "Upsert update (204) response does not include record ID - use query to retrieve"
-                    .to_string(),
-            ))
-        }
-        _ if response.status().is_success() => {
-            // Success codes (201 Created, 200 OK) - parse as upsert response
-            let body = crate::http::error::read_capped_body(response, 10 * 1024 * 1024).await?;
-            serde_json::from_str::<UpsertResponse>(&body)
-                .map_err(|e| crate::error::ForceError::Serialization(e.into()))
-        }
-        _ => Err(crate::http::response_to_force_error(response, "Upsert request failed").await),
+    let status = response.status();
+
+    if status.as_u16() == 204 {
+        // 204 No Content means an existing record was updated
+        // But the response does not include the record ID
+        return Err(ForceError::NotImplemented(
+            "Upsert update (204) response does not include record ID - use query to retrieve"
+                .to_string(),
+        ));
     }
+
+    if status.is_success() {
+        // Success codes (201 Created, 200 OK) - parse as upsert response
+        let bytes = crate::http::error::read_capped_body_bytes(response, 100 * 1024 * 1024).await?;
+        return serde_json::from_slice::<UpsertResponse>(&bytes)
+            .map_err(|e| crate::error::SerializationError::from(e).into());
+    }
+
+    Err(crate::http::response_to_force_error(response, "Upsert request failed").await)
 }
 
 /// Resolves and validates the `nextRecordsUrl` for query pagination.
@@ -648,11 +663,7 @@ async fn upsert_with_retry_class_impl<A: Authenticator>(
 /// - Credentials are embedded in the URL
 pub fn resolve_next_records_url(instance_url: &str, next_records_url: &str) -> Result<String> {
     if !next_records_url.starts_with("http") {
-        // ⚡ Bolt: Bypass `format!` overhead for hot path string concatenation
-        let mut full_url = String::with_capacity(instance_url.len() + next_records_url.len());
-        full_url.push_str(instance_url);
-        full_url.push_str(next_records_url);
-        return Ok(full_url);
+        return Ok(format!("{}{}", instance_url, next_records_url));
     }
 
     // Security check: absolute URL must match the instance host
@@ -661,31 +672,37 @@ pub fn resolve_next_records_url(instance_url: &str, next_records_url: &str) -> R
     let instance_parsed = url::Url::parse(instance_url)
         .map_err(|e| ForceError::InvalidInput(format!("Invalid instance URL in token: {}", e)))?;
 
-    // Compare schemes and hosts, reject embedded credentials
-    if next_parsed.scheme() != instance_parsed.scheme()
-        || next_parsed.host_str() != instance_parsed.host_str()
-        || next_parsed.port_or_known_default() != instance_parsed.port_or_known_default()
-        || !next_parsed.username().is_empty()
-        || next_parsed.password().is_some()
-    {
+    validate_url_origin_match(&instance_parsed, &next_parsed)?;
+
+    Ok(next_records_url.to_string())
+}
+
+/// Helper function to validate that the origin and credentials of an absolute URL match the instance.
+fn validate_url_origin_match(instance: &url::Url, next: &url::Url) -> Result<()> {
+    let scheme_mismatch = next.scheme() != instance.scheme();
+    let host_mismatch = next.host_str() != instance.host_str();
+    let port_mismatch = next.port_or_known_default() != instance.port_or_known_default();
+    let has_credentials = !next.username().is_empty() || next.password().is_some();
+
+    if scheme_mismatch || host_mismatch || port_mismatch || has_credentials {
         return Err(ForceError::InvalidInput(format!(
             "Security Error: nextRecordsUrl origin ({:?}://{:?}:{:?}) does not match instance origin ({:?}://{:?}:{:?})",
-            next_parsed.scheme(),
-            next_parsed.host_str(),
-            next_parsed.port_or_known_default(),
-            instance_parsed.scheme(),
-            instance_parsed.host_str(),
-            instance_parsed.port_or_known_default()
+            next.scheme(),
+            next.host_str(),
+            next.port_or_known_default(),
+            instance.scheme(),
+            instance.host_str(),
+            instance.port_or_known_default()
         )));
     }
-    Ok(next_records_url.to_string())
+
+    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::test_support::Must;
-    use serde_json::json;
 
     // ── resolve_next_records_url unit tests ──────────────────────────
 
@@ -778,29 +795,27 @@ mod tests {
     // ── resolve_api_path unit tests ─────────────────────────────────
 
     /// Minimal test implementor with no prefix (REST API).
+    #[derive(Clone)]
     struct TestRestOp;
 
     impl RestOperation<crate::test_support::MockAuthenticator> for TestRestOp {
         fn session(&self) -> &Arc<Session<crate::test_support::MockAuthenticator>> {
-            unreachable!(
-                "this is a dummy test stub and should not be accessed if validation fails early"
-            )
+            panic!("validation should fail before session access")
         }
-        #[allow(clippy::unnecessary_literal_bound)]
-        fn path_prefix(&self) -> &str {
+        fn path_prefix(&self) -> &'static str {
             ""
         }
     }
 
     /// Minimal test implementor with "tooling" prefix.
+    #[derive(Clone)]
     struct TestToolingOp;
 
     impl RestOperation<crate::test_support::MockAuthenticator> for TestToolingOp {
         fn session(&self) -> &Arc<Session<crate::test_support::MockAuthenticator>> {
             unimplemented!("not needed for path tests")
         }
-        #[allow(clippy::unnecessary_literal_bound)]
-        fn path_prefix(&self) -> &str {
+        fn path_prefix(&self) -> &'static str {
             "tooling"
         }
     }
@@ -824,110 +839,61 @@ mod tests {
         assert_eq!(op.resolve_api_path("sobjects"), "tooling/sobjects");
     }
 
-    // ── Input validation unit tests ──────────────────────────────────
-
-    #[tokio::test]
-    #[allow(clippy::unwrap_used)]
-    async fn test_validation_create() {
-        let op = TestRestOp;
-        let result = op.create("Account;DROP", &serde_json::json!({})).await;
+    fn assert_invalid_input_contains<T>(result: Result<T>, expected: &str) {
+        let Err(ForceError::InvalidInput(message)) = result else {
+            panic!("expected InvalidInput containing {expected:?}");
+        };
         assert!(
-            result
-                .unwrap_err()
-                .to_string()
-                .contains("SObject name contains invalid characters")
+            message.contains(expected),
+            "expected {message:?} to contain {expected:?}"
         );
     }
 
     #[tokio::test]
-    #[allow(clippy::unwrap_used)]
-    async fn test_validation_describe() {
+    async fn test_validation_query_rejects_oversized_soql_before_session() {
+        let op = TestRestOp;
+        let soql = "A".repeat(MAX_QUERY_INPUT_BYTES + 1);
+        let result = op.query::<serde_json::Value>(&soql).await;
+
+        assert_invalid_input_contains(result, "100,000 bytes");
+    }
+
+    #[tokio::test]
+    async fn test_validation_query_more_rejects_oversized_url_before_session() {
+        let op = TestRestOp;
+        let next_records_url = "A".repeat(MAX_QUERY_INPUT_BYTES + 1);
+        let result = op.query_more::<serde_json::Value>(&next_records_url).await;
+
+        assert_invalid_input_contains(result, "100,000 bytes");
+    }
+
+    #[tokio::test]
+    async fn test_validation_describe_rejects_invalid_sobject_before_session() {
         let op = TestRestOp;
         let result = op.describe("Account;DROP").await;
-        assert!(
-            result
-                .unwrap_err()
-                .to_string()
-                .contains("SObject name contains invalid characters")
-        );
+
+        assert_invalid_input_contains(result, "SObject name contains invalid characters");
     }
 
     #[tokio::test]
-    #[allow(clippy::unwrap_used)]
-    async fn test_validation_describe_global() {
-        // Test validation of DescribeGlobal is implicit via its path, but doesn't take input to validate.
-    }
-
-    #[tokio::test]
-    #[allow(clippy::unwrap_used)]
-    async fn test_validation_get() {
+    async fn test_validation_upsert_rejects_invalid_names_before_session() {
         let op = TestRestOp;
-        let id = crate::types::SalesforceId::new("001xx000003DHP0AAO").unwrap();
-        let result = op.get("Account;DROP", &id).await;
-        assert!(
-            result
-                .unwrap_err()
-                .to_string()
-                .contains("SObject name contains invalid characters")
-        );
-    }
 
-    #[tokio::test]
-    #[allow(clippy::unwrap_used)]
-    async fn test_validation_update() {
-        let op = TestRestOp;
-        let id = crate::types::SalesforceId::new("001xx000003DHP0AAO").unwrap();
-        let result = op.update("Account;DROP", &id, &serde_json::json!({})).await;
-        assert!(
-            result
-                .unwrap_err()
-                .to_string()
-                .contains("SObject name contains invalid characters")
-        );
-    }
-
-    #[tokio::test]
-    #[allow(clippy::unwrap_used)]
-    async fn test_validation_delete() {
-        let op = TestRestOp;
-        let id = crate::types::SalesforceId::new("001xx000003DHP0AAO").unwrap();
-        let result = op.delete("Account;DROP", &id).await;
-        assert!(
-            result
-                .unwrap_err()
-                .to_string()
-                .contains("SObject name contains invalid characters")
-        );
-    }
-
-    #[tokio::test]
-    #[allow(clippy::unwrap_used)]
-    async fn test_validation_upsert() {
-        let op = TestRestOp;
         let result = op
             .upsert("Account;DROP", "ExtId", "123", &serde_json::json!({}))
             .await;
-        assert!(
-            result
-                .unwrap_err()
-                .to_string()
-                .contains("SObject name contains invalid characters")
-        );
+        assert_invalid_input_contains(result, "SObject name contains invalid characters");
 
         let result = op
             .upsert("Account", "ExtId;DROP", "123", &serde_json::json!({}))
             .await;
-        assert!(
-            result
-                .unwrap_err()
-                .to_string()
-                .contains("External ID field name contains invalid characters")
-        );
+        assert_invalid_input_contains(result, "External ID field name contains invalid characters");
     }
 
     #[tokio::test]
     async fn test_upsert_returns_not_implemented_on_204() {
         use crate::client::builder;
+        use serde_json::json;
         use wiremock::matchers::{method, path};
         use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -963,6 +929,7 @@ mod tests {
     #[tokio::test]
     async fn test_upsert_success_other_status() {
         use crate::client::builder;
+        use serde_json::json;
         use wiremock::matchers::{method, path};
         use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -1004,6 +971,7 @@ mod tests {
     #[tokio::test]
     async fn test_upsert_failure() {
         use crate::client::builder;
+        use serde_json::json;
         use wiremock::matchers::{method, path};
         use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -1043,6 +1011,7 @@ mod tests {
     async fn test_get_success_mock() {
         use crate::client::builder;
         use crate::types::SalesforceId;
+        use serde_json::json;
         use wiremock::matchers::{method, path};
         use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -1070,8 +1039,309 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_create_success_mock() {
+        use crate::client::builder;
+        use serde_json::json;
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let mock_server = MockServer::start().await;
+        let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
+        let client = builder().authenticate(auth).build().await.must();
+
+        Mock::given(method("POST"))
+            .and(path("/services/data/v60.0/sobjects/Account"))
+            .respond_with(ResponseTemplate::new(201).set_body_json(json!({
+                "id": "001xx000003DHP0AAO",
+                "success": true,
+                "errors": []
+            })))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let rest = client.rest();
+        let response = rest
+            .create("Account", &json!({"Name": "New Account"}))
+            .await
+            .must();
+
+        assert!(response.is_success());
+        assert_eq!(response.id.must().as_str(), "001xx000003DHP0AAO");
+    }
+
+    #[tokio::test]
+    async fn test_update_success_mock() {
+        use crate::client::builder;
+        use crate::types::SalesforceId;
+        use serde_json::json;
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let mock_server = MockServer::start().await;
+        let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
+        let client = builder().authenticate(auth).build().await.must();
+
+        Mock::given(method("PATCH"))
+            .and(path(
+                "/services/data/v60.0/sobjects/Account/001xx000003DHP0AAO",
+            ))
+            .respond_with(ResponseTemplate::new(204))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let rest = client.rest();
+        let id = SalesforceId::new("001xx000003DHP0AAO").must();
+        let response = rest
+            .update("Account", &id, &json!({"Name": "Updated Account"}))
+            .await
+            .must();
+
+        assert!(response.is_success());
+    }
+
+    #[tokio::test]
+    async fn test_delete_success_mock() {
+        use crate::client::builder;
+        use crate::types::SalesforceId;
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let mock_server = MockServer::start().await;
+        let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
+        let client = builder().authenticate(auth).build().await.must();
+
+        Mock::given(method("DELETE"))
+            .and(path(
+                "/services/data/v60.0/sobjects/Account/001xx000003DHP0AAO",
+            ))
+            .respond_with(ResponseTemplate::new(204))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let rest = client.rest();
+        let id = SalesforceId::new("001xx000003DHP0AAO").must();
+        let response = rest.delete("Account", &id).await.must();
+
+        assert!(response.is_success());
+    }
+
+    #[tokio::test]
+    async fn test_upsert_idempotent_success_mock() {
+        use crate::client::builder;
+        use serde_json::json;
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let mock_server = MockServer::start().await;
+        let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
+        let client = builder().authenticate(auth).build().await.must();
+
+        Mock::given(method("PATCH"))
+            .and(path(
+                "/services/data/v60.0/sobjects/Account/ExternalId__c/ACME-005",
+            ))
+            .respond_with(ResponseTemplate::new(201).set_body_json(json!({
+                "id": "001xx000003DHP0AAO",
+                "success": true,
+                "created": true,
+                "errors": []
+            })))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let rest = client.rest();
+        let response = rest
+            .upsert_idempotent(
+                "Account",
+                "ExternalId__c",
+                "ACME-005",
+                &json!({"Name": "Idempotent Account"}),
+            )
+            .await
+            .must();
+
+        assert!(response.is_success());
+        assert!(response.is_created());
+        assert_eq!(response.id.as_str(), "001xx000003DHP0AAO");
+    }
+
+    #[tokio::test]
+    async fn test_describe_global_success_mock() {
+        use crate::client::builder;
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let mock_server = MockServer::start().await;
+        let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
+        let client = builder().authenticate(auth).build().await.must();
+
+        let global_describe_json: serde_json::Value = serde_json::from_str(
+            r#"{
+            "encoding": "UTF-8",
+            "maxBatchSize": 200,
+            "sobjects": [
+                {
+                    "name": "Account",
+                    "label": "Account",
+                    "custom": false,
+                    "keyPrefix": "001",
+                    "urls": {},
+                    "activateable": false,
+                    "createable": true,
+                    "customSetting": false,
+                    "deletable": true,
+                    "deprecatedAndHidden": false,
+                    "feedEnabled": false,
+                    "hasSubtypes": false,
+                    "isSubtype": false,
+                    "labelPlural": "Accounts",
+                    "layoutable": true,
+                    "mergeable": true,
+                    "mruEnabled": true,
+                    "queryable": true,
+                    "replicateable": true,
+                    "retrieveable": true,
+                    "searchable": true,
+                    "triggerable": true,
+                    "undeletable": true,
+                    "updateable": true
+                }
+            ]
+        }"#,
+        )
+        .must();
+
+        Mock::given(method("GET"))
+            .and(path("/services/data/v60.0/sobjects"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(global_describe_json))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let rest = client.rest();
+        let response = rest.describe_global().await.must();
+
+        assert_eq!(response.sobjects.len(), 1);
+        assert_eq!(response.sobjects[0].name, "Account");
+    }
+
+    #[tokio::test]
+    async fn test_describe_success_mock() {
+        use crate::client::builder;
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let mock_server = MockServer::start().await;
+        let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
+        let client = builder().authenticate(auth).build().await.must();
+
+        let describe_json: serde_json::Value = serde_json::from_str(
+            r#"{
+            "name": "Account",
+            "label": "Account",
+            "custom": false,
+            "keyPrefix": "001",
+            "activateable": false,
+            "createable": true,
+            "customSetting": false,
+            "deletable": true,
+            "deprecatedAndHidden": false,
+            "feedEnabled": false,
+            "hasSubtypes": false,
+            "isSubtype": false,
+            "labelPlural": "Accounts",
+            "layoutable": true,
+            "mergeable": true,
+            "mruEnabled": true,
+            "queryable": true,
+            "replicateable": true,
+            "retrieveable": true,
+            "searchable": true,
+            "triggerable": true,
+            "undeletable": true,
+            "updateable": true,
+            "childRelationships": [],
+            "recordTypeInfos": [],
+            "fields": [
+                {
+                    "name": "Id",
+                    "type": "id",
+                    "label": "Record ID",
+                    "length": 18,
+                    "nillable": false,
+                    "custom": false,
+                    "calculated": false,
+                    "aggregatable": true,
+                    "autoNumber": false,
+                    "byteLength": 18,
+                    "caseSensitive": false,
+                    "createable": false,
+                    "defaultedOnCreate": true,
+                    "deprecatedAndHidden": false,
+                    "digits": 0,
+                    "filterable": true,
+                    "groupable": true,
+                    "idLookup": true,
+                    "nameField": false,
+                    "namePointing": false,
+                    "permissionable": false,
+                    "restrictedPicklist": false,
+                    "scale": 0,
+                    "sortable": true,
+                    "unique": false,
+                    "updateable": false,
+                    "cascadeDelete": false,
+                    "dependentPicklist": false,
+                    "deprecatedAndHidden": false,
+                    "displayLocationInDecimal": false,
+                    "encrypted": false,
+                    "externalId": false,
+                    "highScaleNumber": false,
+                    "htmlFormatted": false,
+                    "polymorphicForeignKey": false,
+                    "searchPrefilterable": false,
+                    "writeRequiresMasterRead": false,
+                    "precision": 0,
+                    "queryByDistance": false,
+                    "restrictedDelete": false,
+                    "sortable": true,
+                    "unique": false,
+                    "updateable": false,
+                    "referenceTo": [],
+                    "relationshipName": null,
+                    "relationshipOrder": null,
+                    "referenceTargetField": null,
+                    "soapType": "tns:ID"
+                }
+            ],
+            "urls": {}
+        }"#,
+        )
+        .must();
+
+        Mock::given(method("GET"))
+            .and(path("/services/data/v60.0/sobjects/Account/describe"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(describe_json))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let rest = client.rest();
+        let response = rest.describe("Account").await.must();
+
+        assert_eq!(response.name, "Account");
+        assert_eq!(response.fields.len(), 1);
+        assert_eq!(response.fields[0].name, "Id");
+    }
+
+    #[tokio::test]
     async fn test_query_success_mock() {
         use crate::client::builder;
+        use serde_json::json;
         use wiremock::matchers::{method, path};
         use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -1105,6 +1375,7 @@ mod tests {
     #[tokio::test]
     async fn test_query_more_success_mock() {
         use crate::client::builder;
+        use serde_json::json;
         use wiremock::matchers::{method, path};
         use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -1171,220 +1442,15 @@ mod tests {
         assert!(err.to_string().contains("Security Error"));
     }
 
-    #[tokio::test]
-    async fn test_create_success_mock() {
-        use crate::client::builder;
-        use wiremock::matchers::{method, path};
-        use wiremock::{Mock, MockServer, ResponseTemplate};
-
-        let mock_server = MockServer::start().await;
-        let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
-        let client = builder().authenticate(auth).build().await.must();
-
-        Mock::given(method("POST"))
-            .and(path("/services/data/v60.0/sobjects/Account"))
-            .respond_with(ResponseTemplate::new(201).set_body_json(json!({
-                "id": "001xx000003DHP0AAO",
-                "success": true,
-                "errors": []
-            })))
-            .expect(1)
-            .mount(&mock_server)
-            .await;
-
-        let rest = client.rest();
-        let response = rest
-            .create("Account", &json!({"Name": "Test Account"}))
-            .await
-            .must();
-
-        assert!(response.success);
-        assert_eq!(response.id.as_ref().must().as_str(), "001xx000003DHP0AAO");
-    }
-
-    #[tokio::test]
-    async fn test_delete_success_mock() {
-        use crate::client::builder;
-        use crate::types::SalesforceId;
-        use wiremock::matchers::{method, path};
-        use wiremock::{Mock, MockServer, ResponseTemplate};
-
-        let mock_server = MockServer::start().await;
-        let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
-        let client = builder().authenticate(auth).build().await.must();
-
-        Mock::given(method("DELETE"))
-            .and(path(
-                "/services/data/v60.0/sobjects/Account/001xx000003DHP0AAO",
-            ))
-            .respond_with(ResponseTemplate::new(204))
-            .expect(1)
-            .mount(&mock_server)
-            .await;
-
-        let rest = client.rest();
-        let id = SalesforceId::new("001xx000003DHP0AAO").must();
-        let response = rest.delete("Account", &id).await.must();
-
-        assert!(response.is_success());
-    }
-
-    #[tokio::test]
-    async fn test_describe_global_success_mock() {
-        use crate::client::builder;
-        use wiremock::matchers::{method, path};
-        use wiremock::{Mock, MockServer, ResponseTemplate};
-
-        let mock_server = MockServer::start().await;
-        let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
-        let client = builder().authenticate(auth).build().await.must();
-
-        Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/sobjects"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
-                "encoding": "UTF-8",
-                "maxBatchSize": 200,
-                "sobjects": [
-                    {
-                        "name": "Account",
-                        "label": "Account",
-                        "labelPlural": "Accounts",
-                        "custom": false,
-                        "keyPrefix": "001",
-                        "activateable": false,
-                        "createable": true,
-                        "customSetting": false,
-                        "deletable": true,
-                        "deprecatedAndHidden": false,
-                        "feedEnabled": false,
-                        "hasSubtypes": false,
-                        "isSubtype": false,
-                        "layoutable": true,
-                        "mergeable": true,
-                        "mruEnabled": true,
-                        "queryable": true,
-                        "replicateable": true,
-                        "retrieveable": true,
-                        "searchable": true,
-                        "triggerable": true,
-                        "undeletable": true,
-                        "updateable": true,
-                        "urls": {}
-                    }
-                ]
-            })))
-            .expect(1)
-            .mount(&mock_server)
-            .await;
-
-        let rest = client.rest();
-        let response = rest.describe_global().await.must();
-
-        assert_eq!(response.sobjects.len(), 1);
-        assert_eq!(response.sobjects[0].name, "Account");
-        assert_eq!(response.sobjects[0].label, "Account");
-        assert!(!response.sobjects[0].custom);
-    }
-
-    #[tokio::test]
-    async fn test_describe_success_mock() {
-        use crate::client::builder;
-        use wiremock::matchers::{method, path};
-        use wiremock::{Mock, MockServer, ResponseTemplate};
-
-        let mock_server = MockServer::start().await;
-        let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
-        let client = builder().authenticate(auth).build().await.must();
-
-        let body = serde_json::from_str::<serde_json::Value>(
-            r#"{
-                "name": "Account",
-                "label": "Account",
-                "labelPlural": "Accounts",
-                "custom": false,
-                "activateable": false,
-                "createable": true,
-                "customSetting": false,
-                "deletable": true,
-                "deprecatedAndHidden": false,
-                "feedEnabled": false,
-                "hasSubtypes": false,
-                "isSubtype": false,
-                "layoutable": true,
-                "mergeable": true,
-                "mruEnabled": true,
-                "queryable": true,
-                "replicateable": true,
-                "retrieveable": true,
-                "searchable": true,
-                "triggerable": true,
-                "undeletable": true,
-                "updateable": true,
-                "childRelationships": [],
-                "recordTypeInfos": [],
-                "urls": {},
-                "fields": [
-                    {
-                        "name": "Id",
-                        "label": "Record ID",
-                        "type": "id",
-                        "length": 18,
-                        "aggregatable": true,
-                        "autoNumber": false,
-                        "byteLength": 18,
-                        "calculated": false,
-                        "cascadeDelete": false,
-                        "caseSensitive": false,
-                        "createable": false,
-                        "custom": false,
-                        "defaultedOnCreate": true,
-                        "dependentPicklist": false,
-                        "deprecatedAndHidden": false,
-                        "digits": 0,
-                        "displayLocationInDecimal": false,
-                        "encrypted": false,
-                        "externalId": false,
-                        "filterable": true,
-                        "groupable": true,
-                        "highScaleNumber": false,
-                        "htmlFormatted": false,
-                        "idLookup": true,
-                        "nameField": false,
-                        "namePointing": false,
-                        "nillable": false,
-                        "permissionable": false,
-                        "polymorphicForeignKey": false,
-                        "precision": 0,
-                        "queryByDistance": false,
-                        "referenceTo": [],
-                        "restrictedDelete": false,
-                        "restrictedPicklist": false,
-                        "scale": 0,
-                        "soapType": "tns:ID",
-                        "sortable": true,
-                        "unique": false,
-                        "updateable": false,
-                        "writeRequiresMasterRead": false
-                    }
-                ]
-            }"#,
-        )
-        .must();
-
-        Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/sobjects/Account/describe"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(body))
-            .expect(1)
-            .mount(&mock_server)
-            .await;
-
-        let rest = client.rest();
-        let response = rest.describe("Account").await.must();
-
-        assert_eq!(response.name, "Account");
-        assert_eq!(response.label, "Account");
-        assert!(!response.custom);
-        assert_eq!(response.fields.len(), 1);
-        assert_eq!(response.fields[0].name, "Id");
+    #[test]
+    fn test_query_more_security_check_password_mismatch() {
+        let result = resolve_next_records_url(
+            "https://na1.salesforce.com",
+            "https://:password@na1.salesforce.com/services/data/v60.0/query/01g",
+        );
+        let Err(err) = result else {
+            panic!("Expected Err");
+        };
+        assert!(err.to_string().contains("Security Error"));
     }
 }

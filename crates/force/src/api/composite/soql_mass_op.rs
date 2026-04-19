@@ -14,7 +14,7 @@
 //!
 //! ```no_run
 //! # use force::client::ForceClientBuilder;
-//! # use force::api::soql::SoqlQueryBuilder;
+//! # use force::api::SoqlQueryBuilder;
 //! # use force::api::composite::SoqlMassOp;
 //! # use force::auth::ClientCredentials;
 //! # use serde_json::json;
@@ -38,7 +38,7 @@
 //! # }
 //! ```
 
-use crate::api::soql::SoqlQueryBuilder;
+use crate::api::SoqlQueryBuilder;
 use crate::auth::Authenticator;
 use crate::client::ForceClient;
 use crate::error::{ForceError, Result};

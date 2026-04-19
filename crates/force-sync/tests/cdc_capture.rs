@@ -6,9 +6,7 @@ use force_pubsub::{EventMessage, PubSubEvent, ReplayId};
 use futures::stream;
 use serde_json::{Value, json};
 
-use force_sync::{
-    ForceSyncError, ObjectSync, PgStore, {capture_stream, load_replay_id},
-};
+use force_sync::{ForceSyncError, ObjectSync, PgStore, capture_stream, load_replay_id};
 
 fn event(payload: Value, replay_id: &[u8], event_id: &str) -> PubSubEvent<Value> {
     PubSubEvent::Event(EventMessage {

@@ -77,8 +77,7 @@ impl<A: crate::auth::Authenticator> RestOperation<A> for ToolingHandler<A> {
         &self.inner
     }
 
-    #[allow(clippy::unnecessary_literal_bound)]
-    fn path_prefix(&self) -> &str {
+    fn path_prefix(&self) -> &'static str {
         "tooling"
     }
 }

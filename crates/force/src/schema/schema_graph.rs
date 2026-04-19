@@ -31,7 +31,6 @@ use crate::auth::Authenticator;
 use crate::client::ForceClient;
 use crate::error::Result;
 use std::collections::{HashMap, HashSet};
-use std::fmt::Write;
 
 /// A node in the schema graph representing an SObject.
 #[derive(Debug, Clone)]
@@ -85,26 +84,17 @@ impl<'a, A: Authenticator> SchemaGraph<'a, A> {
     ///
     /// Use this to avoid redundant API calls when you already have the describe data.
     pub fn add_describe(&mut self, describe: SObjectDescribe) {
+        self.scanned.insert(describe.name.clone());
         self.add_node(describe);
     }
 
     /// Adds a node from a describe result (internal helper).
     fn add_node(&mut self, describe: SObjectDescribe) {
-        // ⚡ Bolt: Destructuring allows us to move `name` directly into the collections,
-        // avoiding `.clone()` heap allocations.
-        let SObjectDescribe {
-            name,
-            label,
-            fields,
-            ..
-        } = describe;
-
-        self.scanned.insert(name.clone());
-
         let node = SchemaNode {
-            name: name.clone(),
-            label,
-            fields: fields
+            name: describe.name.clone(),
+            label: describe.label,
+            fields: describe
+                .fields
                 .into_iter()
                 .map(|f| SchemaField {
                     name: f.name,
@@ -113,14 +103,20 @@ impl<'a, A: Authenticator> SchemaGraph<'a, A> {
                 })
                 .collect(),
         };
-        self.nodes.insert(name, node);
+        self.nodes.insert(describe.name, node);
     }
 
     /// Generates a Mermaid.js ER diagram from the scanned objects.
     #[must_use]
     pub fn to_mermaid(&self) -> String {
-        // ⚡ Bolt: Pre-allocating the string buffer avoids heap reallocations when building the Mermaid graph.
-        let mut mermaid = String::with_capacity(1024);
+        let mut mermaid = String::with_capacity(2048);
+        self.write_mermaid(&mut mermaid);
+        mermaid
+    }
+
+    /// Writes a Mermaid.js ER diagram from the scanned objects into the provided string buffer.
+    pub fn write_mermaid(&self, mermaid: &mut String) {
+        use std::fmt::Write;
         mermaid.push_str("erDiagram\n");
 
         // Sort nodes for deterministic output
@@ -169,8 +165,6 @@ impl<'a, A: Authenticator> SchemaGraph<'a, A> {
                 }
             }
         }
-
-        mermaid
     }
 }
 

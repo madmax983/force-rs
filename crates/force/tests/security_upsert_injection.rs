@@ -3,7 +3,7 @@
 #![cfg(feature = "rest")]
 
 use async_trait::async_trait;
-use force::api::rest_operation::RestOperation;
+use force::api::RestOperation;
 use force::auth::{AccessToken, Authenticator, TokenResponse};
 use force::client::ForceClientBuilder;
 use force::error::Result;

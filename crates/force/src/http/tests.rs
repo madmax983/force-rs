@@ -530,7 +530,7 @@ mod integration_tests {
 
         // Assert
 
-        // Should get an HTTP error when parsing JSON fails
+        // Should get a Serialization error when parsing JSON fails
         assert!(matches!(result, Err(ForceError::Serialization(_))));
     }
 

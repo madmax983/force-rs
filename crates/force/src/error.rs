@@ -37,6 +37,9 @@ pub enum ForceError {
     /// Invalid input provided to an API method.
     #[error("invalid input: {0}")]
     InvalidInput(String),
+    /// I/O error.
+    #[error("IO error: {0}")]
+    Io(#[from] std::io::Error),
 
     /// Feature not yet implemented.
     #[error("not implemented: {0}")]

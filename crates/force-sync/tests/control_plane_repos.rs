@@ -4,9 +4,7 @@ mod support;
 
 use serde_json::{Value, json};
 
-use force_sync::{
-    ForceSyncError, {DeadLetter, SyncConflict, SyncLink},
-};
+use force_sync::{DeadLetter, ForceSyncError, SyncConflict, SyncLink};
 
 #[tokio::test]
 #[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]

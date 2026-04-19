@@ -99,17 +99,14 @@ impl<A: crate::auth::Authenticator> GraphqlHandler<A> {
             .build()
             .map_err(crate::error::HttpError::from)?;
 
-        let response = self.inner.execute_request(http_request).await?;
+        let response = self
+            .inner
+            .execute_and_check_success(http_request, "GraphQL request failed")
+            .await?;
 
-        if !response.status().is_success() {
-            return Err(
-                crate::http::response_to_force_error(response, "GraphQL request failed").await,
-            );
-        }
-
-        let body = crate::http::error::read_capped_body(response, 10 * 1024 * 1024).await?;
+        let bytes = crate::http::error::read_capped_body_bytes(response, 100 * 1024 * 1024).await?;
         let envelope: GraphqlResponse<T> =
-            serde_json::from_str(&body).map_err(crate::error::SerializationError::from)?;
+            serde_json::from_slice(&bytes).map_err(crate::error::SerializationError::from)?;
 
         match (envelope.data, envelope.errors) {
             (Some(data), _) => Ok(data),
@@ -140,16 +137,13 @@ impl<A: crate::auth::Authenticator> GraphqlHandler<A> {
             .build()
             .map_err(crate::error::HttpError::from)?;
 
-        let response = self.inner.execute_request(http_request).await?;
+        let response = self
+            .inner
+            .execute_and_check_success(http_request, "GraphQL request failed")
+            .await?;
 
-        if !response.status().is_success() {
-            return Err(
-                crate::http::response_to_force_error(response, "GraphQL request failed").await,
-            );
-        }
-
-        let body = crate::http::error::read_capped_body(response, 10 * 1024 * 1024).await?;
-        serde_json::from_str(&body)
+        let bytes = crate::http::error::read_capped_body_bytes(response, 100 * 1024 * 1024).await?;
+        serde_json::from_slice::<GraphqlResponse<T>>(&bytes)
             .map_err(crate::error::SerializationError::from)
             .map_err(Into::into)
     }
@@ -238,7 +232,7 @@ mod tests {
 
 #[cfg(test)]
 mod integration_tests {
-    #![allow(clippy::unwrap_used, clippy::items_after_statements)]
+    #![allow(clippy::items_after_statements)]
 
     use super::*;
     use crate::client::builder;

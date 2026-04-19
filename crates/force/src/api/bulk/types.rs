@@ -5,6 +5,29 @@
 
 use serde::{Deserialize, Serialize};
 
+pub(super) fn deserialize_optional_string_or_number<'de, D>(
+    deserializer: D,
+) -> Result<Option<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum StringOrNumber {
+        String(String),
+        Number(serde_json::Number),
+        // To handle explicit null correctly since we are untagged, we fallback
+        Null,
+    }
+
+    let value = Option::<StringOrNumber>::deserialize(deserializer)?;
+    Ok(match value {
+        Some(StringOrNumber::String(value)) => Some(value),
+        Some(StringOrNumber::Number(value)) => Some(value.to_string()),
+        Some(StringOrNumber::Null) | None => None,
+    })
+}
+
 /// Job operation types for Bulk API 2.0.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -117,7 +140,11 @@ pub struct JobInfo {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub total_processing_time: Option<i64>,
     /// API version.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional_string_or_number"
+    )]
     pub api_version: Option<String>,
     /// System modstamp timestamp.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -268,6 +295,22 @@ mod tests {
     }
 
     #[test]
+    fn test_job_info_with_numeric_api_version() {
+        let json = r#"{
+            "id": "750xx0000000002AAA",
+            "operation": "update",
+            "object": "Contact",
+            "createdDate": "2024-01-01T00:00:00.000Z",
+            "createdById": "005xx0000000001AAA",
+            "state": "JobComplete",
+            "apiVersion": 60.0
+        }"#;
+
+        let info: JobInfo = serde_json::from_str(json).must();
+        assert_eq!(info.api_version, Some("60.0".to_string()));
+    }
+
+    #[test]
     fn test_update_job_request() {
         let request = UpdateJobRequest {
             state: JobState::UploadComplete,
@@ -275,5 +318,119 @@ mod tests {
 
         let json = serde_json::to_string(&request).must();
         assert!(json.contains(r#""state":"UploadComplete""#));
+    }
+
+    #[test]
+    fn test_deserialize_optional_string_or_number() {
+        #[derive(Deserialize, PartialEq, Debug)]
+        struct Wrapper {
+            #[serde(default, deserialize_with = "deserialize_optional_string_or_number")]
+            value: Option<String>,
+        }
+
+        // Test String
+        let json = r#"{"value": "60.0"}"#;
+        let w: Wrapper = serde_json::from_str(json).must();
+        assert_eq!(w.value, Some("60.0".to_string()));
+
+        // Test Number
+        let json = r#"{"value": 60.0}"#;
+        let w: Wrapper = serde_json::from_str(json).must();
+        assert_eq!(w.value, Some("60.0".to_string()));
+
+        // Test null
+        let json = r#"{"value": null}"#;
+        let w: Wrapper = serde_json::from_str(json).must();
+        assert_eq!(w.value, None);
+
+        // Test an arbitrary string that mutants might generate
+        let json = r#"{"value": "xyzzy"}"#;
+        let w: Wrapper = serde_json::from_str(json).must();
+        assert_eq!(w.value, Some("xyzzy".to_string()));
+
+        // Test an empty string
+        let json = r#"{"value": ""}"#;
+        let w: Wrapper = serde_json::from_str(json).must();
+        assert_eq!(w.value, Some(String::new()));
+
+        // Call it directly with an object which should error
+        let json = r#"{"value": {}}"#;
+        let w_res: Result<Wrapper, _> = serde_json::from_str(json);
+        assert!(w_res.is_err());
+
+        // Test completely missing field
+        let json = r"{}";
+        let w: Wrapper = serde_json::from_str(json).must();
+        assert_eq!(w.value, None);
+
+        // Test an arbitrary string that mutants might generate
+        let json = r#"{"value": "xyzzy"}"#;
+        let w: Wrapper = serde_json::from_str(json).must();
+        assert_eq!(w.value, Some("xyzzy".to_string()));
+
+        // Test an empty string
+        let json = r#"{"value": ""}"#;
+        let w: Wrapper = serde_json::from_str(json).must();
+        assert_eq!(w.value, Some(String::new()));
+    }
+
+    #[test]
+    fn test_job_info_deserialization_missing_optional_fields() {
+        let json = r#"{
+            "id": "750xx0000000001AAA",
+            "operation": "insert",
+            "object": "Account",
+            "createdDate": "2024-01-01T00:00:00.000Z",
+            "createdById": "005xx0000000001AAA",
+            "state": "Open"
+        }"#;
+
+        let info: JobInfo = serde_json::from_str(json).must();
+        assert_eq!(info.id, "750xx0000000001AAA");
+        assert_eq!(info.operation, JobOperation::Insert);
+        assert_eq!(info.object, "Account");
+        assert_eq!(info.state, JobState::Open);
+        assert_eq!(info.content_type, None);
+        assert_eq!(info.external_id_field_name, None);
+        assert_eq!(info.line_ending, None);
+        assert_eq!(info.column_delimiter, None);
+        assert_eq!(info.number_records_processed, None);
+        assert_eq!(info.number_records_failed, None);
+        assert_eq!(info.total_processing_time, None);
+        assert_eq!(info.api_version, None);
+        assert_eq!(info.system_modstamp, None);
+        assert_eq!(info.error_message, None);
+    }
+
+    #[test]
+    fn test_job_info_with_explicit_null_api_version() {
+        let json = r#"{
+            "id": "750xx0000000001AAA",
+            "operation": "insert",
+            "object": "Account",
+            "createdDate": "2024-01-01T00:00:00.000Z",
+            "createdById": "005xx0000000001AAA",
+            "state": "Open",
+            "apiVersion": null
+        }"#;
+
+        let info: JobInfo = serde_json::from_str(json).must();
+        assert_eq!(info.api_version, None);
+    }
+
+    #[test]
+    fn test_job_info_with_string_api_version() {
+        let json = r#"{
+            "id": "750xx0000000002AAA",
+            "operation": "update",
+            "object": "Contact",
+            "createdDate": "2024-01-01T00:00:00.000Z",
+            "createdById": "005xx0000000001AAA",
+            "state": "JobComplete",
+            "apiVersion": "61.0"
+        }"#;
+
+        let info: JobInfo = serde_json::from_str(json).must();
+        assert_eq!(info.api_version, Some("61.0".to_string()));
     }
 }

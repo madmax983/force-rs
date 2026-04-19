@@ -3,7 +3,7 @@
 use futures::FutureExt;
 use tokio_postgres::GenericClient;
 
-use crate::{error::ForceSyncError, store::pg::PgStore};
+use crate::{PgStore, error::ForceSyncError};
 
 /// A drift candidate discovered during reconciliation.
 #[derive(Debug, Clone, PartialEq, Eq)]

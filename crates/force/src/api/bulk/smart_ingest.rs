@@ -247,13 +247,10 @@ impl<'a, A: crate::auth::Authenticator> SmartIngest<'a, A> {
             .build()
             .map_err(crate::error::HttpError::from)?;
 
-        let response = self.handler.inner.execute_request(request).await?;
-
-        if !response.status().is_success() {
-            return Err(
-                crate::http::response_to_force_error(response, "Batch upload failed").await,
-            );
-        }
+        self.handler
+            .inner
+            .execute_and_check_success(request, "Batch upload failed")
+            .await?;
 
         Ok(size)
     }
@@ -463,10 +460,12 @@ mod tests {
         // Mock: Create Job (Failure)
         Mock::given(method("POST"))
             .and(path("/services/data/v60.0/jobs/ingest"))
-            .respond_with(ResponseTemplate::new(400).set_body_json(serde_json::json!({
-                "message": "Bad Request",
-                "errorCode": "INVALID_JOB"
-            })))
+            .respond_with(
+                ResponseTemplate::new(400).set_body_json(serde_json::json!([{
+                    "message": "Bad Request",
+                    "errorCode": "INVALID_JOB"
+                }])),
+            )
             .expect(1)
             .mount(&mock_server)
             .await;
@@ -484,10 +483,19 @@ mod tests {
             .execute_stream(stream)
             .await;
 
-        let Err(err) = result else {
-            panic!("Expected an error");
+        let Err(crate::error::ForceError::Http(crate::error::HttpError::StatusError {
+            status_code,
+            message,
+        })) = result
+        else {
+            panic!("Expected StatusError, got {:?}", result);
         };
-        assert!(err.to_string().contains(""));
+        assert_eq!(status_code, 400);
+        assert!(
+            message.contains("Bad Request"),
+            "Actual message: {}",
+            message
+        );
     }
 
     #[tokio::test]
@@ -512,7 +520,12 @@ mod tests {
         // Mock: Upload Batch (Failure)
         Mock::given(method("PUT"))
             .and(path("/services/data/v60.0/jobs/ingest/JOB_ID/batches"))
-            .respond_with(ResponseTemplate::new(500))
+            .respond_with(
+                ResponseTemplate::new(500).set_body_json(serde_json::json!([{
+                    "errorCode": "SERVER_ERROR",
+                    "message": "Upload failed"
+                }])),
+            )
             .expect(1)
             .mount(&mock_server)
             .await;
@@ -542,10 +555,19 @@ mod tests {
             .execute_stream(stream)
             .await;
 
-        let Err(err) = result else {
-            panic!("Expected an error");
+        let Err(crate::error::ForceError::Http(crate::error::HttpError::StatusError {
+            status_code,
+            message,
+        })) = result
+        else {
+            panic!("Expected StatusError, got {:?}", result);
         };
-        assert!(err.to_string().contains(""));
+        assert_eq!(status_code, 500);
+        assert!(
+            message.contains("Upload failed"),
+            "Actual message: {}",
+            message
+        );
     }
 
     #[tokio::test]
@@ -578,7 +600,12 @@ mod tests {
         // Mock: Close Job (Failure)
         Mock::given(method("PATCH"))
             .and(path("/services/data/v60.0/jobs/ingest/JOB_ID"))
-            .respond_with(ResponseTemplate::new(500))
+            .respond_with(
+                ResponseTemplate::new(500).set_body_json(serde_json::json!([{
+                    "errorCode": "SERVER_ERROR",
+                    "message": "Close failed"
+                }])),
+            )
             .expect(1)
             .mount(&mock_server)
             .await;
@@ -596,10 +623,19 @@ mod tests {
             .execute_stream(stream)
             .await;
 
-        let Err(err) = result else {
-            panic!("Expected an error");
+        let Err(crate::error::ForceError::Http(crate::error::HttpError::StatusError {
+            status_code,
+            message,
+        })) = result
+        else {
+            panic!("Expected StatusError, got {:?}", result);
         };
-        assert!(err.to_string().contains(""));
+        assert_eq!(status_code, 500);
+        assert!(
+            message.contains("Close failed"),
+            "Actual message: {}",
+            message
+        );
     }
 
     #[tokio::test]

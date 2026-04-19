@@ -207,9 +207,10 @@ impl UsernamePassword {
             return Err(crate::auth::handle_oauth_error(response, None).await);
         }
 
-        let body = crate::http::error::read_capped_body(response, 1024 * 1024).await?;
-        serde_json::from_str::<TokenResponse>(&body)
-            .map_err(|e| ForceError::Serialization(e.into()))
+        let bytes = crate::http::error::read_capped_body_bytes(response, 1024 * 1024).await?;
+        serde_json::from_slice::<TokenResponse>(&bytes)
+            .map_err(crate::error::SerializationError::from)
+            .map_err(Into::into)
     }
 
     /// Stores the refresh token from a token response (if present).

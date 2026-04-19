@@ -30,19 +30,40 @@ pub fn parse_api_error(status_code: u16, body: &str) -> HttpError {
     // Try to parse as Salesforce error array
     if let Ok(errors) = serde_json::from_str::<Vec<SalesforceError>>(body) {
         if let Some(first_error) = errors.first() {
-            let fields_suffix = if first_error.fields.is_empty() {
-                String::new()
-            } else {
-                format!(" (fields: {})", first_error.fields.join(", "))
-            };
+            let code = first_error.error_code.as_deref().unwrap_or("UNKNOWN");
+
+            // ⚡ Bolt: Pre-allocate a single buffer to avoid multiple heap allocations
+            // from intermediate strings and `.join(", ")`.
+            let mut cap = code.len() + first_error.message.len() + 4; // "[{}] "
+            if !first_error.fields.is_empty() {
+                cap += 11 + first_error.fields.iter().map(|f| f.len()).sum::<usize>(); // " (fields: )" + field lengths
+                if first_error.fields.len() > 1 {
+                    cap += (first_error.fields.len() - 1) * 2; // ", " separators
+                }
+            }
+
+            let mut message = String::with_capacity(cap);
+            message.push('[');
+            message.push_str(code);
+            message.push_str("] ");
+            message.push_str(&first_error.message);
+
+            if !first_error.fields.is_empty() {
+                message.push_str(" (fields: ");
+                let mut first = true;
+                for field in &first_error.fields {
+                    if !first {
+                        message.push_str(", ");
+                    }
+                    first = false;
+                    message.push_str(field);
+                }
+                message.push(')');
+            }
+
             return HttpError::StatusError {
                 status_code,
-                message: format!(
-                    "[{}] {}{}",
-                    first_error.error_code.as_deref().unwrap_or("UNKNOWN"),
-                    first_error.message,
-                    fields_suffix
-                ),
+                message,
             };
         }
     }
@@ -54,11 +75,11 @@ pub fn parse_api_error(status_code: u16, body: &str) -> HttpError {
     }
 }
 
-/// Reads the body of an HTTP response as bytes up to a specified byte limit.
+/// Reads the body of an HTTP response as bytes up to a specified limit.
 /// This prevents memory exhaustion (DoS) attacks from maliciously large error responses.
 ///
 /// It strictly caps the internal allocation and reads chunk by chunk.
-pub async fn read_capped_bytes(
+pub async fn read_capped_body_bytes(
     response: Response,
     limit_bytes: usize,
 ) -> Result<Vec<u8>, HttpError> {
@@ -90,7 +111,15 @@ pub async fn read_capped_bytes(
     Ok(bytes)
 }
 
-/// Converts an HTTP error response into a `ForceError` using Salesforce-aware parsing.
+/// Backward-compatible alias for callers that need raw capped bytes.
+pub async fn read_capped_bytes(
+    response: Response,
+    limit_bytes: usize,
+) -> Result<Vec<u8>, HttpError> {
+    read_capped_body_bytes(response, limit_bytes).await
+}
+
+/// Reads the body of an HTTP response as UTF-8 up to a specified byte limit.
 ///
 /// Reads the body of an HTTP response up to a specified byte limit.
 /// This prevents memory exhaustion (DoS) attacks from maliciously large error responses.
@@ -267,6 +296,56 @@ mod integration_tests {
             assert_eq!(limit_bytes, 1024 * 1024);
         } else {
             panic!("Expected PayloadTooLarge error, got: {:?}", error);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_response_to_force_error_does_not_truncate_medium_body() {
+        let mock_server = MockServer::start().await;
+
+        // Generate a payload between the mutated boundary (2048) and the actual boundary (1048576).
+        let medium_body = "A".repeat(5000);
+
+        Mock::given(method("GET"))
+            .and(path("/error"))
+            .respond_with(ResponseTemplate::new(400).set_body_string(medium_body.clone()))
+            .mount(&mock_server)
+            .await;
+
+        let client = reqwest::Client::new();
+        let url = format!("{}/error", mock_server.uri());
+        let response = client.get(&url).send().await.must();
+
+        let error = response_to_force_error(response, "fallback").await;
+
+        assert_eq!(
+            error.to_string(),
+            format!("HTTP request failed: HTTP 400: {}", medium_body)
+        );
+    }
+
+    #[tokio::test]
+    async fn test_read_capped_body_bytes_payload_too_large() {
+        let mock_server = MockServer::start().await;
+
+        let large_body = "A".repeat(5000);
+
+        Mock::given(method("GET"))
+            .and(path("/bytes"))
+            .respond_with(ResponseTemplate::new(200).set_body_string(large_body))
+            .mount(&mock_server)
+            .await;
+
+        let client = reqwest::Client::new();
+        let url = format!("{}/bytes", mock_server.uri());
+        let response = client.get(&url).send().await.must();
+
+        let result = read_capped_body_bytes(response, 4096).await;
+
+        if let Err(HttpError::PayloadTooLarge { limit_bytes }) = result {
+            assert_eq!(limit_bytes, 4096);
+        } else {
+            panic!("Expected PayloadTooLarge error, got: {:?}", result);
         }
     }
 }

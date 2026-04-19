@@ -11,24 +11,45 @@ use std::fmt::Write;
 /// Rust types.
 pub fn generate_rust_struct(describe: &SObjectDescribe) -> String {
     let mut out = String::with_capacity(describe.fields.len() * 128);
+    write_rust_struct(&mut out, describe);
+    out
+}
+
+/// Writes a Rust struct definition from an SObject describe result directly to a string buffer.
+pub fn write_rust_struct(out: &mut String, describe: &SObjectDescribe) {
     let _ = writeln!(out, "/// {}", describe.label);
     out.push_str("#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]\n");
-    let _ = writeln!(out, "pub struct {} {{", pascal_case(&describe.name));
+    out.push_str("pub struct ");
+    write_pascal_case(out, &describe.name);
+    out.push_str(" {\n");
 
-    for field in &describe.fields {
+    let mut fields: Vec<&_> = describe.fields.iter().collect();
+    fields.sort_by(|a, b| {
+        if a.name == "Id" {
+            std::cmp::Ordering::Less
+        } else if b.name == "Id" {
+            std::cmp::Ordering::Greater
+        } else {
+            a.name.cmp(&b.name)
+        }
+    });
+
+    for field in fields {
         let _ = writeln!(out, "    /// {}", field.label);
         let _ = writeln!(out, "    #[serde(rename = \"{}\")]", field.name);
         let rust_type = map_type(&field.type_);
-        let final_type = if field.nillable {
-            format!("Option<{}>", rust_type)
+        // ⚡ Bolt: Write type directly to buffer instead of allocating intermediate String via format! or to_string()
+        out.push_str("    pub ");
+        write_snake_case(out, &field.name);
+        out.push_str(": ");
+        if field.nillable {
+            let _ = writeln!(out, "Option<{}>,", rust_type);
         } else {
-            rust_type.to_string()
-        };
-        let _ = writeln!(out, "    pub {}: {},", snake_case(&field.name), final_type);
+            let _ = writeln!(out, "{},", rust_type);
+        }
     }
 
     out.push_str("}\n");
-    out
 }
 
 /// Converts a string to PascalCase.
@@ -36,18 +57,23 @@ pub fn generate_rust_struct(describe: &SObjectDescribe) -> String {
 /// ⚡ Bolt: Uses `String::with_capacity` to prevent reallocation.
 fn pascal_case(s: &str) -> String {
     let mut result = String::with_capacity(s.len());
+    write_pascal_case(&mut result, s);
+    result
+}
+
+/// Writes a string as PascalCase directly to a buffer.
+fn write_pascal_case(out: &mut String, s: &str) {
     let mut capitalize_next = true;
     for c in s.chars() {
         if c == '_' {
             capitalize_next = true;
         } else if capitalize_next {
-            result.push(c.to_ascii_uppercase());
+            out.push(c.to_ascii_uppercase());
             capitalize_next = false;
         } else {
-            result.push(c);
+            out.push(c);
         }
     }
-    result
 }
 
 /// Converts a string to snake_case.
@@ -56,26 +82,32 @@ fn pascal_case(s: &str) -> String {
 /// over `chars()` to remove intermediate `Vec<char>` allocation.
 fn snake_case(s: &str) -> String {
     let mut result = String::with_capacity(s.len() + 2);
+    write_snake_case(&mut result, s);
+    result
+}
+
+/// Writes a string as snake_case directly to a buffer.
+fn write_snake_case(out: &mut String, s: &str) {
+    let start_len = out.len();
     let mut prev_char: Option<char> = None;
 
     for c in s.chars() {
         if c.is_ascii_uppercase() {
             if let Some(p) = prev_char {
                 if !p.is_ascii_uppercase() && p != '_' {
-                    result.push('_');
+                    out.push('_');
                 }
             }
-            result.push(c.to_ascii_lowercase());
+            out.push(c.to_ascii_lowercase());
         } else {
-            result.push(c);
+            out.push(c);
         }
         prev_char = Some(c);
     }
 
-    if result == "type" {
-        result.push('_');
+    if &out[start_len..] == "type" {
+        out.push('_');
     }
-    result
 }
 
 fn map_type(ft: &FieldType) -> &'static str {
@@ -128,170 +160,50 @@ mod tests {
     }
 
     #[test]
-    #[allow(clippy::too_many_lines)]
     fn test_generate_struct() {
-        use crate::test_support::Must;
-        // Construct JSON since SObjectDescribe has many required fields
-        let json = r#"{
-            "activateable": false,
-            "createable": true,
-            "custom": false,
-            "customSetting": false,
-            "deletable": true,
-            "deprecatedAndHidden": false,
-            "feedEnabled": true,
-            "hasSubtypes": false,
-            "isSubtype": false,
-            "keyPrefix": "001",
-            "label": "Account Object",
-            "labelPlural": "Accounts",
-            "layoutable": true,
-            "mergeable": true,
-            "mruEnabled": true,
-            "name": "Account",
-            "queryable": true,
-            "replicateable": true,
-            "retrieveable": true,
-            "searchable": true,
-            "triggerable": true,
-            "undeletable": true,
-            "updateable": true,
-            "urls": {
-                "sobject": "/services/data/v60.0/sobjects/Account"
-            },
-            "fields": [
-                {
-                    "aggregatable": true,
-                    "autoNumber": false,
-                    "byteLength": 18,
-                    "calculated": false,
-                    "cascadeDelete": false,
-                    "caseSensitive": false,
-                    "createable": false,
-                    "custom": false,
-                    "defaultedOnCreate": true,
-                    "dependentPicklist": false,
-                    "deprecatedAndHidden": false,
-                    "digits": 0,
-                    "displayLocationInDecimal": false,
-                    "encrypted": false,
-                    "externalId": false,
-                    "filterable": true,
-                    "groupable": true,
-                    "highScaleNumber": false,
-                    "htmlFormatted": false,
-                    "idLookup": true,
-                    "label": "Account ID",
-                    "length": 18,
-                    "name": "Id",
-                    "nameField": false,
-                    "namePointing": false,
-                    "nillable": false,
-                    "permissionable": false,
-                    "polymorphicForeignKey": false,
-                    "precision": 0,
-                    "queryByDistance": false,
-                    "referenceTo": [],
-                    "restrictedDelete": false,
-                    "restrictedPicklist": false,
-                    "scale": 0,
-                    "soapType": "tns:ID",
-                    "sortable": true,
-                    "type": "id",
-                    "unique": false,
-                    "updateable": false,
-                    "writeRequiresMasterRead": false
-                },
-                {
-                    "aggregatable": true,
-                    "autoNumber": false,
-                    "byteLength": 255,
-                    "calculated": false,
-                    "cascadeDelete": false,
-                    "caseSensitive": false,
-                    "createable": true,
-                    "custom": false,
-                    "defaultedOnCreate": true,
-                    "dependentPicklist": false,
-                    "deprecatedAndHidden": false,
-                    "digits": 0,
-                    "displayLocationInDecimal": false,
-                    "encrypted": false,
-                    "externalId": false,
-                    "filterable": true,
-                    "groupable": true,
-                    "highScaleNumber": false,
-                    "htmlFormatted": false,
-                    "idLookup": false,
-                    "label": "Account Name",
-                    "length": 255,
-                    "name": "Name",
-                    "nameField": true,
-                    "namePointing": false,
-                    "nillable": true,
-                    "permissionable": false,
-                    "polymorphicForeignKey": false,
-                    "precision": 0,
-                    "queryByDistance": false,
-                    "referenceTo": [],
-                    "restrictedDelete": false,
-                    "restrictedPicklist": false,
-                    "scale": 0,
-                    "soapType": "xsd:string",
-                    "sortable": true,
-                    "type": "string",
-                    "unique": false,
-                    "updateable": true,
-                    "writeRequiresMasterRead": false
-                },
-                {
-                    "aggregatable": true,
-                    "autoNumber": false,
-                    "byteLength": 0,
-                    "calculated": false,
-                    "cascadeDelete": false,
-                    "caseSensitive": false,
-                    "createable": true,
-                    "custom": false,
-                    "defaultedOnCreate": true,
-                    "dependentPicklist": false,
-                    "deprecatedAndHidden": false,
-                    "digits": 0,
-                    "displayLocationInDecimal": false,
-                    "encrypted": false,
-                    "externalId": false,
-                    "filterable": true,
-                    "groupable": true,
-                    "highScaleNumber": false,
-                    "htmlFormatted": false,
-                    "idLookup": false,
-                    "label": "Active",
-                    "length": 0,
-                    "name": "IsActive",
-                    "nameField": false,
-                    "namePointing": false,
-                    "nillable": false,
-                    "permissionable": false,
-                    "polymorphicForeignKey": false,
-                    "precision": 0,
-                    "queryByDistance": false,
-                    "referenceTo": [],
-                    "restrictedDelete": false,
-                    "restrictedPicklist": false,
-                    "scale": 0,
-                    "soapType": "xsd:boolean",
-                    "sortable": true,
-                    "type": "boolean",
-                    "unique": false,
-                    "updateable": true,
-                    "writeRequiresMasterRead": false
-                }
-            ],
-            "childRelationships": [],
-            "recordTypeInfos": []
-        }"#;
+        use crate::test_support::{MockFieldDescribeBuilder, MockSObjectDescribeBuilder};
 
-        let describe: SObjectDescribe = serde_json::from_str(json).must();
+        let describe = MockSObjectDescribeBuilder::new("Account")
+            .field(
+                MockFieldDescribeBuilder::new("Id", FieldType::Id)
+                    .label("Account ID")
+                    .length(18)
+                    .byte_length(18)
+                    .nillable(false)
+                    .createable(false)
+                    .updateable(false)
+                    .permissionable(false)
+                    .defaulted_on_create(true)
+                    .build(),
+            )
+            .field(
+                MockFieldDescribeBuilder::new("Name", FieldType::String)
+                    .label("Account Name")
+                    .length(255)
+                    .byte_length(255)
+                    .nillable(true)
+                    .createable(true)
+                    .updateable(true)
+                    .permissionable(false)
+                    .defaulted_on_create(true)
+                    .build(),
+            )
+            .field(
+                MockFieldDescribeBuilder::new("IsActive", FieldType::Boolean)
+                    .label("Active")
+                    .length(0)
+                    .byte_length(0)
+                    .nillable(false)
+                    .createable(true)
+                    .updateable(true)
+                    .permissionable(false)
+                    .defaulted_on_create(true)
+                    .build(),
+            )
+            .build();
+
+        let mut describe = describe;
+        describe.label = "Account Object".to_string(); // override default label from the builder
 
         let result = generate_rust_struct(&describe);
 
@@ -301,12 +213,12 @@ pub struct Account {
     /// Account ID
     #[serde(rename = "Id")]
     pub id: String,
-    /// Account Name
-    #[serde(rename = "Name")]
-    pub name: Option<String>,
     /// Active
     #[serde(rename = "IsActive")]
     pub is_active: bool,
+    /// Account Name
+    #[serde(rename = "Name")]
+    pub name: Option<String>,
 }
 "#;
 

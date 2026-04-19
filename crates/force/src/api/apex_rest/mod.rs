@@ -207,12 +207,9 @@ impl<A: crate::auth::Authenticator> ApexRestHandler<A> {
     pub async fn delete(&self, path: &str) -> Result<()> {
         let url = self.inner.resolve_apex_rest_url(path).await?;
         let request = self.inner.delete(&url).build().map_err(HttpError::from)?;
-        let response = self.inner.execute_request(request).await?;
-        if !response.status().is_success() {
-            return Err(
-                crate::http::response_to_force_error(response, "Apex REST DELETE failed").await,
-            );
-        }
+        self.inner
+            .execute_and_check_success(request, "Apex REST DELETE failed")
+            .await?;
         Ok(())
     }
 }

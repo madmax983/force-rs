@@ -9,7 +9,7 @@ use futures::FutureExt;
 use serde_json::json;
 
 use force_sync::{
-    AppendResult, SyncKey, {ChangeEnvelope, ChangeOperation, SourceCursor, SourceSystem},
+    AppendResult, ChangeEnvelope, ChangeOperation, SourceCursor, SourceSystem, SyncKey,
 };
 
 fn test_envelope(cursor: i64) -> ChangeEnvelope {

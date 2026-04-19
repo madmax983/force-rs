@@ -4,15 +4,14 @@
 
 #[cfg(test)]
 mod tests {
-    use force::api::soql::{escape_soql, escape_soql_cow};
+    use force::api::escape_soql;
     use proptest::prelude::*;
 
     proptest! {
         #[test]
         fn test_escape_soql_no_panic(s in "\\PC*") {
             let escaped = escape_soql(&s);
-            let cow = escape_soql_cow(&s);
-            assert_eq!(escaped, cow.into_owned());
+            assert!(escaped.len() >= s.len());
         }
     }
 }

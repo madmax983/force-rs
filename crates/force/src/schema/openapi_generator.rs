@@ -11,7 +11,13 @@ use std::fmt::Write;
 #[cfg(feature = "schema")]
 pub fn generate_openapi_schema(describe: &SObjectDescribe) -> String {
     let mut out = String::with_capacity(describe.fields.len() * 128);
+    write_openapi_schema(&mut out, describe);
+    out
+}
 
+/// Writes an OpenAPI 3.0 component schema definition for a given SObject directly to a string buffer.
+#[cfg(feature = "schema")]
+pub fn write_openapi_schema(out: &mut String, describe: &SObjectDescribe) {
     let _ = writeln!(out, "    {}:", describe.name);
     out.push_str("      type: object\n");
     if !describe.label.is_empty() {
@@ -43,10 +49,8 @@ pub fn generate_openapi_schema(describe: &SObjectDescribe) -> String {
 
     for field in &describe.fields {
         let _ = writeln!(out, "        {}:", field.name);
-        write_field_schema(&mut out, field);
+        write_field_schema(out, field);
     }
-
-    out
 }
 fn write_field_schema(out: &mut String, field: &FieldDescribe) {
     if let Some(help) = &field.inline_help_text {
@@ -117,124 +121,36 @@ fn write_field_schema(out: &mut String, field: &FieldDescribe) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_support::Must;
+    use crate::test_support::{MockFieldDescribeBuilder, MockSObjectDescribeBuilder};
 
-    #[allow(clippy::too_many_lines)]
     #[test]
     fn test_openapi_generator_basic() {
-        let json = r#"{
-            "activateable": false,
-            "createable": true,
-            "custom": false,
-            "customSetting": false,
-            "deletable": true,
-            "deprecatedAndHidden": false,
-            "feedEnabled": false,
-            "hasSubtypes": false,
-            "isSubtype": false,
-            "label": "Account",
-            "labelPlural": "Accounts",
-            "layoutable": true,
-            "mergeable": true,
-            "mruEnabled": true,
-            "name": "Account",
-            "queryable": true,
-            "replicateable": true,
-            "retrieveable": true,
-            "searchable": true,
-            "triggerable": true,
-            "undeletable": true,
-            "updateable": true,
-            "urls": {},
-            "childRelationships": [], "recordTypeInfos": [], "supportedScopes": [], "fields": [
-                {
-                    "aggregatable": true,
-                    "autoNumber": false,
-                    "byteLength": 18,
-                    "calculated": false,
-                    "cascadeDelete": false,
-                    "caseSensitive": false,
-                    "createable": false,
-                    "custom": false,
-                    "defaultedOnCreate": true,
-                    "dependentPicklist": false,
-                    "deprecatedAndHidden": false,
-                    "digits": 0,
-                    "displayLocationInDecimal": false,
-                    "encrypted": false,
-                    "externalId": false,
-                    "filterable": true,
-                    "groupable": true,
-                    "highScaleNumber": false,
-                    "htmlFormatted": false,
-                    "idLookup": true,
-                    "label": "Account ID",
-                    "length": 18,
-                    "name": "Id",
-                    "nameField": false,
-                    "namePointing": false,
-                    "nillable": false,
-                    "permissionable": false,
-                    "polymorphicForeignKey": false,
-                    "precision": 0,
-                    "queryByDistance": false,
-                    "referenceTo": [],
-                    "restrictedDelete": false,
-                    "restrictedPicklist": false,
-                    "scale": 0,
-                    "soapType": "tns:ID",
-                    "sortable": true,
-                    "type": "id",
-                    "unique": false,
-                    "updateable": false,
-                    "writeRequiresMasterRead": false
-                },
-                {
-                    "aggregatable": true,
-                    "autoNumber": false,
-                    "byteLength": 765,
-                    "calculated": false,
-                    "cascadeDelete": false,
-                    "caseSensitive": false,
-                    "createable": true,
-                    "custom": false,
-                    "defaultedOnCreate": false,
-                    "dependentPicklist": false,
-                    "deprecatedAndHidden": false,
-                    "digits": 0,
-                    "displayLocationInDecimal": false,
-                    "encrypted": false,
-                    "externalId": false,
-                    "filterable": true,
-                    "groupable": true,
-                    "highScaleNumber": false,
-                    "htmlFormatted": false,
-                    "idLookup": false,
-                    "label": "Account Name",
-                    "length": 255,
-                    "name": "Name",
-                    "nameField": true,
-                    "namePointing": false,
-                    "nillable": false,
-                    "permissionable": true,
-                    "polymorphicForeignKey": false,
-                    "precision": 0,
-                    "queryByDistance": false,
-                    "referenceTo": [],
-                    "restrictedDelete": false,
-                    "restrictedPicklist": false,
-                    "scale": 0,
-                    "soapType": "xsd:string",
-                    "sortable": true,
-                    "type": "string",
-                    "unique": false,
-                    "updateable": true,
-                    "writeRequiresMasterRead": false
-                }
-            ]
-        }"#;
+        let describe = MockSObjectDescribeBuilder::new("Account")
+            .field(
+                MockFieldDescribeBuilder::new("Id", FieldType::Id)
+                    .label("Account ID")
+                    .length(18)
+                    .byte_length(18)
+                    .nillable(false)
+                    .createable(false)
+                    .updateable(false)
+                    .permissionable(false)
+                    .defaulted_on_create(true)
+                    .build(),
+            )
+            .field(
+                MockFieldDescribeBuilder::new("Name", FieldType::String)
+                    .label("Account Name")
+                    .length(255)
+                    .byte_length(765)
+                    .nillable(false)
+                    .createable(true)
+                    .updateable(true)
+                    .permissionable(true)
+                    .build(),
+            )
+            .build();
 
-        let describe: SObjectDescribe = serde_json::from_str(json).must();
         let schema = generate_openapi_schema(&describe);
 
         assert!(schema.contains("Account:"));

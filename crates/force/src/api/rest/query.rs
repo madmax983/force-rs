@@ -232,11 +232,8 @@ mod tests {
 
         // Verify that the client deserializes it as is
         assert!(!result.is_done());
-        assert!(result.has_more());
+        assert!(!result.has_more()); // Fixed: has_more() now safely returns false
         assert!(result.next_records_url.is_none());
-
-        // This confirms that the client passes the invalid state to the user,
-        // who will then likely panic if they try to unwrap next_records_url.
     }
 
     #[tokio::test]

@@ -187,8 +187,9 @@ mod tests {
         let base = Duration::from_millis(500);
 
         for (attempt, &ms) in expected.iter().enumerate() {
-            #[allow(clippy::cast_possible_truncation)]
-            let attempt_u32 = attempt as u32;
+            let Ok(attempt_u32) = u32::try_from(attempt) else {
+                panic!("test attempts exceeded u32");
+            };
             assert_eq!(
                 exponential_backoff(attempt_u32, base).as_millis(),
                 ms,

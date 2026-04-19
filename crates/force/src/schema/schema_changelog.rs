@@ -6,7 +6,7 @@
 //! # Example
 //!
 //! ```no_run
-//! # use force::api::rest_operation::RestOperation;
+//! # use force::api::RestOperation;
 //! # use force::client::ForceClientBuilder;
 //! # use force::schema::generate_changelog;
 //! # use force::auth::ClientCredentials;
@@ -41,24 +41,34 @@ use super::schema_diff::compare_schemas;
 /// A String containing the generated Markdown changelog.
 #[must_use]
 pub fn generate_changelog(old_schema: &SObjectDescribe, new_schema: &SObjectDescribe) -> String {
+    let mut md = String::with_capacity(1024);
+    write_changelog(&mut md, old_schema, new_schema);
+    md
+}
+
+/// Writes a Markdown changelog comparing an old and new schema describe directly to a string buffer.
+pub fn write_changelog(
+    md: &mut String,
+    old_schema: &SObjectDescribe,
+    new_schema: &SObjectDescribe,
+) {
     use std::fmt::Write;
 
     let diff = compare_schemas(old_schema, new_schema);
-    let mut md = String::with_capacity(1024);
 
     let _ = writeln!(md, "# Schema Changelog: {}", new_schema.label);
     let _ = writeln!(md, "**API Name:** `{}`\n", new_schema.name);
 
     if diff.is_empty() {
         md.push_str("No changes detected.\n");
-        return md;
+        return;
     }
 
-    if !diff.added_fields.is_empty() {
+    if !diff.added.is_empty() {
         md.push_str("## Added Fields\n\n");
         md.push_str("| Label | API Name | Type |\n");
         md.push_str("|---|---|---|\n");
-        for field in &diff.added_fields {
+        for field in &diff.added {
             let _ = writeln!(
                 md,
                 "| {} | `{}` | {:?} |",
@@ -68,11 +78,11 @@ pub fn generate_changelog(old_schema: &SObjectDescribe, new_schema: &SObjectDesc
         md.push('\n');
     }
 
-    if !diff.removed_fields.is_empty() {
+    if !diff.removed.is_empty() {
         md.push_str("## Removed Fields\n\n");
         md.push_str("| Label | API Name | Type |\n");
         md.push_str("|---|---|---|\n");
-        for field in &diff.removed_fields {
+        for field in &diff.removed {
             let _ = writeln!(
                 md,
                 "| {} | `{}` | {:?} |",
@@ -82,21 +92,19 @@ pub fn generate_changelog(old_schema: &SObjectDescribe, new_schema: &SObjectDesc
         md.push('\n');
     }
 
-    if !diff.changed_fields.is_empty() {
+    if !diff.changed.is_empty() {
         md.push_str("## Changed Fields\n\n");
         md.push_str("| API Name | Old Type | New Type |\n");
         md.push_str("|---|---|---|\n");
-        for field in &diff.changed_fields {
+        for change in &diff.changed {
             let _ = writeln!(
                 md,
                 "| `{}` | {:?} | {:?} |",
-                field.name, field.old_type, field.new_type
+                change.name, change.old_type, change.new_type
             );
         }
         md.push('\n');
     }
-
-    md
 }
 
 #[cfg(test)]

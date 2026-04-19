@@ -47,6 +47,7 @@ proptest = "1.5"
 
 [features]
 default = ["rest"]
+files = ["rest"]
 
 # Platform API surfaces
 rest = []
@@ -85,7 +86,7 @@ cpq = ["apex_rest"]
 consent = []
 
 # Meta features
-full = ["rest", "bulk", "composite", "tooling", "jwt", "ui", "graphql", "data_cloud", "apex_rest", "consent"]
+full = ["rest", "files", "bulk", "composite", "tooling", "jwt", "ui", "graphql", "data_cloud", "apex_rest", "consent"]
 all = ["full", "schema", "data_utility", "composite_graph", "cpq"]
 
 [[example]]

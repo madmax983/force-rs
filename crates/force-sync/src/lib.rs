@@ -24,6 +24,12 @@ pub(crate) mod runtime;
 /// Storage backends and migration helpers.
 pub(crate) mod store;
 
+/// Returns the crate version for smoke tests and runtime diagnostics.
+#[must_use]
+pub const fn version() -> &'static str {
+    env!("CARGO_PKG_VERSION")
+}
+
 pub use apply::{ApplyError, RestApplyResult, SalesforceApplier, project_sync_link};
 pub use capture::{capture_batch, capture_stream, load_replay_id};
 pub use config::{ConflictPolicy, LaneThresholds, ObjectSync, Owner};
@@ -31,14 +37,9 @@ pub use error::ForceSyncError;
 pub use identity::SyncKey;
 pub use model::{ChangeEnvelope, ChangeOperation, SourceCursor, SourceSystem};
 pub use plan::{ApplyLane, MergeOutcome, PlanDecision, PlannerContext, merge_payload, plan_change};
-pub use reconcile::{DriftItem, detect_drift, enqueue_repair, run_reconcile_once};
+pub use reconcile::DriftItem;
+pub use reconcile::{detect_drift, enqueue_repair, run_reconcile_once};
 pub use runtime::{SyncEngine, SyncEngineBuilder};
 pub use store::pg::{
     AppendResult, CheckpointState, DeadLetter, LeasedTask, PgStore, SyncConflict, SyncLink, migrate,
 };
-
-/// Returns the crate version for smoke tests and runtime diagnostics.
-#[must_use]
-pub const fn version() -> &'static str {
-    env!("CARGO_PKG_VERSION")
-}

@@ -94,7 +94,11 @@ pub struct BulkQueryJobInfo {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub total_processing_time: Option<i64>,
     /// API version.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "super::types::deserialize_optional_string_or_number"
+    )]
     pub api_version: Option<String>,
 }
 
@@ -163,29 +167,32 @@ impl<T, A: crate::auth::Authenticator> BulkQueryStream<T, A> {
     where
         T: for<'de> Deserialize<'de>,
     {
-        // If we've already marked as exhausted, return None
-        if self.exhausted {
-            return Ok(None);
+        loop {
+            // If we've already marked as exhausted, return None
+            if self.exhausted {
+                return Ok(None);
+            }
+
+            // If we have records in the buffer, return the next one
+            if let Some(record) = self.records.pop_front() {
+                return Ok(Some(record));
+            }
+
+            if self.first_page_fetched && self.next_locator.is_none() {
+                self.exhausted = true;
+                return Ok(None);
+            }
+
+            self.fetch_next_page().await?;
+
+            // If we fetched a page but it's empty, and there is no next locator, we are done
+            if self.records.is_empty() && self.next_locator.is_none() {
+                self.exhausted = true;
+                return Ok(None);
+            }
+
+            // If it's empty but there IS a next locator, the loop will continue and fetch the next page.
         }
-
-        // If we have records in the buffer, return the next one
-        if let Some(record) = self.records.pop_front() {
-            return Ok(Some(record));
-        }
-
-        if self.first_page_fetched && self.next_locator.is_none() {
-            self.exhausted = true;
-            return Ok(None);
-        }
-
-        self.fetch_next_page().await?;
-
-        if self.records.is_empty() {
-            self.exhausted = true;
-            return Ok(None);
-        }
-
-        Ok(self.records.pop_front())
     }
 
     #[allow(clippy::future_not_send)]
@@ -212,16 +219,12 @@ impl<T, A: crate::auth::Authenticator> BulkQueryStream<T, A> {
         let request = request_builder
             .build()
             .map_err(crate::error::HttpError::from)?;
-        let response = self.inner.execute_request(request).await?;
-
-        if !response.status().is_success() {
-            return Err(crate::http::response_to_force_error(
-                response,
+        self.inner
+            .execute_and_check_success(
+                request,
                 &format!("Failed to fetch query results for job {}", self.job_id),
             )
-            .await);
-        }
-        Ok(response)
+            .await
     }
 
     fn update_locator(&mut self, response: &reqwest::Response) {
@@ -244,9 +247,8 @@ impl<T, A: crate::auth::Authenticator> BulkQueryStream<T, A> {
     where
         T: for<'de> Deserialize<'de>,
     {
-        let csv_bytes = crate::http::error::read_capped_bytes(response, 1024 * 1024 * 1024)
-            .await
-            .map_err(crate::error::ForceError::Http)?;
+        let csv_bytes =
+            crate::http::error::read_capped_body_bytes(response, 100 * 1024 * 1024).await?;
 
         let mut reader = csv::Reader::from_reader(csv_bytes.as_slice());
 
@@ -460,16 +462,12 @@ impl<A: crate::auth::Authenticator> super::BulkHandler<A> {
             .delete(&url)
             .build()
             .map_err(crate::error::HttpError::from)?;
-        let response = inner.execute_request(request).await?;
-
-        if !response.status().is_success() {
-            return Err(crate::http::response_to_force_error(
-                response,
+        inner
+            .execute_and_check_success(
+                request,
                 &format!("Delete query job request failed for job {}", job_id),
             )
-            .await);
-        }
-
+            .await?;
         Ok(())
     }
 
@@ -967,9 +965,117 @@ mod tests {
             .await
             .must();
 
-        // This will fail in RED phase because next() is not implemented
-        let record = stream.next().await.must();
-        assert!(record.is_some());
+        let record1 = stream.next().await.must();
+        assert!(record1.is_some());
+        let record2 = stream.next().await.must();
+        assert!(record2.is_some());
+        let record3 = stream.next().await.must();
+        assert!(record3.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_query_results_fetch_csv_data_multiple_pages() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path(
+                "/services/data/v60.0/jobs/query/750xx0000000001AAA/results",
+            ))
+            .and(query_param_is_missing("locator"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .insert_header("Sforce-Locator", "page2")
+                    .set_body_string("Id,Name\n001xx000000001AAA,Acme"),
+            )
+            .mount(&mock_server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path(
+                "/services/data/v60.0/jobs/query/750xx0000000001AAA/results",
+            ))
+            .and(query_param("locator", "page2"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .insert_header("Sforce-Locator", "null")
+                    .set_body_string("Id,Name\n001xx000000002AAA,Globex"),
+            )
+            .mount(&mock_server)
+            .await;
+
+        let client = create_test_client(mock_server.uri()).await;
+        let handler = client.bulk();
+
+        let mut stream = handler
+            .query_results::<serde_json::Value>("750xx0000000001AAA")
+            .await
+            .must();
+
+        let mut records = Vec::new();
+        while let Some(r) = stream.next().await.must() {
+            records.push(r);
+        }
+
+        assert_eq!(records.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_query_results_fetch_csv_data_empty_middle_page() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path(
+                "/services/data/v60.0/jobs/query/750xx0000000001AAA/results",
+            ))
+            .and(query_param_is_missing("locator"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .insert_header("Sforce-Locator", "page2")
+                    .set_body_string("Id,Name\n001xx000000001AAA,Acme"),
+            )
+            .mount(&mock_server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path(
+                "/services/data/v60.0/jobs/query/750xx0000000001AAA/results",
+            ))
+            .and(query_param("locator", "page2"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .insert_header("Sforce-Locator", "page3")
+                    .set_body_string("Id,Name\n"), // empty records
+            )
+            .mount(&mock_server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path(
+                "/services/data/v60.0/jobs/query/750xx0000000001AAA/results",
+            ))
+            .and(query_param("locator", "page3"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .insert_header("Sforce-Locator", "null")
+                    .set_body_string("Id,Name\n001xx000000002AAA,Globex"),
+            )
+            .mount(&mock_server)
+            .await;
+
+        let client = create_test_client(mock_server.uri()).await;
+        let handler = client.bulk();
+
+        let mut stream = handler
+            .query_results::<serde_json::Value>("750xx0000000001AAA")
+            .await
+            .must();
+
+        let mut records = Vec::new();
+        while let Some(r) = stream.next().await.must() {
+            records.push(r);
+        }
+
+        assert_eq!(records.len(), 2);
     }
 
     #[tokio::test]
@@ -1090,6 +1196,23 @@ mod tests {
         assert_eq!(info.state, JobState::JobComplete);
         assert_eq!(info.number_records_processed, Some(2500));
         assert_eq!(info.total_processing_time, Some(12000));
+        assert_eq!(info.api_version, Some("60.0".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_bulk_query_job_info_deserialization_with_numeric_api_version() {
+        let json = r#"{
+            "id": "750xx0000000001AAA",
+            "operation": "query",
+            "state": "JobComplete",
+            "createdDate": "2024-01-01T00:00:00.000Z",
+            "createdById": "005xx0000000001AAA",
+            "numberRecordsProcessed": 2500,
+            "totalProcessingTime": 12000,
+            "apiVersion": 60.0
+        }"#;
+
+        let info: BulkQueryJobInfo = serde_json::from_str(json).must();
         assert_eq!(info.api_version, Some("60.0".to_string()));
     }
 

@@ -87,9 +87,17 @@ fn validate_field_name_internal(name: &str, allow_functions: bool) -> Result<(),
         }
         if allow_functions && (c == '(' || c == ')') {
             if c == '(' {
-                balance += 1;
+                balance = balance.checked_add(1).ok_or_else(|| {
+                    ForceError::InvalidInput(format!(
+                        "Parentheses nesting too deep in field name: {name}"
+                    ))
+                })?;
             } else {
-                balance -= 1;
+                balance = balance.checked_sub(1).ok_or_else(|| {
+                    ForceError::InvalidInput(format!(
+                        "Unbalanced parentheses in field name: {name}"
+                    ))
+                })?;
             }
             if balance < 0 {
                 return Err(ForceError::InvalidInput(format!(
@@ -174,5 +182,20 @@ mod tests {
         assert!(validate_external_id_field("").is_err());
         assert!(validate_external_id_field("Parent.ExternalId__c").is_err()); // No dots
         assert!(validate_external_id_field("Id;").is_err());
+    }
+}
+
+#[cfg(test)]
+mod havoc_tests {
+    use super::*;
+    use proptest::prelude::*;
+
+    proptest! {
+        #[test]
+        fn havoc_never_panics_on_any_string(s in ".*") {
+            let _ = validate_field_name(&s);
+            let _ = validate_sobject_name(&s);
+            let _ = validate_external_id_field(&s);
+        }
     }
 }

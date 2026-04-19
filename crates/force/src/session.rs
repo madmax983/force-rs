@@ -81,6 +81,28 @@ impl<A: crate::auth::authenticator::Authenticator> Session<A> {
             .await
     }
 
+    /// Executes a request and checks for success, returning the response if successful.
+    ///
+    /// This helper standardizes the pattern of:
+    /// 1. Executing the request via `execute_request`
+    /// 2. Checking `response.status().is_success()`
+    /// 3. Converting non-success responses to `ForceError`
+    pub(crate) async fn execute_and_check_success(
+        &self,
+        request: reqwest::Request,
+        fallback_error_message: &str,
+    ) -> crate::error::Result<reqwest::Response> {
+        let response = self.execute_request(request).await?;
+
+        if !response.status().is_success() {
+            return Err(
+                crate::http::response_to_force_error(response, fallback_error_message).await,
+            );
+        }
+
+        Ok(response)
+    }
+
     /// Executes a request, checks for success, and deserializes the JSON response.
     ///
     /// This helper standardizes the pattern of:
@@ -93,17 +115,14 @@ impl<A: crate::auth::authenticator::Authenticator> Session<A> {
         request: reqwest::Request,
         fallback_error_message: &str,
     ) -> crate::error::Result<T> {
-        let response = self.execute_request(request).await?;
+        let response = self
+            .execute_and_check_success(request, fallback_error_message)
+            .await?;
 
-        if !response.status().is_success() {
-            return Err(
-                crate::http::response_to_force_error(response, fallback_error_message).await,
-            );
-        }
-
-        let body = crate::http::error::read_capped_body(response, 10 * 1024 * 1024).await?;
-        serde_json::from_str::<T>(&body)
-            .map_err(|e| crate::error::ForceError::Serialization(e.into()))
+        let bytes = crate::http::error::read_capped_body_bytes(response, 100 * 1024 * 1024).await?;
+        serde_json::from_slice::<T>(&bytes)
+            .map_err(crate::error::SerializationError::from)
+            .map_err(Into::into)
     }
 
     /// Resolves a path to a full Apex REST URL.

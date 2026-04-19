@@ -88,7 +88,7 @@ impl<T> QueryResult<T> {
     /// Returns true if there are more results to fetch.
     #[must_use]
     pub const fn has_more(&self) -> bool {
-        !self.done
+        !self.done && self.next_records_url.is_some()
     }
 
     /// Returns the number of records in this page.
@@ -547,10 +547,8 @@ mod tests {
         };
 
         assert!(!result.is_done());
-        assert!(result.has_more()); // Returns true!
-        assert!(result.next_records_url.is_none()); // But no URL to fetch!
-
-        // This confirms the danger: a user checking has_more() might try to unwrap next_records_url
+        assert!(!result.has_more()); // Returns false now to prevent unwrap panics!
+        assert!(result.next_records_url.is_none()); // No URL to fetch
     }
 
     // Property-based tests using proptest
@@ -577,11 +575,10 @@ mod tests {
         }
 
         proptest! {
-            // Property 1: has_more() is strictly the inverse of done
+            // Property 1: has_more() logic verifies both done is false AND next url exists
             #[test]
-            fn prop_has_more_is_inverse_of_done(result in arbitrary_query_result()) {
-                prop_assert_eq!(result.has_more(), !result.is_done());
-                prop_assert_eq!(result.has_more(), !result.done);
+            fn prop_has_more_requires_next_url_and_not_done(result in arbitrary_query_result()) {
+                prop_assert_eq!(result.has_more(), !result.is_done() && result.next_records_url.is_some());
             }
 
             // Property 2: If done is true, has_more() is false (regardless of next_records_url)

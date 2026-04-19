@@ -111,3 +111,201 @@ pub(crate) async fn handle_oauth_error(
         message,
     })
 }
+
+#[cfg(test)]
+#[cfg(feature = "mock")]
+mod tests {
+    use super::*;
+    use crate::test_support::Must;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    #[tokio::test]
+    async fn test_handle_oauth_error_json_without_context() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/error"))
+            .respond_with(ResponseTemplate::new(400).set_body_json(serde_json::json!({
+                "error": "invalid_client",
+                "error_description": "client identifier invalid"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = reqwest::Client::new();
+        let res = client
+            .get(format!("{}/error", mock_server.uri()))
+            .send()
+            .await
+            .must();
+
+        let err = handle_oauth_error(res, None).await;
+        assert_eq!(
+            err.to_string(),
+            "authentication failed: OAuth token request failed: invalid_client: client identifier invalid"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_handle_oauth_error_json_with_context() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/error"))
+            .respond_with(ResponseTemplate::new(400).set_body_json(serde_json::json!({
+                "error": "invalid_client",
+                "error_description": "client identifier invalid"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = reqwest::Client::new();
+        let res = client
+            .get(format!("{}/error", mock_server.uri()))
+            .send()
+            .await
+            .must();
+
+        let err = handle_oauth_error(res, Some("My context")).await;
+        assert_eq!(
+            err.to_string(),
+            "authentication failed: OAuth token request failed: My context: invalid_client: client identifier invalid"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_handle_oauth_error_non_json_without_context() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/error"))
+            .respond_with(ResponseTemplate::new(500).set_body_string("Internal Server Error"))
+            .mount(&mock_server)
+            .await;
+
+        let client = reqwest::Client::new();
+        let res = client
+            .get(format!("{}/error", mock_server.uri()))
+            .send()
+            .await
+            .must();
+
+        let err = handle_oauth_error(res, None).await;
+        assert_eq!(
+            err.to_string(),
+            "HTTP request failed: HTTP 500: Internal Server Error"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_handle_oauth_error_non_json_with_context() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/error"))
+            .respond_with(ResponseTemplate::new(500).set_body_string("Internal Server Error"))
+            .mount(&mock_server)
+            .await;
+
+        let client = reqwest::Client::new();
+        let res = client
+            .get(format!("{}/error", mock_server.uri()))
+            .send()
+            .await
+            .must();
+
+        let err = handle_oauth_error(res, Some("My context")).await;
+        assert_eq!(
+            err.to_string(),
+            "HTTP request failed: HTTP 500: My context: Internal Server Error"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_handle_oauth_error_empty_body() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/error"))
+            .respond_with(ResponseTemplate::new(401))
+            .mount(&mock_server)
+            .await;
+
+        let client = reqwest::Client::new();
+        let res = client
+            .get(format!("{}/error", mock_server.uri()))
+            .send()
+            .await
+            .must();
+
+        let err = handle_oauth_error(res, None).await;
+        assert_eq!(
+            err.to_string(),
+            "HTTP request failed: HTTP 401: Unknown error"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_handle_oauth_error_truncates_large_body() {
+        let mock_server = wiremock::MockServer::start().await;
+        let large_body = "A".repeat(1024 * 1024 + 100);
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/error"))
+            .respond_with(wiremock::ResponseTemplate::new(400).set_body_string(large_body))
+            .mount(&mock_server)
+            .await;
+
+        let client = reqwest::Client::new();
+        let res = client
+            .get(format!("{}/error", mock_server.uri()))
+            .send()
+            .await
+            .must();
+
+        let err = handle_oauth_error(res, None).await;
+        assert_eq!(
+            err.to_string(),
+            "HTTP request failed: HTTP 400: Unknown error"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_handle_oauth_error_does_not_truncate_medium_body() {
+        let mock_server = wiremock::MockServer::start().await;
+        // Using a length of 5000 chars, which is less than 1MB but more than 2048 (mutant 1024 + 1024)
+        let medium_body = "A".repeat(5000);
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/error"))
+            .respond_with(wiremock::ResponseTemplate::new(400).set_body_string(medium_body.clone()))
+            .mount(&mock_server)
+            .await;
+
+        let client = reqwest::Client::new();
+        let res = client
+            .get(format!("{}/error", mock_server.uri()))
+            .send()
+            .await
+            .must();
+
+        let err = handle_oauth_error(res, None).await;
+        assert_eq!(
+            err.to_string(),
+            format!("HTTP request failed: HTTP 400: {}", medium_body)
+        );
+    }
+
+    #[tokio::test]
+    async fn test_default_auth_http_client_timeout() {
+        let mock_server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/timeout"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_delay(std::time::Duration::from_secs(31)),
+            )
+            .mount(&mock_server)
+            .await;
+
+        let client = default_auth_http_client();
+        let result = client
+            .get(format!("{}/timeout", mock_server.uri()))
+            .send()
+            .await;
+        assert!(result.is_err());
+    }
+}

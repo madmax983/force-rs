@@ -96,7 +96,7 @@ const TEST_SCHEMA_JSON: &str =
 /// Encode `{"field": <value>}` as Avro binary using the test schema.
 fn encode_field_value(value: &str) -> Vec<u8> {
     let schema = apache_avro::Schema::parse_str(TEST_SCHEMA_JSON).unwrap();
-    force_pubsub::codec::encode_avro(&schema, &serde_json::json!({"field": value})).unwrap()
+    force_pubsub::encode_avro(&schema, &serde_json::json!({"field": value})).unwrap()
 }
 
 // ─── Tests ─────────────────────────────────────────────────────────────────────
