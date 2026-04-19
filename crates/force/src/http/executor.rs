@@ -1,3 +1,4 @@
+#![allow(clippy::duration_suboptimal_units)]
 //! HTTP executor implementation.
 
 use super::retry::{
@@ -800,8 +801,8 @@ mod tests {
 
     #[test]
     fn test_executor_with_base_backoff() {
-        let executor = HttpExecutor::new().with_base_backoff(Duration::from_millis(1000));
-        assert_eq!(executor.base_backoff, Duration::from_millis(1000));
+        let executor = HttpExecutor::new().with_base_backoff(Duration::from_secs(1));
+        assert_eq!(executor.base_backoff, Duration::from_secs(1));
     }
 
     #[tokio::test]

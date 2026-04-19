@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/force", "crates/force-pubsub", "crates/force-sync"]
+members = ["fuzz", "crates/force", "crates/force-pubsub", "crates/force-sync"]
 
 [workspace.package]
 version = "0.1.0"
