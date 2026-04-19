@@ -103,6 +103,8 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
         layout_type: Option<&crate::api::ui::types::LayoutType>,
         mode: Option<&crate::api::ui::types::Mode>,
     ) -> crate::error::Result<RecordLayoutRepresentation> {
+        crate::types::validator::validate_sobject_name(object)?;
+
         let path = format!("layout/{object}");
 
         let mut params = [("", ""); 2];
@@ -358,5 +360,22 @@ mod tests {
         assert_eq!(item.field.as_deref(), Some("Name"));
         assert!(item.required);
         assert!(!item.sortable);
+    }
+
+    #[tokio::test]
+    async fn test_layout_invalid_sobject_name() {
+        let server = MockServer::start().await;
+        let client = make_client(&server).await;
+
+        let result = client.ui().layout("Account; DROP TABLE", None, None).await;
+        assert!(result.is_err());
+        assert!(
+            match result {
+                Err(e) => e,
+                Ok(_) => panic!("Expected error"),
+            }
+            .to_string()
+            .contains("contains invalid characters")
+        );
     }
 }
