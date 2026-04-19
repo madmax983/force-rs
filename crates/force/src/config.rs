@@ -1,3 +1,4 @@
+#![allow(clippy::duration_suboptimal_units)]
 //! Client configuration types for the Force API client.
 //!
 //! This module provides configuration primitives for the Salesforce client,
