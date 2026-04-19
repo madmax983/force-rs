@@ -85,17 +85,26 @@ impl<'a, A: Authenticator> SchemaGraph<'a, A> {
     ///
     /// Use this to avoid redundant API calls when you already have the describe data.
     pub fn add_describe(&mut self, describe: SObjectDescribe) {
-        self.scanned.insert(describe.name.clone());
         self.add_node(describe);
     }
 
     /// Adds a node from a describe result (internal helper).
     fn add_node(&mut self, describe: SObjectDescribe) {
+        // ⚡ Bolt: Destructuring allows us to move `name` directly into the collections,
+        // avoiding `.clone()` heap allocations.
+        let SObjectDescribe {
+            name,
+            label,
+            fields,
+            ..
+        } = describe;
+
+        self.scanned.insert(name.clone());
+
         let node = SchemaNode {
-            name: describe.name.clone(),
-            label: describe.label,
-            fields: describe
-                .fields
+            name: name.clone(),
+            label,
+            fields: fields
                 .into_iter()
                 .map(|f| SchemaField {
                     name: f.name,
@@ -104,7 +113,7 @@ impl<'a, A: Authenticator> SchemaGraph<'a, A> {
                 })
                 .collect(),
         };
-        self.nodes.insert(describe.name, node);
+        self.nodes.insert(name, node);
     }
 
     /// Generates a Mermaid.js ER diagram from the scanned objects.
