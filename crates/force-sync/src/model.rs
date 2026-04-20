@@ -158,14 +158,48 @@ impl ChangeEnvelope {
 /// Returns a stable BLAKE3 hash for a JSON payload.
 #[must_use]
 pub fn payload_hash(payload: &Value) -> [u8; 32] {
-    let mut canonical_payload = payload.clone();
-    canonical_payload.sort_all_objects();
-
     let mut hasher = blake3::Hasher::new();
-    // ⚡ Bolt: Write JSON directly into the hasher instead of allocating a `String`
-    // via `to_string().as_bytes()`, saving a large intermediate heap allocation.
-    let _ = serde_json::to_writer(&mut hasher, &canonical_payload);
+    // ⚡ Bolt: Write JSON directly into the hasher without an intermediate String allocation.
+    // We avoid `payload.clone()` by manually sorting object keys dynamically during hashing.
+    hash_json_value(payload, &mut hasher);
     *hasher.finalize().as_bytes()
+}
+
+fn hash_json_value(value: &Value, hasher: &mut blake3::Hasher) {
+    use std::io::Write;
+    match value {
+        Value::Object(map) => {
+            let _ = Write::write_all(hasher, b"{");
+            let mut iter: Vec<_> = map.iter().collect();
+            iter.sort_by(|(k1, _), (k2, _)| k1.cmp(k2));
+            let mut first = true;
+            for (k, v) in iter {
+                if !first {
+                    let _ = Write::write_all(hasher, b",");
+                }
+                first = false;
+                let _ = serde_json::to_writer(&mut *hasher, k);
+                let _ = Write::write_all(hasher, b":");
+                hash_json_value(v, hasher);
+            }
+            let _ = Write::write_all(hasher, b"}");
+        }
+        Value::Array(arr) => {
+            let _ = Write::write_all(hasher, b"[");
+            let mut first = true;
+            for v in arr {
+                if !first {
+                    let _ = Write::write_all(hasher, b",");
+                }
+                first = false;
+                hash_json_value(v, hasher);
+            }
+            let _ = Write::write_all(hasher, b"]");
+        }
+        _ => {
+            let _ = serde_json::to_writer(hasher, value);
+        }
+    }
 }
 
 #[cfg(test)]
