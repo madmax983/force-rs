@@ -1,4 +1,3 @@
-#![allow(clippy::duration_suboptimal_units)]
 //! HTTP retry logic and policies.
 
 use reqwest::Method;
