@@ -1,3 +1,4 @@
+#![allow(clippy::expect_used)]
 //! Havoc race condition test for `TokenManager::force_refresh`.
 //!
 //! This test simulates the race condition where `force_refresh` (which refreshes outside the lock)
@@ -36,14 +37,14 @@ mod tests {
         fn get_token(&self) -> usize {
             // Fast path (read lock)
             {
-                let guard = self.token.read().unwrap();
+                let guard = self.token.read().expect("test failed");
                 if let Some(token) = *guard {
                     return token;
                 }
             }
 
             // Slow path (write lock)
-            let mut guard = self.token.write().unwrap();
+            let mut guard = self.token.write().expect("test failed");
 
             // Double check
             if let Some(token) = *guard {
@@ -63,7 +64,7 @@ mod tests {
 
             // Update state INSIDE lock
             {
-                let mut guard = self.token.write().unwrap();
+                let mut guard = self.token.write().expect("test failed");
                 // FIX: Check if current token is newer
                 if let Some(current) = *guard
                     && current >= new_token
@@ -76,7 +77,7 @@ mod tests {
         }
 
         fn current_token(&self) -> Option<usize> {
-            *self.token.read().unwrap()
+            *self.token.read().expect("test failed")
         }
     }
 
@@ -102,7 +103,7 @@ mod tests {
             // if they start purely concurrently, but we can check if we end up with a lower number
             // than the max generated.
 
-            let final_token = manager.current_token().unwrap();
+            let final_token = manager.current_token().expect("test failed");
             let max_generated = manager.counter.load(Ordering::SeqCst);
 
             // If we generated 2 tokens, the final state MUST be 2.

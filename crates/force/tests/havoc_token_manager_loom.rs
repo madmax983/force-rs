@@ -1,3 +1,4 @@
+#![allow(clippy::expect_used)]
 //! Loom tests to verify `TokenManager` concurrency safety.
 //!
 //! Because `TokenManager` uses `tokio::sync::RwLock` and `tokio::sync::Mutex`,
@@ -29,14 +30,14 @@ impl TokenManagerLoomModel {
     // Models `TokenManager::force_refresh`
     fn force_refresh(&self) {
         let current_token = {
-            let state = self.state.read().unwrap();
+            let state = self.state.read().expect("test failed");
             state.token
         };
 
-        let _lock = self.refresh_lock.lock().unwrap();
+        let _lock = self.refresh_lock.lock().expect("test failed");
 
         {
-            let state = self.state.read().unwrap();
+            let state = self.state.read().expect("test failed");
             if let Some(token) = state.token {
                 let is_newer = current_token.is_some_and(|current| token > current);
                 if is_newer {
@@ -45,13 +46,13 @@ impl TokenManagerLoomModel {
             }
         }
 
-        let mut state = self.state.write().unwrap();
+        let mut state = self.state.write().expect("test failed");
         state.token = Some(current_token.unwrap_or(0) + 1);
     }
 
     // Models `TokenManager::clear`
     fn clear(&self) {
-        let mut state = self.state.write().unwrap();
+        let mut state = self.state.write().expect("test failed");
         state.token = None;
     }
 }
@@ -77,7 +78,7 @@ fn test_havoc_token_manager_loom() {
         }));
 
         for t in threads {
-            t.join().unwrap();
+            t.join().expect("test failed");
         }
     });
 }

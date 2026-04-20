@@ -1,8 +1,8 @@
+#![allow(clippy::expect_used)]
 //! Integration test for robust `BatchRequest` behavior.
 
 #![cfg(feature = "composite")]
 #![allow(clippy::unwrap_used)]
-#![allow(clippy::expect_used)]
 
 use std::sync::OnceLock;
 
@@ -39,7 +39,7 @@ impl Authenticator for MockAuthenticator {
 
 fn get_runtime() -> &'static Runtime {
     static RUNTIME: OnceLock<Runtime> = OnceLock::new();
-    RUNTIME.get_or_init(|| Runtime::new().unwrap())
+    RUNTIME.get_or_init(|| Runtime::new().expect("test failed"))
 }
 
 async fn create_batch_builder() -> BatchRequest<MockAuthenticator> {
@@ -88,7 +88,9 @@ fn test_batch_builder_len_limit() {
         let mut builder = create_batch_builder().await;
 
         for _ in 0..25 {
-            builder = builder.get("Account", "001000000000001AAA").unwrap();
+            builder = builder
+                .get("Account", "001000000000001AAA")
+                .expect("test failed");
         }
 
         // 26th request should fail

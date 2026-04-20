@@ -1,3 +1,4 @@
+#![allow(clippy::expect_used)]
 #![allow(missing_docs)]
 #![allow(clippy::unwrap_used)]
 #![cfg(feature = "rest")]
@@ -92,7 +93,7 @@ async fn test_upsert_path_injection() {
         .authenticate(auth)
         .build()
         .await
-        .unwrap();
+        .expect("test failed");
 
     let result = client
         .rest()

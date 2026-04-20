@@ -1,3 +1,4 @@
+#![allow(clippy::expect_used)]
 #![allow(missing_docs)]
 #![cfg(all(feature = "rest", feature = "bulk"))]
 //! Live Salesforce smoke tests for REST and Bulk APIs.

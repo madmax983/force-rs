@@ -1,3 +1,4 @@
+#![allow(clippy::expect_used)]
 //! Havoc property test for SOSL builder
 //!
 //! This test uses proptest to hit boundaries for SOSL query builder.

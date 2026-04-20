@@ -30,10 +30,11 @@ use serde::{Deserialize, Serialize};
 ///     ]
 ///});
 ///
-/// let result: QueryResult<DynamicSObject> = serde_json::from_value(json).unwrap();
+/// let result: QueryResult<DynamicSObject> = serde_json::from_value(json)?;
 /// assert_eq!(result.total_size, 2);
 /// assert!(result.is_done());
 /// assert_eq!(result.records.len(), 1);
+/// # Ok::<(), serde_json::Error>(())
 /// ```
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

@@ -1,3 +1,4 @@
+#![allow(clippy::expect_used)]
 //! Havoc race condition test for `UsernamePassword` refresh token clearing.
 //!
 //! This test demonstrates that if `refresh()` fails (because the token was revoked),
@@ -24,19 +25,19 @@ mod tests {
 
         // Simulate Authenticator::authenticate()
         fn authenticate(&self) {
-            *self.refresh_token.write().unwrap() = Some("new_rt".to_string());
+            *self.refresh_token.write().expect("test failed") = Some("new_rt".to_string());
         }
 
         // Simulate Authenticator::refresh()
         fn refresh(&self) -> (Option<String>, bool) {
-            let stored_rt = self.refresh_token.read().unwrap().clone();
+            let stored_rt = self.refresh_token.read().expect("test failed").clone();
 
             if let Some(rt) = stored_rt {
                 // Network request... (we yield here so Thread 2 can `authenticate` and inject "new_rt")
                 thread::yield_now();
 
                 // Refresh token revoked or expired — fall back to full re-auth.
-                let mut stored = self.refresh_token.write().unwrap();
+                let mut stored = self.refresh_token.write().expect("test failed");
 
                 // BUG FIX: Only clear it if it hasn't changed since we started!
                 if stored.as_deref() == Some(rt.as_str()) {
@@ -63,10 +64,10 @@ mod tests {
             let t1 = thread::spawn(move || auth1.refresh());
             let t2 = thread::spawn(move || auth2.authenticate());
 
-            let (refreshed_token, _) = t1.join().unwrap();
-            t2.join().unwrap();
+            let (refreshed_token, _) = t1.join().expect("test failed");
+            t2.join().expect("test failed");
 
-            let final_rt = auth.refresh_token.read().unwrap().clone();
+            let final_rt = auth.refresh_token.read().expect("test failed").clone();
 
             // If t1 failed while trying to refresh "old_rt", it should NEVER overwrite "new_rt"
             // if t2 injected it after t1 read "old_rt".

@@ -1,3 +1,4 @@
+#![allow(clippy::expect_used)]
 #![allow(missing_docs)]
 
 use force::auth::TokenResponse;
@@ -57,8 +58,8 @@ async fn test_havoc_force_refresh_cleared() {
     let manager = Arc::new(TokenManager::new(auth));
 
     // First get a token
-    #[allow(clippy::unwrap_used)]
-    let token = manager.token().await.unwrap();
+
+    let token = manager.token().await.expect("Test setup failure");
     assert_eq!(token.as_str(), "auth_token_0");
 
     // Clear the token
@@ -66,8 +67,8 @@ async fn test_havoc_force_refresh_cleared() {
 
     // Call force_refresh. This should NOT return an InvalidToken error.
     // It should authenticate and return a new token.
-    #[allow(clippy::unwrap_used)]
-    let token2 = manager.force_refresh().await.unwrap();
+
+    let token2 = manager.force_refresh().await.expect("Test setup failure");
 
     // Since the state was None, it should have called authenticate()
     assert_eq!(token2.as_str(), "auth_token_1");

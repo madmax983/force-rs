@@ -1,7 +1,7 @@
+#![allow(clippy::expect_used)]
 //! Havoc regression test for token stall during soft expiry.
 
 #![allow(clippy::unwrap_used)]
-#![allow(clippy::expect_used)]
 
 use async_trait::async_trait;
 use chrono::Utc;

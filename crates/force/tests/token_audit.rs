@@ -1,3 +1,4 @@
+#![allow(clippy::expect_used)]
 //! Audit tests for token expiration logic.
 
 use chrono::{Duration, Utc};

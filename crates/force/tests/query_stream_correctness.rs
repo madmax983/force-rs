@@ -1,3 +1,4 @@
+#![allow(clippy::expect_used)]
 #![allow(missing_docs)]
 #![allow(clippy::unwrap_used)]
 #![cfg(feature = "rest")]
@@ -99,18 +100,30 @@ async fn test_query_stream_empty_middle_page_repro() {
         .mount(&mock_server)
         .await;
 
-    let client = builder().authenticate(auth).build().await.unwrap();
+    let client = builder()
+        .authenticate(auth)
+        .build()
+        .await
+        .expect("test failed");
     let mut stream = client
         .rest()
         .query_stream::<TestAccount>("SELECT Id, Name FROM Account");
 
     // Should get first record
-    let r1 = stream.next().await.unwrap().unwrap();
+    let r1 = stream
+        .next()
+        .await
+        .expect("test failed")
+        .expect("test failed");
     assert_eq!(r1.name, "A");
 
     // Should automatically skip empty page and get second record
-    let r2 = stream.next().await.unwrap().unwrap();
+    let r2 = stream
+        .next()
+        .await
+        .expect("test failed")
+        .expect("test failed");
     assert_eq!(r2.name, "B");
 
-    assert!(stream.next().await.unwrap().is_none());
+    assert!(stream.next().await.expect("test failed").is_none());
 }

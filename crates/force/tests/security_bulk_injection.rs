@@ -1,7 +1,7 @@
+#![allow(clippy::expect_used)]
 //! Security tests for Bulk API injection vulnerabilities.
 #![cfg(feature = "bulk")]
 #![allow(clippy::unwrap_used)]
-#![allow(clippy::expect_used)]
 
 use async_trait::async_trait;
 use force::api::bulk::{CreateJobRequest, JobOperation};

@@ -1,8 +1,8 @@
+#![allow(clippy::expect_used)]
 //! Integration test for `SmartIngest` multi-batch behavior.
 //! Ensures that optimizations to buffer allocation don't break multi-batch uploads.
 
 #[cfg(feature = "bulk")]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use async_trait::async_trait;
     use force::api::bulk::JobOperation;

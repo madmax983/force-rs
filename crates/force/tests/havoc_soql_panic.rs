@@ -1,3 +1,4 @@
+#![allow(clippy::expect_used)]
 //! Fuzz testing `SoqlQueryBuilder` panicking methods.
 //!
 //! # 👺 Havoc: `SoqlQueryBuilder` Panic

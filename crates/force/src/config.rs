@@ -1,3 +1,4 @@
+#![allow(unknown_lints)]
 #![allow(clippy::duration_suboptimal_units)]
 //! Client configuration types for the Force API client.
 //!

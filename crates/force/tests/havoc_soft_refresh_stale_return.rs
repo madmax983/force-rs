@@ -1,3 +1,4 @@
+#![allow(clippy::expect_used)]
 //! Havoc race condition test for stale soft-expired token returns.
 //!
 //! This mirrors the soft-expired branch in `TokenManager::get_token_arc`.
@@ -30,9 +31,9 @@ mod tests {
         }
 
         fn refresh_soft_expired(&self) -> usize {
-            let _lock = self.refresh_lock.lock().unwrap();
+            let _lock = self.refresh_lock.lock().expect("test failed");
             let new_token = 2;
-            *self.token.write().unwrap() = new_token;
+            *self.token.write().expect("test failed") = new_token;
             self.published.store(true, Ordering::SeqCst);
 
             // Keep the refresh lock held after publishing the new token so loom can
@@ -43,7 +44,7 @@ mod tests {
         }
 
         fn get_soft_expired_token(&self) -> (usize, bool) {
-            let snapshot = *self.token.read().unwrap();
+            let snapshot = *self.token.read().expect("test failed");
 
             // Give the refresher a chance to publish a new token after we snapshot.
             thread::yield_now();
@@ -60,14 +61,14 @@ mod tests {
                 },
                 |_lock| {
                     let new_token = 3;
-                    *self.token.write().unwrap() = new_token;
+                    *self.token.write().expect("test failed") = new_token;
                     (new_token, false)
                 },
             )
         }
 
         fn current_token(&self) -> usize {
-            *self.token.read().unwrap()
+            *self.token.read().expect("test failed")
         }
     }
 
@@ -81,8 +82,8 @@ mod tests {
             let refresh_task = thread::spawn(move || refresher.refresh_soft_expired());
             let reader_task = thread::spawn(move || reader.get_soft_expired_token());
 
-            let _ = refresh_task.join().unwrap();
-            let (returned_token, saw_published_token) = reader_task.join().unwrap();
+            let _ = refresh_task.join().expect("test failed");
+            let (returned_token, saw_published_token) = reader_task.join().expect("test failed");
 
             if saw_published_token {
                 assert_eq!(

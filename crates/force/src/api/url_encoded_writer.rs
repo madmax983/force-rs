@@ -14,19 +14,19 @@ mod tests {
     use std::fmt::Write;
 
     #[test]
-    #[allow(clippy::unwrap_used)]
-    fn test_url_encoded_writer() {
+    fn test_url_encoded_writer() -> Result<(), std::fmt::Error> {
         let mut out = String::new();
         {
             let mut writer = UrlEncodedWriter(&mut out);
-            write!(writer, "hello world&foo=bar").unwrap();
+            write!(writer, "hello world&foo=bar")?;
         }
         assert_eq!(out, "hello+world%26foo%3Dbar");
 
         {
             let mut writer = UrlEncodedWriter(&mut out);
-            write!(writer, " test").unwrap();
+            write!(writer, " test")?;
         }
         assert_eq!(out, "hello+world%26foo%3Dbar+test");
+        Ok(())
     }
 }

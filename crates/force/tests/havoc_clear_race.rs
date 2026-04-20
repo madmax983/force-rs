@@ -1,3 +1,4 @@
+#![allow(clippy::expect_used)]
 #![allow(missing_docs)]
 
 use force::auth::TokenResponse;
@@ -60,8 +61,8 @@ async fn test_havoc_clear_race_condition() {
     let manager = Arc::new(TokenManager::new(auth));
 
     // First get a token
-    #[allow(clippy::unwrap_used)]
-    let token = manager.token().await.unwrap();
+
+    let token = manager.token().await.expect("Test setup failure");
     assert_eq!(token.as_str(), "auth_token_0");
 
     let manager_clone = Arc::clone(&manager);
@@ -79,12 +80,12 @@ async fn test_havoc_clear_race_condition() {
     manager.clear().await;
 
     // Await the refresh task. It finishes its sleep and then updates the TokenManager state.
-    #[allow(clippy::unwrap_used)]
-    refresh_task.await.unwrap();
+
+    refresh_task.await.expect("Test setup failure");
 
     // Now, if we try to get token, it SHOULD authenticate again since we cleared it.
-    #[allow(clippy::unwrap_used)]
-    let token2 = manager.token().await.unwrap();
+
+    let token2 = manager.token().await.expect("Test setup failure");
 
     // If there is a race condition, the `refresh_task` would have overwritten the `None` state
     // from `clear()` with its newly generated token, which resurrects the session!

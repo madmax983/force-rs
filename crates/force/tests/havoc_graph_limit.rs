@@ -1,3 +1,4 @@
+#![allow(clippy::expect_used)]
 //! Havoc test for Composite Graph node limits.
 
 #![cfg(feature = "composite_graph")]
@@ -12,7 +13,7 @@ fn test_havoc_graph_limit_enforced() {
     // Add 500 requests, which is the maximum limit.
     for i in 0..500 {
         let req = GraphRequest::new("GET", "/sobjects/Account", format!("ref_{i}"));
-        graph = graph.add_request(req).unwrap();
+        graph = graph.add_request(req).expect("test failed");
     }
 
     assert_eq!(graph.composite_request.len(), 500);

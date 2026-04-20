@@ -1,3 +1,4 @@
+#![allow(clippy::expect_used)]
 //! Havoc property test for SOQL escaping
 //!
 //! This test uses proptest to hit boundaries for SOQL escape functions.

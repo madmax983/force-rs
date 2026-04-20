@@ -1,3 +1,4 @@
+#![allow(clippy::expect_used)]
 //! Havoc resource exhaustion (`DoS`) test for unbounded string inputs.
 //!
 //! # 👺 Havoc: Unbounded SOQL and Pagination URL `DoS`

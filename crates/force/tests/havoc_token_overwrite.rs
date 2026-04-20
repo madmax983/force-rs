@@ -1,3 +1,4 @@
+#![allow(clippy::expect_used)]
 //! Havoc race condition test for `TokenManager::get_token` overwriting `force_refresh`.
 //!
 //! This test simulates the race condition where `get_token` (which refreshes inside the lock)
@@ -37,18 +38,18 @@ mod tests {
         fn get_token(&self) -> usize {
             // Fast path (read lock)
             {
-                let guard = self.token.read().unwrap();
+                let guard = self.token.read().expect("test failed");
                 if let Some(token) = *guard {
                     return token;
                 }
             }
 
             // Acquire refresh lock
-            let _lock = self.refresh_lock.lock().unwrap();
+            let _lock = self.refresh_lock.lock().expect("test failed");
 
             // Double check
             {
-                let guard = self.token.read().unwrap();
+                let guard = self.token.read().expect("test failed");
                 if let Some(token) = *guard {
                     return token;
                 }
@@ -56,7 +57,7 @@ mod tests {
 
             let new_token = self.generate_token();
 
-            let mut guard = self.token.write().unwrap();
+            let mut guard = self.token.write().expect("test failed");
 
             // The Fix: only overwrite if `new_token` is strictly newer.
             if let Some(current) = *guard
@@ -74,7 +75,7 @@ mod tests {
             let new_token = self.generate_token();
 
             {
-                let mut guard = self.token.write().unwrap();
+                let mut guard = self.token.write().expect("test failed");
                 if let Some(current) = *guard
                     && current >= new_token
                 {
@@ -86,7 +87,7 @@ mod tests {
         }
 
         fn current_token(&self) -> Option<usize> {
-            *self.token.read().unwrap()
+            *self.token.read().expect("test failed")
         }
     }
 
@@ -106,7 +107,7 @@ mod tests {
             let _ = t1.join();
             let _ = t2.join();
 
-            let final_token = manager.current_token().unwrap();
+            let final_token = manager.current_token().expect("test failed");
             let max_generated = manager.counter.load(Ordering::SeqCst);
 
             if max_generated == 2 {

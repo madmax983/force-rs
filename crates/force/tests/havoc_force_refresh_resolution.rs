@@ -1,3 +1,4 @@
+#![allow(clippy::expect_used)]
 //! Havoc race condition test for `TokenManager::force_refresh` timestamp resolution.
 
 #![allow(clippy::unwrap_used)]
@@ -54,7 +55,7 @@ mod tests {
         let manager = StdArc::new(TokenManager::new(auth));
 
         // Initial token fetch
-        let _ = manager.token().await.unwrap();
+        let _ = manager.token().await.expect("test failed");
         assert_eq!(refresh_count.load(Ordering::SeqCst), 1);
 
         // Spawn concurrent force_refresh tasks
@@ -62,12 +63,12 @@ mod tests {
         for _ in 0..10 {
             let m = manager.clone();
             handles.push(tokio::spawn(async move {
-                m.force_refresh().await.unwrap();
+                m.force_refresh().await.expect("test failed");
             }));
         }
 
         for h in handles {
-            h.await.unwrap();
+            h.await.expect("test failed");
         }
 
         let final_count = refresh_count.load(Ordering::SeqCst);

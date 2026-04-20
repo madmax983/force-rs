@@ -68,7 +68,7 @@ impl Attributes {
 /// use force::types::{DynamicSObject, SalesforceId, Attributes};
 /// use serde_json::json;
 ///
-/// let id = SalesforceId::new("001000000000001AAA").unwrap();
+/// let id = SalesforceId::new("001000000000001AAA")?;
 /// let attrs = Attributes::new("Account", &id, "v60.0");
 ///
 /// let mut account = DynamicSObject::new(attrs);
@@ -76,6 +76,7 @@ impl Attributes {
 /// account.set_field("Industry", "Technology");
 ///
 /// assert_eq!(account.get_field("Name").and_then(|v| v.as_str()), Some("Acme Corp"));
+/// # Ok::<(), force::error::ForceError>(())
 /// ```
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DynamicSObject {

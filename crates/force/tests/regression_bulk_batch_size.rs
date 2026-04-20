@@ -1,10 +1,10 @@
+#![allow(clippy::expect_used)]
 //! Regression tests for Bulk API batch size validation.
 //!
 //! Ensures that `process_csv_batches` and `SmartIngest` correctly handle invalid batch sizes.
 
 #![cfg(feature = "bulk")]
 #![allow(clippy::unwrap_used)]
-#![allow(clippy::expect_used)]
 
 use async_trait::async_trait;
 use force::api::bulk::JobOperation;
@@ -52,7 +52,7 @@ fn test_process_csv_batches_errors_on_zero_batch_size() {
         id: "1".to_string(),
     }];
     let mut csv_data = Vec::new();
-    serialize_to_csv(&records, &mut csv_data).unwrap();
+    serialize_to_csv(&records, &mut csv_data).expect("test failed");
 
     // Convert to slice for reading
     let reader = &csv_data[..];
@@ -75,7 +75,11 @@ async fn test_smart_ingest_errors_on_zero_batch_size() {
         instance_url: mock_server.uri(),
     };
 
-    let client = builder().authenticate(auth).build().await.unwrap();
+    let client = builder()
+        .authenticate(auth)
+        .build()
+        .await
+        .expect("test failed");
 
     let handler = client.bulk();
 

@@ -1,3 +1,4 @@
+#![allow(clippy::expect_used)]
 #![allow(missing_docs)]
 use chrono::{DateTime, Utc};
 use force::auth::{AccessToken, TokenResponse};

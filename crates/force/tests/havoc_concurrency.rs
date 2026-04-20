@@ -1,3 +1,4 @@
+#![allow(clippy::expect_used)]
 //! Havoc concurrency test for double-checked locking verification.
 //!
 //! # Elenchus Audit Note
@@ -31,14 +32,14 @@ mod tests {
         fn get_token(&self) -> String {
             // Fast path: read lock
             {
-                let guard = self.token.read().unwrap();
+                let guard = self.token.read().expect("test failed");
                 if let Some(token) = &*guard {
                     return token.clone();
                 }
             }
 
             // Slow path: write lock
-            let mut guard = self.token.write().unwrap();
+            let mut guard = self.token.write().expect("test failed");
             // Double check
             if let Some(token) = &*guard {
                 return token.clone();
@@ -56,7 +57,7 @@ mod tests {
     impl TokenManager {
         fn force_refresh(&self) -> String {
             // Force refresh goes straight to write lock
-            let mut guard = self.token.write().unwrap();
+            let mut guard = self.token.write().expect("test failed");
             let new_token = "forced_token".to_string();
             *guard = Some(new_token.clone());
             new_token
@@ -72,8 +73,8 @@ mod tests {
             let t1 = thread::spawn(move || m1.get_token());
             let t2 = thread::spawn(move || manager.get_token());
 
-            let r1 = t1.join().unwrap();
-            let r2 = t2.join().unwrap();
+            let r1 = t1.join().expect("test failed");
+            let r2 = t2.join().expect("test failed");
 
             assert_eq!(r1, "new_token");
             assert_eq!(r2, "new_token");
@@ -87,7 +88,7 @@ mod tests {
 
             // pre-populate token
             {
-                let mut guard = manager.token.write().unwrap();
+                let mut guard = manager.token.write().expect("test failed");
                 *guard = Some("initial_token".to_string());
             }
 
@@ -97,8 +98,8 @@ mod tests {
             let t1 = thread::spawn(move || m1.get_token());
             let t2 = thread::spawn(move || m2.force_refresh());
 
-            let r1 = t1.join().unwrap();
-            let r2 = t2.join().unwrap();
+            let r1 = t1.join().expect("test failed");
+            let r2 = t2.join().expect("test failed");
 
             assert!(r1 == "initial_token" || r1 == "forced_token");
             assert_eq!(r2, "forced_token");

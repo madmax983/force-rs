@@ -1,8 +1,8 @@
+#![allow(clippy::expect_used)]
 //! Integration tests for Composite API.
 
 #![cfg(feature = "composite")]
 #![allow(clippy::unwrap_used)]
-#![allow(clippy::expect_used)]
 
 use async_trait::async_trait;
 use force::auth::{AccessToken, Authenticator, TokenResponse};
@@ -105,13 +105,13 @@ async fn test_composite_batch_execution() {
     // Check first result (GET Account)
     let res1 = &batch_response.results[0];
     assert_eq!(res1.status_code, 200);
-    let account = res1.result.as_ref().unwrap();
+    let account = res1.result.as_ref().expect("test failed");
     assert_eq!(account["Name"], "Acme");
 
     // Check second result (POST Contact)
     let res2 = &batch_response.results[1];
     assert_eq!(res2.status_code, 201);
-    let contact_res = res2.result.as_ref().unwrap();
+    let contact_res = res2.result.as_ref().expect("test failed");
     assert_eq!(contact_res["success"], true);
 }
 

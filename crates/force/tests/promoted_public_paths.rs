@@ -1,3 +1,4 @@
+#![allow(clippy::expect_used)]
 //! Compile-surface checks for promoted public module paths.
 //!
 //! This test exists to pin the public API layout for promoted preview utilities.

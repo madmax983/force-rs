@@ -1,10 +1,10 @@
+#![allow(clippy::expect_used)]
 //! Tests for authentication timeout behavior.
 //!
 //! Verifies that `ClientCredentials` and `JwtBearerFlow` authenticators
 //! correctly respect configured timeouts to prevent indefinite hanging.
 
 #![allow(clippy::unwrap_used)]
-#![allow(clippy::expect_used)]
 
 use force::auth::Authenticator;
 use force::auth::ClientCredentials;
@@ -28,7 +28,7 @@ async fn test_client_credentials_timeout() {
     let http_client = reqwest::Client::builder()
         .timeout(Duration::from_millis(100))
         .build()
-        .unwrap();
+        .expect("test failed");
 
     let auth = ClientCredentials::new(
         "client_id",
@@ -67,7 +67,7 @@ async fn test_jwt_bearer_timeout() {
     let http_client = reqwest::Client::builder()
         .timeout(Duration::from_millis(100))
         .build()
-        .unwrap();
+        .expect("test failed");
 
     let key_path =
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/dummy_key.pem");
@@ -80,7 +80,7 @@ async fn test_jwt_bearer_timeout() {
         "https://login.salesforce.com",
         format!("{}/services/oauth2/token", mock_server.uri()),
     )
-    .unwrap()
+    .expect("test failed")
     .with_client(http_client);
 
     let result = auth.authenticate().await;

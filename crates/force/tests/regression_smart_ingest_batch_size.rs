@@ -1,10 +1,10 @@
+#![allow(clippy::expect_used)]
 //! Regression test for `SmartIngest` batch size panic.
 //!
 //! Ensures that setting a huge batch size (e.g., `usize::MAX`) does not cause
 //! an immediate panic due to allocation failure.
 
 #[cfg(feature = "bulk")]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use async_trait::async_trait;
     use force::api::bulk::JobOperation;

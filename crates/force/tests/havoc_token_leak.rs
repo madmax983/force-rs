@@ -1,7 +1,7 @@
+#![allow(clippy::expect_used)]
 //! Havoc token leak test.
 #![cfg(feature = "rest")]
 #![allow(clippy::unwrap_used)]
-#![allow(clippy::expect_used)]
 
 use async_trait::async_trait;
 use force::api::RestOperation;

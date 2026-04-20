@@ -1,7 +1,7 @@
+#![allow(clippy::expect_used)]
 //! Integration tests for `QueryBatch`.
 #![cfg(feature = "composite")]
 #![allow(clippy::unwrap_used)]
-#![allow(clippy::expect_used)]
 
 use async_trait::async_trait;
 use force::api::composite::{BatchOp, QueryBatch};

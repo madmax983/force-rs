@@ -1,3 +1,4 @@
+#![allow(unknown_lints)]
 #![allow(clippy::duration_suboptimal_units)]
 //! HTTP executor implementation.
 
