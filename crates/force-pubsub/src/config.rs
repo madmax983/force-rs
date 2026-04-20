@@ -129,7 +129,7 @@ mod tests {
     #[test]
     fn test_backoff_delay_for_attempt_1() {
         let backoff = BackoffConfig::default();
-        assert_eq!(backoff.delay_for(1), Duration::from_millis(1000));
+        assert_eq!(backoff.delay_for(1), Duration::from_secs(1));
     }
 
     #[test]
