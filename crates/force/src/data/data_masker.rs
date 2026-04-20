@@ -65,16 +65,20 @@ impl<'a> DataMasker<'a> {
         let keys: Vec<String> = record.fields.keys().cloned().collect();
 
         for key in keys {
-            if let Some(field) = self.find_field(&key) {
-                if Self::is_sensitive(field) {
-                    if let Some(val) = record.fields.get(&key) {
-                        if !val.is_null() {
-                            let masked_val = Self::generate_mask(field, val);
-                            record.set_field(&key, masked_val);
-                        }
-                    }
-                }
+            let Some(field) = self.find_field(&key) else {
+                continue;
+            };
+            if !Self::is_sensitive(field) {
+                continue;
             }
+            let Some(val) = record.fields.get(&key) else {
+                continue;
+            };
+            if val.is_null() {
+                continue;
+            }
+            let masked_val = Self::generate_mask(field, val);
+            record.set_field(&key, masked_val);
         }
     }
 

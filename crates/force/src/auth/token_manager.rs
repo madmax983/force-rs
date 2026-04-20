@@ -92,10 +92,11 @@ impl<A: Authenticator> TokenManager<A> {
         let (is_soft_expired, is_hard_expired_actual, current_token) =
             self.evaluate_token_state().await;
 
-        if let Some(token) = current_token.as_ref() {
-            if !is_soft_expired && !is_hard_expired_actual {
+        match current_token.as_ref() {
+            Some(token) if !(is_soft_expired || is_hard_expired_actual) => {
                 return Ok(token.clone());
             }
+            _ => {}
         }
 
         if is_hard_expired_actual {
@@ -127,10 +128,9 @@ impl<A: Authenticator> TokenManager<A> {
 
         {
             let state = self.state.read().await;
-            if let Some(token) = &state.token {
-                if !token.is_hard_expired() {
-                    return Ok(token.clone());
-                }
+            match &state.token {
+                Some(token) if !token.is_hard_expired() => return Ok(token.clone()),
+                _ => {}
             }
         }
 
@@ -158,10 +158,11 @@ impl<A: Authenticator> TokenManager<A> {
 
         {
             let state = self.state.read().await;
-            if let Some(token) = &state.token {
-                if !token.is_soft_expired() && !token.is_hard_expired() {
+            match &state.token {
+                Some(token) if !(token.is_soft_expired() || token.is_hard_expired()) => {
                     return Ok(token.clone());
                 }
+                _ => {}
             }
         }
 

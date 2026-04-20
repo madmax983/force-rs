@@ -28,7 +28,12 @@ struct SalesforceError {
 pub fn parse_api_error(status_code: u16, body: &str) -> HttpError {
     // Try to parse as Salesforce error array
     if let Ok(errors) = serde_json::from_str::<Vec<SalesforceError>>(body) {
-        if let Some(first_error) = errors.first() {
+        let Some(first_error) = errors.first() else {
+            return HttpError::StatusError {
+                status_code,
+                message: body.to_string(),
+            };
+        };
             let code = first_error.error_code.as_deref().unwrap_or("UNKNOWN");
 
             // ⚡ Bolt: Pre-allocate a single buffer to avoid multiple heap allocations
@@ -64,7 +69,6 @@ pub fn parse_api_error(status_code: u16, body: &str) -> HttpError {
                 status_code,
                 message,
             };
-        }
     }
 
     // Fallback to generic status error

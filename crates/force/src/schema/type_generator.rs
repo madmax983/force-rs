@@ -93,10 +93,9 @@ fn write_snake_case(out: &mut String, s: &str) {
 
     for c in s.chars() {
         if c.is_ascii_uppercase() {
-            if let Some(p) = prev_char {
-                if !p.is_ascii_uppercase() && p != '_' {
-                    out.push('_');
-                }
+            match prev_char {
+                Some(p) if !p.is_ascii_uppercase() && p != '_' => out.push('_'),
+                _ => {}
             }
             out.push(c.to_ascii_lowercase());
         } else {

@@ -81,13 +81,14 @@ fn write_field_schema(out: &mut String, field: &FieldDescribe) {
         }
         FieldType::Picklist | FieldType::Multipicklist => {
             out.push_str("          type: string\n");
-            if let Some(values) = &field.picklist_values {
-                if !values.is_empty() {
+            match &field.picklist_values {
+                Some(values) if !values.is_empty() => {
                     out.push_str("          enum:\n");
                     for pv in values {
                         let _ = writeln!(out, "            - {}", pv.value);
                     }
                 }
+                _ => {}
             }
         }
         FieldType::Boolean => {

@@ -22,7 +22,6 @@
 #![allow(clippy::redundant_closure_for_method_calls)]
 #![allow(clippy::significant_drop_tightening)]
 #![allow(clippy::needless_continue)]
-#![allow(clippy::collapsible_if)]
 #![allow(clippy::unwrap_or_default)]
 #![allow(clippy::useless_format)]
 #![allow(dead_code)] // Phase 2 in progress, some placeholder code exists

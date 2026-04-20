@@ -88,14 +88,15 @@ fn generate_field_schema(field: &FieldDescribe) -> Value {
 
         FieldType::Picklist | FieldType::Multipicklist => {
             schema.insert("type".to_string(), Value::String("string".to_string()));
-            if let Some(values) = &field.picklist_values {
-                if !values.is_empty() {
+            match &field.picklist_values {
+                Some(values) if !values.is_empty() => {
                     let enum_values: Vec<Value> = values
                         .iter()
                         .map(|pv| Value::String(pv.value.clone()))
                         .collect();
                     schema.insert("enum".to_string(), Value::Array(enum_values));
                 }
+                _ => {}
             }
         }
         FieldType::Boolean => {
