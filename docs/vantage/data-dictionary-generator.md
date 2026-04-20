@@ -8,7 +8,7 @@ As a Data Analyst or Architect, I want to automatically generate a Markdown data
 
 ✅ **Acceptance Criteria:**
 - Must generate a comprehensive Markdown document detailing the fields of an SObject based on its `SObjectDescribe` payload.
-- Must optionally integrate with the `FieldUsageScanner` to include real utilization statistics (population percentages) alongside the field definitions.
+- Must optionally integrate with the field usage scanner to include real utilization statistics (population percentages) alongside the field definitions.
 - Must include field attributes like API Name, Label, Type, and Help Text.
 - Success = Ability to generate a Markdown data dictionary for an object with 100+ fields, including usage stats, in under 5 seconds.
 

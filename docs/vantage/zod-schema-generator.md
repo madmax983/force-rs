@@ -14,7 +14,7 @@ As a Full-Stack or Backend Developer, I want to automatically generate Zod schem
 
 ✅ **Acceptance Criteria:**
 - Must map standard Salesforce field types to standard Zod types (e.g., `boolean` to `z.boolean()`, `string` to `z.string()`, `double` to `z.number()`).
-- Must correctly apply `.nullable()` or `.optional()` for fields where `nillable` is true.
+- Must correctly apply nullable or optional for fields where `nillable` is true.
 - Must apply `.max(length)` validations for string fields based on the `length` property in the describe metadata.
 - Must include JSDoc comments with field labels and help text above each schema property.
 - Must sort fields alphabetically for predictable output, with the `Id` field always appearing first.

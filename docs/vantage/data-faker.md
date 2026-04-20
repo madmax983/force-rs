@@ -12,7 +12,7 @@ As an Integration Test Engineer, I want to automatically generate mock Salesforc
 ✅ **Acceptance Criteria:**
 - Must automatically generate sensible default values based on the Salesforce `FieldType` (e.g., proper formats for dates, emails, and URLs).
 - Must only generate data for `createable` fields, explicitly ignoring `auto_number` and `calculated` (formula) fields.
-- Must handle `Picklist` fields gracefully by selecting a valid active option if available in the metadata.
+- Must handle picklist fields gracefully by selecting a valid active option if available in the metadata.
 - Must gracefully ignore complex or unsupported field types (like `Base64` or `Location`) without failing the generation process.
 
 🚫 **Out of Scope:**

@@ -18,4 +18,4 @@ As a Backend Engineer building gRPC microservices, I want to automatically gener
 🚫 **Out of Scope:**
 - Compiling the generated `.proto` files into Rust, Go, or Java code (this is left to standard tools like `protoc` or `prost`).
 - Managing or hosting a schema registry.
-- Generating the actual gRPC service definitions (`service` blocks); only message structures (`message` blocks) are in scope.
+- Generating the actual gRPC service definitions; only message payloads are in scope.

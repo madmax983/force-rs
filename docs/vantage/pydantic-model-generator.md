@@ -18,7 +18,7 @@ Many enterprise data science and data engineering teams rely on Python to proces
 ## Acceptance Criteria
 - Must take Salesforce `SObjectDescribe` metadata as input.
 - Must map Salesforce data types (e.g., `string`, `int`, `boolean`, `datetime`, `double`, `percent`, `currency`) to appropriate Python types (`str`, `int`, `bool`, `datetime`, `float`).
-- Must correctly handle optional/nullable fields (using `Optional[...]` or `| None`).
+- Must correctly handle optional/nullable fields .
 - Must include field-level documentation/descriptions extracted from the Salesforce metadata as Pydantic `Field` descriptions.
 - Must correctly handle Salesforce field name semantics, particularly mapping API names like `My_Custom_Field__c` cleanly.
 - Must generate models that are compatible with Pydantic v2.
