@@ -65,3 +65,7 @@
 **[RestOperation: Exposing query_stream]**
 **Tangle:** The `query_stream` method was implemented directly on `RestHandler` in `api/rest/mod.rs`. This prevented other API handlers like `ToolingHandler` (which also implements `RestOperation`) from leveraging paginated streaming queries for SOQL, breaking cohesion and domain reuse.
 **Blueprint:** Moved `query_stream` to be a provided method on the `RestOperation` trait. This required adding a `Self: Sized + Clone` bound to the method signature and updating all consumer test files to import the `RestOperation` trait so the method would be in scope.
+
+**[The Facade: Enforcing Module Boundaries in force-sync (continued)]**
+**Tangle:** The `force-sync` crate still leaked internal submodules directly into the public API by declaring them as `pub mod` inside `store/pg/mod.rs` (e.g. `checkpoint`, `conflict`, `dead_letter`, etc.), `store/mod.rs`, `capture/mod.rs`, and `apply/mod.rs`. This violated the Facade pattern.
+**Blueprint:** Refactored module visibility to `pub(crate) mod` across these files, hiding their internal structures while retaining explicit `pub use` statements at the root level for the necessary public types.

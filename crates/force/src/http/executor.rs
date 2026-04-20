@@ -1,4 +1,3 @@
-#![allow(clippy::duration_suboptimal_units)]
 //! HTTP executor implementation.
 
 use super::retry::{
