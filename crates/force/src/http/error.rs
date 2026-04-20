@@ -34,41 +34,41 @@ pub fn parse_api_error(status_code: u16, body: &str) -> HttpError {
                 message: body.to_string(),
             };
         };
-            let code = first_error.error_code.as_deref().unwrap_or("UNKNOWN");
+        let code = first_error.error_code.as_deref().unwrap_or("UNKNOWN");
 
-            // ⚡ Bolt: Pre-allocate a single buffer to avoid multiple heap allocations
-            // from intermediate strings and `.join(", ")`.
-            let mut cap = code.len() + first_error.message.len() + 4; // "[{}] "
-            if !first_error.fields.is_empty() {
-                cap += 11 + first_error.fields.iter().map(|f| f.len()).sum::<usize>(); // " (fields: )" + field lengths
-                if first_error.fields.len() > 1 {
-                    cap += (first_error.fields.len() - 1) * 2; // ", " separators
-                }
+        // ⚡ Bolt: Pre-allocate a single buffer to avoid multiple heap allocations
+        // from intermediate strings and `.join(", ")`.
+        let mut cap = code.len() + first_error.message.len() + 4; // "[{}] "
+        if !first_error.fields.is_empty() {
+            cap += 11 + first_error.fields.iter().map(|f| f.len()).sum::<usize>(); // " (fields: )" + field lengths
+            if first_error.fields.len() > 1 {
+                cap += (first_error.fields.len() - 1) * 2; // ", " separators
             }
+        }
 
-            let mut message = String::with_capacity(cap);
-            message.push('[');
-            message.push_str(code);
-            message.push_str("] ");
-            message.push_str(&first_error.message);
+        let mut message = String::with_capacity(cap);
+        message.push('[');
+        message.push_str(code);
+        message.push_str("] ");
+        message.push_str(&first_error.message);
 
-            if !first_error.fields.is_empty() {
-                message.push_str(" (fields: ");
-                let mut first = true;
-                for field in &first_error.fields {
-                    if !first {
-                        message.push_str(", ");
-                    }
-                    first = false;
-                    message.push_str(field);
+        if !first_error.fields.is_empty() {
+            message.push_str(" (fields: ");
+            let mut first = true;
+            for field in &first_error.fields {
+                if !first {
+                    message.push_str(", ");
                 }
-                message.push(')');
+                first = false;
+                message.push_str(field);
             }
+            message.push(')');
+        }
 
-            return HttpError::StatusError {
-                status_code,
-                message,
-            };
+        return HttpError::StatusError {
+            status_code,
+            message,
+        };
     }
 
     // Fallback to generic status error
