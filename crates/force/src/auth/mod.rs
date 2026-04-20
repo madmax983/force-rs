@@ -261,7 +261,7 @@ mod tests {
         let err = handle_oauth_error(res, None).await;
         assert_eq!(
             err.to_string(),
-            "HTTP request failed: HTTP 400: Unknown error"
+            "HTTP request failed: response payload exceeded the safety limit of 1048576 bytes"
         );
     }
 
