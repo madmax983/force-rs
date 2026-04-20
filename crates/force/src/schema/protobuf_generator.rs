@@ -33,8 +33,8 @@ pub fn write_protobuf_schema(out: &mut String, describe: &SObjectDescribe) {
         }
     });
 
-    let mut field_number = 1;
-    for field in fields {
+    for (i, field) in fields.into_iter().enumerate() {
+        let field_number = i + 1;
         let proto_type = map_type(&field.type_);
 
         let optional_modifier = if field.nillable { "optional " } else { "" };
@@ -44,7 +44,6 @@ pub fn write_protobuf_schema(out: &mut String, describe: &SObjectDescribe) {
             "  {}{} {} = {};",
             optional_modifier, proto_type, field.name, field_number
         );
-        field_number += 1;
     }
 
     let _ = writeln!(out, "}}");
