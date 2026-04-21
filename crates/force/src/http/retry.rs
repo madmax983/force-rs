@@ -228,6 +228,28 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_retry_after_empty() {
+        let mut headers = reqwest::header::HeaderMap::new();
+        headers.insert("Retry-After", reqwest::header::HeaderValue::from_static(""));
+        assert_eq!(parse_retry_after(&headers), None);
+    }
+
+    #[test]
+    fn test_parse_retry_after_float() {
+        let mut headers = reqwest::header::HeaderMap::new();
+        headers.insert("Retry-After", reqwest::header::HeaderValue::from_static("1.5"));
+        assert_eq!(parse_retry_after(&headers), None);
+    }
+
+    #[test]
+    fn test_parse_retry_after_large() {
+        let mut headers = reqwest::header::HeaderMap::new();
+        // Exceeds u64::MAX
+        headers.insert("Retry-After", reqwest::header::HeaderValue::from_static("18446744073709551616"));
+        assert_eq!(parse_retry_after(&headers), None);
+    }
+
+    #[test]
     fn test_exponential_backoff_respects_large_base() {
         let base = Duration::from_secs(60);
         // We expect at least 60s, but the old implementation capped it at 30s
