@@ -158,14 +158,49 @@ impl ChangeEnvelope {
 /// Returns a stable BLAKE3 hash for a JSON payload.
 #[must_use]
 pub fn payload_hash(payload: &Value) -> [u8; 32] {
-    let mut canonical_payload = payload.clone();
-    canonical_payload.sort_all_objects();
-
     let mut hasher = blake3::Hasher::new();
-    // ⚡ Bolt: Write JSON directly into the hasher instead of allocating a `String`
-    // via `to_string().as_bytes()`, saving a large intermediate heap allocation.
-    let _ = serde_json::to_writer(&mut hasher, &canonical_payload);
+    // ⚡ Bolt: Use a recursive traversal function that writes output directly into the hasher
+    // instead of cloning the entire tree and allocating large intermediate objects.
+    let _ = write_sorted_value(&mut hasher, payload);
     *hasher.finalize().as_bytes()
+}
+
+/// A recursive traversal function that collects object properties into a `Vec` of references,
+/// sorts the references by key, and writes the output directly into the provided writer.
+fn write_sorted_value<W: std::io::Write>(writer: &mut W, value: &Value) -> std::io::Result<()> {
+    match value {
+        Value::Null => write!(writer, "null"),
+        Value::Bool(b) => write!(writer, "{}", if *b { "true" } else { "false" }),
+        Value::Number(n) => write!(writer, "{n}"),
+        Value::String(s) => {
+            serde_json::to_writer(writer, s)?;
+            Ok(())
+        }
+        Value::Array(arr) => {
+            write!(writer, "[")?;
+            for (i, v) in arr.iter().enumerate() {
+                if i > 0 {
+                    write!(writer, ",")?;
+                }
+                write_sorted_value(writer, v)?;
+            }
+            write!(writer, "]")
+        }
+        Value::Object(obj) => {
+            write!(writer, "{{")?;
+            let mut entries: Vec<(&String, &Value)> = obj.iter().collect();
+            entries.sort_unstable_by_key(|(k, _)| *k);
+            for (i, (k, v)) in entries.into_iter().enumerate() {
+                if i > 0 {
+                    write!(writer, ",")?;
+                }
+                serde_json::to_writer(&mut *writer, k)?;
+                write!(writer, ":")?;
+                write_sorted_value(writer, v)?;
+            }
+            write!(writer, "}}")
+        }
+    }
 }
 
 #[cfg(test)]
