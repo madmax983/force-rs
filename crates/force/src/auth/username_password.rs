@@ -59,6 +59,7 @@ use tokio::sync::RwLock;
 ///
 /// The `security_token` is automatically appended to the password. Pass an
 /// empty string if the caller's IP is whitelisted.
+#[derive(Clone)]
 pub struct UsernamePassword {
     /// OAuth client ID from Salesforce Connected App.
     client_id: String,

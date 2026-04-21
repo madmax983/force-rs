@@ -760,8 +760,8 @@ mod tests {
 
     #[test]
     fn test_executor_with_config() {
-        let executor = HttpExecutor::with_config(5, Duration::from_secs(60));
-        assert_eq!(executor.timeout, Duration::from_secs(60));
+        let executor = HttpExecutor::with_config(5, Duration::from_mins(1));
+        assert_eq!(executor.timeout, Duration::from_mins(1));
         assert_eq!(executor.retry_policy.read_max_retries, 5);
     }
 

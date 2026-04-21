@@ -171,7 +171,7 @@ fn hash_json_value(value: &Value, hasher: &mut blake3::Hasher) {
         Value::Object(map) => {
             let _ = Write::write_all(hasher, b"{");
             let mut iter: Vec<_> = map.iter().collect();
-            iter.sort_by(|(k1, _), (k2, _)| k1.cmp(k2));
+            iter.sort_by_key(|(k, _)| *k);
             let mut first = true;
             for (k, v) in iter {
                 if !first {

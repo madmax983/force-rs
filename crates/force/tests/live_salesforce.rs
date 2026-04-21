@@ -147,7 +147,7 @@ fn env_flag(key: &str) -> bool {
     })
 }
 
-/// Resolves a private key path, trying CARGO_MANIFEST_DIR as a fallback
+/// Resolves a private key path, trying `CARGO_MANIFEST_DIR` as a fallback
 /// when a relative path doesn't exist from the current working directory.
 #[cfg(feature = "jwt")]
 fn resolve_key_path(raw: &str) -> std::path::PathBuf {
@@ -155,24 +155,31 @@ fn resolve_key_path(raw: &str) -> std::path::PathBuf {
     if path.exists() {
         return path;
     }
-    if path.is_relative() {
-        if let Ok(manifest_dir) = std::env::var("CARGO_MANIFEST_DIR") {
-            let from_manifest = std::path::PathBuf::from(&manifest_dir).join(&path);
-            if from_manifest.exists() {
-                return from_manifest;
-            }
-            let workspace_root = std::path::PathBuf::from(&manifest_dir)
-                .parent()
-                .and_then(|p| p.parent())
-                .map(|p| p.to_path_buf());
-            if let Some(root) = workspace_root {
-                let from_root = root.join(&path);
-                if from_root.exists() {
-                    return from_root;
-                }
-            }
+
+    if !path.is_relative() {
+        return path;
+    }
+
+    let Ok(manifest_dir) = std::env::var("CARGO_MANIFEST_DIR") else {
+        return path;
+    };
+
+    let from_manifest = std::path::PathBuf::from(&manifest_dir).join(&path);
+    if from_manifest.exists() {
+        return from_manifest;
+    }
+
+    let workspace_root = std::path::PathBuf::from(&manifest_dir)
+        .parent()
+        .and_then(|p| p.parent())
+        .map(std::path::Path::to_path_buf);
+    if let Some(root) = workspace_root {
+        let from_root = root.join(&path);
+        if from_root.exists() {
+            return from_root;
         }
     }
+
     path
 }
 
@@ -192,12 +199,18 @@ fn try_jwt_auth() -> Option<LiveAuth> {
     let private_key_pem = std::fs::read_to_string(&resolved)
         .unwrap_or_else(|e| panic!("Failed to read private key at {}: {e}", resolved.display()));
 
-    let login_url = env_string("SF_JWT_LOGIN_URL")
-        .unwrap_or_else(|| PRODUCTION_LOGIN_URL.to_string());
+    let login_url =
+        env_string("SF_JWT_LOGIN_URL").unwrap_or_else(|| PRODUCTION_LOGIN_URL.to_string());
     let token_url = format!("{login_url}/services/oauth2/token");
 
-    let flow = JwtBearerFlow::new(&client_id, &username, &private_key_pem, &login_url, &token_url)
-        .unwrap_or_else(|e| panic!("Invalid JWT config: {e}"));
+    let flow = JwtBearerFlow::new(
+        &client_id,
+        &username,
+        &private_key_pem,
+        &login_url,
+        &token_url,
+    )
+    .unwrap_or_else(|e| panic!("Invalid JWT config: {e}"));
 
     Some(LiveAuth::Jwt(flow))
 }
@@ -206,8 +219,7 @@ fn try_jwt_auth() -> Option<LiveAuth> {
 fn try_client_credentials_auth() -> Option<LiveAuth> {
     let client_id = env_string("SF_CLIENT_ID")?;
     let client_secret = env_string("SF_CLIENT_SECRET")?;
-    let token_url = env_string("SF_TOKEN_URL")
-        .unwrap_or_else(|| PRODUCTION_TOKEN_URL.to_string());
+    let token_url = env_string("SF_TOKEN_URL").unwrap_or_else(|| PRODUCTION_TOKEN_URL.to_string());
 
     let flow = force::auth::ClientCredentials::new(client_id, client_secret, token_url);
     Some(LiveAuth::ClientCredentials(flow))
@@ -221,8 +233,8 @@ fn try_username_password_auth() -> Option<LiveAuth> {
     let username = env_string("SF_UP_USERNAME")?;
     let password = env_string("SF_UP_PASSWORD")?;
     let security_token = env_string("SF_UP_SECURITY_TOKEN").unwrap_or_default();
-    let token_url = env_string("SF_UP_TOKEN_URL")
-        .unwrap_or_else(|| PRODUCTION_TOKEN_URL.to_string());
+    let token_url =
+        env_string("SF_UP_TOKEN_URL").unwrap_or_else(|| PRODUCTION_TOKEN_URL.to_string());
 
     let flow = force::auth::UsernamePassword::new(
         client_id,
@@ -450,18 +462,23 @@ mod jwt_auth_tests {
         let private_key_path = env_string("SF_JWT_PRIVATE_KEY_PATH")?;
 
         let resolved = resolve_key_path(&private_key_path);
-        let private_key_pem = std::fs::read_to_string(&resolved)
-            .unwrap_or_else(|e| {
-                panic!("Failed to read private key at {}: {e}", resolved.display())
-            });
+        let private_key_pem = std::fs::read_to_string(&resolved).unwrap_or_else(|e| {
+            panic!("Failed to read private key at {}: {e}", resolved.display())
+        });
 
-        let login_url = env_string("SF_JWT_LOGIN_URL")
-            .unwrap_or_else(|| PRODUCTION_LOGIN_URL.to_string());
+        let login_url =
+            env_string("SF_JWT_LOGIN_URL").unwrap_or_else(|| PRODUCTION_LOGIN_URL.to_string());
         let token_url = format!("{login_url}/services/oauth2/token");
 
         Some(
-            JwtBearerFlow::new(&client_id, &username, &private_key_pem, &login_url, &token_url)
-                .unwrap_or_else(|e| panic!("Invalid JWT config: {e}")),
+            JwtBearerFlow::new(
+                &client_id,
+                &username,
+                &private_key_pem,
+                &login_url,
+                &token_url,
+            )
+            .unwrap_or_else(|e| panic!("Invalid JWT config: {e}")),
         )
     }
 
@@ -469,13 +486,17 @@ mod jwt_auth_tests {
     #[ignore = "requires live Salesforce org with JWT Bearer Flow configured"]
     async fn live_jwt_bearer_authenticate_returns_valid_token() -> Result<()> {
         let Some(flow) = load_jwt_flow() else {
-            eprintln!("skipping: missing SF_JWT_CLIENT_ID, SF_JWT_USERNAME, or SF_JWT_PRIVATE_KEY_PATH");
+            eprintln!(
+                "skipping: missing SF_JWT_CLIENT_ID, SF_JWT_USERNAME, or SF_JWT_PRIVATE_KEY_PATH"
+            );
             return Ok(());
         };
 
         let token = tokio::time::timeout(Duration::from_secs(30), flow.authenticate())
             .await
-            .map_err(|_| HttpError::Timeout { timeout_seconds: 30 })??;
+            .map_err(|_| HttpError::Timeout {
+                timeout_seconds: 30,
+            })??;
 
         assert!(!token.as_str().is_empty(), "access token must not be empty");
         assert!(
@@ -484,9 +505,15 @@ mod jwt_auth_tests {
             token.instance_url(),
         );
         assert_eq!(token.token_type(), "Bearer", "token_type must be Bearer");
-        assert!(!token.is_expired(), "token must not be expired immediately after authenticate()");
+        assert!(
+            !token.is_expired(),
+            "token must not be expired immediately after authenticate()"
+        );
 
-        eprintln!("JWT auth succeeded — instance_url: {}", token.instance_url());
+        eprintln!(
+            "JWT auth succeeded — instance_url: {}",
+            token.instance_url()
+        );
         Ok(())
     }
 
@@ -500,11 +527,15 @@ mod jwt_auth_tests {
 
         let token1 = tokio::time::timeout(Duration::from_secs(30), flow.authenticate())
             .await
-            .map_err(|_| HttpError::Timeout { timeout_seconds: 30 })??;
+            .map_err(|_| HttpError::Timeout {
+                timeout_seconds: 30,
+            })??;
 
         let token2 = tokio::time::timeout(Duration::from_secs(30), flow.refresh())
             .await
-            .map_err(|_| HttpError::Timeout { timeout_seconds: 30 })??;
+            .map_err(|_| HttpError::Timeout {
+                timeout_seconds: 30,
+            })??;
 
         assert!(!token1.as_str().is_empty());
         assert!(!token2.as_str().is_empty());
@@ -514,7 +545,10 @@ mod jwt_auth_tests {
             "refresh must return a token for the same instance",
         );
 
-        eprintln!("JWT refresh succeeded — both tokens valid for {}", token1.instance_url());
+        eprintln!(
+            "JWT refresh succeeded — both tokens valid for {}",
+            token1.instance_url()
+        );
         Ok(())
     }
 
@@ -527,23 +561,35 @@ mod jwt_auth_tests {
         };
 
         // Re-create with bogus client_id but same key + username.
-        let private_key_path = env_string("SF_JWT_PRIVATE_KEY_PATH").unwrap();
+        let Some(private_key_path) = env_string("SF_JWT_PRIVATE_KEY_PATH") else {
+            eprintln!("skipping: missing SF_JWT_PRIVATE_KEY_PATH");
+            return Ok(());
+        };
         let resolved = resolve_key_path(&private_key_path);
-        let pem = std::fs::read_to_string(&resolved).unwrap();
-        let login_url = env_string("SF_JWT_LOGIN_URL")
-            .unwrap_or_else(|| PRODUCTION_LOGIN_URL.to_string());
+        let pem = std::fs::read_to_string(&resolved)?;
+        let login_url =
+            env_string("SF_JWT_LOGIN_URL").unwrap_or_else(|| PRODUCTION_LOGIN_URL.to_string());
         let token_url = format!("{login_url}/services/oauth2/token");
         drop(flow);
 
-        let bad_flow =
-            JwtBearerFlow::new("INVALID_CLIENT_ID", "user@test.com", &pem, &login_url, &token_url)?;
+        let bad_flow = JwtBearerFlow::new(
+            "INVALID_CLIENT_ID",
+            "user@test.com",
+            &pem,
+            &login_url,
+            &token_url,
+        )?;
 
         let result = tokio::time::timeout(Duration::from_secs(30), bad_flow.authenticate())
             .await
-            .map_err(|_| HttpError::Timeout { timeout_seconds: 30 })?;
+            .map_err(|_| HttpError::Timeout {
+                timeout_seconds: 30,
+            })?;
 
-        assert!(result.is_err(), "authenticate with an invalid client_id must fail");
-        let err_str = result.unwrap_err().to_string();
+        let Err(err) = result else {
+            panic!("authenticate with an invalid client_id must fail");
+        };
+        let err_str = err.to_string();
         assert!(
             err_str.contains("invalid_client") || err_str.contains("invalid_grant"),
             "error must mention invalid_client or invalid_grant, got: {err_str}",
@@ -563,8 +609,8 @@ mod client_credentials_auth_tests {
     fn load_cc_flow() -> Option<ClientCredentials> {
         let client_id = env_string("SF_CLIENT_ID")?;
         let client_secret = env_string("SF_CLIENT_SECRET")?;
-        let token_url = env_string("SF_TOKEN_URL")
-            .unwrap_or_else(|| PRODUCTION_TOKEN_URL.to_string());
+        let token_url =
+            env_string("SF_TOKEN_URL").unwrap_or_else(|| PRODUCTION_TOKEN_URL.to_string());
         Some(ClientCredentials::new(client_id, client_secret, token_url))
     }
 
@@ -578,7 +624,9 @@ mod client_credentials_auth_tests {
 
         let token = tokio::time::timeout(Duration::from_secs(30), flow.authenticate())
             .await
-            .map_err(|_| HttpError::Timeout { timeout_seconds: 30 })??;
+            .map_err(|_| HttpError::Timeout {
+                timeout_seconds: 30,
+            })??;
 
         assert!(!token.as_str().is_empty(), "access token must not be empty");
         assert!(
@@ -587,9 +635,15 @@ mod client_credentials_auth_tests {
             token.instance_url(),
         );
         assert_eq!(token.token_type(), "Bearer", "token_type must be Bearer");
-        assert!(!token.is_expired(), "token must not be expired immediately after authenticate()");
+        assert!(
+            !token.is_expired(),
+            "token must not be expired immediately after authenticate()"
+        );
 
-        eprintln!("Client Credentials auth succeeded — instance_url: {}", token.instance_url());
+        eprintln!(
+            "Client Credentials auth succeeded — instance_url: {}",
+            token.instance_url()
+        );
         Ok(())
     }
 
@@ -603,11 +657,15 @@ mod client_credentials_auth_tests {
 
         let token1 = tokio::time::timeout(Duration::from_secs(30), flow.authenticate())
             .await
-            .map_err(|_| HttpError::Timeout { timeout_seconds: 30 })??;
+            .map_err(|_| HttpError::Timeout {
+                timeout_seconds: 30,
+            })??;
 
         let token2 = tokio::time::timeout(Duration::from_secs(30), flow.refresh())
             .await
-            .map_err(|_| HttpError::Timeout { timeout_seconds: 30 })??;
+            .map_err(|_| HttpError::Timeout {
+                timeout_seconds: 30,
+            })??;
 
         assert!(!token1.as_str().is_empty());
         assert!(!token2.as_str().is_empty());
@@ -627,23 +685,26 @@ mod client_credentials_auth_tests {
     #[tokio::test]
     #[ignore = "requires live Salesforce org with Client Credentials configured"]
     async fn live_client_credentials_invalid_secret_fails() -> Result<()> {
-        let Some(_) = env_string("SF_CLIENT_ID") else {
+        let Some(client_id) = env_string("SF_CLIENT_ID") else {
             eprintln!("skipping: missing SF_CLIENT_ID");
             return Ok(());
         };
 
-        let client_id = env_string("SF_CLIENT_ID").unwrap();
-        let token_url = env_string("SF_TOKEN_URL")
-            .unwrap_or_else(|| PRODUCTION_TOKEN_URL.to_string());
+        let token_url =
+            env_string("SF_TOKEN_URL").unwrap_or_else(|| PRODUCTION_TOKEN_URL.to_string());
 
         let bad_flow = ClientCredentials::new(client_id, "INVALID_SECRET", token_url);
 
         let result = tokio::time::timeout(Duration::from_secs(30), bad_flow.authenticate())
             .await
-            .map_err(|_| HttpError::Timeout { timeout_seconds: 30 })?;
+            .map_err(|_| HttpError::Timeout {
+                timeout_seconds: 30,
+            })?;
 
-        assert!(result.is_err(), "authenticate with an invalid secret must fail");
-        let err_str = result.unwrap_err().to_string();
+        let Err(err) = result else {
+            panic!("authenticate with an invalid secret must fail");
+        };
+        let err_str = err.to_string();
         assert!(
             err_str.contains("invalid_client") || err_str.contains("invalid_grant"),
             "error must mention invalid_client or invalid_grant, got: {err_str}",
@@ -667,8 +728,8 @@ mod username_password_auth_tests {
         let username = env_string("SF_UP_USERNAME")?;
         let password = env_string("SF_UP_PASSWORD")?;
         let security_token = env_string("SF_UP_SECURITY_TOKEN").unwrap_or_default();
-        let token_url = env_string("SF_UP_TOKEN_URL")
-            .unwrap_or_else(|| PRODUCTION_TOKEN_URL.to_string());
+        let token_url =
+            env_string("SF_UP_TOKEN_URL").unwrap_or_else(|| PRODUCTION_TOKEN_URL.to_string());
 
         Some(UsernamePassword::new(
             client_id,
@@ -690,7 +751,9 @@ mod username_password_auth_tests {
 
         let token = tokio::time::timeout(Duration::from_secs(30), flow.authenticate())
             .await
-            .map_err(|_| HttpError::Timeout { timeout_seconds: 30 })??;
+            .map_err(|_| HttpError::Timeout {
+                timeout_seconds: 30,
+            })??;
 
         assert!(!token.as_str().is_empty(), "access token must not be empty");
         assert!(
@@ -699,9 +762,15 @@ mod username_password_auth_tests {
             token.instance_url(),
         );
         assert_eq!(token.token_type(), "Bearer", "token_type must be Bearer");
-        assert!(!token.is_expired(), "token must not be expired immediately after authenticate()");
+        assert!(
+            !token.is_expired(),
+            "token must not be expired immediately after authenticate()"
+        );
 
-        eprintln!("Username-Password auth succeeded — instance_url: {}", token.instance_url());
+        eprintln!(
+            "Username-Password auth succeeded — instance_url: {}",
+            token.instance_url()
+        );
         Ok(())
     }
 
@@ -715,11 +784,15 @@ mod username_password_auth_tests {
 
         let token1 = tokio::time::timeout(Duration::from_secs(30), flow.authenticate())
             .await
-            .map_err(|_| HttpError::Timeout { timeout_seconds: 30 })??;
+            .map_err(|_| HttpError::Timeout {
+                timeout_seconds: 30,
+            })??;
 
         let token2 = tokio::time::timeout(Duration::from_secs(30), flow.refresh())
             .await
-            .map_err(|_| HttpError::Timeout { timeout_seconds: 30 })??;
+            .map_err(|_| HttpError::Timeout {
+                timeout_seconds: 30,
+            })??;
 
         assert!(!token1.as_str().is_empty());
         assert!(!token2.as_str().is_empty());
@@ -739,16 +812,15 @@ mod username_password_auth_tests {
     #[tokio::test]
     #[ignore = "requires live Salesforce org with Username-Password flow configured"]
     async fn live_username_password_invalid_password_fails() -> Result<()> {
-        let Some(_) = env_string("SF_UP_CLIENT_ID") else {
+        let Some(client_id) = env_string("SF_UP_CLIENT_ID") else {
             eprintln!("skipping: missing SF_UP_CLIENT_ID");
             return Ok(());
         };
 
-        let client_id = env_string("SF_UP_CLIENT_ID").unwrap();
         let client_secret = env_string("SF_UP_CLIENT_SECRET").unwrap_or_default();
         let username = env_string("SF_UP_USERNAME").unwrap_or_else(|| "user@test.com".to_string());
-        let token_url = env_string("SF_UP_TOKEN_URL")
-            .unwrap_or_else(|| PRODUCTION_TOKEN_URL.to_string());
+        let token_url =
+            env_string("SF_UP_TOKEN_URL").unwrap_or_else(|| PRODUCTION_TOKEN_URL.to_string());
 
         let bad_flow = UsernamePassword::new(
             client_id,
@@ -761,10 +833,14 @@ mod username_password_auth_tests {
 
         let result = tokio::time::timeout(Duration::from_secs(30), bad_flow.authenticate())
             .await
-            .map_err(|_| HttpError::Timeout { timeout_seconds: 30 })?;
+            .map_err(|_| HttpError::Timeout {
+                timeout_seconds: 30,
+            })?;
 
-        assert!(result.is_err(), "authenticate with an invalid password must fail");
-        let err_str = result.unwrap_err().to_string();
+        let Err(err) = result else {
+            panic!("authenticate with an invalid password must fail");
+        };
+        let err_str = err.to_string();
         assert!(
             err_str.contains("invalid_grant")
                 || err_str.contains("invalid_client")
@@ -1060,7 +1136,10 @@ mod data_cloud_tests {
             return Ok(());
         };
 
-        eprintln!("using auth: {} (testing Data Cloud token exchange)", config.auth);
+        eprintln!(
+            "using auth: {} (testing Data Cloud token exchange)",
+            config.auth
+        );
 
         let result = tokio::time::timeout(config.runtime.test_timeout, async {
             let client = create_dc_client(&config).await?;
@@ -1093,8 +1172,7 @@ mod data_cloud_tests {
                 let err_str = err.to_string();
                 let is_structured = matches!(
                     err,
-                    ForceError::Http(HttpError::StatusError { .. })
-                        | ForceError::Authentication(_)
+                    ForceError::Http(HttpError::StatusError { .. }) | ForceError::Authentication(_)
                 );
                 assert!(
                     is_structured,
@@ -1123,7 +1201,10 @@ mod data_cloud_tests {
             return Ok(());
         };
 
-        eprintln!("using auth: {} (DC enabled, testing platform REST)", config.auth);
+        eprintln!(
+            "using auth: {} (DC enabled, testing platform REST)",
+            config.auth
+        );
 
         let result = tokio::time::timeout(config.runtime.test_timeout, async {
             let client = create_dc_client(&config).await?;
@@ -1167,16 +1248,12 @@ mod config_resolution_tests {
             }
         });
 
-        let Ok(envelope) =
-            serde_json::from_str::<SfCliOrgDisplayEnvelope>(&payload.to_string())
+        let Ok(envelope) = serde_json::from_str::<SfCliOrgDisplayEnvelope>(&payload.to_string())
         else {
             panic!("expected verbose sf payload");
         };
 
-        assert_eq!(
-            envelope.result.access_token.as_deref(),
-            Some("00Dxx!token"),
-        );
+        assert_eq!(envelope.result.access_token.as_deref(), Some("00Dxx!token"),);
         assert_eq!(
             envelope.result.instance_url.as_deref(),
             Some("https://dev-org.my.salesforce.com"),
