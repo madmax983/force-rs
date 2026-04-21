@@ -14,7 +14,7 @@ As a Full-Stack or Frontend Developer, I want to automatically generate TypeScri
 
 ✅ **Acceptance Criteria:**
 - Must map standard Salesforce field types to standard TypeScript types (e.g., `boolean`, `number`, `string`).
-- Must correctly represent optional (nillable) fields using the `?` modifier (e.g., `NumberOfEmployees?: number;`).
+- Must correctly represent optional (nillable) fields.
 - Must mark read-only (non-updateable) fields with the `@readonly` JSDoc tag.
 - Must include field labels and inline help text as JSDoc comments above each property.
 - Must sort fields alphabetically for predictable output, with the `Id` field always appearing first.
