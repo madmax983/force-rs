@@ -23,7 +23,8 @@ jobs:
       # ── Client Credentials ──
       SF_CLIENT_ID: ${{ secrets.SF_CLIENT_ID }}
       SF_CLIENT_SECRET: ${{ secrets.SF_CLIENT_SECRET }}
-      # Set explicitly for the target org/environment.
+      # Set explicitly for the target org/environment. Accepts the org base URL
+      # or full /services/oauth2/token endpoint.
       SF_TOKEN_URL: ${{ vars.SF_TOKEN_URL || secrets.SF_TOKEN_URL }}
 
       # ── Username-Password ──

@@ -11,7 +11,8 @@
 //!
 //! 2. **Client Credentials** — renewable, preferred for server-to-server:
 //!    - `SF_CLIENT_ID`, `SF_CLIENT_SECRET`
-//!    - `SF_TOKEN_URL` must be set explicitly for the target org/environment
+//!    - `SF_TOKEN_URL` must be set explicitly for the target org/environment.
+//!      It may be either the base org URL or the full OAuth token endpoint.
 //!
 //! 3. **Username-Password** (feature `username_password`) — deprecated by Salesforce:
 //!    - `SF_UP_CLIENT_ID`, `SF_UP_CLIENT_SECRET`, `SF_UP_USERNAME`,
@@ -195,11 +196,11 @@ fn invalid_config(field: &str, reason: impl Into<String>) -> ForceError {
     })
 }
 
-fn validate_client_credentials_token_url(token_url: &str) -> Result<()> {
-    let parsed = url::Url::parse(token_url).map_err(|error| {
+fn normalize_client_credentials_token_url(token_url: &str) -> Result<String> {
+    let mut parsed = url::Url::parse(token_url).map_err(|error| {
         invalid_config(
             "SF_TOKEN_URL",
-            format!("must be a valid HTTPS Salesforce OAuth token endpoint: {error}"),
+            format!("must be a valid HTTPS Salesforce My Domain or OAuth token endpoint: {error}"),
         )
     })?;
 
@@ -217,14 +218,29 @@ fn validate_client_credentials_token_url(token_url: &str) -> Result<()> {
         ));
     }
 
-    if parsed.path().trim_end_matches('/') != "/services/oauth2/token" {
+    if parsed.query().is_some() || parsed.fragment().is_some() {
         return Err(invalid_config(
             "SF_TOKEN_URL",
-            "must end with /services/oauth2/token",
+            "must not include query parameters or fragments",
         ));
     }
 
-    Ok(())
+    let normalized_path = parsed.path().trim_end_matches('/');
+    match normalized_path {
+        "" | "/services/oauth2/token" => parsed.set_path("/services/oauth2/token"),
+        _ => {
+            return Err(invalid_config(
+                "SF_TOKEN_URL",
+                "must be either a Salesforce base URL like https://MyDomainName.my.salesforce.com or a token endpoint ending in /services/oauth2/token",
+            ));
+        }
+    }
+
+    Ok(parsed.to_string())
+}
+
+fn validate_client_credentials_token_url(token_url: &str) -> Result<()> {
+    normalize_client_credentials_token_url(token_url).map(|_| ())
 }
 
 fn require_client_credentials_token_url() -> String {
@@ -232,13 +248,12 @@ fn require_client_credentials_token_url() -> String {
         panic!(
             "{}",
             force::error::ConfigError::MissingValue(
-                "SF_TOKEN_URL is required when SF_CLIENT_ID/SF_CLIENT_SECRET are configured; set it explicitly for the target org, for example https://MyDomainName.my.salesforce.com/services/oauth2/token"
+                "SF_TOKEN_URL is required when SF_CLIENT_ID/SF_CLIENT_SECRET are configured; set it to the target org base URL or OAuth token endpoint, for example https://MyDomainName.my.salesforce.com"
                     .to_string(),
             )
         )
     });
-    validate_client_credentials_token_url(&token_url).unwrap_or_else(|error| panic!("{error}"));
-    token_url
+    normalize_client_credentials_token_url(&token_url).unwrap_or_else(|error| panic!("{error}"))
 }
 
 /// Tries to build a JWT Bearer authenticator from env vars.
@@ -530,6 +545,25 @@ fn client_credentials_contract_accepts_explicit_token_endpoints() {
     assert!(
         result.is_ok(),
         "client credentials should accept My Domain token endpoints: {result:?}",
+    );
+}
+
+#[test]
+fn client_credentials_contract_normalizes_my_domain_base_urls() {
+    let token_url = normalize_client_credentials_token_url("https://example.my.salesforce.com")
+        .unwrap_or_else(|error| panic!("base My Domain URL should normalize: {error}"));
+
+    assert_eq!(
+        token_url,
+        "https://example.my.salesforce.com/services/oauth2/token",
+    );
+
+    let token_url = normalize_client_credentials_token_url("https://example.my.salesforce.com/")
+        .unwrap_or_else(|error| panic!("trailing-slash My Domain URL should normalize: {error}"));
+
+    assert_eq!(
+        token_url,
+        "https://example.my.salesforce.com/services/oauth2/token",
     );
 }
 
