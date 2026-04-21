@@ -27,3 +27,10 @@
 **Finding:** `QueryStream::next()` failed to loop properly when an empty middle page was fetched, immediately marking the stream as exhausted. `cargo mutants` exposed that this path was not tested at all.
 **Evidence:** `cargo mutants` mutated `if self.records.is_empty()` replacing the condition causing early termination and no tests failed.
 **Recommendation:** Wrap the fetching logic inside `QueryStream::next()` in a `loop` so that if an empty page is fetched but `next_locator` is still present, the stream fetches the next page. Add a test `test_query_results_fetch_csv_data_empty_middle_page` to simulate an empty middle page using `wiremock`.
+
+**Elenchus: Final Audit of Sentry's Bulk API Fixes**
+**Module:** `force::api::bulk::types` and `force::api::bulk::query`
+**Severity:** 🟢 Acquitted
+**Finding:** Sentry successfully implemented the fixes recommended in the prior Elenchus review. The `#[serde(default)]` attribute was added to `Wrapper`, and missing-field scenarios are now explicitly tested. The `QueryStream::next()` loop logic was added alongside a robust `test_query_results_fetch_csv_data_empty_middle_page` integration test.
+**Evidence:** `cargo mutants` on `types.rs` and `query.rs` confirm the mutants are caught.
+**Recommendation:** No further action needed. Every test in the module earns 🟢 or ⭐.
