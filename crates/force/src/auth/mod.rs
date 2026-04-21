@@ -80,7 +80,10 @@ pub(crate) async fn handle_oauth_error(
     context: Option<&str>,
 ) -> ForceError {
     let status = response.status();
-    let body = crate::http::error::read_capped_body(response, 1024 * 1024).await;
+    let body = match crate::http::error::read_capped_body(response, 1024 * 1024).await {
+        Ok(body) => body,
+        Err(e) => return ForceError::Http(e),
+    };
 
     let error_text = if body.trim().is_empty() {
         "Unknown error".to_string()
@@ -258,7 +261,7 @@ mod tests {
         let err = handle_oauth_error(res, None).await;
         assert_eq!(
             err.to_string(),
-            "HTTP request failed: HTTP 400: Unknown error"
+            "HTTP request failed: response payload exceeded the safety limit of 1048576 bytes"
         );
     }
 

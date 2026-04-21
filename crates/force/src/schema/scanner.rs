@@ -3,11 +3,11 @@
 //! This module provides a utility to scan SObjects and determine field usage statistics.
 //! It helps identify "zombie fields" (fields that are rarely or never populated).
 
-use crate::api::rest::describe::FieldType;
 use crate::api::rest_operation::RestOperation;
 use crate::auth::Authenticator;
 use crate::client::ForceClient;
 use crate::error::Result;
+use crate::types::describe::FieldType;
 use serde::Deserialize;
 use serde_json::Value;
 
@@ -90,7 +90,7 @@ impl<'a, A: Authenticator> FieldUsageScanner<'a, A> {
     async fn scan_batch(
         &self,
         sobject: &str,
-        fields: &[&crate::api::rest::describe::FieldDescribe],
+        fields: &[&crate::types::describe::FieldDescribe],
     ) -> Result<Vec<FieldUsage>> {
         use std::fmt::Write;
 

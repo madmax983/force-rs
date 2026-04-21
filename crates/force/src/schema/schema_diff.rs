@@ -29,7 +29,7 @@
 //! # }
 //! ```
 
-use crate::api::rest::describe::{FieldDescribe, FieldType, SObjectDescribe};
+use crate::types::describe::{FieldDescribe, FieldType, SObjectDescribe};
 use std::collections::HashMap;
 
 /// Represents a change in a field's definition.
@@ -80,11 +80,11 @@ pub fn compare_schemas(
     let mut result = SchemaDiffResult::default();
 
     // ⚡ Bolt: Use .as_str() directly in the map instead of doing a heap allocation (.clone())
-    let mut old_fields: HashMap<&str, &FieldDescribe> = old_schema
-        .fields
-        .iter()
-        .map(|f| (f.name.as_str(), f))
-        .collect();
+    let mut old_fields: HashMap<&str, &FieldDescribe> =
+        HashMap::with_capacity(old_schema.fields.len());
+    for field in &old_schema.fields {
+        old_fields.insert(field.name.as_str(), field);
+    }
 
     // Find added and changed fields
     // ⚡ Bolt: Use new_field.name.as_str() instead of doing a heap allocation (.clone())

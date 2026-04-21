@@ -3,7 +3,7 @@
 //! Generates Google BigQuery table schema arrays based on Salesforce object schemas.
 
 #[cfg(feature = "schema")]
-use crate::api::rest::describe::{FieldType, SObjectDescribe};
+use crate::types::describe::{FieldType, SObjectDescribe};
 #[cfg(feature = "schema")]
 use serde_json::{Value, json};
 

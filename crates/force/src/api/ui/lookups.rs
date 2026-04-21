@@ -63,6 +63,9 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
         field: &str,
         query: &str,
     ) -> crate::error::Result<LookupResultsRepresentation> {
+        crate::types::validator::validate_sobject_name(object)?;
+        crate::types::validator::validate_field_name(field)?;
+
         let path = format!("lookups/{object}/{field}");
         let params = &[("q", query)];
         self.get(&path, Some(params), "Failed to perform lookup")
@@ -90,6 +93,10 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
         target: &str,
         query: &str,
     ) -> crate::error::Result<LookupResultsRepresentation> {
+        crate::types::validator::validate_sobject_name(object)?;
+        crate::types::validator::validate_field_name(field)?;
+        crate::types::validator::validate_sobject_name(target)?;
+
         let path = format!("lookups/{object}/{field}/{target}");
         let params = &[("q", query)];
         self.get(&path, Some(params), "Failed to perform filtered lookup")
@@ -286,5 +293,85 @@ mod tests {
         assert_eq!(entry.label, "Jane Doe");
         assert_eq!(entry.sublabel.as_deref(), Some("Acme Corp"));
         assert_eq!(entry.api_name, "Contact");
+    }
+
+    #[tokio::test]
+    async fn test_lookup_invalid_sobject_name() {
+        let server = MockServer::start().await;
+        let client = make_client(&server).await;
+
+        let result = client
+            .ui()
+            .lookup("Account; DROP TABLE", "AccountId", "test")
+            .await;
+        assert!(result.is_err());
+        assert!(
+            match result {
+                Err(e) => e,
+                Ok(_) => panic!("Expected error"),
+            }
+            .to_string()
+            .contains("SObject name contains invalid characters")
+        );
+    }
+
+    #[tokio::test]
+    async fn test_lookup_invalid_field_name() {
+        let server = MockServer::start().await;
+        let client = make_client(&server).await;
+
+        let result = client
+            .ui()
+            .lookup("Account", "AccountId; DROP TABLE", "test")
+            .await;
+        assert!(result.is_err());
+        assert!(
+            match result {
+                Err(e) => e,
+                Ok(_) => panic!("Expected error"),
+            }
+            .to_string()
+            .contains("Field name contains invalid character")
+        );
+    }
+
+    #[tokio::test]
+    async fn test_filtered_lookup_invalid_sobject_name() {
+        let server = MockServer::start().await;
+        let client = make_client(&server).await;
+
+        let result = client
+            .ui()
+            .filtered_lookup("Account; DROP TABLE", "AccountId", "Contact", "test")
+            .await;
+        assert!(result.is_err());
+        assert!(
+            match result {
+                Err(e) => e,
+                Ok(_) => panic!("Expected error"),
+            }
+            .to_string()
+            .contains("SObject name contains invalid characters")
+        );
+    }
+
+    #[tokio::test]
+    async fn test_filtered_lookup_invalid_field_name() {
+        let server = MockServer::start().await;
+        let client = make_client(&server).await;
+
+        let result = client
+            .ui()
+            .filtered_lookup("Account", "AccountId; DROP TABLE", "Contact", "test")
+            .await;
+        assert!(result.is_err());
+        assert!(
+            match result {
+                Err(e) => e,
+                Ok(_) => panic!("Expected error"),
+            }
+            .to_string()
+            .contains("Field name contains invalid character")
+        );
     }
 }

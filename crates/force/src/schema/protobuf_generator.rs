@@ -1,6 +1,6 @@
 //! Protocol Buffers schema generator for Salesforce SObject Describe metadata.
 #[cfg(feature = "schema")]
-use crate::api::rest::describe::{FieldType, SObjectDescribe};
+use crate::types::describe::{FieldType, SObjectDescribe};
 use std::fmt::Write;
 
 /// Generates a Protocol Buffers schema definition from an SObject describe result.
@@ -33,8 +33,7 @@ pub fn write_protobuf_schema(out: &mut String, describe: &SObjectDescribe) {
         }
     });
 
-    let mut field_number = 1;
-    for field in fields {
+    for (field_number, field) in (1..).zip(fields) {
         let proto_type = map_type(&field.type_);
 
         let optional_modifier = if field.nillable { "optional " } else { "" };
@@ -44,7 +43,6 @@ pub fn write_protobuf_schema(out: &mut String, describe: &SObjectDescribe) {
             "  {}{} {} = {};",
             optional_modifier, proto_type, field.name, field_number
         );
-        field_number += 1;
     }
 
     let _ = writeln!(out, "}}");

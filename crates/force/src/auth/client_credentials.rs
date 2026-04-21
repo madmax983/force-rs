@@ -160,7 +160,7 @@ impl crate::auth::authenticator::Authenticator for ClientCredentials {
         }
 
         // Parse successful token response
-        let bytes = crate::http::error::read_capped_body_bytes(response, 10 * 1024 * 1024).await?;
+        let bytes = crate::http::error::read_capped_body_bytes(response, 1024 * 1024).await?;
         let token_response = serde_json::from_slice::<TokenResponse>(&bytes)
             .map_err(crate::error::SerializationError::from)?;
 
@@ -356,14 +356,15 @@ mod tests {
 
     #[cfg(feature = "mock")]
     #[tokio::test]
-    async fn test_authenticate_error_truncation() {
+    async fn test_authenticate_error_payload_too_large() {
         use wiremock::matchers::{method, path};
         use wiremock::{Mock, MockServer, ResponseTemplate};
 
         let mock_server = MockServer::start().await;
 
-        // Generate a 2MB string.
-        let large_body = "A".repeat(2 * 1024 * 1024);
+        // Generate a payload that exceeds the limit
+        // (1024 * 1024 + 1024 to intentionally break boundary false confidence)
+        let large_body = "A".repeat(1024 * 1024 + 1024);
 
         Mock::given(method("POST"))
             .and(path("/services/oauth2/token"))
@@ -379,13 +380,10 @@ mod tests {
 
         let result = auth.authenticate().await;
 
-        if let Err(ForceError::Http(HttpError::StatusError { message, .. })) = result {
-            // Since it's a parse failure for error, it defaults to the fallback message string.
-            // When read_capped_body fails, it returns empty string which triggers fallback behavior.
-            // It turns out handle_oauth_error returns "Unknown error" when the body is empty and no context is provided.
-            assert_eq!(message, "Unknown error");
+        if let Err(ForceError::Http(HttpError::PayloadTooLarge { limit_bytes })) = result {
+            assert_eq!(limit_bytes, 1024 * 1024);
         } else {
-            panic!("Expected HttpError::StatusError");
+            panic!("Expected PayloadTooLarge error");
         }
     }
 

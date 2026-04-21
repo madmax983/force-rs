@@ -17,7 +17,7 @@ As a Salesforce Developer or QA Engineer, I want a tool to automatically generat
 - Must efficiently insert records into Salesforce using the Composite Batch API to minimize API calls and avoid rate limits.
 - Must handle batch limits automatically (e.g., chunking requests if the count exceeds the maximum allowed subrequests per composite batch).
 - Must provide clear success/failure reporting, including the number of records successfully inserted and any Salesforce API errors encountered.
-- Must support an option to halt processing immediately if a batch operation fails (`halt_on_error`).
+- Must support an option to halt processing immediately if a batch operation fails .
 
 🚫 **Out of Scope:**
 - Seeding complex relational data trees (e.g., Accounts with related Contacts and Opportunities) in a single operation (Phase 2).

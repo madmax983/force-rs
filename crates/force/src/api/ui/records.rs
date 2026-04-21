@@ -127,6 +127,10 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
         layout_types: Option<&[crate::api::ui::types::LayoutType]>,
         modes: Option<&[crate::api::ui::types::Mode]>,
     ) -> crate::error::Result<RecordUiRepresentation> {
+        for id in ids {
+            crate::types::validator::validate_identifier(id, "record id")?;
+        }
+
         // ⚡ Bolt: Construct path directly to avoid intermediate `.join(",")` allocation
         let mut path = String::with_capacity(10 + ids.len() * 19);
         path.push_str("record-ui/");
@@ -191,6 +195,8 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
         id: &str,
         fields: Option<&[&str]>,
     ) -> crate::error::Result<RecordRepresentation> {
+        crate::types::validator::validate_identifier(id, "record id")?;
+
         let path = format!("records/{id}");
 
         let mut fields_str = String::new();
@@ -236,6 +242,10 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
         ids: &[&str],
         fields: Option<&[&str]>,
     ) -> crate::error::Result<BatchResultRepresentation> {
+        for id in ids {
+            crate::types::validator::validate_identifier(id, "record id")?;
+        }
+
         // ⚡ Bolt: Construct path directly to avoid intermediate `.join(",")` allocation
         let mut path = String::with_capacity(14 + ids.len() * 19);
         path.push_str("records/batch/");
@@ -301,6 +311,8 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
         id: &str,
         input: &UpdateRecordInput,
     ) -> crate::error::Result<RecordRepresentation> {
+        crate::types::validator::validate_identifier(id, "record id")?;
+
         let path = format!("records/{id}");
         self.patch(&path, input, "Failed to update record").await
     }
@@ -313,6 +325,8 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
     ///
     /// Returns an error if the record is not found or deletion is not allowed.
     pub async fn delete_record(&self, id: &str) -> crate::error::Result<()> {
+        crate::types::validator::validate_identifier(id, "record id")?;
+
         let path = format!("records/{id}");
         self.delete_empty(&path, "Failed to delete record").await
     }
@@ -328,6 +342,8 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
         &self,
         object: &str,
     ) -> crate::error::Result<RecordDefaultsRepresentation> {
+        crate::types::validator::validate_sobject_name(object)?;
+
         let path = format!("record-defaults/create/{object}");
         self.get(&path, None, "Failed to fetch create defaults")
             .await
@@ -344,6 +360,8 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
         &self,
         id: &str,
     ) -> crate::error::Result<RecordDefaultsRepresentation> {
+        crate::types::validator::validate_identifier(id, "record id")?;
+
         let path = format!("record-defaults/clone/{id}");
         self.get(&path, None, "Failed to fetch clone defaults")
             .await

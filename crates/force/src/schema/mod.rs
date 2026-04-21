@@ -65,3 +65,6 @@ pub use sql_exporter::{generate_ddl, write_ddl};
 pub use type_generator::generate_rust_struct;
 pub use typescript_generator::{generate_typescript_interface, write_typescript_interface};
 pub use zod_generator::{generate_zod_schema, write_zod_schema};
+
+pub(crate) mod llm_context_generator;
+pub use llm_context_generator::{LlmContextOptions, generate_llm_context};

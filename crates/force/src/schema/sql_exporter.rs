@@ -29,7 +29,7 @@
 //! # }
 //! ```
 
-use crate::api::rest::describe::{FieldType, SObjectDescribe};
+use crate::types::describe::{FieldType, SObjectDescribe};
 
 /// Generates a `CREATE TABLE` SQL statement for the given SObject describe metadata.
 ///
@@ -112,7 +112,7 @@ fn write_field_type(out: &mut String, field_type: &FieldType, length: i32) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::api::rest::describe::FieldDescribe;
+    use crate::types::describe::FieldDescribe;
 
     fn mock_field(
         name: &str,

@@ -15,7 +15,7 @@ As a DevOps Engineer, I want to programmatically retrieve and deploy metadata zi
 ✅ **Acceptance Criteria:**
 - Must provide a `metadata` feature flag that exposes a `MetadataHandler` interface.
 - Must implement `deploy()` and `retrieve()` operations, handling the underlying SOAP XML payload conversion transparently.
-- Must support zipping and unzipping payloads efficiently, either entirely in memory (`Vec<u8>`) or via file streams for large deployments.
+- Must support zipping and unzipping payloads efficiently.
 - Must include an async `poll_status()` mechanism to check the progress of long-running deployment/retrieval jobs until completion or failure.
 - Must return structured error types that capture specific Salesforce metadata deployment errors (e.g., component-level compilation failures) to aid debugging.
 

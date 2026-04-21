@@ -1,6 +1,5 @@
 //! Pub/Sub API handler.
 
-use futures::StreamExt;
 use std::pin::Pin;
 use std::sync::Arc;
 use tonic::transport::Channel;
@@ -51,30 +50,11 @@ async fn fetch_tenant_id<A: Authenticator>(session: &Arc<Session<A>>) -> Result<
         )));
     }
 
-    let mut stream = resp.bytes_stream();
-    let limit_bytes: usize = 10 * 1024 * 1024;
-    let mut bytes = Vec::with_capacity(4096);
+    let body = force::http::error::read_capped_body(resp, 1024 * 1024)
+        .await
+        .map_err(|e| PubSubError::Config(format!("userinfo parse failed: {e}")))?;
 
-    while let Some(chunk) = stream.next().await {
-        if let Ok(chunk_bytes) = chunk {
-            let remaining = limit_bytes.saturating_sub(bytes.len());
-            if remaining == 0 {
-                return Err(PubSubError::Config(
-                    "userinfo response exceeded size limit".to_string(),
-                ));
-            }
-            if chunk_bytes.len() > remaining {
-                return Err(PubSubError::Config(
-                    "userinfo response exceeded size limit".to_string(),
-                ));
-            }
-            bytes.extend_from_slice(&chunk_bytes);
-        } else {
-            break;
-        }
-    }
-
-    let info: UserInfo = serde_json::from_slice(&bytes)
+    let info: UserInfo = serde_json::from_str(&body)
         .map_err(|e| PubSubError::Config(format!("userinfo parse failed: {e}")))?;
 
     Ok(info.organization_id)

@@ -116,10 +116,10 @@ mod tests {
         #[test]
         fn test_custom_timeout() {
             let config = ClientConfig {
-                timeout: Duration::from_secs(60),
+                timeout: Duration::from_mins(1),
                 ..Default::default()
             };
-            assert_eq!(config.timeout, Duration::from_secs(60));
+            assert_eq!(config.timeout, Duration::from_mins(1));
         }
 
         #[test]

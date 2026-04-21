@@ -29,8 +29,18 @@ fn compute_lease_deadline(lease_for: Duration) -> Result<LeaseDeadline, ForceSyn
     let secs =
         i64::try_from(lease_for.as_secs()).map_err(|_| ForceSyncError::InvalidLeaseDuration)?;
     let nanos = i64::from(lease_for.subsec_nanos());
-    let duration = chrono::Duration::seconds(secs) + chrono::Duration::nanoseconds(nanos);
-    let lease_until = Utc::now() + duration;
+
+    let duration_secs =
+        chrono::Duration::try_seconds(secs).ok_or(ForceSyncError::InvalidLeaseDuration)?;
+    let duration_nanos = chrono::Duration::nanoseconds(nanos);
+
+    let duration = duration_secs
+        .checked_add(&duration_nanos)
+        .ok_or(ForceSyncError::InvalidLeaseDuration)?;
+
+    let lease_until = Utc::now()
+        .checked_add_signed(duration)
+        .ok_or(ForceSyncError::InvalidLeaseDuration)?;
 
     Ok(LeaseDeadline { lease_until })
 }

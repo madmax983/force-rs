@@ -25,6 +25,7 @@ struct SalesforceError {
     fields: Vec<String>,
 }
 
+/// Parses Salesforce API error from response body or returns generic error.
 pub fn parse_api_error(status_code: u16, body: &str) -> HttpError {
     // Try to parse as Salesforce error array
     if let Ok(errors) = serde_json::from_str::<Vec<SalesforceError>>(body) {
@@ -81,7 +82,7 @@ pub fn parse_api_error(status_code: u16, body: &str) -> HttpError {
 pub async fn read_capped_body_bytes(
     response: Response,
     limit_bytes: usize,
-) -> Result<Vec<u8>, crate::error::ForceError> {
+) -> Result<Vec<u8>, HttpError> {
     let mut stream = response.bytes_stream();
 
     // ⚡ Bolt: Pre-allocate a reasonable capacity, up to max limit.
@@ -95,15 +96,11 @@ pub async fn read_capped_body_bytes(
             let remaining = limit_bytes.saturating_sub(bytes.len());
 
             if remaining == 0 {
-                return Err(crate::error::ForceError::InvalidInput(
-                    "response body exceeded size limit".to_string(),
-                ));
+                return Err(HttpError::PayloadTooLarge { limit_bytes });
             }
 
             if chunk_bytes.len() > remaining {
-                return Err(crate::error::ForceError::InvalidInput(
-                    "response body exceeded size limit".to_string(),
-                ));
+                return Err(HttpError::PayloadTooLarge { limit_bytes });
             }
             bytes.extend_from_slice(&chunk_bytes);
         } else {
@@ -114,26 +111,37 @@ pub async fn read_capped_body_bytes(
     Ok(bytes)
 }
 
-/// Converts an HTTP error response into a `ForceError` using Salesforce-aware parsing.
+/// Backward-compatible alias for callers that need raw capped bytes.
+pub async fn read_capped_bytes(
+    response: Response,
+    limit_bytes: usize,
+) -> Result<Vec<u8>, HttpError> {
+    read_capped_body_bytes(response, limit_bytes).await
+}
+
+/// Reads the body of an HTTP response as UTF-8 up to a specified byte limit.
 ///
 /// Reads the body of an HTTP response up to a specified byte limit.
 /// This prevents memory exhaustion (DoS) attacks from maliciously large error responses.
 ///
 /// It strictly caps the internal allocation and reads chunk by chunk.
-pub async fn read_capped_body(response: Response, limit_bytes: usize) -> String {
-    let bytes = read_capped_body_bytes(response, limit_bytes)
-        .await
-        .unwrap_or_default();
-    String::from_utf8(bytes).unwrap_or_else(|e| String::from_utf8_lossy(e.as_bytes()).into_owned())
+pub async fn read_capped_body(response: Response, limit_bytes: usize) -> Result<String, HttpError> {
+    let bytes = read_capped_bytes(response, limit_bytes).await?;
+    Ok(String::from_utf8(bytes)
+        .unwrap_or_else(|e| String::from_utf8_lossy(e.as_bytes()).into_owned()))
 }
 
+/// Helper function to convert an error response from `reqwest::Response` to `ForceError`.
 pub async fn response_to_force_error(
     response: Response,
     fallback_message: &str,
 ) -> crate::error::ForceError {
     let status_code = response.status().as_u16();
 
-    let body = read_capped_body(response, 1024 * 1024).await;
+    let body = match read_capped_body(response, 1024 * 1024).await {
+        Ok(body) => body,
+        Err(e) => return crate::error::ForceError::Http(e),
+    };
 
     let payload = if body.trim().is_empty() {
         fallback_message.to_string()
@@ -265,11 +273,12 @@ mod integration_tests {
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
     #[tokio::test]
-    async fn test_response_to_force_error_truncation() {
+    async fn test_response_to_force_error_payload_too_large() {
         let mock_server = MockServer::start().await;
 
-        // Generate a payload that exceeds the mutated boundary (1024 + 1024 = 2048) and the original boundary (1024 * 1024)
-        let large_body = "A".repeat(1024 * 1024 + 100);
+        // Generate a payload that exceeds the limit
+        // (1024 * 1024 + 1024 to intentionally break boundary false confidence)
+        let large_body = "A".repeat(1024 * 1024 + 1024);
 
         Mock::given(method("GET"))
             .and(path("/error"))
@@ -283,19 +292,18 @@ mod integration_tests {
 
         let error = response_to_force_error(response, "fallback").await;
 
-        let crate::error::ForceError::Http(HttpError::StatusError { message, .. }) = error else {
-            panic!("Expected StatusError");
-        };
-
-        // Because we don't truncate, we get an empty string for the body, which defaults to fallback
-        assert_eq!(message, "fallback");
+        if let crate::error::ForceError::Http(HttpError::PayloadTooLarge { limit_bytes }) = error {
+            assert_eq!(limit_bytes, 1024 * 1024);
+        } else {
+            panic!("Expected PayloadTooLarge error, got: {:?}", error);
+        }
     }
 
     #[tokio::test]
     async fn test_response_to_force_error_does_not_truncate_medium_body() {
         let mock_server = MockServer::start().await;
 
-        // Generate a payload between the mutated boundary (2048) and the actual boundary (1048576)
+        // Generate a payload between the mutated boundary (2048) and the actual boundary (1048576).
         let medium_body = "A".repeat(5000);
 
         Mock::given(method("GET"))
@@ -317,10 +325,9 @@ mod integration_tests {
     }
 
     #[tokio::test]
-    async fn test_read_capped_body_bytes_truncation() {
+    async fn test_read_capped_body_bytes_payload_too_large() {
         let mock_server = MockServer::start().await;
 
-        // Generate a payload larger than the limit
         let large_body = "A".repeat(5000);
 
         Mock::given(method("GET"))
@@ -333,17 +340,12 @@ mod integration_tests {
         let url = format!("{}/bytes", mock_server.uri());
         let response = client.get(&url).send().await.must();
 
-        // 4096 is our typical default init_cap in read_capped_body_bytes
         let result = read_capped_body_bytes(response, 4096).await;
 
-        // With the fail-fast behavior, it should return an InvalidInput error
-        let Err(err) = result else {
-            panic!("Expected an error for exceeding limit");
-        };
-        if let crate::error::ForceError::InvalidInput(msg) = err {
-            assert_eq!(msg, "response body exceeded size limit");
+        if let Err(HttpError::PayloadTooLarge { limit_bytes }) = result {
+            assert_eq!(limit_bytes, 4096);
         } else {
-            panic!("Expected InvalidInput error");
+            panic!("Expected PayloadTooLarge error, got: {:?}", result);
         }
     }
 }

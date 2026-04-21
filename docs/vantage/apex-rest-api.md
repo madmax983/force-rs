@@ -13,7 +13,7 @@ As an Enterprise Integration Developer, I want to execute custom Apex REST endpo
 - Must provide an `.apex_rest()` builder or handler on `ForceClient`.
 - Must support `GET`, `POST`, `PUT`, `PATCH`, and `DELETE` HTTP methods on the custom endpoint.
 - Must automatically append `/services/apexrest/` to the requested path.
-- Must handle strongly-typed serialization of the request body and deserialization of the response via `serde`.
+- Must handle strongly-typed conversion of request and response payloads .
 - Success = A developer can call an Apex endpoint in < 3 lines of Rust code with full type safety for inputs and outputs.
 
 🚫 **Out of Scope:**

@@ -3,7 +3,7 @@
 //! Evaluates Query Plan API responses (`ExplainResponse`) to produce insights
 //! and actionable warnings (e.g., table scans, high cost, or missing indexes).
 
-use crate::api::rest::explain::ExplainResponse;
+use crate::types::explain::ExplainResponse;
 
 /// The severity of a query plan insight.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -60,7 +60,8 @@ pub fn analyze_query_plan(response: &ExplainResponse) -> QueryInsights<'_> {
         insights: Vec::with_capacity(response.plans.len() * 2), // Bolt: Pre-allocate capacity to avoid multiple reallocations during analysis.
         evaluated_plans: response.plans.len(),
         lowest_cost: f64::MAX,
-        ..Default::default()
+        // ⚡ Bolt: Tying the initial vector capacity to the context-aware input size (`response.plans.len()`) avoids the overhead of multiple dynamic heap reallocations.
+        best_operation_type: None,
     };
 
     if response.plans.is_empty() {
@@ -131,7 +132,7 @@ pub fn analyze_query_plan(response: &ExplainResponse) -> QueryInsights<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::api::rest::explain::{PlanNote, QueryPlan};
+    use crate::types::explain::{PlanNote, QueryPlan};
 
     fn create_plan(
         op_type: &str,

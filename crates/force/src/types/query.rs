@@ -299,12 +299,8 @@ impl<T> Iterator for QueryIterator<T> {
             }
 
             // 2. If current page is exhausted, move to next page
-            if let Some(next_page_result) = self.pages.next() {
-                self.current_page = next_page_result.records.into_iter();
-            } else {
-                // 3. If no more pages, we are done
-                return None;
-            }
+            let next_page_result = self.pages.next()?;
+            self.current_page = next_page_result.records.into_iter();
         }
     }
 

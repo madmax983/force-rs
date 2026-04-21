@@ -32,6 +32,8 @@ const UPSERT_ENCODE_SET: &AsciiSet = &NON_ALPHANUMERIC
     .remove(b'.')
     .remove(b'~');
 
+const MAX_QUERY_INPUT_BYTES: usize = 100_000;
+
 /// Trait providing default REST operation implementations for Salesforce API handlers.
 ///
 /// Both `RestHandler` and `ToolingHandler` implement this trait. The only difference
@@ -307,6 +309,9 @@ pub trait RestOperation<A: Authenticator> {
         external_id_value: &str,
         data: &serde_json::Value,
     ) -> Result<UpsertResponse> {
+        validate_sobject_name(sobject)?;
+        validate_external_id_field(external_id_field)?;
+
         upsert_with_retry_class_impl(
             self.session(),
             self.path_prefix(),
@@ -346,6 +351,9 @@ pub trait RestOperation<A: Authenticator> {
         external_id_value: &str,
         data: &serde_json::Value,
     ) -> Result<UpsertResponse> {
+        validate_sobject_name(sobject)?;
+        validate_external_id_field(external_id_field)?;
+
         upsert_with_retry_class_impl(
             self.session(),
             self.path_prefix(),
@@ -393,6 +401,8 @@ pub trait RestOperation<A: Authenticator> {
     where
         T: DeserializeOwned,
     {
+        validate_query_input_len("SOQL query", soql)?;
+
         let api_path = self.resolve_api_path("query");
         let url = self.session().resolve_url(&api_path).await?;
 
@@ -441,6 +451,8 @@ pub trait RestOperation<A: Authenticator> {
     where
         T: DeserializeOwned,
     {
+        validate_query_input_len("next_records_url", next_records_url)?;
+
         let instance_url = self.session().instance_url().await?;
         let url = resolve_next_records_url(&instance_url, next_records_url)?;
 
@@ -539,10 +551,9 @@ pub trait RestOperation<A: Authenticator> {
     /// }
     /// ```
     async fn describe(&self, sobject_type: &str) -> Result<SObjectDescribe> {
-        let relative = format!(
-            "{}/describe",
-            crate::api::path_utils::format_sobject_path(sobject_type, None)
-        );
+        validate_sobject_name(sobject_type)?;
+        let mut relative = crate::api::path_utils::format_sobject_path(sobject_type, None);
+        relative.push_str("/describe");
         let api_path = self.resolve_api_path(&relative);
         let url = self.session().resolve_url(&api_path).await?;
 
@@ -559,6 +570,16 @@ pub trait RestOperation<A: Authenticator> {
 }
 
 // ── Private helper methods ───────────────────────────────────────────
+
+fn validate_query_input_len(name: &str, value: &str) -> Result<()> {
+    if value.len() > MAX_QUERY_INPUT_BYTES {
+        return Err(ForceError::InvalidInput(format!(
+            "{name} exceeds maximum allowed length of 100,000 bytes"
+        )));
+    }
+
+    Ok(())
+}
 
 /// Internal helper shared by [`RestOperation::upsert`] and
 /// [`RestOperation::upsert_idempotent`].
@@ -779,7 +800,7 @@ mod tests {
 
     impl RestOperation<crate::test_support::MockAuthenticator> for TestRestOp {
         fn session(&self) -> &Arc<Session<crate::test_support::MockAuthenticator>> {
-            unimplemented!("not needed for path tests")
+            panic!("validation should fail before session access")
         }
         fn path_prefix(&self) -> &'static str {
             ""
@@ -816,6 +837,57 @@ mod tests {
         );
         assert_eq!(op.resolve_api_path("query"), "tooling/query");
         assert_eq!(op.resolve_api_path("sobjects"), "tooling/sobjects");
+    }
+
+    fn assert_invalid_input_contains<T>(result: Result<T>, expected: &str) {
+        let Err(ForceError::InvalidInput(message)) = result else {
+            panic!("expected InvalidInput containing {expected:?}");
+        };
+        assert!(
+            message.contains(expected),
+            "expected {message:?} to contain {expected:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_validation_query_rejects_oversized_soql_before_session() {
+        let op = TestRestOp;
+        let soql = "A".repeat(MAX_QUERY_INPUT_BYTES + 1);
+        let result = op.query::<serde_json::Value>(&soql).await;
+
+        assert_invalid_input_contains(result, "100,000 bytes");
+    }
+
+    #[tokio::test]
+    async fn test_validation_query_more_rejects_oversized_url_before_session() {
+        let op = TestRestOp;
+        let next_records_url = "A".repeat(MAX_QUERY_INPUT_BYTES + 1);
+        let result = op.query_more::<serde_json::Value>(&next_records_url).await;
+
+        assert_invalid_input_contains(result, "100,000 bytes");
+    }
+
+    #[tokio::test]
+    async fn test_validation_describe_rejects_invalid_sobject_before_session() {
+        let op = TestRestOp;
+        let result = op.describe("Account;DROP").await;
+
+        assert_invalid_input_contains(result, "SObject name contains invalid characters");
+    }
+
+    #[tokio::test]
+    async fn test_validation_upsert_rejects_invalid_names_before_session() {
+        let op = TestRestOp;
+
+        let result = op
+            .upsert("Account;DROP", "ExtId", "123", &serde_json::json!({}))
+            .await;
+        assert_invalid_input_contains(result, "SObject name contains invalid characters");
+
+        let result = op
+            .upsert("Account", "ExtId;DROP", "123", &serde_json::json!({}))
+            .await;
+        assert_invalid_input_contains(result, "External ID field name contains invalid characters");
     }
 
     #[tokio::test]

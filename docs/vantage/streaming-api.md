@@ -21,7 +21,7 @@ The `force` crate roadmap includes the modern `pub_sub` feature (gRPC), but ther
 - Must support Long Polling transport.
 - Must support subscribing to PushTopics (`/topic/`), Generic Events (`/u/`), and standard Platform Events (`/event/`).
 - Must automatically handle Bayeux message replay (`replayId`) to prevent data loss upon unexpected disconnects.
-- Must seamlessly utilize the existing `Authenticator` mechanisms to inject the Session ID into the Bayeux handshake.
+- Must seamlessly utilize the existing authentication mechanisms to inject the Session ID into the Bayeux handshake.
 
 ## Out of Scope
 - Support for WebSockets (initial phase will use Long Polling for maximum compatibility).

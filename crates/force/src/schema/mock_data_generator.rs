@@ -1,4 +1,4 @@
-use crate::api::rest::describe::{FieldType, SObjectDescribe};
+use crate::types::describe::{FieldType, SObjectDescribe};
 use serde_json::{Map, Value};
 
 /// Generates mock data for an SObjectDescribe based on its createable fields.
@@ -39,7 +39,7 @@ pub fn generate_mock_data(describe: &SObjectDescribe) -> Value {
 #[cfg(feature = "schema")]
 mod tests {
     use super::*;
-    use crate::api::rest::describe::{FieldDescribe, FieldType, SObjectDescribe};
+    use crate::types::describe::{FieldDescribe, FieldType, SObjectDescribe};
 
     fn mock_field(name: &str, type_: FieldType, createable: bool) -> FieldDescribe {
         FieldDescribe {

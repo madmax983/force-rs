@@ -59,6 +59,7 @@ use tokio::sync::RwLock;
 ///
 /// The `security_token` is automatically appended to the password. Pass an
 /// empty string if the caller's IP is whitelisted.
+#[derive(Clone)]
 pub struct UsernamePassword {
     /// OAuth client ID from Salesforce Connected App.
     client_id: String,
@@ -207,7 +208,7 @@ impl UsernamePassword {
             return Err(crate::auth::handle_oauth_error(response, None).await);
         }
 
-        let bytes = crate::http::error::read_capped_body_bytes(response, 10 * 1024 * 1024).await?;
+        let bytes = crate::http::error::read_capped_body_bytes(response, 1024 * 1024).await?;
         serde_json::from_slice::<TokenResponse>(&bytes)
             .map_err(crate::error::SerializationError::from)
             .map_err(Into::into)
