@@ -25,7 +25,9 @@ pub struct TokenResponse {
     #[serde(default = "default_token_type")]
     pub token_type: String,
 
-    /// Issued at timestamp (Unix epoch seconds).
+    /// Issued at timestamp (Unix epoch milliseconds).
+    /// Not all flows return this field (e.g., JWT Bearer Flow omits it).
+    #[serde(default = "default_issued_at")]
     pub issued_at: String,
 
     /// Token signature.
@@ -43,6 +45,12 @@ pub struct TokenResponse {
 
 pub fn default_token_type() -> String {
     "Bearer".to_string()
+}
+
+/// Default `issued_at` for flows that don't return it (e.g., JWT Bearer).
+/// Returns the current time as a Unix-epoch-milliseconds string.
+fn default_issued_at() -> String {
+    Utc::now().timestamp_millis().to_string()
 }
 
 /// A secure access token with expiration tracking.
