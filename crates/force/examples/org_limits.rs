@@ -8,6 +8,7 @@
 //! Set the following environment variables:
 //! - `SF_CLIENT_ID` - OAuth client ID (Connected App Consumer Key)
 //! - `SF_CLIENT_SECRET` - OAuth client secret (Connected App Consumer Secret)
+//! - `SF_MY_DOMAIN_URL` - Org My Domain URL
 //!
 //! # Run
 //!
@@ -172,10 +173,10 @@ mod example {
 
         let client_id = required_env("SF_CLIENT_ID")?;
         let client_secret = required_env("SF_CLIENT_SECRET")?;
+        let my_domain_url = required_env("SF_MY_DOMAIN_URL")?;
 
         println!("Authenticating with Salesforce...");
-        // For Sandbox, use: ClientCredentials::new_sandbox("client-id", "client-secret")
-        let auth = ClientCredentials::new_production(client_id, client_secret);
+        let auth = ClientCredentials::new_my_domain(client_id, client_secret, my_domain_url);
         let client = ForceClientBuilder::new().authenticate(auth).build().await?;
         println!("Authentication successful\n");
 

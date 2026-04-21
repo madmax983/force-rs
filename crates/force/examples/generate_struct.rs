@@ -17,13 +17,14 @@ async fn main() -> anyhow::Result<()> {
         env::var("SALESFORCE_CLIENT_ID").unwrap_or_else(|_| "your-client-id".to_string());
     let client_secret =
         env::var("SALESFORCE_CLIENT_SECRET").unwrap_or_else(|_| "your-client-secret".to_string());
+    let my_domain_url = env::var("SALESFORCE_MY_DOMAIN_URL")
+        .unwrap_or_else(|_| "https://your-org.my.salesforce.com".to_string());
     let sobject_name = env::args().nth(1).unwrap_or_else(|| "Account".to_string());
 
     println!("Authenticating with Salesforce...");
 
     // Authenticate with OAuth 2.0 client credentials
-    // For Sandbox, use: ClientCredentials::new_sandbox("client-id", "client-secret")
-    let auth = ClientCredentials::new_production(&client_id, &client_secret);
+    let auth = ClientCredentials::new_my_domain(&client_id, &client_secret, &my_domain_url);
 
     // We expect this to fail gracefully if the credentials are dummy, but in a real org
     // this will retrieve the describe and generate real code.
@@ -40,7 +41,7 @@ async fn main() -> anyhow::Result<()> {
         }
         Err(e) => {
             println!(
-                "Failed to authenticate: {e}. Please set SALESFORCE_CLIENT_ID and SALESFORCE_CLIENT_SECRET to valid credentials."
+                "Failed to authenticate: {e}. Please set SALESFORCE_CLIENT_ID, SALESFORCE_CLIENT_SECRET, and SALESFORCE_MY_DOMAIN_URL to valid credentials."
             );
             return fallback_demonstration();
         }

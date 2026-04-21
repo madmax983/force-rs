@@ -11,7 +11,7 @@
 //!
 //! 2. **Client Credentials** — renewable, preferred for server-to-server:
 //!    - `SF_CLIENT_ID`, `SF_CLIENT_SECRET`
-//!    - optional `SF_TOKEN_URL` (defaults to production)
+//!    - `SF_TOKEN_URL` must be set explicitly for the target org/environment
 //!
 //! 3. **Username-Password** (feature `username_password`) — deprecated by Salesforce:
 //!    - `SF_UP_CLIENT_ID`, `SF_UP_CLIENT_SECRET`, `SF_UP_USERNAME`,
@@ -188,6 +188,59 @@ fn resolve_key_path(raw: &str) -> std::path::PathBuf {
 const PRODUCTION_TOKEN_URL: &str = "https://login.salesforce.com/services/oauth2/token";
 const PRODUCTION_LOGIN_URL: &str = "https://login.salesforce.com";
 
+fn invalid_config(field: &str, reason: impl Into<String>) -> ForceError {
+    ForceError::Config(force::error::ConfigError::InvalidValue {
+        field: field.to_string(),
+        reason: reason.into(),
+    })
+}
+
+fn validate_client_credentials_token_url(token_url: &str) -> Result<()> {
+    let parsed = url::Url::parse(token_url).map_err(|error| {
+        invalid_config(
+            "SF_TOKEN_URL",
+            format!("must be a valid HTTPS Salesforce OAuth token endpoint: {error}"),
+        )
+    })?;
+
+    if parsed.scheme() != "https" {
+        return Err(invalid_config(
+            "SF_TOKEN_URL",
+            "must use https for Salesforce OAuth token requests",
+        ));
+    }
+
+    if parsed.host_str().is_none() {
+        return Err(invalid_config(
+            "SF_TOKEN_URL",
+            "must include a Salesforce host",
+        ));
+    }
+
+    if parsed.path().trim_end_matches('/') != "/services/oauth2/token" {
+        return Err(invalid_config(
+            "SF_TOKEN_URL",
+            "must end with /services/oauth2/token",
+        ));
+    }
+
+    Ok(())
+}
+
+fn require_client_credentials_token_url() -> String {
+    let token_url = env_string("SF_TOKEN_URL").unwrap_or_else(|| {
+        panic!(
+            "{}",
+            force::error::ConfigError::MissingValue(
+                "SF_TOKEN_URL is required when SF_CLIENT_ID/SF_CLIENT_SECRET are configured; set it explicitly for the target org, for example https://MyDomainName.my.salesforce.com/services/oauth2/token"
+                    .to_string(),
+            )
+        )
+    });
+    validate_client_credentials_token_url(&token_url).unwrap_or_else(|error| panic!("{error}"));
+    token_url
+}
+
 /// Tries to build a JWT Bearer authenticator from env vars.
 #[cfg(feature = "jwt")]
 fn try_jwt_auth() -> Option<LiveAuth> {
@@ -219,7 +272,7 @@ fn try_jwt_auth() -> Option<LiveAuth> {
 fn try_client_credentials_auth() -> Option<LiveAuth> {
     let client_id = env_string("SF_CLIENT_ID")?;
     let client_secret = env_string("SF_CLIENT_SECRET")?;
-    let token_url = env_string("SF_TOKEN_URL").unwrap_or_else(|| PRODUCTION_TOKEN_URL.to_string());
+    let token_url = require_client_credentials_token_url();
 
     let flow = force::auth::ClientCredentials::new(client_id, client_secret, token_url);
     Some(LiveAuth::ClientCredentials(flow))
@@ -445,6 +498,41 @@ fn assert_status_error_with_any_status(
     }
 }
 
+#[test]
+fn client_credentials_contract_rejects_non_token_endpoint() {
+    let result = validate_client_credentials_token_url(
+        "https://example.my.salesforce.com/services/oauth2/authorize",
+    );
+
+    let Err(err) = result else {
+        panic!("client credentials must reject non-token OAuth endpoints");
+    };
+
+    let message = err.to_string();
+    assert!(
+        message.contains("SF_TOKEN_URL") && message.contains("/services/oauth2/token"),
+        "expected token endpoint guidance in error, got: {message}",
+    );
+}
+
+#[test]
+fn client_credentials_contract_accepts_explicit_token_endpoints() {
+    let result = validate_client_credentials_token_url(PRODUCTION_TOKEN_URL);
+    assert!(
+        result.is_ok(),
+        "client credentials should accept explicit Salesforce token endpoints: {result:?}",
+    );
+
+    let result = validate_client_credentials_token_url(
+        "https://example.my.salesforce.com/services/oauth2/token",
+    );
+
+    assert!(
+        result.is_ok(),
+        "client credentials should accept My Domain token endpoints: {result:?}",
+    );
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 //  AUTH FLOW TESTS
 // ═══════════════════════════════════════════════════════════════════════════
@@ -609,8 +697,7 @@ mod client_credentials_auth_tests {
     fn load_cc_flow() -> Option<ClientCredentials> {
         let client_id = env_string("SF_CLIENT_ID")?;
         let client_secret = env_string("SF_CLIENT_SECRET")?;
-        let token_url =
-            env_string("SF_TOKEN_URL").unwrap_or_else(|| PRODUCTION_TOKEN_URL.to_string());
+        let token_url = require_client_credentials_token_url();
         Some(ClientCredentials::new(client_id, client_secret, token_url))
     }
 
@@ -690,8 +777,7 @@ mod client_credentials_auth_tests {
             return Ok(());
         };
 
-        let token_url =
-            env_string("SF_TOKEN_URL").unwrap_or_else(|| PRODUCTION_TOKEN_URL.to_string());
+        let token_url = require_client_credentials_token_url();
 
         let bad_flow = ClientCredentials::new(client_id, "INVALID_SECRET", token_url);
 
@@ -1098,7 +1184,7 @@ async fn live_rest_throttling_error_payload() -> Result<()> {
 
 // ─── Bulk Round-Trip Tests (SmartIngest, Convenience Methods, DataFaker) ──
 
-/// Self-cleaning bulk tests that exercise SmartIngest, convenience methods,
+/// Self-cleaning bulk tests that exercise `SmartIngest`, convenience methods,
 /// and the datafaker against a live org. Every record created is deleted
 /// before the test returns.
 ///
@@ -1133,6 +1219,12 @@ mod bulk_roundtrip_tests {
             .collect()
     }
 
+    fn record_count_as_usize(value: Option<i64>, field: &str) -> Result<usize> {
+        let count = value.unwrap_or(0);
+        usize::try_from(count)
+            .map_err(|_| ForceError::InvalidInput(format!("{field} is out of range: {count}")))
+    }
+
     /// Deletes all Account records matching a Name prefix via bulk delete.
     /// Returns the number of records deleted.
     async fn cleanup_accounts(
@@ -1141,9 +1233,7 @@ mod bulk_roundtrip_tests {
         policy: force::api::bulk::BulkPollPolicy,
     ) -> Result<usize> {
         // Query for IDs matching the prefix
-        let soql = format!(
-            "SELECT Id FROM Account WHERE Name LIKE '{prefix}%'"
-        );
+        let soql = format!("SELECT Id FROM Account WHERE Name LIKE '{prefix}%'");
         let result = client
             .rest()
             .query::<force::types::DynamicSObject>(&soql)
@@ -1212,9 +1302,8 @@ mod bulk_roundtrip_tests {
             config.auth,
         );
 
-        let result: std::result::Result<(), ForceError> = tokio::time::timeout(
-            config.runtime.test_timeout,
-            async {
+        let result: std::result::Result<(), ForceError> =
+            tokio::time::timeout(config.runtime.test_timeout, async {
                 let client = create_live_client(&config).await?;
                 let accounts = generate_accounts(&prefix, record_count);
 
@@ -1229,7 +1318,10 @@ mod bulk_roundtrip_tests {
                     .await?;
 
                 assert_eq!(
-                    job_info.number_records_processed.unwrap_or(0) as usize,
+                    record_count_as_usize(
+                        job_info.number_records_processed,
+                        "number_records_processed"
+                    )?,
                     record_count,
                     "SmartIngest should process all {record_count} records",
                 );
@@ -1249,10 +1341,7 @@ mod bulk_roundtrip_tests {
                 );
                 let mut query_stream = client
                     .bulk()
-                    .bulk_query_with_policy::<AccountRow>(
-                        &soql,
-                        config.runtime.bulk_poll_policy,
-                    )
+                    .bulk_query_with_policy::<AccountRow>(&soql, config.runtime.bulk_poll_policy)
                     .await?;
 
                 let mut queried = Vec::new();
@@ -1271,29 +1360,30 @@ mod bulk_roundtrip_tests {
                     queried[0].name.starts_with(&prefix),
                     "First record name should start with prefix",
                 );
+                assert!(
+                    queried.iter().all(|row| !row.id.is_empty()),
+                    "Bulk query should return non-empty Account IDs",
+                );
 
                 // ── CLEANUP via bulk delete ─────────────────────────────
-                let deleted = cleanup_accounts(&client, &prefix, config.runtime.bulk_poll_policy)
-                    .await?;
+                let deleted =
+                    cleanup_accounts(&client, &prefix, config.runtime.bulk_poll_policy).await?;
                 eprintln!("Cleaned up {deleted} records");
                 assert_eq!(deleted, record_count);
 
                 Ok(())
-            },
-        )
-        .await
-        .map_err(|_| HttpError::Timeout {
-            timeout_seconds: config.runtime.test_timeout.as_secs(),
-        })?;
+            })
+            .await
+            .map_err(|_| HttpError::Timeout {
+                timeout_seconds: config.runtime.test_timeout.as_secs(),
+            })?;
 
         // If the test body failed, still try cleanup (best-effort)
-        if result.is_err() {
-            if let Some(config) = load_live_config() {
-                if let Ok(client) = create_live_client(&config).await {
-                    let _ =
-                        cleanup_accounts(&client, &prefix, config.runtime.bulk_poll_policy).await;
-                }
-            }
+        if result.is_err()
+            && let Some(config) = load_live_config()
+            && let Ok(client) = create_live_client(&config).await
+        {
+            let _ = cleanup_accounts(&client, &prefix, config.runtime.bulk_poll_policy).await;
         }
 
         result
@@ -1324,9 +1414,8 @@ mod bulk_roundtrip_tests {
             config.auth,
         );
 
-        let result: std::result::Result<(), ForceError> = tokio::time::timeout(
-            config.runtime.test_timeout,
-            async {
+        let result: std::result::Result<(), ForceError> =
+            tokio::time::timeout(config.runtime.test_timeout, async {
                 let client = create_live_client(&config).await?;
                 let accounts = generate_accounts(&prefix, record_count);
 
@@ -1334,16 +1423,17 @@ mod bulk_roundtrip_tests {
                 let job_info = client.bulk().insert("Account", &accounts).await?;
 
                 assert_eq!(
-                    job_info.number_records_processed.unwrap_or(0) as usize,
+                    record_count_as_usize(
+                        job_info.number_records_processed,
+                        "number_records_processed"
+                    )?,
                     record_count,
                 );
                 assert_eq!(job_info.number_records_failed.unwrap_or(-1), 0);
-                eprintln!("bulk insert completed: {} records", record_count);
+                eprintln!("bulk insert completed: {record_count} records");
 
                 // ── Query IDs for deletion ─────────────────────────────
-                let soql = format!(
-                    "SELECT Id FROM Account WHERE Name LIKE '{prefix}%'"
-                );
+                let soql = format!("SELECT Id FROM Account WHERE Name LIKE '{prefix}%'");
                 let result = client
                     .rest()
                     .query::<force::types::DynamicSObject>(&soql)
@@ -1352,9 +1442,7 @@ mod bulk_roundtrip_tests {
                 let ids: Vec<String> = result
                     .records
                     .iter()
-                    .filter_map(|r| {
-                        r.get_field("Id").and_then(|v| v.as_str().map(String::from))
-                    })
+                    .filter_map(|r| r.get_field("Id").and_then(|v| v.as_str().map(String::from)))
                     .collect();
 
                 assert_eq!(
@@ -1367,27 +1455,27 @@ mod bulk_roundtrip_tests {
                 let del_info = client.bulk().delete("Account", &ids).await?;
 
                 assert_eq!(
-                    del_info.number_records_processed.unwrap_or(0) as usize,
+                    record_count_as_usize(
+                        del_info.number_records_processed,
+                        "number_records_processed"
+                    )?,
                     record_count,
                 );
                 assert_eq!(del_info.number_records_failed.unwrap_or(-1), 0);
-                eprintln!("bulk delete completed: {} records", record_count);
+                eprintln!("bulk delete completed: {record_count} records");
 
                 Ok(())
-            },
-        )
-        .await
-        .map_err(|_| HttpError::Timeout {
-            timeout_seconds: config.runtime.test_timeout.as_secs(),
-        })?;
+            })
+            .await
+            .map_err(|_| HttpError::Timeout {
+                timeout_seconds: config.runtime.test_timeout.as_secs(),
+            })?;
 
-        if result.is_err() {
-            if let Some(config) = load_live_config() {
-                if let Ok(client) = create_live_client(&config).await {
-                    let _ =
-                        cleanup_accounts(&client, &prefix, config.runtime.bulk_poll_policy).await;
-                }
-            }
+        if result.is_err()
+            && let Some(config) = load_live_config()
+            && let Ok(client) = create_live_client(&config).await
+        {
+            let _ = cleanup_accounts(&client, &prefix, config.runtime.bulk_poll_policy).await;
         }
 
         result
@@ -1440,7 +1528,7 @@ mod bulk_roundtrip_tests {
 
             eprintln!(
                 "datafaker generated payload with {} fields",
-                payload.as_object().map_or(0, |o| o.len()),
+                payload.as_object().map_or(0, serde_json::Map::len),
             );
 
             // ── Create via REST ────────────────────────────────────
@@ -1448,20 +1536,18 @@ mod bulk_roundtrip_tests {
 
             match create_result {
                 Ok(response) => {
-                    let sf_id = response.id.expect("successful create should return an Id");
+                    let Some(sf_id) = response.id else {
+                        return Err(ForceError::InvalidInput(
+                            "successful create should return an Id".to_string(),
+                        ));
+                    };
                     eprintln!("datafaker record created: {sf_id}");
 
                     // ── Read it back ───────────────────────────────
-                    let fetched: serde_json::Value = client
-                        .rest()
-                        .get("Account", &sf_id)
-                        .await?;
+                    let fetched: serde_json::Value = client.rest().get("Account", &sf_id).await?;
 
                     // The Name field should have been set by the datafaker
-                    let name = fetched
-                        .get("Name")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("");
+                    let name = fetched.get("Name").and_then(|v| v.as_str()).unwrap_or("");
                     assert!(
                         !name.is_empty(),
                         "Fetched record should have a Name field set by datafaker",
@@ -1490,13 +1576,14 @@ mod bulk_roundtrip_tests {
                     // That's OK — the point is the datafaker ran and produced
                     // a plausible payload; the org just rejected it.
                     let err_str = e.to_string();
-                    eprintln!(
-                        "datafaker record rejected by org (validation rules?): {err_str}"
-                    );
+                    eprintln!("datafaker record rejected by org (validation rules?): {err_str}");
                     assert!(
                         matches!(
                             e,
-                            ForceError::Http(HttpError::StatusError { status_code: 400, .. })
+                            ForceError::Http(HttpError::StatusError {
+                                status_code: 400,
+                                ..
+                            })
                         ),
                         "Rejection should be a 400 validation error, got: {e:?}",
                     );

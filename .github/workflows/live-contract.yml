@@ -23,7 +23,8 @@ jobs:
       # ── Client Credentials ──
       SF_CLIENT_ID: ${{ secrets.SF_CLIENT_ID }}
       SF_CLIENT_SECRET: ${{ secrets.SF_CLIENT_SECRET }}
-      SF_TOKEN_URL: ${{ vars.SF_TOKEN_URL || 'https://login.salesforce.com/services/oauth2/token' }}
+      # Set explicitly for the target org/environment.
+      SF_TOKEN_URL: ${{ vars.SF_TOKEN_URL }}
 
       # ── Username-Password ──
       SF_UP_CLIENT_ID: ${{ secrets.SF_UP_CLIENT_ID }}
@@ -53,8 +54,14 @@ jobs:
 
       - name: Write JWT private key to file
         if: ${{ env.SF_JWT_CLIENT_ID != '' }}
+        env:
+          SF_JWT_PRIVATE_KEY: ${{ secrets.SF_JWT_PRIVATE_KEY }}
         run: |
-          echo "${{ secrets.SF_JWT_PRIVATE_KEY }}" > /tmp/jwt_live_key.pem
+          if [ -z "$SF_JWT_PRIVATE_KEY" ]; then
+            echo "SF_JWT_PRIVATE_KEY secret is required when SF_JWT_CLIENT_ID is set" >&2
+            exit 1
+          fi
+          printf '%b' "$SF_JWT_PRIVATE_KEY" > /tmp/jwt_live_key.pem
           chmod 600 /tmp/jwt_live_key.pem
           echo "SF_JWT_PRIVATE_KEY_PATH=/tmp/jwt_live_key.pem" >> "$GITHUB_ENV"
 

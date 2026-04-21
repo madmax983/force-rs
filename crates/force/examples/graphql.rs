@@ -12,11 +12,12 @@
 //! Set the following environment variables:
 //! - `SF_CLIENT_ID`      - OAuth client ID (Connected App Consumer Key)
 //! - `SF_CLIENT_SECRET`  - OAuth client secret (Connected App Consumer Secret)
+//! - `SF_MY_DOMAIN_URL`  - Org My Domain URL
 //!
 //! # Run
 //!
 //! ```bash
-//! SF_CLIENT_ID=xxx SF_CLIENT_SECRET=yyy cargo run --example graphql --features graphql
+//! SF_CLIENT_ID=xxx SF_CLIENT_SECRET=yyy SF_MY_DOMAIN_URL=https://your-org.my.salesforce.com cargo run --example graphql --features graphql
 //! ```
 
 #[cfg(feature = "graphql")]
@@ -73,9 +74,11 @@ mod example {
         let client_id = std::env::var("SF_CLIENT_ID").context("SF_CLIENT_ID not set")?;
         let client_secret =
             std::env::var("SF_CLIENT_SECRET").context("SF_CLIENT_SECRET not set")?;
+        let my_domain_url =
+            std::env::var("SF_MY_DOMAIN_URL").context("SF_MY_DOMAIN_URL not set")?;
 
         println!("Authenticating with Salesforce...");
-        let auth = ClientCredentials::new_production(client_id, client_secret);
+        let auth = ClientCredentials::new_my_domain(client_id, client_secret, my_domain_url);
         let client = ForceClientBuilder::new()
             .authenticate(auth)
             .build()

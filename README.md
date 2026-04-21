@@ -94,10 +94,10 @@ struct Account {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     // Authenticate with OAuth 2.0 client credentials
-    // For Sandbox, use: ClientCredentials::new_sandbox("client-id", "client-secret")
-    let auth = ClientCredentials::new_production(
+    let auth = ClientCredentials::new_my_domain(
         "your-client-id",
         "your-client-secret",
+        "https://your-org.my.salesforce.com",
     );
 
     let client = ForceClientBuilder::new()
@@ -122,7 +122,7 @@ async fn main() -> anyhow::Result<()> {
 }
 ```
 
-> **Note:** For Sandbox environments, use `ClientCredentials::new_sandbox("client-id", "client-secret")` instead of `new_production`.
+> **Note:** If Salesforce returns a domain-support error for client-credentials auth, use your org's My Domain host, for example `https://your-org.my.salesforce.com`.
 
 ## Advanced Examples
 
@@ -139,7 +139,11 @@ use serde_json::json;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let auth = ClientCredentials::new_production("client-id", "client-secret");
+    let auth = ClientCredentials::new_my_domain(
+        "client-id",
+        "client-secret",
+        "https://your-org.my.salesforce.com",
+    );
     let client = ForceClientBuilder::new().authenticate(auth).build().await?;
     let gql = client.graphql();
 
@@ -184,10 +188,10 @@ struct Account {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // For Sandbox, use: ClientCredentials::new_sandbox("client-id", "client-secret")
-    let auth = ClientCredentials::new_production(
+    let auth = ClientCredentials::new_my_domain(
         "client-id",
         "client-secret",
+        "https://your-org.my.salesforce.com",
     );
     let client = ForceClientBuilder::new().authenticate(auth).build().await?;
 
@@ -230,10 +234,10 @@ struct Contact {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // For Sandbox, use: ClientCredentials::new_sandbox("client-id", "client-secret")
-    let auth = ClientCredentials::new_production(
+    let auth = ClientCredentials::new_my_domain(
         "client-id",
         "client-secret",
+        "https://your-org.my.salesforce.com",
     );
     let client = ForceClientBuilder::new().authenticate(auth).build().await?;
 
@@ -332,7 +336,11 @@ use force::auth::ClientCredentials;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let auth = ClientCredentials::new_production("client-id", "client-secret");
+    let auth = ClientCredentials::new_my_domain(
+        "client-id",
+        "client-secret",
+        "https://your-org.my.salesforce.com",
+    );
     let client = ForceClientBuilder::new().authenticate(auth).build().await?;
 
     let soql = "SELECT Id FROM Account WHERE Name LIKE 'A%'";
@@ -406,7 +414,7 @@ cargo test --features graphql -- graphql
 cargo test --features bulk -- bulk
 ```
 
-Nightly live-contract tests (ignored by default in local runs) are available in CI and can be run manually with org credentials.
+Nightly live-contract tests (ignored by default in local runs) are available in CI and can be run manually with org credentials. Client-credentials live tests require `SF_TOKEN_URL` to be set explicitly for the target org/environment, for example `https://your-org.my.salesforce.com/services/oauth2/token`.
 
 ## Enterprise DX and Governance
 

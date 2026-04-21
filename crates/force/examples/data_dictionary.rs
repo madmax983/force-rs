@@ -15,8 +15,10 @@ async fn main() -> anyhow::Result<()> {
         std::env::var("SALESFORCE_CLIENT_ID").unwrap_or_else(|_| "dummy_client_id".to_string());
     let client_secret = std::env::var("SALESFORCE_CLIENT_SECRET")
         .unwrap_or_else(|_| "dummy_client_secret".to_string());
+    let my_domain_url = std::env::var("SALESFORCE_MY_DOMAIN_URL")
+        .unwrap_or_else(|_| "https://your-org.my.salesforce.com".to_string());
 
-    let auth = ClientCredentials::new_sandbox(client_id, client_secret);
+    let auth = ClientCredentials::new_my_domain(client_id, client_secret, my_domain_url);
 
     let client = ForceClientBuilder::new().authenticate(auth).build().await?;
 
