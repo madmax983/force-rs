@@ -1,3 +1,4 @@
+#![recursion_limit = "256"]
 //! # force
 //!
 //! Canonical Salesforce Platform API client for Rust.
