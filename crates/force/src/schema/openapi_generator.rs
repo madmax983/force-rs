@@ -3,7 +3,7 @@
 //! Generates OpenAPI 3.0 schemas and path operations based on Salesforce object schemas.
 
 #[cfg(feature = "schema")]
-use crate::api::rest::describe::{FieldDescribe, FieldType, SObjectDescribe};
+use crate::types::describe::{FieldDescribe, FieldType, SObjectDescribe};
 #[cfg(feature = "schema")]
 use std::fmt::Write;
 

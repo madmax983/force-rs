@@ -3,7 +3,7 @@
 //! Evaluates Query Plan API responses (`ExplainResponse`) to produce insights
 //! and actionable warnings (e.g., table scans, high cost, or missing indexes).
 
-use crate::api::rest::explain::ExplainResponse;
+use crate::types::explain::ExplainResponse;
 
 /// The severity of a query plan insight.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -132,7 +132,7 @@ pub fn analyze_query_plan(response: &ExplainResponse) -> QueryInsights<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::api::rest::explain::{PlanNote, QueryPlan};
+    use crate::types::explain::{PlanNote, QueryPlan};
 
     fn create_plan(
         op_type: &str,

@@ -162,7 +162,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let response = client.rest().explain(soql).await.must();
+        let response: ExplainResponse = client.rest().explain(soql).await.must();
 
         assert_eq!(response.plans.len(), 1);
         assert_eq!(response.plans[0].leading_operation_type, "TableScan");

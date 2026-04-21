@@ -29,7 +29,7 @@
 //! # }
 //! ```
 
-use crate::api::rest::describe::{FieldDescribe, FieldType, SObjectDescribe};
+use crate::types::describe::{FieldDescribe, FieldType, SObjectDescribe};
 use std::collections::HashMap;
 
 /// Represents a change in a field's definition.

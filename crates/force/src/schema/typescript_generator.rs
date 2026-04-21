@@ -1,6 +1,6 @@
 //! TypeScript interface generator for Salesforce SObject Describe metadata.
 #[cfg(feature = "schema")]
-use crate::api::rest::describe::{FieldType, SObjectDescribe};
+use crate::types::describe::{FieldType, SObjectDescribe};
 use std::fmt::Write;
 
 /// Preview utility to generate TypeScript interfaces from SObject describe metadata.
@@ -58,7 +58,7 @@ fn map_type(ft: &FieldType) -> &'static str {
 #[cfg(feature = "schema")]
 mod tests {
     use super::*;
-    use crate::api::rest::describe::FieldDescribe;
+    use crate::types::describe::FieldDescribe;
 
     fn mock_field(name: &str, type_: FieldType, nillable: bool, updateable: bool) -> FieldDescribe {
         FieldDescribe {

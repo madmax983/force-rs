@@ -5,18 +5,18 @@
 
 pub(crate) mod crud;
 pub(crate) mod describe;
-pub(crate) mod explain;
+
 pub(crate) mod limits;
 pub(crate) mod query;
 pub(crate) mod query_plan_analyzer;
 pub(crate) mod search;
 
 pub use crate::api::soql::{SoqlQueryBuilder, escape_soql};
+pub use crate::types::explain::{ExplainResponse, PlanNote, QueryPlan};
 pub use describe::{
     ChildRelationship, FieldDescribe, FieldType, FilteredLookupInfo, GlobalDescribe,
     GlobalSObjectDescribe, PicklistValue, RecordTypeInfo, SObjectDescribe,
 };
-pub use explain::{ExplainResponse, PlanNote, QueryPlan};
 pub use limits::{LimitInfo, OrgLimits};
 pub use query_plan_analyzer::{InsightSeverity, QueryInsight, QueryInsights, analyze_query_plan};
 pub use search::{SearchAttributes, SearchQueryBuilder, SearchRecords, SearchResult};
@@ -216,7 +216,7 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
     /// - Authentication fails
     /// - The HTTP request fails
     /// - The response cannot be deserialized
-    pub async fn explain(&self, soql: &str) -> Result<explain::ExplainResponse> {
+    pub async fn explain(&self, soql: &str) -> Result<crate::types::explain::ExplainResponse> {
         self.execute_get(
             "query",
             Some(&[("explain", soql)]),
