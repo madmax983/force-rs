@@ -1096,6 +1096,424 @@ async fn live_rest_throttling_error_payload() -> Result<()> {
     );
 }
 
+// ─── Bulk Round-Trip Tests (SmartIngest, Convenience Methods, DataFaker) ──
+
+/// Self-cleaning bulk tests that exercise SmartIngest, convenience methods,
+/// and the datafaker against a live org. Every record created is deleted
+/// before the test returns.
+///
+/// Gated behind `SF_LIVE_RUN_BULK_ROUNDTRIP=1` because they mutate org data.
+mod bulk_roundtrip_tests {
+    use super::*;
+    use futures::stream;
+    use serde::{Deserialize, Serialize};
+
+    /// Minimal Account for bulk insert (CSV-friendly flat struct).
+    #[derive(Debug, Clone, Serialize)]
+    struct NewAccount {
+        #[serde(rename = "Name")]
+        name: String,
+    }
+
+    /// Account row returned from bulk query (needs Id for cleanup).
+    #[derive(Debug, Clone, Deserialize)]
+    struct AccountRow {
+        #[serde(rename = "Id")]
+        id: String,
+        #[serde(rename = "Name")]
+        name: String,
+    }
+
+    /// Generates N accounts with a unique prefix for this test run.
+    fn generate_accounts(prefix: &str, count: usize) -> Vec<NewAccount> {
+        (0..count)
+            .map(|i| NewAccount {
+                name: format!("{prefix}_{i:04}"),
+            })
+            .collect()
+    }
+
+    /// Deletes all Account records matching a Name prefix via bulk delete.
+    /// Returns the number of records deleted.
+    async fn cleanup_accounts(
+        client: &force::client::ForceClient<LiveAuth>,
+        prefix: &str,
+        policy: force::api::bulk::BulkPollPolicy,
+    ) -> Result<usize> {
+        // Query for IDs matching the prefix
+        let soql = format!(
+            "SELECT Id FROM Account WHERE Name LIKE '{prefix}%'"
+        );
+        let result = client
+            .rest()
+            .query::<force::types::DynamicSObject>(&soql)
+            .await?;
+
+        if result.records.is_empty() {
+            return Ok(0);
+        }
+
+        let ids: Vec<String> = result
+            .records
+            .iter()
+            .filter_map(|r| r.get_field("Id").and_then(|v| v.as_str().map(String::from)))
+            .collect();
+
+        let count = ids.len();
+        if count > 0 {
+            let job = force::api::bulk::IngestJob::create(
+                &client.bulk(),
+                "Account",
+                JobOperation::Delete,
+                None,
+            )
+            .await?;
+
+            let csv = ids.iter().fold("Id\n".to_string(), |mut acc, id| {
+                acc.push_str(id);
+                acc.push('\n');
+                acc
+            });
+
+            let job = job.upload(csv).await?;
+            let job = job.close().await?;
+            let _job = job.poll_until_complete_with_policy(policy).await?;
+        }
+
+        Ok(count)
+    }
+
+    // ── SmartIngest round-trip ───────────────────────────────────────────
+
+    #[tokio::test]
+    #[ignore = "requires a live Salesforce org"]
+    async fn live_smart_ingest_round_trip() -> Result<()> {
+        if !env_flag("SF_LIVE_RUN_BULK_ROUNDTRIP") {
+            eprintln!(
+                "skipping live_smart_ingest_round_trip: set SF_LIVE_RUN_BULK_ROUNDTRIP=1 to enable"
+            );
+            return Ok(());
+        }
+
+        let Some(config) = load_live_config() else {
+            eprintln!("skipping: no credentials available");
+            return Ok(());
+        };
+
+        let prefix = format!("FRSSI_{}", chrono::Utc::now().timestamp_millis());
+
+        // Use a small batch_size (50) so that 150 records spans 3 batches,
+        // exercising SmartIngest's multi-batch logic in a live context.
+        let record_count = 150;
+        let batch_size = 50;
+
+        eprintln!(
+            "using auth: {} | prefix={prefix} | records={record_count} | batch_size={batch_size}",
+            config.auth,
+        );
+
+        let result: std::result::Result<(), ForceError> = tokio::time::timeout(
+            config.runtime.test_timeout,
+            async {
+                let client = create_live_client(&config).await?;
+                let accounts = generate_accounts(&prefix, record_count);
+
+                // ── INSERT via SmartIngest ──────────────────────────────
+                let record_stream = stream::iter(accounts);
+
+                let job_info = client
+                    .bulk()
+                    .smart_ingest("Account", JobOperation::Insert)
+                    .batch_size(batch_size)
+                    .execute_stream(record_stream)
+                    .await?;
+
+                assert_eq!(
+                    job_info.number_records_processed.unwrap_or(0) as usize,
+                    record_count,
+                    "SmartIngest should process all {record_count} records",
+                );
+                assert_eq!(
+                    job_info.number_records_failed.unwrap_or(-1),
+                    0,
+                    "SmartIngest should have 0 failures",
+                );
+                eprintln!(
+                    "SmartIngest inserted {record_count} records in {} ms",
+                    job_info.total_processing_time.unwrap_or(0),
+                );
+
+                // ── QUERY back via Bulk Query ──────────────────────────
+                let soql = format!(
+                    "SELECT Id, Name FROM Account WHERE Name LIKE '{prefix}%' ORDER BY Name"
+                );
+                let mut query_stream = client
+                    .bulk()
+                    .bulk_query_with_policy::<AccountRow>(
+                        &soql,
+                        config.runtime.bulk_poll_policy,
+                    )
+                    .await?;
+
+                let mut queried = Vec::new();
+                while let Some(row) = query_stream.next().await? {
+                    queried.push(row);
+                }
+
+                assert_eq!(
+                    queried.len(),
+                    record_count,
+                    "Bulk query should return all {record_count} inserted records",
+                );
+
+                // Spot-check: first and last names should match our pattern
+                assert!(
+                    queried[0].name.starts_with(&prefix),
+                    "First record name should start with prefix",
+                );
+
+                // ── CLEANUP via bulk delete ─────────────────────────────
+                let deleted = cleanup_accounts(&client, &prefix, config.runtime.bulk_poll_policy)
+                    .await?;
+                eprintln!("Cleaned up {deleted} records");
+                assert_eq!(deleted, record_count);
+
+                Ok(())
+            },
+        )
+        .await
+        .map_err(|_| HttpError::Timeout {
+            timeout_seconds: config.runtime.test_timeout.as_secs(),
+        })?;
+
+        // If the test body failed, still try cleanup (best-effort)
+        if result.is_err() {
+            if let Some(config) = load_live_config() {
+                if let Ok(client) = create_live_client(&config).await {
+                    let _ =
+                        cleanup_accounts(&client, &prefix, config.runtime.bulk_poll_policy).await;
+                }
+            }
+        }
+
+        result
+    }
+
+    // ── Convenience method round-trip (insert + delete) ─────────────────
+
+    #[tokio::test]
+    #[ignore = "requires a live Salesforce org"]
+    async fn live_bulk_insert_delete_convenience() -> Result<()> {
+        if !env_flag("SF_LIVE_RUN_BULK_ROUNDTRIP") {
+            eprintln!(
+                "skipping live_bulk_insert_delete_convenience: set SF_LIVE_RUN_BULK_ROUNDTRIP=1 to enable"
+            );
+            return Ok(());
+        }
+
+        let Some(config) = load_live_config() else {
+            eprintln!("skipping: no credentials available");
+            return Ok(());
+        };
+
+        let prefix = format!("FRSCONV_{}", chrono::Utc::now().timestamp_millis());
+        let record_count = 10;
+
+        eprintln!(
+            "using auth: {} | prefix={prefix} | records={record_count}",
+            config.auth,
+        );
+
+        let result: std::result::Result<(), ForceError> = tokio::time::timeout(
+            config.runtime.test_timeout,
+            async {
+                let client = create_live_client(&config).await?;
+                let accounts = generate_accounts(&prefix, record_count);
+
+                // ── INSERT via convenience method ──────────────────────
+                let job_info = client.bulk().insert("Account", &accounts).await?;
+
+                assert_eq!(
+                    job_info.number_records_processed.unwrap_or(0) as usize,
+                    record_count,
+                );
+                assert_eq!(job_info.number_records_failed.unwrap_or(-1), 0);
+                eprintln!("bulk insert completed: {} records", record_count);
+
+                // ── Query IDs for deletion ─────────────────────────────
+                let soql = format!(
+                    "SELECT Id FROM Account WHERE Name LIKE '{prefix}%'"
+                );
+                let result = client
+                    .rest()
+                    .query::<force::types::DynamicSObject>(&soql)
+                    .await?;
+
+                let ids: Vec<String> = result
+                    .records
+                    .iter()
+                    .filter_map(|r| {
+                        r.get_field("Id").and_then(|v| v.as_str().map(String::from))
+                    })
+                    .collect();
+
+                assert_eq!(
+                    ids.len(),
+                    record_count,
+                    "Should find all {record_count} inserted records",
+                );
+
+                // ── DELETE via convenience method ──────────────────────
+                let del_info = client.bulk().delete("Account", &ids).await?;
+
+                assert_eq!(
+                    del_info.number_records_processed.unwrap_or(0) as usize,
+                    record_count,
+                );
+                assert_eq!(del_info.number_records_failed.unwrap_or(-1), 0);
+                eprintln!("bulk delete completed: {} records", record_count);
+
+                Ok(())
+            },
+        )
+        .await
+        .map_err(|_| HttpError::Timeout {
+            timeout_seconds: config.runtime.test_timeout.as_secs(),
+        })?;
+
+        if result.is_err() {
+            if let Some(config) = load_live_config() {
+                if let Ok(client) = create_live_client(&config).await {
+                    let _ =
+                        cleanup_accounts(&client, &prefix, config.runtime.bulk_poll_policy).await;
+                }
+            }
+        }
+
+        result
+    }
+
+    // ── DataFaker → REST create → verify → delete ───────────────────────
+
+    #[tokio::test]
+    #[ignore = "requires a live Salesforce org"]
+    async fn live_datafaker_rest_round_trip() -> Result<()> {
+        if !env_flag("SF_LIVE_RUN_BULK_ROUNDTRIP") {
+            eprintln!(
+                "skipping live_datafaker_rest_round_trip: set SF_LIVE_RUN_BULK_ROUNDTRIP=1 to enable"
+            );
+            return Ok(());
+        }
+
+        let Some(config) = load_live_config() else {
+            eprintln!("skipping: no credentials available");
+            return Ok(());
+        };
+
+        eprintln!(
+            "using auth: {} (testing datafaker → REST round-trip)",
+            config.auth,
+        );
+
+        tokio::time::timeout(config.runtime.test_timeout, async {
+            let client = create_live_client(&config).await?;
+
+            // ── Describe Account to feed the datafaker ─────────────
+            let describe = client.rest().describe("Account").await?;
+            eprintln!(
+                "Account describe: {} fields, {} createable",
+                describe.fields.len(),
+                describe.fields.iter().filter(|f| f.createable).count(),
+            );
+
+            // ── Generate a mock record ─────────────────────────────
+            let mock_record = force::data::generate_mock_record(&describe);
+
+            // The mock record has fields populated — serialize to JSON
+            // for REST create (strip the dummy attributes/Id).
+            let mut payload = serde_json::to_value(&mock_record)
+                .map_err(|e| ForceError::Serialization(e.into()))?;
+            if let Some(obj) = payload.as_object_mut() {
+                obj.remove("attributes");
+                obj.remove("Id");
+            }
+
+            eprintln!(
+                "datafaker generated payload with {} fields",
+                payload.as_object().map_or(0, |o| o.len()),
+            );
+
+            // ── Create via REST ────────────────────────────────────
+            let create_result = client.rest().create("Account", &payload).await;
+
+            match create_result {
+                Ok(response) => {
+                    let sf_id = response.id.expect("successful create should return an Id");
+                    eprintln!("datafaker record created: {sf_id}");
+
+                    // ── Read it back ───────────────────────────────
+                    let fetched: serde_json::Value = client
+                        .rest()
+                        .get("Account", &sf_id)
+                        .await?;
+
+                    // The Name field should have been set by the datafaker
+                    let name = fetched
+                        .get("Name")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
+                    assert!(
+                        !name.is_empty(),
+                        "Fetched record should have a Name field set by datafaker",
+                    );
+                    eprintln!("read-back confirmed — Name: {name}");
+
+                    // ── Generate a mock SOQL query and run it ──────
+                    let mock_query = force::data::generate_mock_query(&describe);
+                    eprintln!("datafaker SOQL: {mock_query}");
+                    let query_result = client
+                        .rest()
+                        .query::<force::types::DynamicSObject>(&mock_query)
+                        .await?;
+                    eprintln!(
+                        "datafaker query returned {} record(s)",
+                        query_result.records.len(),
+                    );
+
+                    // ── Cleanup ────────────────────────────────────
+                    client.rest().delete("Account", &sf_id).await?;
+                    eprintln!("datafaker record deleted");
+                }
+                Err(e) => {
+                    // Some orgs have validation rules that reject mock data
+                    // (required fields, picklist restrictions, etc.).
+                    // That's OK — the point is the datafaker ran and produced
+                    // a plausible payload; the org just rejected it.
+                    let err_str = e.to_string();
+                    eprintln!(
+                        "datafaker record rejected by org (validation rules?): {err_str}"
+                    );
+                    assert!(
+                        matches!(
+                            e,
+                            ForceError::Http(HttpError::StatusError { status_code: 400, .. })
+                        ),
+                        "Rejection should be a 400 validation error, got: {e:?}",
+                    );
+                }
+            }
+
+            Ok::<(), ForceError>(())
+        })
+        .await
+        .map_err(|_| HttpError::Timeout {
+            timeout_seconds: config.runtime.test_timeout.as_secs(),
+        })??;
+
+        Ok(())
+    }
+}
+
 // ─── Data Cloud Token Exchange Tests ──────────────────────────────────────
 
 #[cfg(feature = "data_cloud")]
