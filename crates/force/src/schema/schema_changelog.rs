@@ -25,7 +25,7 @@
 //! # }
 //! ```
 
-use crate::api::rest::describe::SObjectDescribe;
+use crate::types::describe::SObjectDescribe;
 
 use super::schema_diff::compare_schemas;
 

@@ -38,8 +38,8 @@
 //! # }
 //! ```
 
-use crate::api::rest::describe::{FieldDescribe, FieldType, SObjectDescribe};
 use crate::types::DynamicSObject;
+use crate::types::describe::{FieldDescribe, FieldType, SObjectDescribe};
 use serde_json::Value;
 
 /// Utility for masking sensitive fields in SObject records.

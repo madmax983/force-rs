@@ -3,7 +3,7 @@
 //! This module provides a utility to evaluate an `SObjectDescribe` against a set of
 //! customizable rules to identify schema anti-patterns, technical debt, or potential limits.
 
-use crate::api::rest::describe::SObjectDescribe;
+use crate::types::describe::SObjectDescribe;
 
 /// Represents the severity of a linter finding.
 #[derive(Debug, Clone, PartialEq, Eq)]

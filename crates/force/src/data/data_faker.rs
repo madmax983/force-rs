@@ -28,7 +28,7 @@
 //! # }
 //! ```
 
-use crate::api::rest::describe::{FieldType, SObjectDescribe};
+use crate::types::describe::{FieldType, SObjectDescribe};
 use crate::types::{Attributes, DynamicSObject, SalesforceId};
 
 /// Utility for generating mock data based on Salesforce schema metadata.
@@ -372,8 +372,8 @@ pub fn generate_mock_query(describe: &SObjectDescribe) -> String {
 #[cfg(test)]
 mod additional_tests {
     use super::*;
-    use crate::api::rest::describe::SObjectDescribe;
     use crate::test_support::Must;
+    use crate::types::describe::SObjectDescribe;
     use serde_json::json;
 
     fn create_mock_describe(fields_json: &serde_json::Value) -> SObjectDescribe {

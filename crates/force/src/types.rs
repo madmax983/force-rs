@@ -25,3 +25,5 @@ pub use sobject::{Attributes, DynamicSObject};
 // Re-exports for backward compatibility (moved to auth)
 #[deprecated(since = "0.2.0", note = "Import directly from `force::auth` instead")]
 pub use crate::auth::{AccessToken, Authenticator, TokenResponse};
+pub(crate) mod explain;
+pub use explain::{ExplainResponse, PlanNote, QueryPlan};
