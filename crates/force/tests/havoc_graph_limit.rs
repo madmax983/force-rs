@@ -12,14 +12,14 @@ fn test_havoc_graph_limit_enforced() {
     // Add 500 requests, which is the maximum limit.
     for i in 0..500 {
         let req = GraphRequest::new("GET", "/sobjects/Account", format!("ref_{i}"));
-        graph = graph.add_request(req).unwrap();
+        graph = graph.add_request(req.unwrap()).unwrap();
     }
 
     assert_eq!(graph.composite_request.len(), 500);
 
     // The 501st request MUST fail.
     let req = GraphRequest::new("GET", "/sobjects/Account", "ref_501");
-    let result = graph.add_request(req);
+    let result = graph.add_request(req.unwrap());
 
     assert!(
         result.is_err(),

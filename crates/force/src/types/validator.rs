@@ -120,6 +120,36 @@ fn validate_field_name_internal(name: &str, allow_functions: bool) -> Result<(),
     Ok(())
 }
 
+/// Validates an API URL path.
+///
+/// # Rules
+/// - Must not be empty.
+/// - Must not contain path traversal characters (`..`, `//`).
+/// - Must not start with a schema (e.g., `http://`, `https://`).
+///
+/// # Security
+///
+/// This prevents SSRF and path traversal attacks when user inputs are used
+/// directly in composite requests or dynamic URLs.
+pub fn validate_url_path(path: &str) -> Result<(), ForceError> {
+    if path.is_empty() {
+        return Err(ForceError::InvalidInput(
+            "URL path cannot be empty".to_string(),
+        ));
+    }
+    if path.contains("..") || path.contains("//") {
+        return Err(ForceError::InvalidInput(format!(
+            "URL path contains invalid path traversal characters: {path}"
+        )));
+    }
+    if path.starts_with("http://") || path.starts_with("https://") {
+        return Err(ForceError::InvalidInput(format!(
+            "URL path must be relative, but absolute URL was provided: {path}"
+        )));
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

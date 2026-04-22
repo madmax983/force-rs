@@ -182,7 +182,7 @@ impl Graph {
             "GET",
             crate::api::path_utils::format_sobject_path(sobject, Some(id)),
             reference_id,
-        ))
+        )?)
     }
 
     /// Adds a POST (Create) request to the graph.
@@ -200,7 +200,7 @@ impl Graph {
                 "POST",
                 crate::api::path_utils::format_sobject_path(sobject, None),
                 reference_id,
-            )
+            )?
             .body(body),
         )
     }
@@ -222,7 +222,7 @@ impl Graph {
                 "PATCH",
                 crate::api::path_utils::format_sobject_path(sobject, Some(id)),
                 reference_id,
-            )
+            )?
             .body(body),
         )
     }
@@ -242,7 +242,7 @@ impl Graph {
             "DELETE",
             crate::api::path_utils::format_sobject_path(sobject, Some(id)),
             reference_id,
-        ))
+        )?)
     }
 
     /// Adds a SOQL query request to the graph.
@@ -263,7 +263,7 @@ impl Graph {
     pub fn query(self, query_builder: SoqlQueryBuilder, reference_id: &str) -> Result<Self> {
         validate_reference_id(reference_id)?;
         let url = crate::api::soql::encode_soql_query_url(&query_builder)?;
-        self.add_request(GraphRequest::new("GET", url, reference_id))
+        self.add_request(GraphRequest::new("GET", url, reference_id)?)
     }
 }
 
@@ -294,13 +294,15 @@ impl GraphRequest {
         method: impl Into<String>,
         url: impl Into<String>,
         reference_id: impl Into<String>,
-    ) -> Self {
-        Self {
+    ) -> Result<Self> {
+        let url_str = url.into();
+        validator::validate_url_path(&url_str)?;
+        Ok(Self {
             method: method.into(),
-            url: url.into(),
+            url: url_str,
             reference_id: reference_id.into(),
             body: None,
-        }
+        })
     }
 
     /// Sets the request body.
@@ -601,6 +603,7 @@ mod tests {
     #[test]
     fn test_graph_request_body() {
         let req = GraphRequest::new("POST", "sobjects/Account", "ref1")
+            .must()
             .body(serde_json::json!({"Name": "Test"}));
         assert_eq!(req.body.must()["Name"], "Test");
     }

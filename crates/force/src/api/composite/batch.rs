@@ -167,6 +167,8 @@ impl<A: Authenticator> BatchRequest<A> {
         url: impl Into<String>,
         body: Option<Value>,
     ) -> Result<Self> {
+        let url_str = url.into();
+        validator::validate_url_path(&url_str)?;
         if self.requests.len() >= 25 {
             return Err(ForceError::InvalidInput(
                 "Batch size limit of 25 requests exceeded".to_string(),
@@ -175,7 +177,7 @@ impl<A: Authenticator> BatchRequest<A> {
 
         self.requests.push(BatchSubRequest {
             method: method.into(),
-            url: url.into(),
+            url: url_str,
             rich_input: body,
         });
         Ok(self)
