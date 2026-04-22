@@ -11,7 +11,7 @@ use force::{
 use serde_json::json;
 use wiremock::{
     Mock, MockServer, ResponseTemplate,
-    matchers::{body_json, header, method, path},
+    matchers::{body_json, body_string, header, method, path},
 };
 
 use force_sync::{
@@ -146,8 +146,11 @@ async fn bulk_upsert_uses_the_external_id_field() {
         .and(path(
             "/services/data/v60.0/jobs/ingest/750xx0000000001AAA/batches",
         ))
+        .and(body_string(
+            "External_Id__c,Name\nexternal-1,Acme\nexternal-2,Acme 2\n",
+        ))
         .respond_with(ResponseTemplate::new(201))
-        .expect(2)
+        .expect(1)
         .mount(&mock_server)
         .await;
 
@@ -202,7 +205,7 @@ async fn bulk_upsert_uses_the_external_id_field() {
         .await
         .unwrap_or_else(|error| panic!("unexpected bulk apply error: {error}"));
 
-    assert_eq!(result.id, "750xx0000000001AAA");
+    assert_eq!(result.jobs[0].id, "750xx0000000001AAA");
 }
 
 #[tokio::test]

@@ -29,4 +29,4 @@ pub use csv::{
 };
 
 #[cfg(feature = "bulk")]
-pub use smart_ingest::SmartIngest;
+pub use smart_ingest::{DEFAULT_MAX_UPLOAD_BYTES, SmartIngest, SmartIngestResult};

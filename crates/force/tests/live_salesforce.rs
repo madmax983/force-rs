@@ -1586,13 +1586,14 @@ mod bulk_roundtrip_tests {
 
         let prefix = format!("FRSSI_{}", chrono::Utc::now().timestamp_millis());
 
-        // Use a small batch_size (50) so that 150 records spans 3 batches,
-        // exercising SmartIngest's multi-batch logic in a live context.
+        // Use a small local buffer and a tiny upload ceiling so the test
+        // exercises SmartIngest's multi-job logic in a live context.
         let record_count = 150;
         let batch_size = 50;
+        let max_upload_bytes = 1_500;
 
         eprintln!(
-            "using auth: {} | prefix={prefix} | records={record_count} | batch_size={batch_size}",
+            "using auth: {} | prefix={prefix} | records={record_count} | batch_size={batch_size} | max_upload_bytes={max_upload_bytes}",
             config.auth,
         );
 
@@ -1604,29 +1605,36 @@ mod bulk_roundtrip_tests {
                 // ── INSERT via SmartIngest ──────────────────────────────
                 let record_stream = stream::iter(accounts);
 
-                let job_info = client
+                let ingest_result = client
                     .bulk()
                     .smart_ingest("Account", JobOperation::Insert)
                     .batch_size(batch_size)
+                    .max_upload_bytes(max_upload_bytes)
                     .execute_stream(record_stream)
                     .await?;
 
+                assert!(
+                    ingest_result.job_count() > 1,
+                    "SmartIngest should split this payload across multiple jobs",
+                );
+
                 assert_eq!(
                     record_count_as_usize(
-                        job_info.number_records_processed,
-                        "number_records_processed"
+                        Some(ingest_result.total_records_processed()),
+                        "total_records_processed"
                     )?,
                     record_count,
                     "SmartIngest should process all {record_count} records",
                 );
                 assert_eq!(
-                    job_info.number_records_failed.unwrap_or(-1),
+                    ingest_result.total_records_failed(),
                     0,
                     "SmartIngest should have 0 failures",
                 );
                 eprintln!(
-                    "SmartIngest inserted {record_count} records in {} ms",
-                    job_info.total_processing_time.unwrap_or(0),
+                    "SmartIngest inserted {record_count} records across {} job(s) in {} ms",
+                    ingest_result.job_count(),
+                    ingest_result.total_processing_time(),
                 );
 
                 // ── QUERY back via Bulk Query ──────────────────────────

@@ -98,28 +98,12 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        // Mock: Upload Batch 1
+        // Bulk API 2.0 allows only one upload per job. The small batch size
+        // exercises internal buffer flushes, but the HTTP contract is a
+        // single PUT containing all rows with one header.
         Mock::given(method("PUT"))
             .and(path("/services/data/v60.0/jobs/ingest/JOB_ID/batches"))
-            .and(body_string("id,name\n001,Batch1\n"))
-            .respond_with(ResponseTemplate::new(201))
-            .expect(1)
-            .mount(&mock_server)
-            .await;
-
-        // Mock: Upload Batch 2
-        Mock::given(method("PUT"))
-            .and(path("/services/data/v60.0/jobs/ingest/JOB_ID/batches"))
-            .and(body_string("002,Batch2\n"))
-            .respond_with(ResponseTemplate::new(201))
-            .expect(1)
-            .mount(&mock_server)
-            .await;
-
-        // Mock: Upload Batch 3
-        Mock::given(method("PUT"))
-            .and(path("/services/data/v60.0/jobs/ingest/JOB_ID/batches"))
-            .and(body_string("003,Batch3\n"))
+            .and(body_string("id,name\n001,Batch1\n002,Batch2\n003,Batch3\n"))
             .respond_with(ResponseTemplate::new(201))
             .expect(1)
             .mount(&mock_server)
@@ -174,7 +158,8 @@ mod tests {
         ];
         let stream = stream::iter(records);
 
-        // Batch size 1 to force 3 batches
+        // Batch size 1 forces three internal buffer flushes, while Bulk API
+        // 2.0 still receives one upload for the job.
         let result = SmartIngest::new(&handler, "Account", JobOperation::Insert)
             .batch_size(1)
             .execute_stream(stream)
