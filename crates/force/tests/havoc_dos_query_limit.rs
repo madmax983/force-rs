@@ -141,7 +141,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_bulk_query_csv_dos_limit() {
-        use force::http::error::read_capped_bytes;
+        use force::http::read_capped_bytes;
 
         let mock_server = MockServer::start().await;
 

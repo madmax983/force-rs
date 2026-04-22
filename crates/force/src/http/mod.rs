@@ -8,12 +8,13 @@
 //! - Sforce-Limit-Info header tracking for API limits
 //! - Detailed error parsing from Salesforce API responses
 
-pub mod error;
+pub(crate) mod error;
 pub(crate) mod executor;
 pub(crate) mod retry;
 pub(crate) mod telemetry;
 
 pub(crate) use error::response_to_force_error;
+pub use error::{parse_api_error, read_capped_body, read_capped_body_bytes, read_capped_bytes};
 pub use executor::HttpExecutor;
 pub use retry::{RequestRetryClass, RetryPolicy};
 pub use telemetry::{RequestCompletion, RequestErrorKind, RetryEvent, TelemetryHooks};
