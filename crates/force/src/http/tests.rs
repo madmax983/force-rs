@@ -120,7 +120,8 @@ mod integration_tests {
             .await;
 
         // Assert
-        let _ = result.must();
+        let response = result.must();
+        assert_eq!(response.status(), 200);
         assert_eq!(refresh_count.load(Ordering::SeqCst), 1);
     }
 
@@ -279,7 +280,8 @@ mod integration_tests {
         let elapsed = start.elapsed();
 
         // Assert
-        let _ = result.must();
+        let response = result.must();
+        assert_eq!(response.status(), 200);
         // Should have waited ~10ms + ~20ms = ~30ms for backoff
         assert!(elapsed.as_millis() >= 25);
     }
@@ -347,7 +349,8 @@ mod integration_tests {
             })
             .await;
 
-        let _ = result.must();
+        let response = result.must();
+        assert_eq!(response.status(), 200);
     }
 
     #[derive(Debug, Clone, PartialEq, Eq)]
@@ -418,7 +421,8 @@ mod integration_tests {
             })
             .await;
 
-        let _ = result.must();
+        let response = result.must();
+        assert_eq!(response.status(), 200);
         assert_eq!(retries.load(Ordering::SeqCst), 1);
         let Ok(completions) = completions.lock() else {
             panic!("completion lock poisoned");
@@ -621,7 +625,8 @@ mod integration_tests {
         let elapsed = start.elapsed();
 
         // Assert
-        let _ = result.must();
+        let response = result.must();
+        assert_eq!(response.status(), 200);
         // Should have waited at least 50ms (timeout) + 10ms (backoff)
         assert!(elapsed.as_millis() >= 60);
     }

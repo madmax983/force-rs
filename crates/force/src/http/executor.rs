@@ -161,15 +161,13 @@ impl HttpExecutor {
 
             let response = match self.execute_attempt(req_clone, retry_attempt, &ctx).await {
                 Ok(resp) => resp,
-                Err(e) => {
-                    if retry_attempt < max_retries && Self::is_retryable_error(&e) {
-                        self.handle_transient_failure(retry_attempt, &ctx, None)
-                            .await;
-                        retry_attempt += 1;
-                        continue;
-                    }
-                    return Err(e);
+                Err(e) if retry_attempt < max_retries && Self::is_retryable_error(&e) => {
+                    self.handle_transient_failure(retry_attempt, &ctx, None)
+                        .await;
+                    retry_attempt += 1;
+                    continue;
                 }
+                Err(e) => return Err(e),
             };
 
             let status = response.status();
@@ -221,30 +219,29 @@ impl HttpExecutor {
         retry_attempt: u32,
         ctx: &TelemetryContext,
     ) -> Result<Response> {
-        match tokio::time::timeout(self.timeout, self.client.execute(request)).await {
-            Err(_) => {
-                self.record_completion(ctx, None, Some(RequestErrorKind::Timeout), retry_attempt);
-                Err(HttpError::Timeout {
-                    timeout_seconds: self.timeout.as_secs(),
-                }
-                .into())
+        let result = tokio::time::timeout(self.timeout, self.client.execute(request)).await;
+
+        let Ok(req_result) = result else {
+            self.record_completion(ctx, None, Some(RequestErrorKind::Timeout), retry_attempt);
+            return Err(HttpError::Timeout {
+                timeout_seconds: self.timeout.as_secs(),
             }
-            Ok(Err(error)) => {
+            .into());
+        };
+
+        match req_result {
+            Ok(response) => Ok(response),
+            Err(error) => {
                 self.record_completion(ctx, None, Some(RequestErrorKind::Transport), retry_attempt);
                 Err(HttpError::from(error).into())
             }
-            Ok(Ok(response)) => Ok(response),
         }
     }
 
     fn is_retryable_error(error: &crate::error::ForceError) -> bool {
-        let crate::error::ForceError::Http(http_err) = error else {
-            return false;
-        };
-
-        match http_err {
-            HttpError::Timeout { .. } => true,
-            HttpError::RequestFailed(re) => {
+        match error {
+            crate::error::ForceError::Http(HttpError::Timeout { .. }) => true,
+            crate::error::ForceError::Http(HttpError::RequestFailed(re)) => {
                 !re.is_builder() && !re.is_redirect() && !re.is_status()
             }
             _ => false,

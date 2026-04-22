@@ -80,3 +80,7 @@
 **[Extract Builder for Complex Mocks]**
 **Learning:** Large JSON string literals in tests trigger the `clippy::too_many_lines` lint. Instead of bypassing it with `#[allow(clippy::too_many_lines)]`, use the builder pattern (e.g., `MockSObjectDescribeBuilder` and `MockFieldDescribeBuilder` in `crate::test_support`) to programmatically construct complex mock data like `SObjectDescribe`. This keeps tests clean while preserving the ability to assert on specific field types and attributes (like `nillable` or `soap_type`).
 **Action:** When mocking large structs, prefer implementing a fluent builder instead of injecting raw JSON strings.
+
+**[Flattening is_retryable_error in HttpExecutor]**
+**Learning:** The `is_retryable_error` function in `HttpExecutor` had a double `match` statement ('Pyramid of Doom') on `ForceError::Http` checking `HttpError::Timeout` and `HttpError::RequestFailed`. This caused deep nesting.
+**Action:** Flattened into a single `match error` that matches `ForceError::Http(HttpError::Timeout { .. })` and `ForceError::Http(HttpError::RequestFailed(re))` directly.
