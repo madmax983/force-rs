@@ -8,6 +8,7 @@
 //! 1. **JWT Bearer** (feature `jwt`) — renewable, preferred for CI:
 //!    - `SF_JWT_CLIENT_ID`, `SF_JWT_USERNAME`, `SF_JWT_PRIVATE_KEY_PATH`
 //!    - optional `SF_JWT_LOGIN_URL` (defaults to `https://login.salesforce.com`)
+//!      Accepts a bare host, base URL, or full OAuth token endpoint.
 //!
 //! 2. **Client Credentials** — renewable, preferred for server-to-server:
 //!    - `SF_CLIENT_ID`, `SF_CLIENT_SECRET`
@@ -18,6 +19,7 @@
 //!    - `SF_UP_CLIENT_ID`, `SF_UP_CLIENT_SECRET`, `SF_UP_USERNAME`,
 //!      `SF_UP_PASSWORD`, `SF_UP_SECURITY_TOKEN`
 //!    - optional `SF_UP_TOKEN_URL` (defaults to production)
+//!      Accepts a bare host, base URL, or full OAuth token endpoint.
 //!
 //! 4. **Bare access token** — temporary, fallback only:
 //!    - `SF_ACCESS_TOKEN`, `SF_INSTANCE_URL`
@@ -37,6 +39,7 @@ use force::error::Result;
 use serde::Deserialize;
 use std::time::Duration;
 
+//  OAUTH URL CONTRACT TESTS
 #[cfg(feature = "jwt")]
 use force::auth::JwtBearerFlow;
 
@@ -196,47 +199,106 @@ fn invalid_config(field: &str, reason: impl Into<String>) -> ForceError {
     })
 }
 
-fn normalize_client_credentials_token_url(token_url: &str) -> Result<String> {
-    let mut parsed = url::Url::parse(token_url).map_err(|error| {
+fn parse_live_https_url(field: &str, value: &str) -> Result<url::Url> {
+    let value = value.trim();
+    let candidate = if value.contains("://") {
+        value.to_string()
+    } else {
+        format!("https://{value}")
+    };
+
+    let parsed = url::Url::parse(&candidate).map_err(|error| {
         invalid_config(
-            "SF_TOKEN_URL",
-            format!("must be a valid HTTPS Salesforce My Domain or OAuth token endpoint: {error}"),
+            field,
+            format!("must be a valid HTTPS Salesforce base URL or OAuth token endpoint: {error}"),
         )
     })?;
 
     if parsed.scheme() != "https" {
         return Err(invalid_config(
-            "SF_TOKEN_URL",
-            "must use https for Salesforce OAuth token requests",
+            field,
+            "must use https for Salesforce OAuth requests",
         ));
     }
 
     if parsed.host_str().is_none() {
+        return Err(invalid_config(field, "must include a Salesforce host"));
+    }
+
+    if !parsed.username().is_empty() || parsed.password().is_some() {
         return Err(invalid_config(
-            "SF_TOKEN_URL",
-            "must include a Salesforce host",
+            field,
+            "must not include embedded credentials",
         ));
     }
 
     if parsed.query().is_some() || parsed.fragment().is_some() {
         return Err(invalid_config(
-            "SF_TOKEN_URL",
+            field,
             "must not include query parameters or fragments",
         ));
     }
 
+    Ok(parsed)
+}
+
+fn canonical_base_url(mut parsed: url::Url) -> String {
+    parsed.set_path("");
+    parsed.set_query(None);
+    parsed.set_fragment(None);
+    parsed.to_string().trim_end_matches('/').to_string()
+}
+
+fn normalize_oauth_token_url(field: &str, token_url: &str) -> Result<String> {
+    let mut parsed = parse_live_https_url(field, token_url)?;
     let normalized_path = parsed.path().trim_end_matches('/');
     match normalized_path {
         "" | "/services/oauth2/token" => parsed.set_path("/services/oauth2/token"),
         _ => {
             return Err(invalid_config(
-                "SF_TOKEN_URL",
+                field,
                 "must be either a Salesforce base URL like https://MyDomainName.my.salesforce.com or a token endpoint ending in /services/oauth2/token",
             ));
         }
     }
 
     Ok(parsed.to_string())
+}
+
+fn normalize_client_credentials_token_url(token_url: &str) -> Result<String> {
+    normalize_oauth_token_url("SF_TOKEN_URL", token_url)
+}
+
+#[cfg(feature = "username_password")]
+fn normalize_username_password_token_url(token_url: &str) -> Result<String> {
+    normalize_oauth_token_url("SF_UP_TOKEN_URL", token_url)
+}
+
+#[cfg(feature = "jwt")]
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct JwtEndpointConfig {
+    audience: String,
+    token_url: String,
+}
+
+#[cfg(feature = "jwt")]
+fn normalize_jwt_login_url(login_url: &str) -> Result<JwtEndpointConfig> {
+    let parsed = parse_live_https_url("SF_JWT_LOGIN_URL", login_url)?;
+    let normalized_path = parsed.path().trim_end_matches('/');
+    match normalized_path {
+        "" | "/services/oauth2/token" => {
+            let audience = canonical_base_url(parsed);
+            let token_url = format!("{audience}/services/oauth2/token");
+            Ok(JwtEndpointConfig {
+                audience,
+                token_url,
+            })
+        }
+        _ => Err(invalid_config(
+            "SF_JWT_LOGIN_URL",
+            "must be either a Salesforce base URL like https://MyDomainName.my.salesforce.com or a token endpoint ending in /services/oauth2/token",
+        )),
+    }
 }
 
 fn validate_client_credentials_token_url(token_url: &str) -> Result<()> {
@@ -256,6 +318,20 @@ fn require_client_credentials_token_url() -> String {
     normalize_client_credentials_token_url(&token_url).unwrap_or_else(|error| panic!("{error}"))
 }
 
+#[cfg(feature = "jwt")]
+fn load_jwt_endpoint_config() -> JwtEndpointConfig {
+    let login_url =
+        env_string("SF_JWT_LOGIN_URL").unwrap_or_else(|| PRODUCTION_LOGIN_URL.to_string());
+    normalize_jwt_login_url(&login_url).unwrap_or_else(|error| panic!("{error}"))
+}
+
+#[cfg(feature = "username_password")]
+fn load_username_password_token_url() -> String {
+    let token_url =
+        env_string("SF_UP_TOKEN_URL").unwrap_or_else(|| PRODUCTION_TOKEN_URL.to_string());
+    normalize_username_password_token_url(&token_url).unwrap_or_else(|error| panic!("{error}"))
+}
+
 /// Tries to build a JWT Bearer authenticator from env vars.
 #[cfg(feature = "jwt")]
 fn try_jwt_auth() -> Option<LiveAuth> {
@@ -267,16 +343,14 @@ fn try_jwt_auth() -> Option<LiveAuth> {
     let private_key_pem = std::fs::read_to_string(&resolved)
         .unwrap_or_else(|e| panic!("Failed to read private key at {}: {e}", resolved.display()));
 
-    let login_url =
-        env_string("SF_JWT_LOGIN_URL").unwrap_or_else(|| PRODUCTION_LOGIN_URL.to_string());
-    let token_url = format!("{login_url}/services/oauth2/token");
+    let endpoints = load_jwt_endpoint_config();
 
     let flow = JwtBearerFlow::new(
         &client_id,
         &username,
         &private_key_pem,
-        &login_url,
-        &token_url,
+        endpoints.audience.as_str(),
+        endpoints.token_url.as_str(),
     )
     .unwrap_or_else(|e| panic!("Invalid JWT config: {e}"));
 
@@ -301,8 +375,7 @@ fn try_username_password_auth() -> Option<LiveAuth> {
     let username = env_string("SF_UP_USERNAME")?;
     let password = env_string("SF_UP_PASSWORD")?;
     let security_token = env_string("SF_UP_SECURITY_TOKEN").unwrap_or_default();
-    let token_url =
-        env_string("SF_UP_TOKEN_URL").unwrap_or_else(|| PRODUCTION_TOKEN_URL.to_string());
+    let token_url = load_username_password_token_url();
 
     let flow = force::auth::UsernamePassword::new(
         client_id,
@@ -550,6 +623,14 @@ fn client_credentials_contract_accepts_explicit_token_endpoints() {
 
 #[test]
 fn client_credentials_contract_normalizes_my_domain_base_urls() {
+    let token_url = normalize_client_credentials_token_url("example.my.salesforce.com")
+        .unwrap_or_else(|error| panic!("bare My Domain host should normalize: {error}"));
+
+    assert_eq!(
+        token_url,
+        "https://example.my.salesforce.com/services/oauth2/token",
+    );
+
     let token_url = normalize_client_credentials_token_url("https://example.my.salesforce.com")
         .unwrap_or_else(|error| panic!("base My Domain URL should normalize: {error}"));
 
@@ -568,6 +649,49 @@ fn client_credentials_contract_normalizes_my_domain_base_urls() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+#[cfg(feature = "jwt")]
+#[test]
+fn jwt_login_url_contract_normalizes_bare_hosts_and_token_endpoints() {
+    let endpoints = normalize_jwt_login_url("example.my.salesforce.com")
+        .unwrap_or_else(|error| panic!("bare JWT login host should normalize: {error}"));
+
+    assert_eq!(endpoints.audience, "https://example.my.salesforce.com");
+    assert_eq!(
+        endpoints.token_url,
+        "https://example.my.salesforce.com/services/oauth2/token",
+    );
+
+    let endpoints =
+        normalize_jwt_login_url("https://example.my.salesforce.com/services/oauth2/token")
+            .unwrap_or_else(|error| panic!("JWT token endpoint should normalize: {error}"));
+
+    assert_eq!(endpoints.audience, "https://example.my.salesforce.com");
+    assert_eq!(
+        endpoints.token_url,
+        "https://example.my.salesforce.com/services/oauth2/token",
+    );
+}
+
+#[cfg(feature = "username_password")]
+#[test]
+fn username_password_contract_normalizes_base_token_urls() {
+    let token_url = normalize_username_password_token_url("example.my.salesforce.com")
+        .unwrap_or_else(|error| panic!("bare username-password host should normalize: {error}"));
+
+    assert_eq!(
+        token_url,
+        "https://example.my.salesforce.com/services/oauth2/token",
+    );
+
+    let token_url = normalize_username_password_token_url("https://example.my.salesforce.com/")
+        .unwrap_or_else(|error| panic!("base username-password URL should normalize: {error}"));
+
+    assert_eq!(
+        token_url,
+        "https://example.my.salesforce.com/services/oauth2/token",
+    );
+}
+
 //  AUTH FLOW TESTS
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -588,17 +712,15 @@ mod jwt_auth_tests {
             panic!("Failed to read private key at {}: {e}", resolved.display())
         });
 
-        let login_url =
-            env_string("SF_JWT_LOGIN_URL").unwrap_or_else(|| PRODUCTION_LOGIN_URL.to_string());
-        let token_url = format!("{login_url}/services/oauth2/token");
+        let endpoints = load_jwt_endpoint_config();
 
         Some(
             JwtBearerFlow::new(
                 &client_id,
                 &username,
                 &private_key_pem,
-                &login_url,
-                &token_url,
+                endpoints.audience.as_str(),
+                endpoints.token_url.as_str(),
             )
             .unwrap_or_else(|e| panic!("Invalid JWT config: {e}")),
         )
@@ -689,17 +811,15 @@ mod jwt_auth_tests {
         };
         let resolved = resolve_key_path(&private_key_path);
         let pem = std::fs::read_to_string(&resolved)?;
-        let login_url =
-            env_string("SF_JWT_LOGIN_URL").unwrap_or_else(|| PRODUCTION_LOGIN_URL.to_string());
-        let token_url = format!("{login_url}/services/oauth2/token");
+        let endpoints = load_jwt_endpoint_config();
         drop(flow);
 
         let bad_flow = JwtBearerFlow::new(
             "INVALID_CLIENT_ID",
             "user@test.com",
             &pem,
-            &login_url,
-            &token_url,
+            endpoints.audience.as_str(),
+            endpoints.token_url.as_str(),
         )?;
 
         let result = tokio::time::timeout(Duration::from_secs(30), bad_flow.authenticate())
@@ -848,8 +968,7 @@ mod username_password_auth_tests {
         let username = env_string("SF_UP_USERNAME")?;
         let password = env_string("SF_UP_PASSWORD")?;
         let security_token = env_string("SF_UP_SECURITY_TOKEN").unwrap_or_default();
-        let token_url =
-            env_string("SF_UP_TOKEN_URL").unwrap_or_else(|| PRODUCTION_TOKEN_URL.to_string());
+        let token_url = load_username_password_token_url();
 
         Some(UsernamePassword::new(
             client_id,
@@ -939,8 +1058,7 @@ mod username_password_auth_tests {
 
         let client_secret = env_string("SF_UP_CLIENT_SECRET").unwrap_or_default();
         let username = env_string("SF_UP_USERNAME").unwrap_or_else(|| "user@test.com".to_string());
-        let token_url =
-            env_string("SF_UP_TOKEN_URL").unwrap_or_else(|| PRODUCTION_TOKEN_URL.to_string());
+        let token_url = load_username_password_token_url();
 
         let bad_flow = UsernamePassword::new(
             client_id,

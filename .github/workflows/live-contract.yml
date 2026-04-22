@@ -18,6 +18,7 @@ jobs:
       # ── JWT Bearer (primary, renewable) ──
       SF_JWT_CLIENT_ID: ${{ secrets.SF_JWT_CLIENT_ID }}
       SF_JWT_USERNAME: ${{ secrets.SF_JWT_USERNAME }}
+      # Accepts a bare host, base URL, or full /services/oauth2/token endpoint.
       SF_JWT_LOGIN_URL: ${{ vars.SF_JWT_LOGIN_URL || secrets.SF_JWT_LOGIN_URL || 'https://login.salesforce.com' }}
 
       # ── Client Credentials ──
@@ -33,6 +34,7 @@ jobs:
       SF_UP_USERNAME: ${{ secrets.SF_UP_USERNAME }}
       SF_UP_PASSWORD: ${{ secrets.SF_UP_PASSWORD }}
       SF_UP_SECURITY_TOKEN: ${{ secrets.SF_UP_SECURITY_TOKEN }}
+      # Accepts a bare host, base URL, or full /services/oauth2/token endpoint.
       SF_UP_TOKEN_URL: ${{ vars.SF_UP_TOKEN_URL || secrets.SF_UP_TOKEN_URL || 'https://login.salesforce.com/services/oauth2/token' }}
 
       # ── Bare token fallback (deprecated, kept for migration) ──
