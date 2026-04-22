@@ -51,6 +51,10 @@ jobs:
       SF_LIVE_RUN_PARTIAL_FAILURE: ${{ vars.SF_LIVE_RUN_PARTIAL_FAILURE || '0' }}
       SF_LIVE_RUN_THROTTLE: ${{ vars.SF_LIVE_RUN_THROTTLE || '0' }}
       SF_LIVE_THROTTLE_MAX_REQUESTS: ${{ vars.SF_LIVE_THROTTLE_MAX_REQUESTS || '5000' }}
+
+      # Pub/Sub unary contract smoke. Topic must exist and be accessible.
+      SF_PUBSUB_ENDPOINT: ${{ vars.SF_PUBSUB_ENDPOINT || 'https://api.pubsub.salesforce.com:7443' }}
+      SF_PUBSUB_TOPIC: ${{ vars.SF_PUBSUB_TOPIC || secrets.SF_PUBSUB_TOPIC }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -74,8 +78,11 @@ jobs:
       - name: Cache cargo dependencies
         uses: Swatinem/rust-cache@v2
 
-      - name: Run live tests
+      - name: Run force live tests
         run: cargo test -p force --all-features --test live_salesforce -- --ignored --test-threads=1
+
+      - name: Run Pub/Sub live tests
+        run: cargo test -p force-pubsub --test live_salesforce_pubsub -- --ignored --test-threads=1
 
       - name: Cleanup private key
         if: always()

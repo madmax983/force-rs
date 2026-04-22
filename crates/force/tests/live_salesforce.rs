@@ -1128,6 +1128,148 @@ async fn live_rest_query_smoke() -> Result<()> {
     Ok(())
 }
 
+#[cfg(feature = "tooling")]
+#[tokio::test]
+#[ignore = "requires a live Salesforce org"]
+async fn live_tooling_query_smoke() -> Result<()> {
+    let Some(config) = load_live_config() else {
+        eprintln!("skipping live_tooling_query_smoke: no credentials available");
+        return Ok(());
+    };
+
+    eprintln!("using auth: {} (testing Tooling API)", config.auth);
+
+    let result = tokio::time::timeout(config.runtime.test_timeout, async {
+        let client = create_live_client(&config).await?;
+        client
+            .tooling()
+            .query::<serde_json::Value>("SELECT Id FROM ApexClass LIMIT 1")
+            .await
+    })
+    .await
+    .map_err(|_| HttpError::Timeout {
+        timeout_seconds: config.runtime.test_timeout.as_secs(),
+    })??;
+
+    assert!(result.records.len() <= 1);
+    Ok(())
+}
+
+#[cfg(feature = "composite")]
+#[tokio::test]
+#[ignore = "requires a live Salesforce org"]
+async fn live_composite_batch_smoke() -> Result<()> {
+    let Some(config) = load_live_config() else {
+        eprintln!("skipping live_composite_batch_smoke: no credentials available");
+        return Ok(());
+    };
+
+    eprintln!("using auth: {} (testing Composite Batch)", config.auth);
+
+    let result = tokio::time::timeout(config.runtime.test_timeout, async {
+        let client = create_live_client(&config).await?;
+        client
+            .composite()
+            .batch()
+            .add_request("GET", "limits", None)?
+            .add_request("GET", "sobjects/Account/describe", None)?
+            .execute()
+            .await
+    })
+    .await
+    .map_err(|_| HttpError::Timeout {
+        timeout_seconds: config.runtime.test_timeout.as_secs(),
+    })??;
+
+    assert!(
+        !result.has_errors,
+        "Composite batch returned errors: {result:?}"
+    );
+    assert_eq!(result.results.len(), 2);
+    for subresponse in &result.results {
+        assert_eq!(subresponse.status_code, 200);
+        assert!(subresponse.result.is_some());
+    }
+    Ok(())
+}
+
+#[cfg(feature = "ui")]
+#[tokio::test]
+#[ignore = "requires a live Salesforce org"]
+async fn live_ui_object_info_smoke() -> Result<()> {
+    let Some(config) = load_live_config() else {
+        eprintln!("skipping live_ui_object_info_smoke: no credentials available");
+        return Ok(());
+    };
+
+    eprintln!("using auth: {} (testing UI API)", config.auth);
+
+    let object_info = tokio::time::timeout(config.runtime.test_timeout, async {
+        let client = create_live_client(&config).await?;
+        client.ui().object_info("Account").await
+    })
+    .await
+    .map_err(|_| HttpError::Timeout {
+        timeout_seconds: config.runtime.test_timeout.as_secs(),
+    })??;
+
+    assert_eq!(object_info.api_name, "Account");
+    assert!(object_info.fields.contains_key("Id"));
+    assert!(object_info.fields.contains_key("Name"));
+    Ok(())
+}
+
+#[cfg(feature = "graphql")]
+#[tokio::test]
+#[ignore = "requires a live Salesforce org"]
+async fn live_graphql_query_smoke() -> Result<()> {
+    let Some(config) = load_live_config() else {
+        eprintln!("skipping live_graphql_query_smoke: no credentials available");
+        return Ok(());
+    };
+
+    eprintln!("using auth: {} (testing GraphQL API)", config.auth);
+
+    let data = tokio::time::timeout(config.runtime.test_timeout, async {
+        let client = create_live_client(&config).await?;
+        client
+            .graphql()
+            .query_raw(
+                r"{
+                    uiapi {
+                        query {
+                            Account(first: 1) {
+                                edges {
+                                    node {
+                                        Id
+                                    }
+                                }
+                                totalCount
+                            }
+                        }
+                    }
+                }",
+                None,
+            )
+            .await
+    })
+    .await
+    .map_err(|_| HttpError::Timeout {
+        timeout_seconds: config.runtime.test_timeout.as_secs(),
+    })??;
+
+    let account = &data["uiapi"]["query"]["Account"];
+    assert!(
+        account.is_object(),
+        "expected Account GraphQL object, got {account:?}",
+    );
+    assert!(
+        account["edges"].is_array(),
+        "expected Account edges array, got {account:?}",
+    );
+    Ok(())
+}
+
 #[tokio::test]
 #[ignore = "requires a live Salesforce org"]
 async fn live_bulk_query_stream_smoke() -> Result<()> {

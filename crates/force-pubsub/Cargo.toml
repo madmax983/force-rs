@@ -41,7 +41,8 @@ tokio-test = "0.4"
 tokio-stream = { workspace = true, features = ["net"] }
 anyhow = { workspace = true }
 async-trait = { workspace = true }
-force = { path = "../force", version = "0.1.0" }
+force = { path = "../force", version = "0.1.0", features = ["jwt", "username_password"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 wiremock = { workspace = true }
 futures = { workspace = true }
+url = { workspace = true }

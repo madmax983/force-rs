@@ -25,7 +25,7 @@
 
 ## Live Contract Coverage (when applicable)
 
-- [ ] Live tests considered/updated: `crates/force/tests/live_salesforce.rs`
+- [ ] Live tests considered/updated: `crates/force/tests/live_salesforce.rs` and `crates/force-pubsub/tests/live_salesforce_pubsub.rs`
 - [ ] Nightly workflow compatibility confirmed: `.github/workflows/live-contract.yml`
 - [ ] If intentionally skipped, reason documented below
 

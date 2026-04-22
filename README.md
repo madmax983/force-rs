@@ -414,7 +414,7 @@ cargo test --features graphql -- graphql
 cargo test --features bulk -- bulk
 ```
 
-Nightly live-contract tests (ignored by default in local runs) are available in CI and can be run manually with org credentials. OAuth URL env vars accept a bare host, an org base URL, or the full OAuth token endpoint; bare hosts are treated as HTTPS. Client-credentials live tests require `SF_TOKEN_URL` to be set explicitly for the target org/environment.
+Nightly live-contract tests (ignored by default in local runs) are available in CI and can be run manually with org credentials. OAuth URL env vars accept a bare host, an org base URL, or the full OAuth token endpoint; bare hosts are treated as HTTPS. Client-credentials live tests require `SF_TOKEN_URL` to be set explicitly for the target org/environment. Pub/Sub live tests require `SF_PUBSUB_TOPIC` to name an accessible event topic, for example `/data/AccountChangeEvent`; `SF_PUBSUB_ENDPOINT` defaults to `https://api.pubsub.salesforce.com:7443`.
 
 ## Enterprise DX and Governance
 
