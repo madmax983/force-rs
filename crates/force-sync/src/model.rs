@@ -60,10 +60,25 @@ impl SourceCursor {
     /// Returns the database representation used by the sync journal.
     #[must_use]
     pub fn as_db_value(&self) -> String {
+        use std::fmt::Write;
         match self {
-            Self::SalesforceReplayId(replay_id) => format!("salesforce-replay-id:{replay_id}"),
-            Self::PostgresLsn(lsn) => format!("postgres-lsn:{lsn}"),
-            Self::Snapshot(watermark) => format!("snapshot:{watermark}"),
+            Self::SalesforceReplayId(replay_id) => {
+                let mut s = String::with_capacity(22 + 20); // prefix + max digits for i64
+                let _ = write!(s, "salesforce-replay-id:{replay_id}");
+                s
+            }
+            Self::PostgresLsn(lsn) => {
+                let mut s = String::with_capacity(13 + lsn.len());
+                s.push_str("postgres-lsn:");
+                s.push_str(lsn);
+                s
+            }
+            Self::Snapshot(watermark) => {
+                let mut s = String::with_capacity(9 + watermark.len());
+                s.push_str("snapshot:");
+                s.push_str(watermark);
+                s
+            }
         }
     }
 }
@@ -170,8 +185,10 @@ fn hash_json_value(value: &Value, hasher: &mut blake3::Hasher) {
     match value {
         Value::Object(map) => {
             let _ = Write::write_all(hasher, b"{");
-            let mut iter: Vec<_> = map.iter().collect();
-            iter.sort_by_key(|(k, _)| *k);
+            // ⚡ Bolt: Provide a capacity hint for the intermediate vector to avoid reallocations
+            let mut iter = Vec::with_capacity(map.len());
+            iter.extend(map.iter());
+            iter.sort_unstable_by_key(|(k, _)| *k);
             let mut first = true;
             for (k, v) in iter {
                 if !first {
