@@ -50,6 +50,7 @@ jobs:
       SF_LIVE_BULK_QUERY_ROW_LIMIT: ${{ vars.SF_LIVE_BULK_QUERY_ROW_LIMIT || '5' }}
       SF_LIVE_RUN_PARTIAL_FAILURE: ${{ vars.SF_LIVE_RUN_PARTIAL_FAILURE || '0' }}
       SF_LIVE_RUN_THROTTLE: ${{ vars.SF_LIVE_RUN_THROTTLE || '0' }}
+      SF_LIVE_RUN_BULK_ROUNDTRIP: ${{ vars.SF_LIVE_RUN_BULK_ROUNDTRIP || '0' }}
       SF_LIVE_THROTTLE_MAX_REQUESTS: ${{ vars.SF_LIVE_THROTTLE_MAX_REQUESTS || '5000' }}
 
       # Pub/Sub unary contract smoke. Topic must exist and be accessible.
