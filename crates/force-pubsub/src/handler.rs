@@ -50,7 +50,7 @@ async fn fetch_tenant_id<A: Authenticator>(session: &Arc<Session<A>>) -> Result<
         )));
     }
 
-    let body = force::http::error::read_capped_body(resp, 1024 * 1024)
+    let body = force::http::read_capped_body(resp, 1024 * 1024)
         .await
         .map_err(|e| PubSubError::Config(format!("userinfo parse failed: {e}")))?;
 
