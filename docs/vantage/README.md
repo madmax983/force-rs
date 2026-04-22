@@ -2,10 +2,6 @@
 
 Design backlog and product-spec notes for incubating `force-rs` capabilities. These documents were moved out of the repo root so release-facing docs stay focused on shipped crates and active project documentation.
 
-## Authentication
-
-- [`saml-bearer-auth.md`](saml-bearer-auth.md): SAML Bearer Authentication Flow spec.
-
 ## Streaming and Integration
 
 - [`apex-rest-api.md`](apex-rest-api.md): native Apex REST handler for custom Salesforce endpoints.
