@@ -111,7 +111,13 @@ jobs:
     if: github.event_name != 'pull_request'
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            build_args: "--workspace --all-features"
+          - os: windows-latest
+            build_args: "--workspace --exclude force-fuzz --all-features"
+          - os: macos-latest
+            build_args: "--workspace --exclude force-fuzz --all-features"
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -125,7 +131,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Build workspace
-        run: cargo build --workspace --all-features
+        run: cargo build ${{ matrix.build_args }}
 
       - name: Run smoke tests
         run: cargo test --workspace --all-features --lib

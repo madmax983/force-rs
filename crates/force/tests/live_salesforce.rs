@@ -1785,6 +1785,7 @@ mod bulk_roundtrip_tests {
 
     // ── DataFaker → REST create → verify → delete ───────────────────────
 
+    #[cfg(feature = "data_utility")]
     #[tokio::test]
     #[ignore = "requires a live Salesforce org"]
     async fn live_datafaker_rest_round_trip() -> Result<()> {
