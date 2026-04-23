@@ -539,6 +539,64 @@ mod tests {
     }
 
     #[test]
+    fn test_graph_post_patch_delete() {
+        let mut graph = Graph::new("graph1");
+
+        // Valid POST
+        graph = graph
+            .post("Account", json!({"Name": "Test"}), "refPost")
+            .must();
+
+        // Valid PATCH
+        graph = graph
+            .patch(
+                "Account",
+                "001000000000000AAA",
+                json!({"Name": "Updated"}),
+                "refPatch",
+            )
+            .must();
+
+        // Valid DELETE
+        graph = graph
+            .delete("Account", "001000000000000AAA", "refDelete")
+            .must();
+
+        assert_eq!(graph.composite_request.len(), 3);
+
+        let post_req = &graph.composite_request[0];
+        assert_eq!(post_req.method, "POST");
+        assert_eq!(post_req.reference_id, "refPost");
+
+        let patch_req = &graph.composite_request[1];
+        assert_eq!(patch_req.method, "PATCH");
+        assert_eq!(patch_req.reference_id, "refPatch");
+
+        let delete_req = &graph.composite_request[2];
+        assert_eq!(delete_req.method, "DELETE");
+        assert_eq!(delete_req.reference_id, "refDelete");
+    }
+
+    #[test]
+    fn test_graph_size_limit() {
+        let mut graph = Graph::new("graph1");
+
+        // Add 500 requests
+        for i in 0..500 {
+            graph = graph
+                .get("Account", "001000000000000AAA", &format!("ref{}", i))
+                .must();
+        }
+
+        // 501st request should fail
+        let result = graph.get("Account", "001000000000000AAA", "ref501");
+
+        assert!(
+            matches!(result, Err(ForceError::InvalidInput(ref msg)) if msg.contains("limit of 500"))
+        );
+    }
+
+    #[test]
     fn test_havoc_path_traversal() {
         let graph = Graph::new("graph1");
 
