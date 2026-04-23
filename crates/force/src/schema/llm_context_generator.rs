@@ -10,7 +10,7 @@
 //! the noise and creates a dense, readable string that gives an LLM exactly what it needs to
 //! know about an SObject's structure, fields, and relationships.
 
-use crate::api::rest::describe::{FieldType, SObjectDescribe};
+use crate::types::describe::{FieldType, SObjectDescribe};
 use std::fmt::Write;
 
 /// Options for configuring the LLM context generation.

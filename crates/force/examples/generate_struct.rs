@@ -62,8 +62,8 @@ async fn main() -> anyhow::Result<()> {
 
 #[cfg(feature = "schema")]
 fn fallback_demonstration() -> anyhow::Result<()> {
-    use force::api::rest::SObjectDescribe;
     use force::schema::generate_rust_struct;
+    use force::types::SObjectDescribe;
 
     println!("\nFallback demonstration mode:\n");
 

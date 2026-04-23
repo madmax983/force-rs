@@ -4,11 +4,9 @@
 
 #![allow(unused_imports)]
 
+use force::api::rest::{InsightSeverity, QueryInsight, QueryInsights, analyze_query_plan};
 #[cfg(feature = "rest")]
-use force::api::rest::{
-    ExplainResponse, InsightSeverity, PlanNote, QueryInsight, QueryInsights, QueryPlan,
-    analyze_query_plan,
-};
+use force::types::{ExplainResponse, PlanNote, QueryPlan};
 
 #[cfg(feature = "schema")]
 use force::schema::{
