@@ -41,6 +41,17 @@ while let Some(event) = stream.next().await {
 
 This crate depends on the [`force`](https://crates.io/crates/force) crate for authentication and session management.
 
+## Live Contract Test
+
+The ignored live smoke test exercises `GetTopic` and `GetSchema` against Salesforce's Pub/Sub gRPC endpoint.
+
+```bash
+SF_PUBSUB_TOPIC=/data/AccountChangeEvent \
+cargo test -p force-pubsub --test live_salesforce_pubsub -- --ignored --test-threads=1
+```
+
+`SF_PUBSUB_ENDPOINT` defaults to `https://api.pubsub.salesforce.com:7443`. The test reuses the same Salesforce auth environment variables as the core `force` live tests.
+
 ## License
 
 Licensed under either of [Apache License, Version 2.0](../../LICENSE-APACHE) or [MIT License](../../LICENSE-MIT) at your option.

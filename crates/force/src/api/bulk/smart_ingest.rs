@@ -1,7 +1,7 @@
 //! Smart Ingest - High-level streaming bulk ingest.
 //!
-//! This module provides the `SmartIngest` utility for efficiently uploading
-//! large datasets to Salesforce Bulk API 2.0 using async streams and automatic batching.
+//! This module provides the `SmartIngest` utility for uploading datasets to
+//! Salesforce Bulk API 2.0 from async streams.
 
 use super::BulkHandler;
 use crate::api::bulk::csv;
@@ -12,16 +12,63 @@ use crate::error::Result;
 use futures::{Stream, StreamExt};
 use serde::Serialize;
 
+/// Default maximum CSV upload payload size per Bulk API 2.0 ingest job.
+///
+/// Salesforce accepts up to 150 MB after base64 conversion; keeping the raw CSV
+/// payload at 100 MB leaves room for that expansion.
+pub const DEFAULT_MAX_UPLOAD_BYTES: usize = 100_000_000;
+
+/// Result of a `SmartIngest` operation.
+#[derive(Debug, Clone)]
+pub struct SmartIngestResult {
+    /// Completed Bulk API 2.0 ingest jobs created for the stream.
+    pub jobs: Vec<JobInfo>,
+}
+
+impl SmartIngestResult {
+    /// Returns the number of Bulk API 2.0 jobs used.
+    #[must_use]
+    pub fn job_count(&self) -> usize {
+        self.jobs.len()
+    }
+
+    /// Returns the total records processed across all jobs.
+    #[must_use]
+    pub fn total_records_processed(&self) -> i64 {
+        self.jobs
+            .iter()
+            .map(|job| job.number_records_processed.unwrap_or(0))
+            .sum()
+    }
+
+    /// Returns the total records failed across all jobs.
+    #[must_use]
+    pub fn total_records_failed(&self) -> i64 {
+        self.jobs
+            .iter()
+            .map(|job| job.number_records_failed.unwrap_or(0))
+            .sum()
+    }
+
+    /// Returns the total Salesforce-reported processing time across all jobs.
+    #[must_use]
+    pub fn total_processing_time(&self) -> i64 {
+        self.jobs
+            .iter()
+            .map(|job| job.total_processing_time.unwrap_or(0))
+            .sum()
+    }
+}
+
 /// A high-level, streaming ingestion utility for Salesforce Bulk API 2.0.
 ///
-/// `SmartIngest` orchestrates the entire lifecycle of a bulk ingest job:
-/// 1. Creates a job.
+/// `SmartIngest` orchestrates the lifecycle of one or more bulk ingest jobs:
+/// 1. Creates a job as records arrive.
 /// 2. Streams records from an async iterator.
-/// 3. Buffers records into optimal batches (default 10,000 records).
-/// 4. Serializes chunks to CSV (handling headers automatically).
-/// 5. Uploads batches sequentially.
-/// 6. Closes the job.
-/// 7. Polls for completion.
+/// 3. Buffers records while streaming them into byte-limited CSV payloads.
+/// 4. Uploads the CSV once, as required by Bulk API 2.0 ingest jobs.
+/// 5. Closes and polls each job.
+/// 6. Starts another job when the next record would exceed the upload limit.
 #[derive(Debug)]
 pub struct SmartIngest<'a, A: crate::auth::Authenticator> {
     handler: &'a BulkHandler<A>,
@@ -29,6 +76,7 @@ pub struct SmartIngest<'a, A: crate::auth::Authenticator> {
     operation: JobOperation,
     external_id_field: Option<String>,
     batch_size: usize,
+    max_upload_bytes: usize,
 }
 
 impl<'a, A: crate::auth::Authenticator> SmartIngest<'a, A> {
@@ -51,6 +99,7 @@ impl<'a, A: crate::auth::Authenticator> SmartIngest<'a, A> {
             operation,
             external_id_field: None,
             batch_size: 10_000,
+            max_upload_bytes: DEFAULT_MAX_UPLOAD_BYTES,
         }
     }
 
@@ -70,9 +119,21 @@ impl<'a, A: crate::auth::Authenticator> SmartIngest<'a, A> {
         self
     }
 
-    /// Executes the ingest job using the provided stream of records.
+    /// Sets the maximum raw CSV payload size uploaded to one Bulk API 2.0 job.
     ///
-    /// This method consumes the stream, buffers records, and uploads them in batches.
+    /// Defaults to 100 MB, which leaves room for Salesforce's base64 conversion
+    /// before the documented 150 MB post-conversion limit.
+    #[must_use]
+    pub fn max_upload_bytes(mut self, size: usize) -> Self {
+        self.max_upload_bytes = size;
+        self
+    }
+
+    /// Executes ingest using the provided stream of records.
+    ///
+    /// This method consumes the stream, buffers records into CSV, and creates
+    /// additional Bulk API 2.0 jobs whenever adding the next record would exceed
+    /// `max_upload_bytes`.
     ///
     /// # Arguments
     ///
@@ -80,8 +141,8 @@ impl<'a, A: crate::auth::Authenticator> SmartIngest<'a, A> {
     ///
     /// # Returns
     ///
-    /// The final `JobInfo` after the job completes.
-    pub async fn execute_stream<S, T>(self, stream: S) -> Result<JobInfo>
+    /// A `SmartIngestResult` containing every completed job.
+    pub async fn execute_stream<S, T>(self, stream: S) -> Result<SmartIngestResult>
     where
         S: Stream<Item = T> + Unpin + Send,
         T: Serialize + Send + Sync,
@@ -92,25 +153,13 @@ impl<'a, A: crate::auth::Authenticator> SmartIngest<'a, A> {
             ));
         }
 
-        // 1. Create Job
-        let job_id = self.create_job_internal().await?;
-
-        // 2. Process Stream
-        if let Err(e) = self.process_stream(&job_id, stream).await {
-            // Attempt to abort the job on failure to avoid leaving it Open
-            let abort_req = UpdateJobRequest {
-                state: JobState::Aborted,
-            };
-            // We ignore errors from the abort attempt to ensure the original error is returned
-            let _ = self.handler.update_job(&job_id, abort_req).await;
-            return Err(e);
+        if self.max_upload_bytes == 0 {
+            return Err(crate::error::ForceError::InvalidInput(
+                "Max upload bytes must be greater than 0".to_string(),
+            ));
         }
 
-        // 3. Close Job
-        self.close_job_internal(&job_id).await?;
-
-        // 4. Poll for Completion
-        self.poll_for_completion(&job_id).await
+        self.process_stream(stream).await
     }
 
     async fn create_job_internal(&self) -> Result<String> {
@@ -127,7 +176,7 @@ impl<'a, A: crate::auth::Authenticator> SmartIngest<'a, A> {
         Ok(job_info.id)
     }
 
-    async fn process_stream<S, T>(&self, job_id: &str, mut stream: S) -> Result<()>
+    async fn process_stream<S, T>(&self, mut stream: S) -> Result<SmartIngestResult>
     where
         S: Stream<Item = T> + Unpin + Send,
         T: Serialize + Send + Sync,
@@ -135,28 +184,91 @@ impl<'a, A: crate::auth::Authenticator> SmartIngest<'a, A> {
         // Cap initial allocation to avoid panic/OOM on huge batch_size
         let capacity = std::cmp::min(self.batch_size, 10_000);
         let mut buffer = Vec::with_capacity(capacity);
-        let mut is_first_batch = true;
-        // Optimization: track the size of the previous batch's CSV data
-        // to pre-allocate the next buffer and reduce reallocations.
-        let mut capacity_hint = 0;
+        let mut csv_data = Vec::new();
+        let mut current_job_id = None;
+        let mut jobs = Vec::new();
 
         while let Some(record) = stream.next().await {
             buffer.push(record);
 
             if buffer.len() >= self.batch_size {
-                let size = self
-                    .upload_batch(job_id, &buffer, is_first_batch, capacity_hint)
-                    .await?;
-                capacity_hint = size;
+                if let Err(error) = self
+                    .append_records(&buffer, &mut current_job_id, &mut csv_data, &mut jobs)
+                    .await
+                {
+                    if let Some(job_id) = current_job_id.as_deref() {
+                        self.abort_job_best_effort(job_id).await;
+                    }
+                    return Err(error);
+                }
                 buffer.clear();
-                is_first_batch = false;
             }
         }
 
         if !buffer.is_empty() {
-            self.upload_batch(job_id, &buffer, is_first_batch, capacity_hint)
-                .await?;
+            if let Err(error) = self
+                .append_records(&buffer, &mut current_job_id, &mut csv_data, &mut jobs)
+                .await
+            {
+                if let Some(job_id) = current_job_id.as_deref() {
+                    self.abort_job_best_effort(job_id).await;
+                }
+                return Err(error);
+            }
         }
+
+        if let Some(job_id) = current_job_id {
+            jobs.push(self.finish_job(job_id, csv_data).await?);
+        } else {
+            let job_id = self.create_job_internal().await?;
+            jobs.push(self.finish_job(job_id, Vec::new()).await?);
+        }
+
+        Ok(SmartIngestResult { jobs })
+    }
+
+    async fn append_records<T>(
+        &self,
+        records: &[T],
+        current_job_id: &mut Option<String>,
+        csv_data: &mut Vec<u8>,
+        jobs: &mut Vec<JobInfo>,
+    ) -> Result<()>
+    where
+        T: Serialize + Sync,
+    {
+        for record in records {
+            let (header, row) = Self::serialize_record_parts(record)?;
+            let minimum_payload_size = header.len() + row.len();
+
+            if minimum_payload_size > self.max_upload_bytes {
+                return Err(crate::error::ForceError::InvalidInput(format!(
+                    "Serialized record is {minimum_payload_size} bytes with CSV headers, exceeding max_upload_bytes ({})",
+                    self.max_upload_bytes
+                )));
+            }
+
+            if current_job_id.is_none() {
+                *current_job_id = Some(self.create_job_internal().await?);
+                csv_data.extend_from_slice(&header);
+            }
+
+            if csv_data.len() + row.len() > self.max_upload_bytes {
+                let Some(job_id) = current_job_id.take() else {
+                    return Err(crate::error::ForceError::InvalidInput(
+                        "Cannot finish SmartIngest job because no active job exists".to_string(),
+                    ));
+                };
+                let payload = std::mem::take(csv_data);
+                jobs.push(self.finish_job(job_id, payload).await?);
+
+                *current_job_id = Some(self.create_job_internal().await?);
+                csv_data.extend_from_slice(&header);
+            }
+
+            csv_data.extend_from_slice(&row);
+        }
+
         Ok(())
     }
 
@@ -208,24 +320,47 @@ impl<'a, A: crate::auth::Authenticator> SmartIngest<'a, A> {
         }
     }
 
-    async fn upload_batch<T>(
-        &self,
-        job_id: &str,
-        records: &[T],
-        is_first_batch: bool,
-        capacity_hint: usize,
-    ) -> Result<usize>
+    fn serialize_record_parts<T>(record: &T) -> Result<(Vec<u8>, Vec<u8>)>
     where
         T: Serialize + Sync,
     {
-        // Serialize to CSV
-        // Use capacity hint to reduce reallocations
-        let mut csv_data = Vec::with_capacity(capacity_hint);
-        // Use the new helper with options
-        csv::serialize_to_csv_with_options(records, &mut csv_data, is_first_batch)?;
-        let size = csv_data.len();
+        let mut bytes = Vec::new();
+        csv::serialize_to_csv_with_options(std::slice::from_ref(record), &mut bytes, true)?;
 
-        // Upload
+        let header_end = bytes
+            .iter()
+            .position(|byte| *byte == b'\n')
+            .ok_or_else(|| {
+                crate::error::ForceError::InvalidInput(
+                    "Serialized CSV record did not include a header row".to_string(),
+                )
+            })?
+            + 1;
+
+        let row = bytes.split_off(header_end);
+        Ok((bytes, row))
+    }
+
+    async fn finish_job(&self, job_id: String, csv_data: Vec<u8>) -> Result<JobInfo> {
+        if !csv_data.is_empty()
+            && let Err(error) = self.upload_csv(&job_id, csv_data).await
+        {
+            self.abort_job_best_effort(&job_id).await;
+            return Err(error);
+        }
+
+        self.close_job_internal(&job_id).await?;
+        self.poll_for_completion(&job_id).await
+    }
+
+    async fn abort_job_best_effort(&self, job_id: &str) {
+        let abort_req = UpdateJobRequest {
+            state: JobState::Aborted,
+        };
+        let _ = self.handler.update_job(job_id, abort_req).await;
+    }
+
+    async fn upload_csv(&self, job_id: &str, csv_data: Vec<u8>) -> Result<()> {
         let url = self
             .handler
             .inner
@@ -252,7 +387,7 @@ impl<'a, A: crate::auth::Authenticator> SmartIngest<'a, A> {
             .execute_and_check_success(request, "Batch upload failed")
             .await?;
 
-        Ok(size)
+        Ok(())
     }
 }
 
@@ -279,6 +414,53 @@ mod tests {
     struct TestRecord {
         id: String,
         name: String,
+    }
+
+    async fn mount_completed_ingest_job(
+        mock_server: &MockServer,
+        job_id: &str,
+        expected_csv: &str,
+        records_processed: i64,
+    ) {
+        Mock::given(method("PUT"))
+            .and(path(format!(
+                "/services/data/v60.0/jobs/ingest/{job_id}/batches"
+            )))
+            .and(body_string(expected_csv.to_string()))
+            .respond_with(ResponseTemplate::new(201))
+            .expect(1)
+            .mount(mock_server)
+            .await;
+
+        Mock::given(method("PATCH"))
+            .and(path(format!("/services/data/v60.0/jobs/ingest/{job_id}")))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "id": job_id,
+                "state": "UploadComplete",
+                "operation": "insert",
+                "object": "Account",
+                "createdDate": "2024-01-01T00:00:00.000Z",
+                "createdById": "005xx0000000001AAA"
+            })))
+            .expect(1)
+            .mount(mock_server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path(format!("/services/data/v60.0/jobs/ingest/{job_id}")))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "id": job_id,
+                "state": "JobComplete",
+                "operation": "insert",
+                "object": "Account",
+                "createdDate": "2024-01-01T00:00:00.000Z",
+                "createdById": "005xx0000000001AAA",
+                "numberRecordsProcessed": records_processed,
+                "numberRecordsFailed": 0
+            })))
+            .expect(1)
+            .mount(mock_server)
+            .await;
     }
 
     #[tokio::test]
@@ -356,10 +538,13 @@ mod tests {
             .await;
 
         assert!(result.is_ok());
-        let info = result.must();
+        let result = result.must();
+        let info = &result.jobs[0];
         assert_eq!(info.id, "JOB_ID");
         assert_eq!(info.state, JobState::JobComplete);
         assert_eq!(info.number_records_processed, Some(1));
+        assert_eq!(result.job_count(), 1);
+        assert_eq!(result.total_records_processed(), 1);
     }
 
     #[tokio::test]
@@ -381,19 +566,12 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        // Mock: Upload Batch 1 (With Headers)
+        // Bulk API 2.0 accepts exactly one CSV upload per ingest job. A tiny
+        // batch size only controls local buffering; it must not create
+        // multiple PUTs against the same job.
         Mock::given(method("PUT"))
             .and(path("/services/data/v60.0/jobs/ingest/JOB_ID/batches"))
-            .and(body_string("id,name\n001,Test1\n"))
-            .respond_with(ResponseTemplate::new(201))
-            .expect(1)
-            .mount(&mock_server)
-            .await;
-
-        // Mock: Upload Batch 2 (Without Headers)
-        Mock::given(method("PUT"))
-            .and(path("/services/data/v60.0/jobs/ingest/JOB_ID/batches"))
-            .and(body_string("002,Test2\n"))
+            .and(body_string("id,name\n001,Test1\n002,Test2\n"))
             .respond_with(ResponseTemplate::new(201))
             .expect(1)
             .mount(&mock_server)
@@ -451,6 +629,127 @@ mod tests {
             .await;
 
         assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_smart_ingest_splits_across_jobs_when_upload_limit_is_reached() {
+        let mock_server = MockServer::start().await;
+
+        let create_job_call_count = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let create_job_call_count_for_mock = std::sync::Arc::clone(&create_job_call_count);
+
+        Mock::given(method("POST"))
+            .and(path("/services/data/v60.0/jobs/ingest"))
+            .respond_with(move |_: &wiremock::Request| {
+                let call_index = create_job_call_count_for_mock
+                    .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                let id = match call_index {
+                    0 => "JOB_ID_1",
+                    1 => "JOB_ID_2",
+                    _ => "UNEXPECTED_JOB_ID",
+                };
+
+                ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "id": id,
+                    "state": "Open",
+                    "operation": "insert",
+                    "object": "Account",
+                    "createdDate": "2024-01-01T00:00:00.000Z",
+                    "createdById": "005xx0000000001AAA"
+                }))
+            })
+            .expect(2)
+            .mount(&mock_server)
+            .await;
+
+        mount_completed_ingest_job(&mock_server, "JOB_ID_1", "id,name\n001,First\n", 1).await;
+        mount_completed_ingest_job(&mock_server, "JOB_ID_2", "id,name\n002,Second\n", 1).await;
+
+        let client = create_test_client(mock_server.uri()).await;
+        let handler = client.bulk();
+
+        let records = vec![
+            TestRecord {
+                id: "001".to_string(),
+                name: "First".to_string(),
+            },
+            TestRecord {
+                id: "002".to_string(),
+                name: "Second".to_string(),
+            },
+        ];
+        let stream = futures::stream::iter(records);
+
+        let result = SmartIngest::new(&handler, "Account", JobOperation::Insert)
+            .max_upload_bytes(20)
+            .execute_stream(stream)
+            .await
+            .must();
+
+        assert_eq!(result.jobs.len(), 2);
+        assert_eq!(result.jobs[0].id, "JOB_ID_1");
+        assert_eq!(result.jobs[1].id, "JOB_ID_2");
+        assert_eq!(result.total_records_processed(), 2);
+        assert_eq!(result.total_records_failed(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_smart_ingest_aborts_open_job_when_next_record_exceeds_upload_limit() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/services/data/v60.0/jobs/ingest"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "id": "JOB_ID",
+                "state": "Open",
+                "operation": "insert",
+                "object": "Account",
+                "createdDate": "2024-01-01T00:00:00.000Z",
+                "createdById": "005xx0000000001AAA"
+            })))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        Mock::given(method("PATCH"))
+            .and(path("/services/data/v60.0/jobs/ingest/JOB_ID"))
+            .and(body_string(r#"{"state":"Aborted"}"#))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "id": "JOB_ID",
+                "state": "Aborted",
+                "operation": "insert",
+                "object": "Account",
+                "createdDate": "2024-01-01T00:00:00.000Z",
+                "createdById": "005xx0000000001AAA"
+            })))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let client = create_test_client(mock_server.uri()).await;
+        let handler = client.bulk();
+
+        let records = vec![
+            TestRecord {
+                id: "001".to_string(),
+                name: "Ok".to_string(),
+            },
+            TestRecord {
+                id: "002".to_string(),
+                name: "This row is too large for the configured limit".to_string(),
+            },
+        ];
+        let stream = futures::stream::iter(records);
+
+        let result = SmartIngest::new(&handler, "Account", JobOperation::Insert)
+            .max_upload_bytes(21)
+            .execute_stream(stream)
+            .await;
+
+        let Err(crate::error::ForceError::InvalidInput(message)) = result else {
+            panic!("Expected InvalidInput, got {:?}", result);
+        };
+        assert!(message.contains("exceeding max_upload_bytes"));
     }
 
     #[tokio::test]

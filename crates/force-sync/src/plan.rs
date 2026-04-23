@@ -164,38 +164,50 @@ fn merge_object_payload(
     source: SourceSystem,
     incoming: &Map<String, Value>,
 ) -> MergeOutcome {
-    let mut merged = current.clone();
+    // ⚡ Bolt: Delay cloning `current` until an actual mutation is needed.
+    // If all incoming fields already match or are ignored, we avoid cloning the entire map.
+    let mut merged: Option<Map<String, Value>> = None;
     let mut conflicts = Vec::new();
 
     for (field, incoming_value) in incoming {
-        match merged.get_mut(field) {
+        match current.get(field) {
             Some(existing_value) if existing_value == incoming_value => {}
-            Some(existing_value) => match object.field_owner_for(field) {
+            Some(_) => match object.field_owner_for(field) {
                 Some(Owner::Salesforce) if source == SourceSystem::Salesforce => {
-                    // ⚡ Bolt: Mutate existing value in-place to avoid `field.clone()` string allocation
-                    *existing_value = incoming_value.clone();
+                    merged
+                        .get_or_insert_with(|| current.clone())
+                        .insert(field.clone(), incoming_value.clone());
                 }
                 Some(Owner::Postgres) if source == SourceSystem::Postgres => {
-                    // ⚡ Bolt: Mutate existing value in-place to avoid `field.clone()` string allocation
-                    *existing_value = incoming_value.clone();
+                    merged
+                        .get_or_insert_with(|| current.clone())
+                        .insert(field.clone(), incoming_value.clone());
                 }
                 Some(Owner::Salesforce | Owner::Postgres) => {}
                 Some(Owner::Shared) | None => conflicts.push(field.clone()),
             },
             None => match object.field_owner_for(field) {
                 Some(Owner::Salesforce) if source == SourceSystem::Salesforce => {
-                    merged.insert(field.clone(), incoming_value.clone());
+                    merged
+                        .get_or_insert_with(|| current.clone())
+                        .insert(field.clone(), incoming_value.clone());
                 }
                 Some(Owner::Postgres) if source == SourceSystem::Postgres => {
-                    merged.insert(field.clone(), incoming_value.clone());
+                    merged
+                        .get_or_insert_with(|| current.clone())
+                        .insert(field.clone(), incoming_value.clone());
                 }
                 Some(Owner::Salesforce | Owner::Postgres) => {}
                 Some(Owner::Shared) | None => {
-                    merged.insert(field.clone(), incoming_value.clone());
+                    merged
+                        .get_or_insert_with(|| current.clone())
+                        .insert(field.clone(), incoming_value.clone());
                 }
             },
         }
     }
+
+    let merged = merged.unwrap_or_else(|| current.clone());
 
     if !conflicts.is_empty() {
         return MergeOutcome::Conflict { fields: conflicts };

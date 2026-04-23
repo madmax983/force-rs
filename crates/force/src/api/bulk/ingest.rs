@@ -410,7 +410,7 @@ impl<A: Authenticator> BulkHandler<A> {
     ///
     /// `SmartIngest` is a high-level utility that handles the entire lifecycle of a bulk ingest job:
     /// - Creating the job
-    /// - Uploading data in batches
+    /// - Buffering records into byte-limited CSV uploads
     /// - Closing the job
     /// - Polling for completion
     ///

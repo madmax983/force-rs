@@ -18,12 +18,15 @@ jobs:
       # ── JWT Bearer (primary, renewable) ──
       SF_JWT_CLIENT_ID: ${{ secrets.SF_JWT_CLIENT_ID }}
       SF_JWT_USERNAME: ${{ secrets.SF_JWT_USERNAME }}
-      SF_JWT_LOGIN_URL: ${{ vars.SF_JWT_LOGIN_URL || 'https://login.salesforce.com' }}
+      # Accepts a bare host, base URL, or full /services/oauth2/token endpoint.
+      SF_JWT_LOGIN_URL: ${{ vars.SF_JWT_LOGIN_URL || secrets.SF_JWT_LOGIN_URL || 'https://login.salesforce.com' }}
 
       # ── Client Credentials ──
       SF_CLIENT_ID: ${{ secrets.SF_CLIENT_ID }}
       SF_CLIENT_SECRET: ${{ secrets.SF_CLIENT_SECRET }}
-      SF_TOKEN_URL: ${{ vars.SF_TOKEN_URL || 'https://login.salesforce.com/services/oauth2/token' }}
+      # Set explicitly for the target org/environment. Accepts the org base URL
+      # or full /services/oauth2/token endpoint.
+      SF_TOKEN_URL: ${{ vars.SF_TOKEN_URL || secrets.SF_TOKEN_URL }}
 
       # ── Username-Password ──
       SF_UP_CLIENT_ID: ${{ secrets.SF_UP_CLIENT_ID }}
@@ -31,7 +34,8 @@ jobs:
       SF_UP_USERNAME: ${{ secrets.SF_UP_USERNAME }}
       SF_UP_PASSWORD: ${{ secrets.SF_UP_PASSWORD }}
       SF_UP_SECURITY_TOKEN: ${{ secrets.SF_UP_SECURITY_TOKEN }}
-      SF_UP_TOKEN_URL: ${{ vars.SF_UP_TOKEN_URL || 'https://login.salesforce.com/services/oauth2/token' }}
+      # Accepts a bare host, base URL, or full /services/oauth2/token endpoint.
+      SF_UP_TOKEN_URL: ${{ vars.SF_UP_TOKEN_URL || secrets.SF_UP_TOKEN_URL || 'https://login.salesforce.com/services/oauth2/token' }}
 
       # ── Bare token fallback (deprecated, kept for migration) ──
       SF_ACCESS_TOKEN: ${{ secrets.SF_ACCESS_TOKEN }}
@@ -46,15 +50,26 @@ jobs:
       SF_LIVE_BULK_QUERY_ROW_LIMIT: ${{ vars.SF_LIVE_BULK_QUERY_ROW_LIMIT || '5' }}
       SF_LIVE_RUN_PARTIAL_FAILURE: ${{ vars.SF_LIVE_RUN_PARTIAL_FAILURE || '0' }}
       SF_LIVE_RUN_THROTTLE: ${{ vars.SF_LIVE_RUN_THROTTLE || '0' }}
+      SF_LIVE_RUN_BULK_ROUNDTRIP: ${{ vars.SF_LIVE_RUN_BULK_ROUNDTRIP || '0' }}
       SF_LIVE_THROTTLE_MAX_REQUESTS: ${{ vars.SF_LIVE_THROTTLE_MAX_REQUESTS || '5000' }}
+
+      # Pub/Sub unary contract smoke. Topic must exist and be accessible.
+      SF_PUBSUB_ENDPOINT: ${{ vars.SF_PUBSUB_ENDPOINT || 'https://api.pubsub.salesforce.com:7443' }}
+      SF_PUBSUB_TOPIC: ${{ vars.SF_PUBSUB_TOPIC || secrets.SF_PUBSUB_TOPIC }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Write JWT private key to file
         if: ${{ env.SF_JWT_CLIENT_ID != '' }}
+        env:
+          SF_JWT_PRIVATE_KEY: ${{ secrets.SF_JWT_PRIVATE_KEY }}
         run: |
-          echo "${{ secrets.SF_JWT_PRIVATE_KEY }}" > /tmp/jwt_live_key.pem
+          if [ -z "$SF_JWT_PRIVATE_KEY" ]; then
+            echo "SF_JWT_PRIVATE_KEY secret is required when SF_JWT_CLIENT_ID is set" >&2
+            exit 1
+          fi
+          printf '%b' "$SF_JWT_PRIVATE_KEY" > /tmp/jwt_live_key.pem
           chmod 600 /tmp/jwt_live_key.pem
           echo "SF_JWT_PRIVATE_KEY_PATH=/tmp/jwt_live_key.pem" >> "$GITHUB_ENV"
 
@@ -64,8 +79,11 @@ jobs:
       - name: Cache cargo dependencies
         uses: Swatinem/rust-cache@v2
 
-      - name: Run live tests
+      - name: Run force live tests
         run: cargo test -p force --all-features --test live_salesforce -- --ignored --test-threads=1
+
+      - name: Run Pub/Sub live tests
+        run: cargo test -p force-pubsub --test live_salesforce_pubsub -- --ignored --test-threads=1
 
       - name: Cleanup private key
         if: always()

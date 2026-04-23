@@ -5,6 +5,8 @@ pub(crate) mod avro_generator;
 #[cfg(feature = "schema")]
 pub(crate) mod bigquery_generator;
 pub(crate) mod data_dictionary;
+#[cfg(feature = "schema")]
+pub(crate) mod dbml_generator;
 pub(crate) mod graphql_generator;
 pub(crate) mod json_schema;
 pub(crate) mod mock_data_generator;
@@ -42,6 +44,8 @@ pub use avro_generator::{generate_avro_schema, write_avro_schema};
 #[cfg(feature = "schema")]
 pub use bigquery_generator::generate_bigquery_schema;
 pub use data_dictionary::DataDictionary;
+#[cfg(feature = "schema")]
+pub use dbml_generator::{generate_dbml, write_dbml};
 pub use graphql_generator::{generate_graphql_schema, write_graphql_schema};
 pub use json_schema::generate_json_schema;
 pub use mock_data_generator::generate_mock_data;
@@ -68,3 +72,8 @@ pub use zod_generator::{generate_zod_schema, write_zod_schema};
 
 pub(crate) mod llm_context_generator;
 pub use llm_context_generator::{LlmContextOptions, generate_llm_context};
+
+#[cfg(feature = "schema")]
+pub(crate) mod dbt_generator;
+#[cfg(feature = "schema")]
+pub use dbt_generator::{generate_dbt_source_yml, generate_dbt_staging_model};

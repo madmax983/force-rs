@@ -12,11 +12,12 @@
 //! Set the following environment variables:
 //! - `SF_CLIENT_ID`     - OAuth client ID (Connected App Consumer Key)
 //! - `SF_CLIENT_SECRET`  - OAuth client secret (Connected App Consumer Secret)
+//! - `SF_MY_DOMAIN_URL` - Org My Domain URL
 //!
 //! # Run
 //!
 //! ```bash
-//! SF_CLIENT_ID=xxx SF_CLIENT_SECRET=yyy cargo run --example tooling --features tooling
+//! SF_CLIENT_ID=xxx SF_CLIENT_SECRET=yyy SF_MY_DOMAIN_URL=https://your-org.my.salesforce.com cargo run --example tooling --features tooling
 //! ```
 
 #[cfg(feature = "tooling")]
@@ -37,9 +38,10 @@ mod example {
 
         let client_id = required_env("SF_CLIENT_ID")?;
         let client_secret = required_env("SF_CLIENT_SECRET")?;
+        let my_domain_url = required_env("SF_MY_DOMAIN_URL")?;
 
         println!("Authenticating with Salesforce...");
-        let auth = ClientCredentials::new_production(client_id, client_secret);
+        let auth = ClientCredentials::new_my_domain(client_id, client_secret, my_domain_url);
         let client = ForceClientBuilder::new().authenticate(auth).build().await?;
         let tooling = client.tooling();
         println!("Authentication successful\n");

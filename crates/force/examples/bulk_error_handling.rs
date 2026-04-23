@@ -43,8 +43,9 @@ mod example {
     async fn build_client() -> anyhow::Result<ForceClient<ClientCredentials>> {
         let client_id = required_env("SF_CLIENT_ID")?;
         let client_secret = required_env("SF_CLIENT_SECRET")?;
-        // For Sandbox, use: ClientCredentials::new_sandbox("client-id", "client-secret")
-        let auth = ClientCredentials::new_production(client_id, client_secret);
+        let my_domain_url = required_env("SF_MY_DOMAIN_URL")?;
+
+        let auth = ClientCredentials::new_my_domain(client_id, client_secret, my_domain_url);
         ForceClientBuilder::new()
             .authenticate(auth)
             .build()

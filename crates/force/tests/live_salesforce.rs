@@ -8,15 +8,18 @@
 //! 1. **JWT Bearer** (feature `jwt`) — renewable, preferred for CI:
 //!    - `SF_JWT_CLIENT_ID`, `SF_JWT_USERNAME`, `SF_JWT_PRIVATE_KEY_PATH`
 //!    - optional `SF_JWT_LOGIN_URL` (defaults to `https://login.salesforce.com`)
+//!      Accepts a bare host, base URL, or full OAuth token endpoint.
 //!
 //! 2. **Client Credentials** — renewable, preferred for server-to-server:
 //!    - `SF_CLIENT_ID`, `SF_CLIENT_SECRET`
-//!    - optional `SF_TOKEN_URL` (defaults to production)
+//!    - `SF_TOKEN_URL` must be set explicitly for the target org/environment.
+//!      It may be either the base org URL or the full OAuth token endpoint.
 //!
 //! 3. **Username-Password** (feature `username_password`) — deprecated by Salesforce:
 //!    - `SF_UP_CLIENT_ID`, `SF_UP_CLIENT_SECRET`, `SF_UP_USERNAME`,
 //!      `SF_UP_PASSWORD`, `SF_UP_SECURITY_TOKEN`
 //!    - optional `SF_UP_TOKEN_URL` (defaults to production)
+//!      Accepts a bare host, base URL, or full OAuth token endpoint.
 //!
 //! 4. **Bare access token** — temporary, fallback only:
 //!    - `SF_ACCESS_TOKEN`, `SF_INSTANCE_URL`
@@ -36,6 +39,7 @@ use force::error::Result;
 use serde::Deserialize;
 use std::time::Duration;
 
+//  OAUTH URL CONTRACT TESTS
 #[cfg(feature = "jwt")]
 use force::auth::JwtBearerFlow;
 
@@ -188,6 +192,146 @@ fn resolve_key_path(raw: &str) -> std::path::PathBuf {
 const PRODUCTION_TOKEN_URL: &str = "https://login.salesforce.com/services/oauth2/token";
 const PRODUCTION_LOGIN_URL: &str = "https://login.salesforce.com";
 
+fn invalid_config(field: &str, reason: impl Into<String>) -> ForceError {
+    ForceError::Config(force::error::ConfigError::InvalidValue {
+        field: field.to_string(),
+        reason: reason.into(),
+    })
+}
+
+fn parse_live_https_url(field: &str, value: &str) -> Result<url::Url> {
+    let value = value.trim();
+    let candidate = if value.contains("://") {
+        value.to_string()
+    } else {
+        format!("https://{value}")
+    };
+
+    let parsed = url::Url::parse(&candidate).map_err(|error| {
+        invalid_config(
+            field,
+            format!("must be a valid HTTPS Salesforce base URL or OAuth token endpoint: {error}"),
+        )
+    })?;
+
+    if parsed.scheme() != "https" {
+        return Err(invalid_config(
+            field,
+            "must use https for Salesforce OAuth requests",
+        ));
+    }
+
+    if parsed.host_str().is_none() {
+        return Err(invalid_config(field, "must include a Salesforce host"));
+    }
+
+    if !parsed.username().is_empty() || parsed.password().is_some() {
+        return Err(invalid_config(
+            field,
+            "must not include embedded credentials",
+        ));
+    }
+
+    if parsed.query().is_some() || parsed.fragment().is_some() {
+        return Err(invalid_config(
+            field,
+            "must not include query parameters or fragments",
+        ));
+    }
+
+    Ok(parsed)
+}
+
+fn canonical_base_url(mut parsed: url::Url) -> String {
+    parsed.set_path("");
+    parsed.set_query(None);
+    parsed.set_fragment(None);
+    parsed.to_string().trim_end_matches('/').to_string()
+}
+
+fn normalize_oauth_token_url(field: &str, token_url: &str) -> Result<String> {
+    let mut parsed = parse_live_https_url(field, token_url)?;
+    let normalized_path = parsed.path().trim_end_matches('/');
+    match normalized_path {
+        "" | "/services/oauth2/token" => parsed.set_path("/services/oauth2/token"),
+        _ => {
+            return Err(invalid_config(
+                field,
+                "must be either a Salesforce base URL like https://MyDomainName.my.salesforce.com or a token endpoint ending in /services/oauth2/token",
+            ));
+        }
+    }
+
+    Ok(parsed.to_string())
+}
+
+fn normalize_client_credentials_token_url(token_url: &str) -> Result<String> {
+    normalize_oauth_token_url("SF_TOKEN_URL", token_url)
+}
+
+#[cfg(feature = "username_password")]
+fn normalize_username_password_token_url(token_url: &str) -> Result<String> {
+    normalize_oauth_token_url("SF_UP_TOKEN_URL", token_url)
+}
+
+#[cfg(feature = "jwt")]
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct JwtEndpointConfig {
+    audience: String,
+    token_url: String,
+}
+
+#[cfg(feature = "jwt")]
+fn normalize_jwt_login_url(login_url: &str) -> Result<JwtEndpointConfig> {
+    let parsed = parse_live_https_url("SF_JWT_LOGIN_URL", login_url)?;
+    let normalized_path = parsed.path().trim_end_matches('/');
+    match normalized_path {
+        "" | "/services/oauth2/token" => {
+            let audience = canonical_base_url(parsed);
+            let token_url = format!("{audience}/services/oauth2/token");
+            Ok(JwtEndpointConfig {
+                audience,
+                token_url,
+            })
+        }
+        _ => Err(invalid_config(
+            "SF_JWT_LOGIN_URL",
+            "must be either a Salesforce base URL like https://MyDomainName.my.salesforce.com or a token endpoint ending in /services/oauth2/token",
+        )),
+    }
+}
+
+fn validate_client_credentials_token_url(token_url: &str) -> Result<()> {
+    normalize_client_credentials_token_url(token_url).map(|_| ())
+}
+
+fn require_client_credentials_token_url() -> String {
+    let token_url = env_string("SF_TOKEN_URL").unwrap_or_else(|| {
+        panic!(
+            "{}",
+            force::error::ConfigError::MissingValue(
+                "SF_TOKEN_URL is required when SF_CLIENT_ID/SF_CLIENT_SECRET are configured; set it to the target org base URL or OAuth token endpoint, for example https://MyDomainName.my.salesforce.com"
+                    .to_string(),
+            )
+        )
+    });
+    normalize_client_credentials_token_url(&token_url).unwrap_or_else(|error| panic!("{error}"))
+}
+
+#[cfg(feature = "jwt")]
+fn load_jwt_endpoint_config() -> JwtEndpointConfig {
+    let login_url =
+        env_string("SF_JWT_LOGIN_URL").unwrap_or_else(|| PRODUCTION_LOGIN_URL.to_string());
+    normalize_jwt_login_url(&login_url).unwrap_or_else(|error| panic!("{error}"))
+}
+
+#[cfg(feature = "username_password")]
+fn load_username_password_token_url() -> String {
+    let token_url =
+        env_string("SF_UP_TOKEN_URL").unwrap_or_else(|| PRODUCTION_TOKEN_URL.to_string());
+    normalize_username_password_token_url(&token_url).unwrap_or_else(|error| panic!("{error}"))
+}
+
 /// Tries to build a JWT Bearer authenticator from env vars.
 #[cfg(feature = "jwt")]
 fn try_jwt_auth() -> Option<LiveAuth> {
@@ -199,16 +343,14 @@ fn try_jwt_auth() -> Option<LiveAuth> {
     let private_key_pem = std::fs::read_to_string(&resolved)
         .unwrap_or_else(|e| panic!("Failed to read private key at {}: {e}", resolved.display()));
 
-    let login_url =
-        env_string("SF_JWT_LOGIN_URL").unwrap_or_else(|| PRODUCTION_LOGIN_URL.to_string());
-    let token_url = format!("{login_url}/services/oauth2/token");
+    let endpoints = load_jwt_endpoint_config();
 
     let flow = JwtBearerFlow::new(
         &client_id,
         &username,
         &private_key_pem,
-        &login_url,
-        &token_url,
+        endpoints.audience.as_str(),
+        endpoints.token_url.as_str(),
     )
     .unwrap_or_else(|e| panic!("Invalid JWT config: {e}"));
 
@@ -219,7 +361,7 @@ fn try_jwt_auth() -> Option<LiveAuth> {
 fn try_client_credentials_auth() -> Option<LiveAuth> {
     let client_id = env_string("SF_CLIENT_ID")?;
     let client_secret = env_string("SF_CLIENT_SECRET")?;
-    let token_url = env_string("SF_TOKEN_URL").unwrap_or_else(|| PRODUCTION_TOKEN_URL.to_string());
+    let token_url = require_client_credentials_token_url();
 
     let flow = force::auth::ClientCredentials::new(client_id, client_secret, token_url);
     Some(LiveAuth::ClientCredentials(flow))
@@ -233,8 +375,7 @@ fn try_username_password_auth() -> Option<LiveAuth> {
     let username = env_string("SF_UP_USERNAME")?;
     let password = env_string("SF_UP_PASSWORD")?;
     let security_token = env_string("SF_UP_SECURITY_TOKEN").unwrap_or_default();
-    let token_url =
-        env_string("SF_UP_TOKEN_URL").unwrap_or_else(|| PRODUCTION_TOKEN_URL.to_string());
+    let token_url = load_username_password_token_url();
 
     let flow = force::auth::UsernamePassword::new(
         client_id,
@@ -445,7 +586,112 @@ fn assert_status_error_with_any_status(
     }
 }
 
+#[test]
+fn client_credentials_contract_rejects_non_token_endpoint() {
+    let result = validate_client_credentials_token_url(
+        "https://example.my.salesforce.com/services/oauth2/authorize",
+    );
+
+    let Err(err) = result else {
+        panic!("client credentials must reject non-token OAuth endpoints");
+    };
+
+    let message = err.to_string();
+    assert!(
+        message.contains("SF_TOKEN_URL") && message.contains("/services/oauth2/token"),
+        "expected token endpoint guidance in error, got: {message}",
+    );
+}
+
+#[test]
+fn client_credentials_contract_accepts_explicit_token_endpoints() {
+    let result = validate_client_credentials_token_url(PRODUCTION_TOKEN_URL);
+    assert!(
+        result.is_ok(),
+        "client credentials should accept explicit Salesforce token endpoints: {result:?}",
+    );
+
+    let result = validate_client_credentials_token_url(
+        "https://example.my.salesforce.com/services/oauth2/token",
+    );
+
+    assert!(
+        result.is_ok(),
+        "client credentials should accept My Domain token endpoints: {result:?}",
+    );
+}
+
+#[test]
+fn client_credentials_contract_normalizes_my_domain_base_urls() {
+    let token_url = normalize_client_credentials_token_url("example.my.salesforce.com")
+        .unwrap_or_else(|error| panic!("bare My Domain host should normalize: {error}"));
+
+    assert_eq!(
+        token_url,
+        "https://example.my.salesforce.com/services/oauth2/token",
+    );
+
+    let token_url = normalize_client_credentials_token_url("https://example.my.salesforce.com")
+        .unwrap_or_else(|error| panic!("base My Domain URL should normalize: {error}"));
+
+    assert_eq!(
+        token_url,
+        "https://example.my.salesforce.com/services/oauth2/token",
+    );
+
+    let token_url = normalize_client_credentials_token_url("https://example.my.salesforce.com/")
+        .unwrap_or_else(|error| panic!("trailing-slash My Domain URL should normalize: {error}"));
+
+    assert_eq!(
+        token_url,
+        "https://example.my.salesforce.com/services/oauth2/token",
+    );
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
+#[cfg(feature = "jwt")]
+#[test]
+fn jwt_login_url_contract_normalizes_bare_hosts_and_token_endpoints() {
+    let endpoints = normalize_jwt_login_url("example.my.salesforce.com")
+        .unwrap_or_else(|error| panic!("bare JWT login host should normalize: {error}"));
+
+    assert_eq!(endpoints.audience, "https://example.my.salesforce.com");
+    assert_eq!(
+        endpoints.token_url,
+        "https://example.my.salesforce.com/services/oauth2/token",
+    );
+
+    let endpoints =
+        normalize_jwt_login_url("https://example.my.salesforce.com/services/oauth2/token")
+            .unwrap_or_else(|error| panic!("JWT token endpoint should normalize: {error}"));
+
+    assert_eq!(endpoints.audience, "https://example.my.salesforce.com");
+    assert_eq!(
+        endpoints.token_url,
+        "https://example.my.salesforce.com/services/oauth2/token",
+    );
+}
+
+#[cfg(feature = "username_password")]
+#[test]
+fn username_password_contract_normalizes_base_token_urls() {
+    let token_url = normalize_username_password_token_url("example.my.salesforce.com")
+        .unwrap_or_else(|error| panic!("bare username-password host should normalize: {error}"));
+
+    assert_eq!(
+        token_url,
+        "https://example.my.salesforce.com/services/oauth2/token",
+    );
+
+    let token_url = normalize_username_password_token_url("https://example.my.salesforce.com/")
+        .unwrap_or_else(|error| panic!("base username-password URL should normalize: {error}"));
+
+    assert_eq!(
+        token_url,
+        "https://example.my.salesforce.com/services/oauth2/token",
+    );
+}
+
 //  AUTH FLOW TESTS
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -466,17 +712,15 @@ mod jwt_auth_tests {
             panic!("Failed to read private key at {}: {e}", resolved.display())
         });
 
-        let login_url =
-            env_string("SF_JWT_LOGIN_URL").unwrap_or_else(|| PRODUCTION_LOGIN_URL.to_string());
-        let token_url = format!("{login_url}/services/oauth2/token");
+        let endpoints = load_jwt_endpoint_config();
 
         Some(
             JwtBearerFlow::new(
                 &client_id,
                 &username,
                 &private_key_pem,
-                &login_url,
-                &token_url,
+                endpoints.audience.as_str(),
+                endpoints.token_url.as_str(),
             )
             .unwrap_or_else(|e| panic!("Invalid JWT config: {e}")),
         )
@@ -567,17 +811,15 @@ mod jwt_auth_tests {
         };
         let resolved = resolve_key_path(&private_key_path);
         let pem = std::fs::read_to_string(&resolved)?;
-        let login_url =
-            env_string("SF_JWT_LOGIN_URL").unwrap_or_else(|| PRODUCTION_LOGIN_URL.to_string());
-        let token_url = format!("{login_url}/services/oauth2/token");
+        let endpoints = load_jwt_endpoint_config();
         drop(flow);
 
         let bad_flow = JwtBearerFlow::new(
             "INVALID_CLIENT_ID",
             "user@test.com",
             &pem,
-            &login_url,
-            &token_url,
+            endpoints.audience.as_str(),
+            endpoints.token_url.as_str(),
         )?;
 
         let result = tokio::time::timeout(Duration::from_secs(30), bad_flow.authenticate())
@@ -609,8 +851,7 @@ mod client_credentials_auth_tests {
     fn load_cc_flow() -> Option<ClientCredentials> {
         let client_id = env_string("SF_CLIENT_ID")?;
         let client_secret = env_string("SF_CLIENT_SECRET")?;
-        let token_url =
-            env_string("SF_TOKEN_URL").unwrap_or_else(|| PRODUCTION_TOKEN_URL.to_string());
+        let token_url = require_client_credentials_token_url();
         Some(ClientCredentials::new(client_id, client_secret, token_url))
     }
 
@@ -690,8 +931,7 @@ mod client_credentials_auth_tests {
             return Ok(());
         };
 
-        let token_url =
-            env_string("SF_TOKEN_URL").unwrap_or_else(|| PRODUCTION_TOKEN_URL.to_string());
+        let token_url = require_client_credentials_token_url();
 
         let bad_flow = ClientCredentials::new(client_id, "INVALID_SECRET", token_url);
 
@@ -728,8 +968,7 @@ mod username_password_auth_tests {
         let username = env_string("SF_UP_USERNAME")?;
         let password = env_string("SF_UP_PASSWORD")?;
         let security_token = env_string("SF_UP_SECURITY_TOKEN").unwrap_or_default();
-        let token_url =
-            env_string("SF_UP_TOKEN_URL").unwrap_or_else(|| PRODUCTION_TOKEN_URL.to_string());
+        let token_url = load_username_password_token_url();
 
         Some(UsernamePassword::new(
             client_id,
@@ -819,8 +1058,7 @@ mod username_password_auth_tests {
 
         let client_secret = env_string("SF_UP_CLIENT_SECRET").unwrap_or_default();
         let username = env_string("SF_UP_USERNAME").unwrap_or_else(|| "user@test.com".to_string());
-        let token_url =
-            env_string("SF_UP_TOKEN_URL").unwrap_or_else(|| PRODUCTION_TOKEN_URL.to_string());
+        let token_url = load_username_password_token_url();
 
         let bad_flow = UsernamePassword::new(
             client_id,
@@ -887,6 +1125,148 @@ async fn live_rest_query_smoke() -> Result<()> {
 
     assert!(result.total_size <= 1);
     assert!(result.records.len() <= 1);
+    Ok(())
+}
+
+#[cfg(feature = "tooling")]
+#[tokio::test]
+#[ignore = "requires a live Salesforce org"]
+async fn live_tooling_query_smoke() -> Result<()> {
+    let Some(config) = load_live_config() else {
+        eprintln!("skipping live_tooling_query_smoke: no credentials available");
+        return Ok(());
+    };
+
+    eprintln!("using auth: {} (testing Tooling API)", config.auth);
+
+    let result = tokio::time::timeout(config.runtime.test_timeout, async {
+        let client = create_live_client(&config).await?;
+        client
+            .tooling()
+            .query::<serde_json::Value>("SELECT Id FROM ApexClass LIMIT 1")
+            .await
+    })
+    .await
+    .map_err(|_| HttpError::Timeout {
+        timeout_seconds: config.runtime.test_timeout.as_secs(),
+    })??;
+
+    assert!(result.records.len() <= 1);
+    Ok(())
+}
+
+#[cfg(feature = "composite")]
+#[tokio::test]
+#[ignore = "requires a live Salesforce org"]
+async fn live_composite_batch_smoke() -> Result<()> {
+    let Some(config) = load_live_config() else {
+        eprintln!("skipping live_composite_batch_smoke: no credentials available");
+        return Ok(());
+    };
+
+    eprintln!("using auth: {} (testing Composite Batch)", config.auth);
+
+    let result = tokio::time::timeout(config.runtime.test_timeout, async {
+        let client = create_live_client(&config).await?;
+        client
+            .composite()
+            .batch()
+            .add_request("GET", "limits", None)?
+            .add_request("GET", "sobjects/Account/describe", None)?
+            .execute()
+            .await
+    })
+    .await
+    .map_err(|_| HttpError::Timeout {
+        timeout_seconds: config.runtime.test_timeout.as_secs(),
+    })??;
+
+    assert!(
+        !result.has_errors,
+        "Composite batch returned errors: {result:?}"
+    );
+    assert_eq!(result.results.len(), 2);
+    for subresponse in &result.results {
+        assert_eq!(subresponse.status_code, 200);
+        assert!(subresponse.result.is_some());
+    }
+    Ok(())
+}
+
+#[cfg(feature = "ui")]
+#[tokio::test]
+#[ignore = "requires a live Salesforce org"]
+async fn live_ui_object_info_smoke() -> Result<()> {
+    let Some(config) = load_live_config() else {
+        eprintln!("skipping live_ui_object_info_smoke: no credentials available");
+        return Ok(());
+    };
+
+    eprintln!("using auth: {} (testing UI API)", config.auth);
+
+    let object_info = tokio::time::timeout(config.runtime.test_timeout, async {
+        let client = create_live_client(&config).await?;
+        client.ui().object_info("Account").await
+    })
+    .await
+    .map_err(|_| HttpError::Timeout {
+        timeout_seconds: config.runtime.test_timeout.as_secs(),
+    })??;
+
+    assert_eq!(object_info.api_name, "Account");
+    assert!(object_info.fields.contains_key("Id"));
+    assert!(object_info.fields.contains_key("Name"));
+    Ok(())
+}
+
+#[cfg(feature = "graphql")]
+#[tokio::test]
+#[ignore = "requires a live Salesforce org"]
+async fn live_graphql_query_smoke() -> Result<()> {
+    let Some(config) = load_live_config() else {
+        eprintln!("skipping live_graphql_query_smoke: no credentials available");
+        return Ok(());
+    };
+
+    eprintln!("using auth: {} (testing GraphQL API)", config.auth);
+
+    let data = tokio::time::timeout(config.runtime.test_timeout, async {
+        let client = create_live_client(&config).await?;
+        client
+            .graphql()
+            .query_raw(
+                r"{
+                    uiapi {
+                        query {
+                            Account(first: 1) {
+                                edges {
+                                    node {
+                                        Id
+                                    }
+                                }
+                                totalCount
+                            }
+                        }
+                    }
+                }",
+                None,
+            )
+            .await
+    })
+    .await
+    .map_err(|_| HttpError::Timeout {
+        timeout_seconds: config.runtime.test_timeout.as_secs(),
+    })??;
+
+    let account = &data["uiapi"]["query"]["Account"];
+    assert!(
+        account.is_object(),
+        "expected Account GraphQL object, got {account:?}",
+    );
+    assert!(
+        account["edges"].is_array(),
+        "expected Account edges array, got {account:?}",
+    );
     Ok(())
 }
 
@@ -1094,6 +1474,433 @@ async fn live_rest_throttling_error_payload() -> Result<()> {
     panic!(
         "did not hit throttling within {max_requests} requests; increase SF_LIVE_THROTTLE_MAX_REQUESTS"
     );
+}
+
+// ─── Bulk Round-Trip Tests (SmartIngest, Convenience Methods, DataFaker) ──
+
+/// Self-cleaning bulk tests that exercise `SmartIngest`, convenience methods,
+/// and the datafaker against a live org. Every record created is deleted
+/// before the test returns.
+///
+/// Gated behind `SF_LIVE_RUN_BULK_ROUNDTRIP=1` because they mutate org data.
+mod bulk_roundtrip_tests {
+    use super::*;
+    use futures::stream;
+    use serde::{Deserialize, Serialize};
+
+    /// Minimal Account for bulk insert (CSV-friendly flat struct).
+    #[derive(Debug, Clone, Serialize)]
+    struct NewAccount {
+        #[serde(rename = "Name")]
+        name: String,
+    }
+
+    /// Account row returned from bulk query (needs Id for cleanup).
+    #[derive(Debug, Clone, Deserialize)]
+    struct AccountRow {
+        #[serde(rename = "Id")]
+        id: String,
+        #[serde(rename = "Name")]
+        name: String,
+    }
+
+    /// Generates N accounts with a unique prefix for this test run.
+    fn generate_accounts(prefix: &str, count: usize) -> Vec<NewAccount> {
+        (0..count)
+            .map(|i| NewAccount {
+                name: format!("{prefix}_{i:04}"),
+            })
+            .collect()
+    }
+
+    fn record_count_as_usize(value: Option<i64>, field: &str) -> Result<usize> {
+        let count = value.unwrap_or(0);
+        usize::try_from(count)
+            .map_err(|_| ForceError::InvalidInput(format!("{field} is out of range: {count}")))
+    }
+
+    /// Deletes all Account records matching a Name prefix via bulk delete.
+    /// Returns the number of records deleted.
+    async fn cleanup_accounts(
+        client: &force::client::ForceClient<LiveAuth>,
+        prefix: &str,
+        policy: force::api::bulk::BulkPollPolicy,
+    ) -> Result<usize> {
+        // Query for IDs matching the prefix
+        let soql = format!("SELECT Id FROM Account WHERE Name LIKE '{prefix}%'");
+        let result = client
+            .rest()
+            .query::<force::types::DynamicSObject>(&soql)
+            .await?;
+
+        if result.records.is_empty() {
+            return Ok(0);
+        }
+
+        let ids: Vec<String> = result
+            .records
+            .iter()
+            .filter_map(|r| r.get_field("Id").and_then(|v| v.as_str().map(String::from)))
+            .collect();
+
+        let count = ids.len();
+        if count > 0 {
+            let job = force::api::bulk::IngestJob::create(
+                &client.bulk(),
+                "Account",
+                JobOperation::Delete,
+                None,
+            )
+            .await?;
+
+            let csv = ids.iter().fold("Id\n".to_string(), |mut acc, id| {
+                acc.push_str(id);
+                acc.push('\n');
+                acc
+            });
+
+            let job = job.upload(csv).await?;
+            let job = job.close().await?;
+            let _job = job.poll_until_complete_with_policy(policy).await?;
+        }
+
+        Ok(count)
+    }
+
+    // ── SmartIngest round-trip ───────────────────────────────────────────
+
+    #[tokio::test]
+    #[ignore = "requires a live Salesforce org"]
+    async fn live_smart_ingest_round_trip() -> Result<()> {
+        if !env_flag("SF_LIVE_RUN_BULK_ROUNDTRIP") {
+            eprintln!(
+                "skipping live_smart_ingest_round_trip: set SF_LIVE_RUN_BULK_ROUNDTRIP=1 to enable"
+            );
+            return Ok(());
+        }
+
+        let Some(config) = load_live_config() else {
+            eprintln!("skipping: no credentials available");
+            return Ok(());
+        };
+
+        let prefix = format!("FRSSI_{}", chrono::Utc::now().timestamp_millis());
+
+        // Use a small local buffer and a tiny upload ceiling so the test
+        // exercises SmartIngest's multi-job logic in a live context.
+        let record_count = 150;
+        let batch_size = 50;
+        let max_upload_bytes = 1_500;
+
+        eprintln!(
+            "using auth: {} | prefix={prefix} | records={record_count} | batch_size={batch_size} | max_upload_bytes={max_upload_bytes}",
+            config.auth,
+        );
+
+        let result: std::result::Result<(), ForceError> =
+            tokio::time::timeout(config.runtime.test_timeout, async {
+                let client = create_live_client(&config).await?;
+                let accounts = generate_accounts(&prefix, record_count);
+
+                // ── INSERT via SmartIngest ──────────────────────────────
+                let record_stream = stream::iter(accounts);
+
+                let ingest_result = client
+                    .bulk()
+                    .smart_ingest("Account", JobOperation::Insert)
+                    .batch_size(batch_size)
+                    .max_upload_bytes(max_upload_bytes)
+                    .execute_stream(record_stream)
+                    .await?;
+
+                assert!(
+                    ingest_result.job_count() > 1,
+                    "SmartIngest should split this payload across multiple jobs",
+                );
+
+                assert_eq!(
+                    record_count_as_usize(
+                        Some(ingest_result.total_records_processed()),
+                        "total_records_processed"
+                    )?,
+                    record_count,
+                    "SmartIngest should process all {record_count} records",
+                );
+                assert_eq!(
+                    ingest_result.total_records_failed(),
+                    0,
+                    "SmartIngest should have 0 failures",
+                );
+                eprintln!(
+                    "SmartIngest inserted {record_count} records across {} job(s) in {} ms",
+                    ingest_result.job_count(),
+                    ingest_result.total_processing_time(),
+                );
+
+                // ── QUERY back via Bulk Query ──────────────────────────
+                let soql = format!(
+                    "SELECT Id, Name FROM Account WHERE Name LIKE '{prefix}%' ORDER BY Name"
+                );
+                let mut query_stream = client
+                    .bulk()
+                    .bulk_query_with_policy::<AccountRow>(&soql, config.runtime.bulk_poll_policy)
+                    .await?;
+
+                let mut queried = Vec::new();
+                while let Some(row) = query_stream.next().await? {
+                    queried.push(row);
+                }
+
+                assert_eq!(
+                    queried.len(),
+                    record_count,
+                    "Bulk query should return all {record_count} inserted records",
+                );
+
+                // Spot-check: first and last names should match our pattern
+                assert!(
+                    queried[0].name.starts_with(&prefix),
+                    "First record name should start with prefix",
+                );
+                assert!(
+                    queried.iter().all(|row| !row.id.is_empty()),
+                    "Bulk query should return non-empty Account IDs",
+                );
+
+                // ── CLEANUP via bulk delete ─────────────────────────────
+                let deleted =
+                    cleanup_accounts(&client, &prefix, config.runtime.bulk_poll_policy).await?;
+                eprintln!("Cleaned up {deleted} records");
+                assert_eq!(deleted, record_count);
+
+                Ok(())
+            })
+            .await
+            .map_err(|_| HttpError::Timeout {
+                timeout_seconds: config.runtime.test_timeout.as_secs(),
+            })?;
+
+        // If the test body failed, still try cleanup (best-effort)
+        if result.is_err()
+            && let Some(config) = load_live_config()
+            && let Ok(client) = create_live_client(&config).await
+        {
+            let _ = cleanup_accounts(&client, &prefix, config.runtime.bulk_poll_policy).await;
+        }
+
+        result
+    }
+
+    // ── Convenience method round-trip (insert + delete) ─────────────────
+
+    #[tokio::test]
+    #[ignore = "requires a live Salesforce org"]
+    async fn live_bulk_insert_delete_convenience() -> Result<()> {
+        if !env_flag("SF_LIVE_RUN_BULK_ROUNDTRIP") {
+            eprintln!(
+                "skipping live_bulk_insert_delete_convenience: set SF_LIVE_RUN_BULK_ROUNDTRIP=1 to enable"
+            );
+            return Ok(());
+        }
+
+        let Some(config) = load_live_config() else {
+            eprintln!("skipping: no credentials available");
+            return Ok(());
+        };
+
+        let prefix = format!("FRSCONV_{}", chrono::Utc::now().timestamp_millis());
+        let record_count = 10;
+
+        eprintln!(
+            "using auth: {} | prefix={prefix} | records={record_count}",
+            config.auth,
+        );
+
+        let result: std::result::Result<(), ForceError> =
+            tokio::time::timeout(config.runtime.test_timeout, async {
+                let client = create_live_client(&config).await?;
+                let accounts = generate_accounts(&prefix, record_count);
+
+                // ── INSERT via convenience method ──────────────────────
+                let job_info = client.bulk().insert("Account", &accounts).await?;
+
+                assert_eq!(
+                    record_count_as_usize(
+                        job_info.number_records_processed,
+                        "number_records_processed"
+                    )?,
+                    record_count,
+                );
+                assert_eq!(job_info.number_records_failed.unwrap_or(-1), 0);
+                eprintln!("bulk insert completed: {record_count} records");
+
+                // ── Query IDs for deletion ─────────────────────────────
+                let soql = format!("SELECT Id FROM Account WHERE Name LIKE '{prefix}%'");
+                let result = client
+                    .rest()
+                    .query::<force::types::DynamicSObject>(&soql)
+                    .await?;
+
+                let ids: Vec<String> = result
+                    .records
+                    .iter()
+                    .filter_map(|r| r.get_field("Id").and_then(|v| v.as_str().map(String::from)))
+                    .collect();
+
+                assert_eq!(
+                    ids.len(),
+                    record_count,
+                    "Should find all {record_count} inserted records",
+                );
+
+                // ── DELETE via convenience method ──────────────────────
+                let del_info = client.bulk().delete("Account", &ids).await?;
+
+                assert_eq!(
+                    record_count_as_usize(
+                        del_info.number_records_processed,
+                        "number_records_processed"
+                    )?,
+                    record_count,
+                );
+                assert_eq!(del_info.number_records_failed.unwrap_or(-1), 0);
+                eprintln!("bulk delete completed: {record_count} records");
+
+                Ok(())
+            })
+            .await
+            .map_err(|_| HttpError::Timeout {
+                timeout_seconds: config.runtime.test_timeout.as_secs(),
+            })?;
+
+        if result.is_err()
+            && let Some(config) = load_live_config()
+            && let Ok(client) = create_live_client(&config).await
+        {
+            let _ = cleanup_accounts(&client, &prefix, config.runtime.bulk_poll_policy).await;
+        }
+
+        result
+    }
+
+    // ── DataFaker → REST create → verify → delete ───────────────────────
+
+    #[tokio::test]
+    #[ignore = "requires a live Salesforce org"]
+    async fn live_datafaker_rest_round_trip() -> Result<()> {
+        if !env_flag("SF_LIVE_RUN_BULK_ROUNDTRIP") {
+            eprintln!(
+                "skipping live_datafaker_rest_round_trip: set SF_LIVE_RUN_BULK_ROUNDTRIP=1 to enable"
+            );
+            return Ok(());
+        }
+
+        let Some(config) = load_live_config() else {
+            eprintln!("skipping: no credentials available");
+            return Ok(());
+        };
+
+        eprintln!(
+            "using auth: {} (testing datafaker → REST round-trip)",
+            config.auth,
+        );
+
+        tokio::time::timeout(config.runtime.test_timeout, async {
+            let client = create_live_client(&config).await?;
+
+            // ── Describe Account to feed the datafaker ─────────────
+            let describe = client.rest().describe("Account").await?;
+            eprintln!(
+                "Account describe: {} fields, {} createable",
+                describe.fields.len(),
+                describe.fields.iter().filter(|f| f.createable).count(),
+            );
+
+            // ── Generate a mock record ─────────────────────────────
+            let mock_record = force::data::generate_mock_record(&describe);
+
+            // The mock record has fields populated — serialize to JSON
+            // for REST create (strip the dummy attributes/Id).
+            let mut payload = serde_json::to_value(&mock_record)
+                .map_err(|e| ForceError::Serialization(e.into()))?;
+            if let Some(obj) = payload.as_object_mut() {
+                obj.remove("attributes");
+                obj.remove("Id");
+            }
+
+            eprintln!(
+                "datafaker generated payload with {} fields",
+                payload.as_object().map_or(0, serde_json::Map::len),
+            );
+
+            // ── Create via REST ────────────────────────────────────
+            let create_result = client.rest().create("Account", &payload).await;
+
+            match create_result {
+                Ok(response) => {
+                    let Some(sf_id) = response.id else {
+                        return Err(ForceError::InvalidInput(
+                            "successful create should return an Id".to_string(),
+                        ));
+                    };
+                    eprintln!("datafaker record created: {sf_id}");
+
+                    // ── Read it back ───────────────────────────────
+                    let fetched: serde_json::Value = client.rest().get("Account", &sf_id).await?;
+
+                    // The Name field should have been set by the datafaker
+                    let name = fetched.get("Name").and_then(|v| v.as_str()).unwrap_or("");
+                    assert!(
+                        !name.is_empty(),
+                        "Fetched record should have a Name field set by datafaker",
+                    );
+                    eprintln!("read-back confirmed — Name: {name}");
+
+                    // ── Generate a mock SOQL query and run it ──────
+                    let mock_query = force::data::generate_mock_query(&describe);
+                    eprintln!("datafaker SOQL: {mock_query}");
+                    let query_result = client
+                        .rest()
+                        .query::<force::types::DynamicSObject>(&mock_query)
+                        .await?;
+                    eprintln!(
+                        "datafaker query returned {} record(s)",
+                        query_result.records.len(),
+                    );
+
+                    // ── Cleanup ────────────────────────────────────
+                    client.rest().delete("Account", &sf_id).await?;
+                    eprintln!("datafaker record deleted");
+                }
+                Err(e) => {
+                    // Some orgs have validation rules that reject mock data
+                    // (required fields, picklist restrictions, etc.).
+                    // That's OK — the point is the datafaker ran and produced
+                    // a plausible payload; the org just rejected it.
+                    let err_str = e.to_string();
+                    eprintln!("datafaker record rejected by org (validation rules?): {err_str}");
+                    assert!(
+                        matches!(
+                            e,
+                            ForceError::Http(HttpError::StatusError {
+                                status_code: 400,
+                                ..
+                            })
+                        ),
+                        "Rejection should be a 400 validation error, got: {e:?}",
+                    );
+                }
+            }
+
+            Ok::<(), ForceError>(())
+        })
+        .await
+        .map_err(|_| HttpError::Timeout {
+            timeout_seconds: config.runtime.test_timeout.as_secs(),
+        })??;
+
+        Ok(())
+    }
 }
 
 // ─── Data Cloud Token Exchange Tests ──────────────────────────────────────

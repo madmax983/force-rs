@@ -10,7 +10,7 @@
 //! the noise and creates a dense, readable string that gives an LLM exactly what it needs to
 //! know about an SObject's structure, fields, and relationships.
 
-use crate::api::rest::describe::{FieldType, SObjectDescribe};
+use crate::types::describe::{FieldType, SObjectDescribe};
 use std::fmt::Write;
 
 /// Options for configuring the LLM context generation.
@@ -90,25 +90,36 @@ pub fn generate_llm_context(describe: &SObjectDescribe, options: &LlmContextOpti
             FieldType::AnyType => "any",
         };
 
-        let mut modifiers = Vec::new();
+        // ⚡ Bolt: Eliminate intermediate Vec allocation and format! heap allocation for modifiers
+        let mut modifiers_str = String::new();
+        let mut has_mod = false;
+
+        let mut add_mod = |m: &str| {
+            if has_mod {
+                modifiers_str.push(',');
+            } else {
+                modifiers_str.push_str(" [");
+                has_mod = true;
+            }
+            modifiers_str.push_str(m);
+        };
+
         if !field.nillable {
-            modifiers.push("req");
+            add_mod("req");
         }
         if field.unique {
-            modifiers.push("uniq");
+            add_mod("uniq");
         }
         if field.external_id {
-            modifiers.push("ext_id");
+            add_mod("ext_id");
         }
         if field.calculated {
-            modifiers.push("formula");
+            add_mod("formula");
         }
 
-        let modifiers_str = if modifiers.is_empty() {
-            String::new()
-        } else {
-            format!(" [{}]", modifiers.join(","))
-        };
+        if has_mod {
+            modifiers_str.push(']');
+        }
 
         let label_str = if options.include_labels {
             format!(" // {}", field.label)

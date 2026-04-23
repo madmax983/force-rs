@@ -26,10 +26,10 @@
 //! ```ignore
 //! use force::auth::ClientCredentials;
 //!
-//! // For Sandbox, use: ClientCredentials::new_sandbox("client-id", "client-secret")
-//! let auth = ClientCredentials::new_production(
+//! let auth = ClientCredentials::new_my_domain(
 //!     "your_client_id",
 //!     "your_client_secret",
+//!     "https://your-org.my.salesforce.com",
 //! );
 //!
 //! let token = auth.authenticate().await?;
@@ -67,7 +67,8 @@ impl ClientCredentials {
     ///
     /// * `client_id` - OAuth client ID from Connected App
     /// * `client_secret` - OAuth client secret from Connected App
-    /// * `token_url` - Token endpoint URL (e.g., `https://login.salesforce.com/services/oauth2/token`)
+    /// * `token_url` - Token endpoint URL (for example,
+    ///   `https://my-org.my.salesforce.com/services/oauth2/token`)
     ///
     /// # Examples
     ///
@@ -75,7 +76,7 @@ impl ClientCredentials {
     /// let auth = ClientCredentials::new(
     ///     "3MVG9...",
     ///     "1234567890...",
-    ///     "https://login.salesforce.com/services/oauth2/token",
+    ///     "https://my-org.my.salesforce.com/services/oauth2/token",
     /// );
     /// ```
     ///
@@ -104,10 +105,36 @@ impl ClientCredentials {
         self
     }
 
-    /// Creates a new `ClientCredentials` authenticator for Production.
+    /// Creates a `ClientCredentials` authenticator from a Salesforce My Domain URL.
     ///
-    /// Uses the standard Salesforce Production token URL:
+    /// Use this when your org or sandbox expects OAuth token requests through
+    /// its My Domain host.
+    ///
+    /// # Arguments
+    ///
+    /// * `client_id` - OAuth client ID from Connected App
+    /// * `client_secret` - OAuth client secret from Connected App
+    /// * `my_domain_url` - Org My Domain base URL, for example
+    ///   `https://my-org.my.salesforce.com`
+    pub fn new_my_domain(
+        client_id: impl Into<String>,
+        client_secret: impl Into<String>,
+        my_domain_url: impl AsRef<str>,
+    ) -> Self {
+        let token_url = format!(
+            "{}/services/oauth2/token",
+            my_domain_url.as_ref().trim_end_matches('/')
+        );
+        Self::new(client_id, client_secret, token_url)
+    }
+
+    /// Creates a new `ClientCredentials` authenticator for the global production login URL.
+    ///
+    /// Uses the standard Salesforce production token URL:
     /// `https://login.salesforce.com/services/oauth2/token`
+    ///
+    /// If Salesforce returns a domain-support error for this flow, use
+    /// [`Self::new_my_domain`] with the target org's My Domain URL.
     ///
     /// # Arguments
     ///
@@ -117,10 +144,13 @@ impl ClientCredentials {
         Self::new(client_id, client_secret, crate::auth::PRODUCTION_TOKEN_URL)
     }
 
-    /// Creates a new `ClientCredentials` authenticator for Sandbox.
+    /// Creates a new `ClientCredentials` authenticator for the global sandbox login URL.
     ///
-    /// Uses the standard Salesforce Sandbox token URL:
+    /// Uses the standard Salesforce sandbox token URL:
     /// `https://test.salesforce.com/services/oauth2/token`
+    ///
+    /// If Salesforce returns a domain-support error for this flow, use
+    /// [`Self::new_my_domain`] with the target sandbox My Domain URL.
     ///
     /// # Arguments
     ///
@@ -191,13 +221,28 @@ mod tests {
         let auth = ClientCredentials::new(
             "test_client_id",
             "test_client_secret",
-            "https://login.salesforce.com/services/oauth2/token",
+            "https://example.my.salesforce.com/services/oauth2/token",
         );
 
         assert_eq!(auth.client_id, "test_client_id");
         assert_eq!(
             auth.token_url,
-            "https://login.salesforce.com/services/oauth2/token"
+            "https://example.my.salesforce.com/services/oauth2/token"
+        );
+    }
+
+    #[test]
+    fn test_client_credentials_new_my_domain_builds_token_url() {
+        let auth = ClientCredentials::new_my_domain(
+            "test_client_id",
+            "test_client_secret",
+            "https://example.my.salesforce.com/",
+        );
+
+        assert_eq!(auth.client_id, "test_client_id");
+        assert_eq!(
+            auth.token_url,
+            "https://example.my.salesforce.com/services/oauth2/token"
         );
     }
 
@@ -206,7 +251,7 @@ mod tests {
         let auth = ClientCredentials::new(
             "client_id",
             "client_secret",
-            "https://login.salesforce.com/services/oauth2/token",
+            "https://example.my.salesforce.com/services/oauth2/token",
         );
 
         assert_eq!(auth.grant_type(), "client_credentials");

@@ -3,7 +3,7 @@
 use force::{
     api::RestOperation,
     api::SoqlQueryBuilder,
-    api::bulk::{JobInfo, JobOperation},
+    api::bulk::{JobOperation, SmartIngestResult},
     auth::Authenticator,
     client::ForceClient,
     error::{ForceError, HttpError},
@@ -120,7 +120,7 @@ impl<A: Authenticator> SalesforceApplier<A> {
         external_id_field: &str,
         batch_size: usize,
         records: Vec<T>,
-    ) -> Result<JobInfo, ApplyError>
+    ) -> Result<SmartIngestResult, ApplyError>
     where
         T: Serialize + Send + Sync,
     {

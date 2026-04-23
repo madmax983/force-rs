@@ -449,9 +449,9 @@ pub struct PicklistValue {
     /// Display label for this value.
     pub label: String,
 
-    /// Valid for conditions (dependent picklists).
+    /// Base64-encoded valid-for bitmap for dependent picklists.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub valid_for: Option<Vec<i32>>,
+    pub valid_for: Option<String>,
 
     /// API value.
     pub value: String,
@@ -522,4 +522,25 @@ pub struct FilteredLookupInfo {
 
     /// Whether the filter is optional.
     pub optional_filter: bool,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_support::Must;
+    use serde_json::json;
+
+    #[test]
+    fn picklist_value_accepts_salesforce_base64_valid_for_bitmap() {
+        let value: PicklistValue = serde_json::from_value(json!({
+            "active": true,
+            "defaultValue": false,
+            "label": "Prospect",
+            "validFor": "AAAAAgAA",
+            "value": "Prospect"
+        }))
+        .must();
+
+        assert_eq!(value.valid_for.as_deref(), Some("AAAAAgAA"));
+    }
 }

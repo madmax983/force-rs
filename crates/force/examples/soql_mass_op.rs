@@ -19,9 +19,11 @@ async fn main() -> anyhow::Result<()> {
     let client_id = env::var("SF_CLIENT_ID").unwrap_or_else(|_| "dummy_client_id".to_string());
     let client_secret =
         env::var("SF_CLIENT_SECRET").unwrap_or_else(|_| "dummy_client_secret".to_string());
+    let my_domain_url = env::var("SF_MY_DOMAIN_URL")
+        .unwrap_or_else(|_| "https://your-org.my.salesforce.com".to_string());
 
     // Authenticate
-    let auth = ClientCredentials::new_production(client_id, client_secret);
+    let auth = ClientCredentials::new_my_domain(client_id, client_secret, my_domain_url);
     let client = ForceClientBuilder::new().authenticate(auth).build().await?;
 
     println!("Finding Contact records that are marked as 'New'...");

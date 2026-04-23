@@ -150,7 +150,9 @@ impl<A: Authenticator> BatchRequest<A> {
     /// # Arguments
     ///
     /// * `method` - HTTP method (GET, POST, etc.)
-    /// * `url` - Relative URL (e.g., "query?q=Select+Id+From+Account")
+    /// * `url` - REST resource URL. The API version is added automatically when omitted
+    ///   (for example, `"query?q=Select+Id+From+Account"` becomes `"v60.0/query?..."`
+    ///   for a `v60.0` client).
     /// * `body` - Optional JSON body
     ///
     /// # Errors
@@ -167,6 +169,8 @@ impl<A: Authenticator> BatchRequest<A> {
         url: impl Into<String>,
         body: Option<Value>,
     ) -> Result<Self> {
+        let url_str = url.into();
+        validator::validate_url_path(&url_str)?;
         if self.requests.len() >= 25 {
             return Err(ForceError::InvalidInput(
                 "Batch size limit of 25 requests exceeded".to_string(),
@@ -175,7 +179,7 @@ impl<A: Authenticator> BatchRequest<A> {
 
         self.requests.push(BatchSubRequest {
             method: method.into(),
-            url: url.into(),
+            url: url_str,
             rich_input: body,
         });
         Ok(self)
@@ -263,8 +267,18 @@ impl<A: Authenticator> BatchRequest<A> {
         // Construct the composite batch URL
         let url = self.handler.inner.resolve_url("composite/batch").await?;
 
+        let api_version = self.handler.inner.config.api_version.as_str();
+        let batch_requests = self
+            .requests
+            .into_iter()
+            .map(|mut request| {
+                request.url = normalize_subrequest_url(&request.url, api_version);
+                request
+            })
+            .collect();
+
         let request_body = BatchRequestBody {
-            batch_requests: self.requests,
+            batch_requests,
             halt_on_error: self.halt_on_error,
         };
 
@@ -281,6 +295,45 @@ impl<A: Authenticator> BatchRequest<A> {
             .send_request_and_decode(request, "Composite Batch failed")
             .await
     }
+}
+
+fn normalize_subrequest_url(url: &str, api_version: &str) -> String {
+    let trimmed = url.trim_start_matches('/');
+
+    if trimmed.starts_with("http://") || trimmed.starts_with("https://") {
+        return url.to_string();
+    }
+
+    if let Some(rest) = trimmed.strip_prefix("services/data/") {
+        return rest.to_string();
+    }
+
+    if is_api_version_prefixed(trimmed) {
+        return trimmed.to_string();
+    }
+
+    format!("{}/{}", api_version.trim_matches('/'), trimmed)
+}
+
+fn is_api_version_prefixed(url: &str) -> bool {
+    let Some(rest) = url.strip_prefix('v') else {
+        return false;
+    };
+
+    let version = rest.split('/').next().unwrap_or_default();
+    let mut parts = version.split('.');
+    let Some(major) = parts.next() else {
+        return false;
+    };
+    let Some(minor) = parts.next() else {
+        return false;
+    };
+
+    parts.next().is_none()
+        && !major.is_empty()
+        && !minor.is_empty()
+        && major.chars().all(|c| c.is_ascii_digit())
+        && minor.chars().all(|c| c.is_ascii_digit())
 }
 
 /// A request to the Composite Batch API.
@@ -403,6 +456,61 @@ mod tests {
             .must_msg("failed to build client");
 
         client.composite().batch()
+    }
+
+    #[tokio::test]
+    async fn test_batch_execute_prefixes_api_version_on_subrequest_urls() {
+        use wiremock::matchers::{body_json, method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let mock_server = MockServer::start().await;
+        let auth = MockAuthenticator::new("token", &mock_server.uri());
+        let client = client_builder()
+            .authenticate(auth)
+            .build()
+            .await
+            .must_msg("failed to build client");
+
+        Mock::given(method("POST"))
+            .and(path("/services/data/v60.0/composite/batch"))
+            .and(body_json(serde_json::json!({
+                "batchRequests": [
+                    {
+                        "method": "GET",
+                        "url": "v60.0/limits"
+                    }
+                ],
+                "haltOnError": false
+            })))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "hasErrors": false,
+                "results": [
+                    {
+                        "statusCode": 200,
+                        "result": {
+                            "DailyApiRequests": {
+                                "Max": 15000,
+                                "Remaining": 14999
+                            }
+                        }
+                    }
+                ]
+            })))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let response = client
+            .composite()
+            .batch()
+            .add_request("GET", "limits", None)
+            .must()
+            .execute()
+            .await
+            .must();
+
+        assert!(!response.has_errors);
+        assert_eq!(response.results[0].status_code, 200);
     }
 
     #[tokio::test]

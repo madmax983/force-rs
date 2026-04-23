@@ -12,6 +12,8 @@ use force::auth::{AccessToken, Authenticator, TokenResponse};
 use force::client::builder;
 use force::error::Result as ForceResult;
 use force_pubsub::{PubSubConfig, PubSubError, PubSubHandler};
+use std::time::Duration;
+use tokio::net::TcpListener;
 use wiremock::MockServer;
 
 /// Minimal mock authenticator for handler tests.
@@ -138,6 +140,42 @@ async fn test_connect_rejects_invalid_batch_size_over_100() {
     };
 
     assert!(matches!(err, PubSubError::Config(_)));
+}
+
+#[tokio::test]
+async fn test_connect_https_endpoint_uses_tls_connector() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let _accept_task = tokio::spawn(async move {
+        if let Ok((socket, _peer)) = listener.accept().await {
+            tokio::time::sleep(Duration::from_millis(200)).await;
+            drop(socket);
+        }
+    });
+
+    let auth = TestAuth::new("test-token", "https://test.salesforce.com");
+    let client = builder().authenticate(auth).build().await.unwrap();
+    let config = PubSubConfig {
+        endpoint: format!("https://{addr}"),
+        ..PubSubConfig::default()
+    };
+
+    let result = tokio::time::timeout(
+        Duration::from_secs(2),
+        PubSubHandler::connect(client.session(), config),
+    )
+    .await
+    .expect("connect should fail fast against the local non-TLS socket");
+
+    let Err(err) = result else {
+        panic!("Expected an error");
+    };
+    let error = format!("{err:?}");
+
+    assert!(
+        !error.contains("Connecting to HTTPS without TLS enabled"),
+        "HTTPS endpoints must be configured with tonic TLS support, got: {error}",
+    );
 }
 
 #[tokio::test]

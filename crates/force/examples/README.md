@@ -9,6 +9,7 @@ All examples require OAuth credentials set as environment variables:
 ```bash
 export SF_CLIENT_ID="your_client_id_here"
 export SF_CLIENT_SECRET="your_client_secret_here"
+export SF_MY_DOMAIN_URL="https://your-org.my.salesforce.com"
 ```
 
 ### Getting OAuth Credentials
@@ -254,8 +255,7 @@ All examples use the OAuth 2.0 Client Credentials flow:
 use force::auth::ClientCredentials;
 use force::client::builder;
 
-// For Sandbox, use: ClientCredentials::new_sandbox("client-id", "client-secret")
-let auth = ClientCredentials::new_production(client_id, client_secret);
+let auth = ClientCredentials::new_my_domain(client_id, client_secret, my_domain_url);
 let client = builder()
     .authenticate(auth)
     .build()

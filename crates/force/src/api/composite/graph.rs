@@ -182,7 +182,7 @@ impl Graph {
             "GET",
             crate::api::path_utils::format_sobject_path(sobject, Some(id)),
             reference_id,
-        ))
+        )?)
     }
 
     /// Adds a POST (Create) request to the graph.
@@ -200,7 +200,7 @@ impl Graph {
                 "POST",
                 crate::api::path_utils::format_sobject_path(sobject, None),
                 reference_id,
-            )
+            )?
             .body(body),
         )
     }
@@ -222,7 +222,7 @@ impl Graph {
                 "PATCH",
                 crate::api::path_utils::format_sobject_path(sobject, Some(id)),
                 reference_id,
-            )
+            )?
             .body(body),
         )
     }
@@ -242,7 +242,7 @@ impl Graph {
             "DELETE",
             crate::api::path_utils::format_sobject_path(sobject, Some(id)),
             reference_id,
-        ))
+        )?)
     }
 
     /// Adds a SOQL query request to the graph.
@@ -263,7 +263,7 @@ impl Graph {
     pub fn query(self, query_builder: SoqlQueryBuilder, reference_id: &str) -> Result<Self> {
         validate_reference_id(reference_id)?;
         let url = crate::api::soql::encode_soql_query_url(&query_builder)?;
-        self.add_request(GraphRequest::new("GET", url, reference_id))
+        self.add_request(GraphRequest::new("GET", url, reference_id)?)
     }
 }
 
@@ -294,13 +294,15 @@ impl GraphRequest {
         method: impl Into<String>,
         url: impl Into<String>,
         reference_id: impl Into<String>,
-    ) -> Self {
-        Self {
+    ) -> Result<Self> {
+        let url_str = url.into();
+        validator::validate_url_path(&url_str)?;
+        Ok(Self {
             method: method.into(),
-            url: url.into(),
+            url: url_str,
             reference_id: reference_id.into(),
             body: None,
-        }
+        })
     }
 
     /// Sets the request body.
@@ -537,6 +539,64 @@ mod tests {
     }
 
     #[test]
+    fn test_graph_post_patch_delete() {
+        let mut graph = Graph::new("graph1");
+
+        // Valid POST
+        graph = graph
+            .post("Account", json!({"Name": "Test"}), "refPost")
+            .must();
+
+        // Valid PATCH
+        graph = graph
+            .patch(
+                "Account",
+                "001000000000000AAA",
+                json!({"Name": "Updated"}),
+                "refPatch",
+            )
+            .must();
+
+        // Valid DELETE
+        graph = graph
+            .delete("Account", "001000000000000AAA", "refDelete")
+            .must();
+
+        assert_eq!(graph.composite_request.len(), 3);
+
+        let post_req = &graph.composite_request[0];
+        assert_eq!(post_req.method, "POST");
+        assert_eq!(post_req.reference_id, "refPost");
+
+        let patch_req = &graph.composite_request[1];
+        assert_eq!(patch_req.method, "PATCH");
+        assert_eq!(patch_req.reference_id, "refPatch");
+
+        let delete_req = &graph.composite_request[2];
+        assert_eq!(delete_req.method, "DELETE");
+        assert_eq!(delete_req.reference_id, "refDelete");
+    }
+
+    #[test]
+    fn test_graph_size_limit() {
+        let mut graph = Graph::new("graph1");
+
+        // Add 500 requests
+        for i in 0..500 {
+            graph = graph
+                .get("Account", "001000000000000AAA", &format!("ref{}", i))
+                .must();
+        }
+
+        // 501st request should fail
+        let result = graph.get("Account", "001000000000000AAA", "ref501");
+
+        assert!(
+            matches!(result, Err(ForceError::InvalidInput(ref msg)) if msg.contains("limit of 500"))
+        );
+    }
+
+    #[test]
     fn test_havoc_path_traversal() {
         let graph = Graph::new("graph1");
 
@@ -601,6 +661,7 @@ mod tests {
     #[test]
     fn test_graph_request_body() {
         let req = GraphRequest::new("POST", "sobjects/Account", "ref1")
+            .must()
             .body(serde_json::json!({"Name": "Test"}));
         assert_eq!(req.body.must()["Name"], "Test");
     }

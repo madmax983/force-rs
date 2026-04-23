@@ -11,11 +11,11 @@ use force::client::ForceClientBuilder;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // Authenticate with OAuth 2.0 client credentials
-    // For Sandbox, use: ClientCredentials::new_sandbox("client-id", "client-secret")
-    let auth = ClientCredentials::new_production(
+    let auth = ClientCredentials::new_my_domain(
         std::env::var("SF_CLIENT_ID").unwrap_or_else(|_| "client-id".to_string()),
         std::env::var("SF_CLIENT_SECRET").unwrap_or_else(|_| "client-secret".to_string()),
+        std::env::var("SF_MY_DOMAIN_URL")
+            .unwrap_or_else(|_| "https://your-org.my.salesforce.com".to_string()),
     );
 
     let client = ForceClientBuilder::new().authenticate(auth).build().await?;

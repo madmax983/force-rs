@@ -72,3 +72,6 @@
 **2024-05-31 - [Explain API Types Module Consolidation]**
 **Tangle:** The `crates/force/src/api/rest/explain.rs` module contained domain types (like `ExplainResponse` and `QueryPlan`) for the Query Plan API. However, this caused a leaky abstraction as other modules and traits (like `RestOperation`) had to import domain types from inside the `rest` API implementation boundary rather than a dedicated domain module.
 **Blueprint:** Applied the Facade pattern by migrating `explain.rs` from `crates/force/src/api/rest/explain.rs` to `crates/force/src/types/explain.rs`. Updated the exports in `crates/force/src/types.rs` to re-export the structs publicly and updated the root `rest` module to re-export from the new `types` module to maintain backward compatibility. This cleanly separates domain definitions from the API invocation mechanisms.
+**[The Facade: Fixing the Leak in HTTP Module]**
+**Tangle:** The `http` module leaked its internal error structure directly into the public API by declaring it as `pub mod error`. This violated the Facade pattern and exposed implementation details that users shouldn't depend on.
+**Blueprint:** Changed visibility of `error` module to `pub(crate) mod` in `crates/force/src/http/mod.rs`. This enforces encapsulation and presents a clean, un-nested API surface to consumers.
