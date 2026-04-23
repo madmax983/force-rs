@@ -33,3 +33,8 @@ mutants.out.old/
 # Live test credentials (never commit)
 **/jwt_live_key.pem
 **/jwt_live_cert.crt
+
+#jules artifacts
+plan.md
+pr_description.md
+pr-description.md

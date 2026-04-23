@@ -2,9 +2,9 @@ name: Code Coverage
 
 on:
   push:
-    branches: [trunk, main]
+    branches: [trunk, trunk-dev, main]
   pull_request:
-    branches: [trunk, main]
+    branches: [trunk, trunk-dev, main]
   workflow_dispatch:
     # Allow manual triggering
 
@@ -93,7 +93,7 @@ jobs:
             fi
 
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "Note: For v0.1, coverage thresholds are informational only." >> $GITHUB_STEP_SUMMARY
+            echo "Note: Coverage thresholds are informational only for now." >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "Full HTML report available in artifacts." >> $GITHUB_STEP_SUMMARY
           else
@@ -127,7 +127,7 @@ jobs:
 
             [View detailed report](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
 
-            *Note: For v0.1, coverage is tracked but not enforced.*`;
+            *Note: Coverage is tracked but not enforced.*`;
 
             github.rest.issues.createComment({
               issue_number: context.issue.number,
