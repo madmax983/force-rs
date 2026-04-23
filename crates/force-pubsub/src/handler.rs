@@ -2,7 +2,7 @@
 
 use std::pin::Pin;
 use std::sync::Arc;
-use tonic::transport::Channel;
+use tonic::transport::{Channel, ClientTlsConfig};
 
 use force::auth::Authenticator;
 use force::session::Session;
@@ -119,10 +119,14 @@ impl<A: Authenticator> PubSubHandler<A> {
             ));
         }
 
-        let channel = Channel::from_shared(config.endpoint.clone())
-            .map_err(|e| PubSubError::Config(format!("invalid endpoint: {e}")))?
-            .connect()
-            .await?;
+        let endpoint = Channel::from_shared(config.endpoint.clone())
+            .map_err(|e| PubSubError::Config(format!("invalid endpoint: {e}")))?;
+        let endpoint = if endpoint.uri().scheme_str() == Some("https") {
+            endpoint.tls_config(ClientTlsConfig::new().with_webpki_roots())?
+        } else {
+            endpoint
+        };
+        let channel = endpoint.connect().await?;
 
         Ok(Self {
             session,
