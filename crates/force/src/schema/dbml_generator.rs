@@ -26,22 +26,32 @@ pub fn write_dbml(out: &mut String, describe: &SObjectDescribe) {
         let dbml_type = map_type(&field.type_);
         let _ = write!(out, "  {} {}", field.name, dbml_type);
 
-        let mut settings = Vec::new();
+        let mut has_setting = false;
+        let mut write_setting_separator = |out: &mut String| {
+            if has_setting {
+                out.push_str(", ");
+            } else {
+                out.push_str(" [");
+                has_setting = true;
+            }
+        };
 
         if field.name == "Id" {
-            settings.push("pk".to_string());
+            write_setting_separator(out);
+            out.push_str("pk");
         }
 
         if !field.nillable && field.name != "Id" {
-            settings.push("not null".to_string());
+            write_setting_separator(out);
+            out.push_str("not null");
         }
 
         let label = &field.label;
-        let note_text = format!("note: '{}'", label.replace('\'', "''"));
-        settings.push(note_text);
+        write_setting_separator(out);
+        let _ = write!(out, "note: '{}'", label.replace('\'', "''"));
 
-        if !settings.is_empty() {
-            let _ = write!(out, " [{}]", settings.join(", "));
+        if has_setting {
+            out.push(']');
         }
 
         let _ = writeln!(out);
