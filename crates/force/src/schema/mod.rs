@@ -72,3 +72,8 @@ pub use zod_generator::{generate_zod_schema, write_zod_schema};
 
 pub(crate) mod llm_context_generator;
 pub use llm_context_generator::{LlmContextOptions, generate_llm_context};
+
+#[cfg(feature = "schema")]
+pub(crate) mod dbt_generator;
+#[cfg(feature = "schema")]
+pub use dbt_generator::{generate_dbt_source_yml, generate_dbt_staging_model};
