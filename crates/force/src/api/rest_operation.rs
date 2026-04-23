@@ -876,6 +876,37 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_validation_create_rejects_invalid_sobject_before_session() {
+        let op = TestRestOp;
+        let result = op.create("Account;DROP", &serde_json::json!({})).await;
+        assert_invalid_input_contains(result, "SObject name contains invalid characters");
+    }
+
+    #[tokio::test]
+    async fn test_validation_update_rejects_invalid_names_before_session() {
+        let op = TestRestOp;
+        let id = crate::types::SalesforceId::new("001000000000001AAA").must();
+        let result = op.update("Account;DROP", &id, &serde_json::json!({})).await;
+        assert_invalid_input_contains(result, "SObject name contains invalid characters");
+    }
+
+    #[tokio::test]
+    async fn test_validation_delete_rejects_invalid_names_before_session() {
+        let op = TestRestOp;
+        let id = crate::types::SalesforceId::new("001000000000001AAA").must();
+        let result = op.delete("Account;DROP", &id).await;
+        assert_invalid_input_contains(result, "SObject name contains invalid characters");
+    }
+
+    #[tokio::test]
+    async fn test_validation_get_rejects_invalid_names_before_session() {
+        let op = TestRestOp;
+        let id = crate::types::SalesforceId::new("001000000000001AAA").must();
+        let result = op.get("Account;DROP", &id).await;
+        assert_invalid_input_contains(result, "SObject name contains invalid characters");
+    }
+
+    #[tokio::test]
     async fn test_validation_upsert_rejects_invalid_names_before_session() {
         let op = TestRestOp;
 
