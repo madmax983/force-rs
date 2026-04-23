@@ -1,14 +1,12 @@
 //! Salesforce Describe API for retrieving object metadata.
 //!
-//! Type definitions live in [`crate::types::describe`]. This module re-exports them
-//! for backward compatibility and contains the tests for deserialization.
-
-pub use crate::types::describe::*;
+//! Type definitions live in [`crate::types::describe`]. This module contains the tests for deserialization.
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+
     use crate::test_support::Must;
+    use crate::types::describe::*;
 
     // RED PHASE - Write failing tests first
 

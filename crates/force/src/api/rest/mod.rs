@@ -12,11 +12,6 @@ pub(crate) mod query_plan_analyzer;
 pub(crate) mod search;
 
 pub use crate::api::soql::{SoqlQueryBuilder, escape_soql};
-pub use crate::types::explain::{ExplainResponse, PlanNote, QueryPlan};
-pub use describe::{
-    ChildRelationship, FieldDescribe, FieldType, FilteredLookupInfo, GlobalDescribe,
-    GlobalSObjectDescribe, PicklistValue, RecordTypeInfo, SObjectDescribe,
-};
 pub use limits::{LimitInfo, OrgLimits};
 pub use query_plan_analyzer::{InsightSeverity, QueryInsight, QueryInsights, analyze_query_plan};
 pub use search::{SearchAttributes, SearchQueryBuilder, SearchRecords, SearchResult};
