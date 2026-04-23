@@ -61,20 +61,24 @@ impl<'a> DataMasker<'a> {
     /// field, and if it's sensitive (e.g., Email, Phone, Encrypted), replaces the
     /// value with a masked version.
     pub fn mask_record(&self, record: &mut DynamicSObject) {
-        // Collect keys first to avoid borrowing issues during mutation
-        let keys: Vec<String> = record.fields.keys().cloned().collect();
+        // ⚡ Bolt: Iterate over fields to find sensitive ones, avoiding cloning all keys into a new Vec
+        let mut to_update = Vec::new();
 
-        for key in keys {
-            if let Some(field) = self.find_field(&key) {
+        for (key, val) in &record.fields {
+            if val.is_null() {
+                continue;
+            }
+
+            if let Some(field) = self.find_field(key) {
                 if Self::is_sensitive(field) {
-                    if let Some(val) = record.fields.get(&key) {
-                        if !val.is_null() {
-                            let masked_val = Self::generate_mask(field, val);
-                            record.set_field(&key, masked_val);
-                        }
-                    }
+                    let masked_val = Self::generate_mask(field, val);
+                    to_update.push((key.clone(), masked_val));
                 }
             }
+        }
+
+        for (key, val) in to_update {
+            record.set_field(&key, val);
         }
     }
 
