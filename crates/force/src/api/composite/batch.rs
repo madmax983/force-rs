@@ -272,7 +272,7 @@ impl<A: Authenticator> BatchRequest<A> {
             .requests
             .into_iter()
             .map(|mut request| {
-                request.url = normalize_subrequest_url(&request.url, api_version);
+                request.url = normalize_subrequest_url(request.url, api_version);
                 request
             })
             .collect();
@@ -297,22 +297,33 @@ impl<A: Authenticator> BatchRequest<A> {
     }
 }
 
-fn normalize_subrequest_url(url: &str, api_version: &str) -> String {
-    let trimmed = url.trim_start_matches('/');
-
-    if trimmed.starts_with("http://") || trimmed.starts_with("https://") {
-        return url.to_string();
+/// ⚡ Bolt: Takes ownership of the `String` to avoid unnecessary allocations.
+/// In cases where the URL is already normalized, we reuse the existing allocation.
+fn normalize_subrequest_url(mut url: String, api_version: &str) -> String {
+    let trim_len = url.len() - url.trim_start_matches('/').len();
+    if trim_len > 0 {
+        url.drain(..trim_len);
     }
 
-    if let Some(rest) = trimmed.strip_prefix("services/data/") {
-        return rest.to_string();
+    if url.starts_with("http://") || url.starts_with("https://") {
+        return url;
     }
 
-    if is_api_version_prefixed(trimmed) {
-        return trimmed.to_string();
+    if url.starts_with("services/data/") {
+        url.drain(..14); // "services/data/".len() == 14
+        return url;
     }
 
-    format!("{}/{}", api_version.trim_matches('/'), trimmed)
+    if is_api_version_prefixed(&url) {
+        return url;
+    }
+
+    let api_ver = api_version.trim_matches('/');
+    let mut new_url = String::with_capacity(api_ver.len() + 1 + url.len());
+    new_url.push_str(api_ver);
+    new_url.push('/');
+    new_url.push_str(&url);
+    new_url
 }
 
 fn is_api_version_prefixed(url: &str) -> bool {
