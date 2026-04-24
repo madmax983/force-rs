@@ -51,3 +51,7 @@ Design backlog and product-spec notes for incubating `force-rs` capabilities. Th
 ## Authentication
 
 - [`saml-bearer-flow.md`](saml-bearer-flow.md): OAuth 2.0 SAML Bearer Assertion Flow for Salesforce authentication.
+
+## Analytics and Trading
+
+- [`backtesting.md`](backtesting.md): historical backtesting against volatile markets.
