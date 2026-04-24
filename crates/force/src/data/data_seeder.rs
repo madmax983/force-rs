@@ -105,9 +105,9 @@ impl<'a, A: Authenticator> DataSeeder<'a, A> {
 
 #[cfg(test)]
 mod tests {
-    use crate::test_support::{MockAuthenticator, Must};
     use super::*;
     use crate::client::builder;
+    use crate::test_support::{MockAuthenticator, Must};
     use serde_json::json;
     use wiremock::matchers::{method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};

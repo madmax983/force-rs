@@ -526,8 +526,8 @@ pub struct FilteredLookupInfo {
 
 #[cfg(test)]
 mod tests {
-    use crate::test_support::Must;
     use super::*;
+    use crate::test_support::Must;
     use serde_json::json;
 
     #[test]

@@ -219,8 +219,8 @@ impl<A: Authenticator> Authenticator for DataCloudAuthenticator<A> {
 
 #[cfg(test)]
 mod tests {
-    use crate::test_support::Must;
     use super::*;
+    use crate::test_support::Must;
 
     // ── DataCloudConfig tests ────────────────────────────────────────────
 
@@ -402,9 +402,9 @@ mod tests {
 
     #[cfg(feature = "mock")]
     mod integration {
-        use crate::test_support::{MockAuthenticator, Must};
         use super::*;
         use crate::error::AuthenticationError;
+        use crate::test_support::{MockAuthenticator, Must};
         use wiremock::matchers::{method, path};
         use wiremock::{Mock, MockServer, ResponseTemplate};
 

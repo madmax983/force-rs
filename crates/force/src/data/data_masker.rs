@@ -130,8 +130,8 @@ impl<'a> DataMasker<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::test_support::Must;
     use super::*;
+    use crate::test_support::Must;
     use crate::types::{Attributes, SalesforceId};
     use serde_json::json;
 

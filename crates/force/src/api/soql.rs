@@ -621,8 +621,8 @@ impl SoqlQueryBuilder {
 
 #[cfg(test)]
 mod tests {
-    use crate::test_support::Must;
     use super::*;
+    use crate::test_support::Must;
 
     #[test]
     fn test_escape_soql() {

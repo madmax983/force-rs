@@ -161,10 +161,8 @@ pub fn generate_postman_collection(describe: &SObjectDescribe) -> Value {
 #[cfg(test)]
 #[cfg(feature = "schema")]
 mod tests {
-    use crate::test_support::{
-        MockFieldDescribeBuilder, MockSObjectDescribeBuilder, MustMsg,
-    };
     use super::*;
+    use crate::test_support::{MockFieldDescribeBuilder, MockSObjectDescribeBuilder, MustMsg};
     use crate::types::describe::FieldType;
 
     #[test]

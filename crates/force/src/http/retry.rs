@@ -107,8 +107,8 @@ pub fn parse_retry_after(headers: &reqwest::header::HeaderMap) -> Option<u64> {
 
 #[cfg(test)]
 mod tests {
-    use crate::test_support::Must;
     use super::*;
+    use crate::test_support::Must;
 
     #[test]
     fn test_retry_policy_initialization() {

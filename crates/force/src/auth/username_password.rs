@@ -272,10 +272,10 @@ impl crate::auth::authenticator::Authenticator for UsernamePassword {
 
 #[cfg(test)]
 mod tests {
-    use crate::test_support::Must;
     use super::*;
     use crate::auth::Authenticator;
     use crate::error::AuthenticationError;
+    use crate::test_support::Must;
     use wiremock::matchers::{body_string_contains, method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 

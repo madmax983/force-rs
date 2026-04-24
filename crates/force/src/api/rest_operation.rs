@@ -701,8 +701,8 @@ fn validate_url_origin_match(instance: &url::Url, next: &url::Url) -> Result<()>
 
 #[cfg(test)]
 mod tests {
-    use crate::test_support::Must;
     use super::*;
+    use crate::test_support::Must;
 
     // ── resolve_next_records_url unit tests ──────────────────────────
 

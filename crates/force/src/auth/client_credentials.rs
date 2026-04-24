@@ -206,13 +206,13 @@ impl crate::auth::authenticator::Authenticator for ClientCredentials {
 
 #[cfg(test)]
 mod tests {
-    #[cfg(feature = "mock")]
-    use crate::test_support::Must;
     use super::*;
     #[cfg(feature = "mock")]
     use crate::auth::Authenticator;
     #[cfg(feature = "mock")]
     use crate::error::AuthenticationError;
+    #[cfg(feature = "mock")]
+    use crate::test_support::Must;
 
     // RED PHASE - Write failing tests first
 

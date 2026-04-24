@@ -161,9 +161,7 @@ mod tests {
 
     #[test]
     fn test_generate_struct() {
-        use crate::test_support::{
-            MockFieldDescribeBuilder, MockSObjectDescribeBuilder,
-        };
+        use crate::test_support::{MockFieldDescribeBuilder, MockSObjectDescribeBuilder};
 
         let describe = MockSObjectDescribeBuilder::new("Account")
             .field(
