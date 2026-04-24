@@ -133,8 +133,8 @@ fn generate_field_schema(field: &FieldDescribe) -> Value {
 #[cfg(test)]
 #[cfg(feature = "schema")]
 mod tests {
-    use super::*;
     use crate::test_support::{MockFieldDescribeBuilder, MockSObjectDescribeBuilder};
+    use super::*;
 
     #[test]
     fn test_json_schema_generator_basic() {

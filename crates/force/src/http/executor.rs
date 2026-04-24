@@ -408,10 +408,10 @@ impl Default for HttpExecutor {
 
 #[cfg(test)]
 mod tests {
+    use crate::test_support::Must;
     use super::*;
     use crate::auth::AccessToken;
     use crate::error::HttpError;
-    use crate::test_support::Must;
     use reqwest::Method;
     use std::time::Duration;
     use wiremock::matchers::{header, method, path};

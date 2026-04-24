@@ -106,9 +106,9 @@ pub async fn generate_visualizer_report<A: Authenticator>(
 
 #[cfg(test)]
 mod tests {
+    use crate::test_support::{MockAuthenticator, Must};
     use super::*;
     use crate::client::builder;
-    use crate::test_support::{MockAuthenticator, Must};
     use wiremock::matchers::{method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 

@@ -267,8 +267,8 @@ mod tests {
 
 #[cfg(all(test, feature = "mock"))]
 mod integration_tests {
-    use super::*;
     use crate::test_support::Must;
+    use super::*;
     use wiremock::matchers::{method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 

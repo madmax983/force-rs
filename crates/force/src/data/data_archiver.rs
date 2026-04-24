@@ -116,9 +116,9 @@ impl<'a, A: Authenticator> DataArchiver<'a, A> {
 
 #[cfg(test)]
 mod tests {
+    use crate::test_support::{MockAuthenticator, Must};
     use super::*;
     use crate::client::ForceClientBuilder;
-    use crate::test_support::{MockAuthenticator, Must};
     use serde_json::json;
     use std::env;
     use wiremock::matchers::{method, path};

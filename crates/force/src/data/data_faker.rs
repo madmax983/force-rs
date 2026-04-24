@@ -130,8 +130,8 @@ pub fn generate_mock_record(describe: &SObjectDescribe) -> DynamicSObject {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::test_support::Must;
+    use super::*;
     use serde_json::json;
 
     fn create_mock_describe(fields_json: &serde_json::Value) -> SObjectDescribe {
@@ -371,8 +371,8 @@ pub fn generate_mock_query(describe: &SObjectDescribe) -> String {
 
 #[cfg(test)]
 mod additional_tests {
-    use super::*;
     use crate::test_support::Must;
+    use super::*;
     use crate::types::describe::SObjectDescribe;
     use serde_json::json;
 

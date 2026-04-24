@@ -118,9 +118,9 @@ impl<'a, A: Authenticator> DataDictionary<'a, A> {
 
 #[cfg(test)]
 mod tests {
+    use crate::test_support::{MockAuthenticator, Must};
     use super::*;
     use crate::client::builder;
-    use crate::test_support::{MockAuthenticator, Must};
     use serde_json::json;
     use wiremock::matchers::{method, path, query_param};
     use wiremock::{Mock, MockServer, ResponseTemplate};

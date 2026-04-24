@@ -265,8 +265,8 @@ fn parse_issued_at(issued_at: &str) -> Result<DateTime<Utc>> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::test_support::Must;
+    use super::*;
 
     #[test]
     fn test_token_response_deserialization() {

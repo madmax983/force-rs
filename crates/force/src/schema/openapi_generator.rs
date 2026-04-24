@@ -120,8 +120,8 @@ fn write_field_schema(out: &mut String, field: &FieldDescribe) {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::test_support::{MockFieldDescribeBuilder, MockSObjectDescribeBuilder};
+    use super::*;
 
     #[test]
     fn test_openapi_generator_basic() {

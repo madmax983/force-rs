@@ -62,8 +62,8 @@ pub struct PlanNote {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::test_support::Must;
+    use super::*;
 
     #[test]
     fn test_deserialize_explain_response() {
@@ -130,8 +130,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_explain_api_call() {
-        use crate::client::builder;
         use crate::test_support::{MockAuthenticator, Must};
+        use crate::client::builder;
         use wiremock::matchers::{method, path, query_param};
         use wiremock::{Mock, MockServer, ResponseTemplate};
 

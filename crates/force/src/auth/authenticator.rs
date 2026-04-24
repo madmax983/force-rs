@@ -99,8 +99,8 @@ impl<T: ?Sized + Authenticator> Authenticator for Box<T> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::test_support::Must;
+    use super::*;
 
     #[derive(Debug)]
     struct MockAuthenticator;

@@ -191,8 +191,8 @@ mod tests {
         );
     }
 
-    use super::*;
     use crate::test_support::Must;
+    use super::*;
     use serde_json::json;
 
     fn create_mock_describe(fields_json: &serde_json::Value) -> SObjectDescribe {

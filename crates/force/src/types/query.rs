@@ -311,8 +311,8 @@ impl<T> Iterator for QueryIterator<T> {
 }
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::test_support::Must;
+    use super::*;
     use serde_json::json;
 
     // RED PHASE - Write failing tests first

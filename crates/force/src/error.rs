@@ -251,8 +251,8 @@ pub enum SerializationError {
 pub type Result<T> = std::result::Result<T, ForceError>;
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::test_support::Must;
+    use super::*;
 
     #[test]
     fn test_authentication_error_display() {

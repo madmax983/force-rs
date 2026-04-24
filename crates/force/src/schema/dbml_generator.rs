@@ -90,8 +90,8 @@ fn map_type(ft: &FieldType) -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::test_support::Must;
+    use super::*;
     use crate::types::describe::SObjectDescribe;
 
     #[test]

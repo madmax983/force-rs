@@ -2,12 +2,12 @@
 
 #[cfg(test)]
 mod integration_tests {
+    use crate::test_support::Must;
     use crate::auth::{AccessToken, TokenResponse};
     use crate::error::ForceError;
     use crate::http::{
         HttpExecutor, RequestErrorKind, RequestRetryClass, RetryEvent, RetryPolicy, TelemetryHooks,
     };
-    use crate::test_support::Must;
     use std::sync::Arc;
     use std::sync::Mutex;
     use std::sync::atomic::{AtomicU32, Ordering};

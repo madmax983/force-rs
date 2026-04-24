@@ -161,8 +161,8 @@ pub fn generate_llm_context(describe: &SObjectDescribe, options: &LlmContextOpti
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::test_support::Must;
+    use super::*;
     use serde_json::json;
 
     fn mock_describe() -> SObjectDescribe {
