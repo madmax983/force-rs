@@ -854,24 +854,24 @@ mod tests {
         // Missing fields
         let builder = SoqlQueryBuilder::new().from("Account");
         let result = builder.try_build();
-        match result {
-            Err(e) => assert_eq!(
-                e.to_string(),
-                "invalid input: Select fields cannot be empty"
-            ),
-            Ok(_) => panic!("Expected error"),
-        }
+        let Err(e) = result else {
+            panic!("Expected error");
+        };
+        assert_eq!(
+            e.to_string(),
+            "invalid input: Select fields cannot be empty"
+        );
 
         // Missing SObject
         let builder = SoqlQueryBuilder::new().select(&["Id"]);
         let result = builder.try_build();
-        match result {
-            Err(e) => assert_eq!(
-                e.to_string(),
-                "invalid input: FROM clause (SObject) is required"
-            ),
-            Ok(_) => panic!("Expected error"),
-        }
+        let Err(e) = result else {
+            panic!("Expected error");
+        };
+        assert_eq!(
+            e.to_string(),
+            "invalid input: FROM clause (SObject) is required"
+        );
     }
 
     #[test]

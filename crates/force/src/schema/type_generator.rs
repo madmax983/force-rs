@@ -24,15 +24,7 @@ pub fn write_rust_struct(out: &mut String, describe: &SObjectDescribe) {
     out.push_str(" {\n");
 
     let mut fields: Vec<&_> = describe.fields.iter().collect();
-    fields.sort_by(|a, b| {
-        if a.name == "Id" {
-            std::cmp::Ordering::Less
-        } else if b.name == "Id" {
-            std::cmp::Ordering::Greater
-        } else {
-            a.name.cmp(&b.name)
-        }
-    });
+    fields.sort_by(|a, b| crate::schema::cmp_field_names(&a.name, &b.name));
 
     for field in fields {
         let _ = writeln!(out, "    /// {}", field.label);
