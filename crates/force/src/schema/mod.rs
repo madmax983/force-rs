@@ -22,6 +22,7 @@ pub(crate) mod schema_analyzer;
 pub(crate) mod schema_changelog;
 pub(crate) mod schema_diff;
 pub(crate) mod schema_graph;
+pub(crate) mod schema_limits;
 pub(crate) mod schema_linter;
 pub(crate) mod schema_visualizer;
 pub(crate) mod sql_exporter;
@@ -61,6 +62,7 @@ pub use schema_analyzer::{SchemaInsights, analyze_schema};
 pub use schema_changelog::{generate_changelog, write_changelog};
 pub use schema_diff::{FieldChange, SchemaDiffResult, compare_schemas};
 pub use schema_graph::SchemaGraph;
+pub use schema_limits::{SchemaLimitInsights, analyze_schema_limits};
 pub use schema_linter::{
     LintResult, LintRule, LintSeverity, MissingCustomSuffixRule, SchemaLinter, TooManyFieldsRule,
 };
