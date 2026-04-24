@@ -145,7 +145,8 @@ pub fn validate_url_path(path: &str) -> Result<(), ForceError> {
 
     // Parse the URL to extract the path without resolving/normalizing it,
     // so we can catch explicit ".." components in the raw path.
-    let base = url::Url::parse("http://localhost").unwrap_or_else(|_| unreachable!("valid base url"));
+    let base =
+        url::Url::parse("http://localhost").unwrap_or_else(|_| unreachable!("valid base url"));
     let _parsed = base
         .join(path)
         .map_err(|_| ForceError::InvalidInput(format!("Invalid URL path: {path}")))?;
