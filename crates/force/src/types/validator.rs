@@ -137,16 +137,30 @@ pub fn validate_url_path(path: &str) -> Result<(), ForceError> {
             "URL path cannot be empty".to_string(),
         ));
     }
-    if path.contains("..") || path.contains("//") {
-        return Err(ForceError::InvalidInput(format!(
-            "URL path contains invalid path traversal characters: {path}"
-        )));
-    }
     if path.starts_with("http://") || path.starts_with("https://") {
         return Err(ForceError::InvalidInput(format!(
             "URL path must be relative, but absolute URL was provided: {path}"
         )));
     }
+
+    // Parse the URL to extract the path without resolving/normalizing it,
+    // so we can catch explicit ".." components in the raw path.
+    let base = url::Url::parse("http://localhost").unwrap_or_else(|_| unreachable!("valid base url"));
+    let _parsed = base
+        .join(path)
+        .map_err(|_| ForceError::InvalidInput(format!("Invalid URL path: {path}")))?;
+
+    // Since `Url::join` resolves `..` (e.g., `/a/b/..` -> `/a/`), checking `parsed.path()`
+    // directly won't catch `..`. So we need to look at the raw input string,
+    // but only the path part (before `?` or `#`).
+    let path_only = path.split(['?', '#']).next().unwrap_or(path);
+
+    if path_only.contains("..") || path_only.contains("//") {
+        return Err(ForceError::InvalidInput(format!(
+            "URL path contains invalid path traversal characters: {path}"
+        )));
+    }
+
     Ok(())
 }
 
@@ -212,6 +226,26 @@ mod tests {
         assert!(validate_external_id_field("").is_err());
         assert!(validate_external_id_field("Parent.ExternalId__c").is_err()); // No dots
         assert!(validate_external_id_field("Id;").is_err());
+    }
+
+    #[test]
+    fn test_validate_url_path_valid() {
+        assert!(validate_url_path("query?q=SELECT+Id+FROM+Account").is_ok());
+        assert!(validate_url_path("sobjects/Account/001000000000000AAA").is_ok());
+        // '..' in query string should be allowed
+        assert!(validate_url_path("query?q=SELECT+Name+FROM+Account+WHERE+Name='..'").is_ok());
+        assert!(validate_url_path("query?q=SELECT+Name+FROM+Account+WHERE+Name='//'").is_ok());
+    }
+
+    #[test]
+    fn test_validate_url_path_invalid() {
+        assert!(validate_url_path("").is_err());
+        assert!(validate_url_path("http://evil.com").is_err());
+        assert!(validate_url_path("https://evil.com").is_err());
+        assert!(validate_url_path("sobjects/Account/001000000000000AAA/..").is_err());
+        assert!(validate_url_path("sobjects/Account/../../Contact").is_err());
+        assert!(validate_url_path("sobjects//Account").is_err());
+        assert!(validate_url_path("../../../etc/passwd").is_err());
     }
 }
 
