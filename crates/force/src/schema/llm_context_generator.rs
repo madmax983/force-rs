@@ -45,6 +45,7 @@ impl Default for LlmContextOptions {
 ///
 /// A dense string formatted for LLM consumption.
 #[must_use]
+#[allow(clippy::too_many_lines)]
 pub fn generate_llm_context(describe: &SObjectDescribe, options: &LlmContextOptions) -> String {
     let mut context = String::with_capacity(1024);
 
@@ -128,12 +129,19 @@ pub fn generate_llm_context(describe: &SObjectDescribe, options: &LlmContextOpti
         };
 
         if options.include_relationships && field.type_ == FieldType::Reference {
-            let targets = field.reference_to.join(",");
-            let _ = writeln!(
-                context,
-                "  - {}: {} -> {}{}{}",
-                field.name, type_str, targets, modifiers_str, label_str
-            );
+            let _ = write!(context, "  - {}: {} -> ", field.name, type_str);
+
+            // ⚡ Bolt: Write reference targets directly to the `context` buffer, avoiding a temporary `.join(",")` String allocation.
+            let mut first = true;
+            for target in &field.reference_to {
+                if !first {
+                    context.push(',');
+                }
+                first = false;
+                context.push_str(target);
+            }
+
+            let _ = writeln!(context, "{}{}", modifiers_str, label_str);
         } else {
             let _ = writeln!(
                 context,
