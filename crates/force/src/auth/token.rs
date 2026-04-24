@@ -223,8 +223,7 @@ fn calculate_expiration(
     expires_in: Option<u64>,
 ) -> Option<DateTime<Utc>> {
     expires_in.and_then(|seconds| {
-        // Cap duration to ~100 years (3B seconds) to prevent overflow in Duration::seconds
-        // Duration::seconds panics if value > i64::MAX / 1_000_000_000 (~9B seconds)
+        // Cap duration to ~100 years (3B seconds) to prevent overflow in Duration::try_seconds
         if seconds > 3_000_000_000 {
             return None;
         }
@@ -232,7 +231,7 @@ fn calculate_expiration(
         let Ok(seconds_i64) = i64::try_from(seconds) else {
             return None;
         };
-        let duration = Duration::seconds(seconds_i64);
+        let duration = Duration::try_seconds(seconds_i64)?;
         issued_at.checked_add_signed(duration)
     })
 }
