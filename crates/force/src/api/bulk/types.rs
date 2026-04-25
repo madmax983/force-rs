@@ -20,6 +20,7 @@ where
         Null,
     }
 
+    // Ensure we handle missing/null gracefully without overriding valid defaults
     let value = Option::<StringOrNumber>::deserialize(deserializer)?;
     Ok(match value {
         Some(StringOrNumber::String(value)) => Some(value),

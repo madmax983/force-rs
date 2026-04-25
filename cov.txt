@@ -1,0 +1,1357 @@
+info: cargo-llvm-cov currently setting cfg(coverage); you can opt-out it by passing --no-cfg-coverage
+   Compiling force v0.2.0 (/app/crates/force)
+   Compiling force-pubsub v0.2.0 (/app/crates/force-pubsub)
+   Compiling force-sync v0.2.0 (/app/crates/force-sync)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 30s
+     Running unittests src/lib.rs (target/llvm-cov-target/debug/deps/force-10732a8773900d31)
+
+running 626 tests
+test api::builder_unwrap::tests::test_unwrap_or_panic_ok ... ok
+test api::builder_unwrap::tests::test_unwrap_or_panic_err - should panic ... ok
+test api::bulk::csv::tests::proptests::prop_roundtrip_single_record ... ok
+test api::bulk::csv::tests::test_deserialize_empty_csv ... ok
+test api::bulk::csv::tests::test_deserialize_multiple_records ... ok
+test api::bulk::csv::tests::test_deserialize_single_record ... ok
+test api::bulk::csv::tests::test_deserialize_with_optional_fields ... ok
+test api::bulk::csv::tests::test_deserialize_with_quoted_fields ... ok
+test api::bulk::csv::tests::test_process_batches_callback_error ... ok
+test api::bulk::csv::tests::test_process_batches_large ... ok
+test api::bulk::csv::tests::test_process_batches_small ... ok
+test api::bulk::csv::tests::test_serialize_empty_records ... ok
+test api::bulk::csv::tests::test_serialize_large_dataset ... ok
+test api::bulk::csv::tests::test_serialize_multiple_records ... ok
+test api::bulk::csv::tests::test_serialize_single_record ... ok
+test api::bulk::csv::tests::test_serialize_with_optional_fields ... ok
+test api::bulk::csv::tests::test_serialize_with_rename ... ok
+test api::bulk::csv::tests::test_serialize_with_special_characters ... ok
+test api::bulk::handler::tests::test_base_url_construction ... ok
+test api::bulk::handler::tests::test_base_url_with_custom_api_version ... ok
+test api::bulk::handler::tests::test_bulk_handler_construction ... ok
+test api::bulk::handler::tests::test_bulk_handler_is_cloneable ... ok
+test api::bulk::ingest::tests::test_abort_job ... ok
+test api::bulk::ingest::tests::test_bulk_delete_success ... ok
+test api::bulk::ingest::tests::test_bulk_delete_with_invalid_ids ... ok
+test api::bulk::ingest::tests::test_bulk_insert_job_failure ... ok
+test api::bulk::ingest::tests::test_bulk_insert_success ... ok
+test api::bulk::ingest::tests::test_bulk_insert_with_failures ... ok
+test api::bulk::ingest::tests::test_bulk_update_success ... ok
+test api::bulk::ingest::tests::test_create_ingest_job ... ok
+test api::bulk::ingest::tests::test_create_job_failure ... ok
+test api::bulk::ingest::tests::test_create_job_success ... ok
+test api::bulk::ingest::tests::test_create_job_with_upsert ... ok
+test api::bulk::ingest::tests::test_delete_job_not_found ... ok
+test api::bulk::ingest::tests::test_delete_job_success ... ok
+test api::bulk::ingest::tests::test_get_job_not_found ... ok
+test api::bulk::ingest::tests::test_get_job_success ... ok
+test api::bulk::ingest::tests::test_get_results ... ok
+test api::bulk::ingest::tests::test_update_job_invalid_state_transition ... ok
+test api::bulk::ingest::tests::test_update_job_success ... ok
+test api::bulk::ingest::tests::test_upload_bytes_zero_copy ... ok
+test api::bulk::ingest::tests::test_upload_csv_data ... ok
+test api::bulk::policy::tests::test_backoff_for_attempt_basic ... ok
+test api::bulk::policy::tests::test_backoff_for_attempt_overflow_protection ... ok
+test api::bulk::policy::tests::test_backoff_for_attempt_respects_max ... ok
+test api::bulk::policy::tests::test_timeout_seconds_basic ... ok
+test api::bulk::policy::tests::test_timeout_seconds_with_max ... ok
+test api::bulk::policy::tests::test_timeout_seconds_zero_attempts ... ok
+test api::bulk::query::tests::test_abort_query_job_already_complete ... ok
+test api::bulk::query::tests::test_abort_query_job_success ... ok
+test api::bulk::query::tests::test_bulk_query_empty_results ... ok
+test api::bulk::query::tests::test_bulk_query_job_failure ... ok
+test api::bulk::query::tests::test_bulk_query_job_info_deserialization ... ok
+test api::bulk::query::tests::test_bulk_query_job_info_deserialization_with_numeric_api_version ... ok
+test api::bulk::query::tests::test_bulk_query_request_new ... ok
+test api::bulk::query::tests::test_bulk_query_request_serialization ... ok
+test api::bulk::query::tests::test_bulk_query_success ... ok
+test api::bulk::query::tests::test_bulk_query_with_policy_retries_then_succeeds ... ok
+test api::bulk::query::tests::test_bulk_query_with_policy_times_out_immediately_when_attempts_are_zero ... ok
+test api::bulk::query::tests::test_create_query_job_invalid_soql ... ok
+test api::bulk::query::tests::test_create_query_job_success ... ok
+test api::bulk::query::tests::test_create_query_job_with_complex_soql ... ok
+test api::bulk::query::tests::test_delete_query_job_not_found ... ok
+test api::bulk::query::tests::test_delete_query_job_success ... ok
+test api::bulk::query::tests::test_get_query_job_complete ... ok
+test api::bulk::query::tests::test_get_query_job_in_progress ... ok
+test api::bulk::query::tests::test_get_query_job_not_found ... ok
+test api::bulk::query::tests::test_query_base_url_construction ... ok
+test api::bulk::query::tests::test_query_results_empty_result_set ... ok
+test api::bulk::query::tests::test_query_results_encodes_locator_query_parameter ... ok
+test api::bulk::query::tests::test_query_results_fetch_csv_data ... ok
+test api::bulk::query::tests::test_query_results_fetch_csv_data_empty_middle_page ... ok
+test api::bulk::query::tests::test_query_results_fetch_csv_data_multiple_pages ... ok
+test api::bulk::query::tests::test_query_results_into_stream ... ok
+test api::bulk::query::tests::test_query_results_stream_creation ... ok
+test api::bulk::query::tests::test_query_results_stream_terminates_after_records_consumed ... ok
+test api::bulk::smart_ingest::tests::test_smart_ingest_aborts_open_job_when_next_record_exceeds_upload_limit ... ok
+test api::bulk::smart_ingest::tests::test_smart_ingest_close_job_failure ... ok
+test api::bulk::smart_ingest::tests::test_smart_ingest_create_job_failure ... ok
+test api::bulk::smart_ingest::tests::test_smart_ingest_empty_stream ... ok
+test api::bulk::smart_ingest::tests::test_smart_ingest_multi_batch ... ok
+test api::bulk::smart_ingest::tests::test_smart_ingest_poll_aborted_job ... ok
+test api::bulk::smart_ingest::tests::test_smart_ingest_poll_failed_job ... ok
+test api::bulk::smart_ingest::tests::test_smart_ingest_single_batch ... ok
+test api::bulk::smart_ingest::tests::test_smart_ingest_splits_across_jobs_when_upload_limit_is_reached ... ok
+test api::bulk::smart_ingest::tests::test_smart_ingest_upload_batch_failure_triggers_abort ... ok
+test api::bulk::types::tests::test_content_type_serialization ... ok
+test api::bulk::types::tests::test_create_job_request_full ... ok
+test api::bulk::types::tests::test_create_job_request_minimal ... ok
+test api::bulk::types::tests::test_deserialize_optional_string_or_number ... ok
+test api::bulk::types::tests::test_job_info_deserialization ... ok
+test api::bulk::types::tests::test_job_info_deserialization_missing_optional_fields ... ok
+test api::bulk::types::tests::test_job_info_with_explicit_null_api_version ... ok
+test api::bulk::types::tests::test_job_info_with_numeric_api_version ... ok
+test api::bulk::types::tests::test_job_info_with_stats ... ok
+test api::bulk::types::tests::test_job_info_with_string_api_version ... ok
+test api::bulk::types::tests::test_job_operation_serialization ... ok
+test api::bulk::types::tests::test_job_state_serialization ... ok
+test api::bulk::types::tests::test_line_ending_serialization ... ok
+test api::bulk::types::tests::test_update_job_request ... ok
+test api::composite::batch::tests::test_add_request_owned_optimization ... ok
+test api::composite::batch::tests::test_add_request_raw_url ... ok
+test api::composite::batch::tests::test_batch_capacity_helpers ... ok
+test api::composite::batch::tests::test_batch_execute_empty ... ok
+test api::composite::batch::tests::test_batch_execute_prefixes_api_version_on_subrequest_urls ... ok
+test api::composite::batch::tests::test_batch_query_encoding ... ok
+test api::composite::batch::tests::test_batch_query_encoding_special_chars ... ok
+test api::composite::batch::tests::test_batch_query_invalid_builder ... ok
+test api::composite::batch::tests::test_batch_request_serialization ... ok
+test api::composite::batch::tests::test_batch_response_deserialization ... ok
+test api::composite::batch::tests::test_batch_size_limit ... ok
+test api::composite::batch::tests::test_batch_size_limit_boundary_25 ... ok
+test api::composite::batch::tests::test_batch_validation_id_invalid ... ok
+test api::composite::batch::tests::test_batch_validation_sobject_empty ... ok
+test api::composite::batch::tests::test_batch_validation_sobject_invalid ... ok
+test api::composite::query_batch::tests::test_query_batch_pagination ... ok
+test api::composite::query_batch::tests::test_query_batch_partial_failures ... ok
+test api::composite::soql_mass_op::tests::test_delete_all_missing_id_is_skipped ... ok
+test api::composite::soql_mass_op::tests::test_mass_delete_success ... ok
+test api::composite::soql_mass_op::tests::test_mass_update_success ... ok
+test api::composite::soql_mass_op::tests::test_update_all_missing_id_is_skipped ... ok
+test api::path_utils::tests::test_format_sobject_path_with_id ... ok
+test api::path_utils::tests::test_format_sobject_path_without_id ... ok
+test api::query_stream::tests::test_query_stream_already_exhausted ... ok
+test api::query_stream::tests::test_query_stream_empty ... ok
+test api::query_stream::tests::test_query_stream_empty_middle_page ... ok
+test api::query_stream::tests::test_query_stream_error ... ok
+test api::query_stream::tests::test_query_stream_into_stream_error ... ok
+test api::query_stream::tests::test_query_stream_multi_page ... ok
+test api::query_stream::tests::test_query_stream_not_done_no_url ... ok
+test api::query_stream::tests::test_query_stream_pagination_error ... ok
+test api::query_stream::tests::test_query_stream_single_page ... ok
+test api::rest::crud::tests::test_create_invalid_field ... ok
+test api::rest::crud::tests::test_create_missing_required_field ... ok
+test api::rest::crud::tests::test_create_success ... ok
+test api::rest::crud::tests::test_delete_not_found ... ok
+test api::rest::crud::tests::test_delete_success ... ok
+test api::rest::crud::tests::test_get_not_found ... ok
+test api::rest::crud::tests::test_get_success ... ok
+test api::rest::crud::tests::test_update_invalid_field ... ok
+test api::rest::crud::tests::test_update_not_found ... ok
+test api::rest::crud::tests::test_update_success ... ok
+test api::rest::crud::tests::test_upsert_create ... ok
+test api::rest::crud::tests::test_upsert_does_not_retry_on_503_by_default ... ok
+test api::rest::crud::tests::test_upsert_idempotent_retries_on_503 ... ok
+test api::rest::crud::tests::test_upsert_invalid_external_id_field ... ok
+test api::rest::crud::tests::test_upsert_success_other_status ... ok
+test api::rest::crud::tests::test_upsert_update ... ok
+test api::rest::describe::tests::test_child_relationship_deserialize ... ok
+test api::rest::describe::tests::test_field_describe_optional_handling ... ok
+test api::rest::describe::tests::test_field_type_deserialize ... ok
+test api::rest::describe::tests::test_global_describe_deserialize ... ok
+test api::rest::describe::tests::test_global_sobject_describe_deserialize ... ok
+test api::rest::describe::tests::test_picklist_value_deserialize ... ok
+test api::rest::describe::tests::test_record_type_info_deserialize ... ok
+test api::rest::describe::tests::test_sobject_describe_deserialize ... ok
+test api::rest::limits::tests::test_limit_info_deserialize ... ok
+test api::rest::limits::tests::test_limit_info_deserialize_without_used ... ok
+test api::rest::limits::tests::test_limit_info_is_above_threshold ... ok
+test api::rest::limits::tests::test_limit_info_is_at_limit ... ok
+test api::rest::limits::tests::test_limit_info_new ... ok
+test api::rest::limits::tests::test_limit_info_percentage_used ... ok
+test api::rest::limits::tests::test_limit_info_percentage_used_without_explicit_used ... ok
+test api::rest::limits::tests::test_limit_info_percentage_used_zero_max ... ok
+test api::rest::limits::tests::test_limit_info_serialize ... ok
+test api::rest::limits::tests::test_no_panic_on_overflow ... ok
+test api::rest::limits::tests::test_org_limits_deserialize ... ok
+test api::rest::limits::tests::test_org_limits_roundtrip ... ok
+test api::rest::limits::tests::test_org_limits_with_additional_limits ... ok
+test api::rest::query::tests::test_query_empty_result ... ok
+test api::rest::query::tests::test_query_more_absolute_url ... ok
+test api::rest::query::tests::test_query_more_full_pagination_loop ... ok
+test api::rest::query::tests::test_query_more_http_error ... ok
+test api::rest::query::tests::test_query_more_security_check ... ok
+test api::rest::query::tests::test_query_more_security_check_credentials ... ok
+test api::rest::query::tests::test_query_more_security_check_port_mismatch ... ok
+test api::rest::query::tests::test_query_more_security_check_scheme_mismatch ... ok
+test api::rest::query::tests::test_query_more_security_check_username_mismatch ... ok
+test api::rest::query::tests::test_query_more_success ... ok
+test api::rest::query::tests::test_query_pagination_missing_url ... ok
+test api::rest::query::tests::test_query_result_deserialization_dynamic ... ok
+test api::rest::query::tests::test_query_result_deserialization_typed ... ok
+test api::rest::query::tests::test_query_result_empty ... ok
+test api::rest::query::tests::test_query_result_pagination_workflow ... ok
+test api::rest::query::tests::test_query_result_with_nested_query ... ok
+test api::rest::query::tests::test_query_result_with_pagination ... ok
+test api::rest::query::tests::test_query_success ... ok
+test api::rest::query::tests::test_query_with_pagination ... ok
+test api::rest::query_plan_analyzer::tests::test_analyze_query_plan_empty ... ok
+test api::rest::query_plan_analyzer::tests::test_analyze_query_plan_index_scan_optimal ... ok
+test api::rest::query_plan_analyzer::tests::test_analyze_query_plan_poor_selectivity ... ok
+test api::rest::query_plan_analyzer::tests::test_analyze_query_plan_table_scan ... ok
+test api::rest::query_plan_analyzer::tests::test_analyze_query_plan_with_notes ... ok
+test api::rest::search::tests::test_build_panics_on_empty_search_text - should panic ... ok
+test api::rest::search::tests::test_build_panics_on_missing_returning - should panic ... ok
+test api::rest::search::tests::test_escape_sosl_cow_optimization ... ok
+test api::rest::search::tests::test_returning_invalid_character_fallback - should panic ... ok
+test api::rest::search::tests::test_returning_invalid_field_injection - should panic ... ok
+test api::rest::search::tests::test_returning_invalid_semicolon_outside_quotes - should panic ... ok
+test api::rest::search::tests::test_returning_invalid_sobject_injection - should panic ... ok
+test api::rest::search::tests::test_returning_invalid_sobject_space - should panic ... ok
+test api::rest::search::tests::test_returning_invalid_trailing_backslash - should panic ... ok
+test api::rest::search::tests::test_returning_invalid_unclosed_parenthesis - should panic ... ok
+test api::rest::search::tests::test_returning_panics_on_invalid_field - should panic ... ok
+test api::rest::search::tests::test_returning_panics_on_invalid_sobject - should panic ... ok
+test api::rest::search::tests::test_returning_valid_complex_clauses ... ok
+test api::rest::search::tests::test_returning_valid_escaped_quote_in_string ... ok
+test api::rest::search::tests::test_returning_valid_escaped_wildcard ... ok
+test api::rest::search::tests::test_returning_valid_field_clauses ... ok
+test api::rest::search::tests::test_returning_valid_function_calls ... ok
+test api::rest::search::tests::test_returning_valid_inputs ... ok
+test api::rest::search::tests::test_returning_valid_multiline_query ... ok
+test api::rest::search::tests::test_returning_valid_semicolon_inside_quotes ... ok
+test api::rest::search::tests::test_returning_valid_system_variable ... ok
+test api::rest::search::tests::test_returning_valid_wildcard_clause ... ok
+test api::rest::search::tests::test_search_query_builder_basic ... ok
+test api::rest::search::tests::test_search_query_builder_email_fields ... ok
+test api::rest::search::tests::test_search_query_builder_empty_text - should panic ... ok
+test api::rest::search::tests::test_search_query_builder_escaping ... ok
+test api::rest::search::tests::test_search_query_builder_multiple_objects ... ok
+test api::rest::search::tests::test_search_query_builder_no_fields ... ok
+test api::rest::search::tests::test_search_query_builder_no_returning - should panic ... ok
+test api::rest::search::tests::test_search_query_builder_phone_fields ... ok
+test api::rest::search::tests::test_search_query_builder_sidebar_fields ... ok
+test api::rest::search::tests::test_search_query_builder_try_build_errors ... ok
+test api::rest::search::tests::test_search_query_builder_try_returning_errors ... ok
+test api::rest::search::tests::test_search_query_builder_with_limit ... ok
+test api::rest::search::tests::test_search_query_builder_with_limit_and_offset ... ok
+test api::rest::search::tests::test_search_query_builder_with_offset ... ok
+test api::rest::search::tests::test_search_result_deserialize ... ok
+test api::rest::search::tests::test_search_result_empty_records ... ok
+test api::rest::search::tests::test_search_result_multiple_objects ... ok
+test api::rest::search::tests::test_unwrap_or_panic_helper - should panic ... ok
+test api::rest::search::tests::test_validate_field_syntax_panics - should panic ... ok
+test api::rest::tests::test_base_url_construction ... ok
+test api::rest::tests::test_base_url_with_custom_api_version ... ok
+test api::rest::tests::test_base_url_with_different_instance ... ok
+test api::rest::tests::test_handler_debug_impl ... ok
+test api::rest::tests::test_multiple_handlers_from_same_client ... ok
+test api::rest::tests::test_rest_handler_construction ... ok
+test api::rest::tests::test_rest_handler_is_cloneable ... ok
+test api::rest::tests::test_rest_handler_shares_client_config ... ok
+test api::rest_operation::tests::test_create_success_mock ... ok
+test api::rest_operation::tests::test_delete_success_mock ... ok
+test api::rest_operation::tests::test_describe_global_success_mock ... ok
+test api::rest_operation::tests::test_describe_success_mock ... ok
+test api::rest_operation::tests::test_get_success_mock ... ok
+test api::rest_operation::tests::test_query_more_security_check_password_mismatch ... ok
+test api::rest_operation::tests::test_query_more_security_check_port_mismatch ... ok
+test api::rest_operation::tests::test_query_more_security_check_scheme_mismatch ... ok
+test api::rest_operation::tests::test_query_more_security_check_username_mismatch ... ok
+test api::rest_operation::tests::test_query_more_success_mock ... ok
+test api::rest_operation::tests::test_query_success_mock ... ok
+test api::rest_operation::tests::test_resolve_absolute_url_different_host_rejected ... ok
+test api::rest_operation::tests::test_resolve_absolute_url_port_mismatch_rejected ... ok
+test api::rest_operation::tests::test_resolve_absolute_url_same_origin ... ok
+test api::rest_operation::tests::test_resolve_absolute_url_scheme_mismatch_rejected ... ok
+test api::rest_operation::tests::test_resolve_absolute_url_with_credentials_rejected ... ok
+test api::rest_operation::tests::test_resolve_absolute_url_with_username_rejected ... ok
+test api::rest_operation::tests::test_resolve_api_path_no_prefix ... ok
+test api::rest_operation::tests::test_resolve_api_path_with_prefix ... ok
+test api::rest_operation::tests::test_resolve_relative_url ... ok
+test api::rest_operation::tests::test_update_success_mock ... ok
+test api::rest_operation::tests::test_upsert_failure ... ok
+test api::rest_operation::tests::test_upsert_idempotent_success_mock ... ok
+test api::rest_operation::tests::test_upsert_returns_not_implemented_on_204 ... ok
+test api::rest_operation::tests::test_upsert_success_other_status ... ok
+test api::rest_operation::tests::test_validation_create_rejects_invalid_sobject_before_session ... ok
+test api::rest_operation::tests::test_validation_delete_rejects_invalid_names_before_session ... ok
+test api::rest_operation::tests::test_validation_describe_rejects_invalid_sobject_before_session ... ok
+test api::rest_operation::tests::test_validation_get_rejects_invalid_names_before_session ... ok
+test api::rest_operation::tests::test_validation_query_more_rejects_oversized_url_before_session ... ok
+test api::rest_operation::tests::test_validation_query_rejects_oversized_soql_before_session ... ok
+test api::rest_operation::tests::test_validation_update_rejects_invalid_names_before_session ... ok
+test api::rest_operation::tests::test_validation_upsert_rejects_invalid_names_before_session ... ok
+test api::soql::tests::test_build_errors ... ok
+test api::soql::tests::test_build_panics_on_missing_fields - should panic ... ok
+test api::soql::tests::test_build_panics_on_missing_sobject - should panic ... ok
+test api::soql::tests::test_builder_basic ... ok
+test api::soql::tests::test_builder_try_methods_errors ... ok
+test api::soql::tests::test_builder_where_eq ... ok
+test api::soql::tests::test_builder_where_ne ... ok
+test api::soql::tests::test_escape_soql ... ok
+test api::soql::tests::test_escape_soql_cow_optimization ... ok
+test api::soql::tests::test_from_panics_on_invalid_sobject - should panic ... ok
+test api::soql::tests::test_limit_offset_only ... ok
+test api::soql::tests::test_optimized_query_construction ... ok
+test api::soql::tests::test_order_by_desc_panics_on_invalid_field - should panic ... ok
+test api::soql::tests::test_order_by_panics_on_invalid_field - should panic ... ok
+test api::soql::tests::test_order_independence ... ok
+test api::soql::tests::test_select_panics_on_invalid_field - should panic ... ok
+test api::soql::tests::test_soql_from_describe ... ok
+test api::soql::tests::test_unwrap_or_panic_helper - should panic ... ok
+test api::soql::tests::test_validate_field_name ... ok
+test api::soql::tests::test_validate_sobject_name ... ok
+test api::soql::tests::test_where_condition_raw ... ok
+test api::soql::tests::test_where_eq_panics_on_invalid_field - should panic ... ok
+test api::soql::tests::test_where_in_edge_cases ... ok
+test api::soql::tests::test_where_in_panics_on_invalid_field - should panic ... ok
+test api::soql::tests::test_where_like ... ok
+test api::soql::tests::test_where_like_panics_on_invalid_field - should panic ... ok
+test api::soql::tests::test_where_ne_panics_on_invalid_field - should panic ... ok
+test api::soql::tests::test_write_query_streaming ... ok
+test api::url_encoded_writer::tests::test_url_encoded_writer ... ok
+test auth::authenticator::tests::test_box_authenticator ... ok
+test auth::client_credentials::tests::test_client_credentials_new ... ok
+test auth::client_credentials::tests::test_client_credentials_new_my_domain_builds_token_url ... ok
+test auth::client_credentials::tests::test_client_secret_is_secret ... ok
+test auth::client_credentials::tests::test_grant_type ... ok
+test auth::jwt_bearer::tests::test_generate_jwt ... ok
+test auth::jwt_bearer::tests::test_jwt_bearer_debug_redacts_private_key ... ok
+test auth::jwt_bearer::tests::test_jwt_bearer_invalid_private_key ... ok
+test auth::jwt_bearer::tests::test_jwt_bearer_new_production ... ok
+test auth::jwt_bearer::tests::test_jwt_bearer_new_sandbox ... ok
+test auth::token::tests::test_access_token_custom_buffer ... ok
+test auth::token::tests::test_access_token_expires_in_cap ... ok
+test auth::token::tests::test_access_token_expires_in_cap_boundary ... ok
+test auth::token::tests::test_access_token_expires_in_overflow ... ok
+test auth::token::tests::test_access_token_expiring_soon ... ok
+test auth::token::tests::test_access_token_from_response ... ok
+test auth::token::tests::test_access_token_from_response_invalid_issued_at ... ok
+test auth::token::tests::test_access_token_hard_vs_soft_expiry ... ok
+test auth::token::tests::test_access_token_invalid_header_chars ... ok
+test auth::token::tests::test_access_token_is_expired ... ok
+test auth::token::tests::test_access_token_no_expiration ... ok
+test auth::token::tests::test_access_token_not_expired ... ok
+test auth::token::tests::test_parse_issued_at_empty ... ok
+test auth::token::tests::test_parse_issued_at_invalid ... ok
+test auth::token::tests::test_parse_issued_at_milliseconds_precision ... ok
+test auth::token::tests::test_parse_issued_at_negative ... ok
+test auth::token::tests::test_parse_issued_at_valid ... ok
+test auth::token::tests::test_token_response_deserialization ... ok
+test auth::token::tests::test_token_response_with_expires_in ... ok
+test auth::token_manager::tests::test_token_manager_auth_failure ... ok
+test auth::token_manager::tests::test_token_manager_clear ... ok
+test auth::token_manager::tests::test_token_manager_concurrent_access ... ok
+test auth::token_manager::tests::test_token_manager_concurrent_refresh_only_one_request ... ok
+test auth::token_manager::tests::test_token_manager_equality_overwrites ... ok
+test auth::token_manager::tests::test_token_manager_force_refresh ... ok
+test auth::token_manager::tests::test_token_manager_force_refresh_protects_against_overwrite ... ok
+test auth::token_manager::tests::test_token_manager_force_refresh_stampede ... ok
+test auth::token_manager::tests::test_token_manager_hard_refresh_protects_against_overwrite ... ok
+test auth::token_manager::tests::test_token_manager_initial_auth ... ok
+test auth::token_manager::tests::test_token_manager_refresh_failure ... ok
+test auth::token_manager::tests::test_token_manager_refreshes_expired_token ... ok
+test auth::token_manager::tests::test_token_manager_reuses_valid_token ... ok
+test api::bulk::csv::tests::proptests::prop_roundtrip_multiple_records ... ok
+test auth::token_manager::tests::test_token_manager_soft_expired_refresh_failure_returns_valid_token ... ok
+test auth::token_manager::tests::test_token_manager_soft_refresh_protects_against_overwrite ... ok
+test auth::token_manager::tests::test_token_manager_update_token_state_cleared_token_rejects_non_initial ... ok
+test auth::username_password::tests::test_authenticate_invalid_credentials ... ok
+test auth::username_password::tests::test_authenticate_network_error ... ok
+test auth::username_password::tests::test_authenticate_sends_password_with_security_token ... ok
+test auth::username_password::tests::test_authenticate_server_error ... ok
+test auth::username_password::tests::test_authenticate_stores_refresh_token ... ok
+test auth::username_password::tests::test_authenticate_success ... ok
+test auth::username_password::tests::test_debug_redacts_secrets ... ok
+test auth::username_password::tests::test_empty_security_token ... ok
+test auth::username_password::tests::test_new_production ... ok
+test auth::username_password::tests::test_new_sandbox ... ok
+test auth::username_password::tests::test_password_with_token_concatenation ... ok
+test auth::username_password::tests::test_refresh_clears_token_on_failure ... ok
+test auth::username_password::tests::test_refresh_does_not_clear_newer_token_on_failure ... ok
+test auth::username_password::tests::test_refresh_fallback_on_revoked_token ... ok
+test auth::username_password::tests::test_refresh_token_rotation ... ok
+test auth::username_password::tests::test_refresh_uses_refresh_token ... ok
+test auth::username_password::tests::test_refresh_without_stored_token_reauthenticates ... ok
+test auth::username_password::tests::test_with_client_custom_http_client ... ok
+test client::builder::tests::test_builder_authenticate_transitions_state ... ok
+test client::builder::tests::test_builder_builds_client ... ok
+test client::builder::tests::test_builder_config_after_auth ... ok
+test client::builder::tests::test_builder_config_chainable ... ok
+test client::builder::tests::test_builder_new_creates_noauth ... ok
+test client::builder::tests::test_full_builder_flow ... ok
+test client::tests::test_builder_creates_noauth_state ... ok
+test client::tests::test_force_client_clone ... ok
+test config::tests::client_config::test_default_config ... ok
+test config::tests::client_config_custom::test_all_custom ... ok
+test config::tests::client_config_custom::test_custom_api_version ... ok
+test config::tests::client_config_custom::test_custom_environment ... ok
+test config::tests::client_config_custom::test_custom_retries ... ok
+test config::tests::client_config_custom::test_custom_timeout ... ok
+test config::tests::environment::test_custom_instance_url ... ok
+test config::tests::environment::test_production_instance_url ... ok
+test config::tests::environment::test_sandbox_instance_url ... ok
+test error::tests::test_api_error_display ... ok
+test error::tests::test_api_error_no_fields ... ok
+test error::tests::test_authentication_error_display ... ok
+test error::tests::test_authentication_error_token_expired ... ok
+test error::tests::test_config_error_invalid_value ... ok
+test error::tests::test_config_error_missing_value ... ok
+test error::tests::test_csv_error_conversion ... ok
+test error::tests::test_error_trait_implementations ... ok
+test error::tests::test_force_error_from_api ... ok
+test error::tests::test_force_error_from_authentication ... ok
+test error::tests::test_force_error_from_config ... ok
+test error::tests::test_force_error_from_http ... ok
+test error::tests::test_force_error_from_invalid_id_characters ... ok
+test error::tests::test_force_error_from_invalid_id_checksum ... ok
+test error::tests::test_force_error_from_invalid_id_length ... ok
+test error::tests::test_force_error_from_serialization ... ok
+test error::tests::test_http_error_rate_limit ... ok
+test error::tests::test_http_error_status ... ok
+test error::tests::test_http_error_timeout ... ok
+test error::tests::test_jwt_error_creation_failed ... ok
+test error::tests::test_jwt_error_invalid_config ... ok
+test error::tests::test_result_type_err ... ok
+test error::tests::test_result_type_ok ... ok
+test error::tests::test_serialization_error_invalid_format ... ok
+test http::error::tests::test_parse_api_error_empty ... ok
+test http::error::tests::test_parse_api_error_fallback ... ok
+test http::error::tests::test_parse_api_error_malformed ... ok
+test http::error::tests::test_parse_api_error_object ... ok
+test http::error::tests::test_parse_api_error_with_salesforce_format ... ok
+test http::error::tests::test_parse_api_error_without_error_code ... ok
+test http::executor::tests::test_execute_401_retry ... ok
+test http::executor::tests::test_execute_429_rate_limit ... ok
+test http::executor::tests::test_execute_503_retry ... ok
+test auth::token_manager::tests::test_token_manager_soft_expired_concurrent_returns_latest_token ... ok
+test http::executor::tests::test_execute_json_success ... ok
+test http::executor::tests::test_execute_response_with_retry_class_retry_limit ... ok
+test http::executor::tests::test_execute_response_with_retry_class_transient_error ... ok
+test http::executor::tests::test_execute_returns_api_error_for_non_success_status ... ok
+test http::executor::tests::test_execute_returns_unauthorized_after_refresh_exhausted ... ok
+test http::executor::tests::test_execute_success ... ok
+test http::executor::tests::test_execute_timeout ... ok
+test http::executor::tests::test_execute_transport_error ... ok
+test http::executor::tests::test_execute_transport_error_retries_transient_failure ... ok
+test http::executor::tests::test_execute_with_telemetry_hooks ... ok
+test http::executor::tests::test_executor_default ... ok
+test http::executor::tests::test_executor_with_base_backoff ... ok
+test http::executor::tests::test_executor_with_client ... ok
+test http::executor::tests::test_executor_with_config ... ok
+test http::executor::tests::test_executor_with_retry_policy ... ok
+test http::retry::proptests::test_exponential_backoff_monotonic ... ok
+test http::retry::proptests::test_exponential_backoff_no_panic ... ok
+test http::retry::tests::test_classify_request ... ok
+test http::retry::tests::test_classify_request_all_methods ... ok
+test http::retry::tests::test_exponential_backoff ... ok
+test http::retry::tests::test_exponential_backoff_max_attempts ... ok
+test http::retry::tests::test_exponential_backoff_overflow ... ok
+test http::retry::tests::test_exponential_backoff_overflow_truncation ... ok
+test http::retry::tests::test_exponential_backoff_respects_large_base ... ok
+test http::retry::tests::test_exponential_backoff_values ... ok
+test http::retry::tests::test_parse_retry_after_empty ... ok
+test http::retry::tests::test_parse_retry_after_float ... ok
+test http::retry::tests::test_parse_retry_after_invalid ... ok
+test http::retry::tests::test_parse_retry_after_large ... ok
+test http::retry::tests::test_parse_retry_after_missing ... ok
+test http::retry::tests::test_parse_retry_after_negative ... ok
+test http::retry::tests::test_parse_retry_after_valid ... ok
+test http::retry::tests::test_request_retry_class_as_str ... ok
+test http::retry::tests::test_retry_policy_initialization ... ok
+test http::retry::tests::test_retry_policy_with_idempotent_mutation_retries ... ok
+test http::telemetry::tests::test_create_completion ... ok
+test http::telemetry::tests::test_create_retry_event ... ok
+test http::telemetry::tests::test_telemetry_context_creation ... ok
+test http::telemetry::tests::test_telemetry_hooks_debug ... ok
+test http::telemetry::tests::test_telemetry_hooks_has_hooks ... ok
+test http::tests::integration_tests::test_401_triggers_token_refresh_and_retry ... ok
+test http::tests::integration_tests::test_429_defaults_to_60s_when_header_invalid ... ok
+test http::tests::integration_tests::test_429_defaults_to_60s_when_header_missing ... ok
+test http::tests::integration_tests::test_429_returns_rate_limit_error_with_retry_after ... ok
+test api::bulk::csv::tests::proptests::prop_batch_sizes_respected ... ok
+test http::tests::integration_tests::test_503_does_not_retry_mutation_by_default ... ok
+test http::tests::integration_tests::test_503_retries_with_exponential_backoff ... ok
+test http::tests::integration_tests::test_api_error_parsing_salesforce_format ... ok
+test http::tests::integration_tests::test_double_401_fails_after_refresh ... ok
+test http::tests::integration_tests::test_execute_json_deserializes_response ... ok
+test http::executor::tests::test_execute_json_dos_prevention ... ok
+test http::tests::integration_tests::test_malformed_json_returns_serialization_error ... ok
+test http::tests::integration_tests::test_network_timeout_retries ... ok
+test http::tests::integration_tests::test_successful_request_with_bearer_token ... ok
+test http::tests::integration_tests::test_telemetry_hooks_capture_retry_and_completion ... ok
+test test_support::tests::test_mock_authenticator ... ok
+test test_support::tests::test_must_msg_option_none - should panic ... ok
+test test_support::tests::test_must_msg_option_some ... ok
+test test_support::tests::test_must_msg_result_err - should panic ... ok
+test test_support::tests::test_must_msg_result_ok ... ok
+test test_support::tests::test_must_option_none - should panic ... ok
+test test_support::tests::test_must_option_some ... ok
+test test_support::tests::test_must_result_err - should panic ... ok
+test test_support::tests::test_must_result_ok ... ok
+test tests::test_version ... ok
+test types::api_version::tests::proptests::prop_equality_by_major ... ok
+test types::api_version::tests::proptests::prop_missing_prefix_fails ... ok
+test types::api_version::tests::proptests::prop_ordering_consistent ... ok
+test types::api_version::tests::proptests::prop_parse_display_roundtrip ... ok
+test types::api_version::tests::proptests::prop_to_string_matches_display ... ok
+test types::api_version::tests::proptests::prop_valid_format_parses ... ok
+test types::api_version::tests::proptests::prop_wrong_minor_fails ... ok
+test types::api_version::tests::test_constants ... ok
+test types::api_version::tests::test_copy_trait ... ok
+test types::api_version::tests::test_display_trait ... ok
+test types::api_version::tests::test_equality ... ok
+test types::api_version::tests::test_from_str_to_str_roundtrip ... ok
+test types::api_version::tests::test_hash_trait ... ok
+test types::api_version::tests::test_large_version_numbers ... ok
+test types::api_version::tests::test_new_creates_version ... ok
+test types::api_version::tests::test_ordering ... ok
+test types::api_version::tests::test_parse_invalid_major ... ok
+test types::api_version::tests::test_parse_missing_prefix ... ok
+test types::api_version::tests::test_parse_missing_suffix ... ok
+test types::api_version::tests::test_parse_valid_version ... ok
+test types::api_version::tests::test_parse_wrong_minor_version ... ok
+test types::api_version::tests::test_parse_zero_major ... ok
+test types::api_version::tests::test_single_digit_version ... ok
+test types::api_version::tests::test_support_contract_flags ... ok
+test types::api_version::tests::test_support_tier_matrix ... ok
+test types::common::tests::test_api_error_deserialize ... ok
+test types::common::tests::test_api_error_new ... ok
+test types::common::tests::test_api_error_serialize ... ok
+test types::common::tests::test_api_error_with_fields ... ok
+test types::common::tests::test_create_response_deserialize ... ok
+test types::common::tests::test_create_response_failure ... ok
+test types::common::tests::test_create_response_serialize ... ok
+test types::common::tests::test_create_response_success ... ok
+test types::common::tests::test_delete_response_failure ... ok
+test types::common::tests::test_delete_response_success ... ok
+test types::common::tests::test_empty_errors_serialization ... ok
+test types::common::tests::test_response_roundtrip_serialization ... ok
+test types::common::tests::test_update_response_failure ... ok
+test types::common::tests::test_update_response_success ... ok
+test types::common::tests::test_upsert_response_created ... ok
+test types::common::tests::test_upsert_response_failure ... ok
+test types::common::tests::test_upsert_response_updated ... ok
+test types::describe::tests::picklist_value_accepts_salesforce_base64_valid_for_bitmap ... ok
+test types::explain::tests::test_deserialize_explain_response ... ok
+test types::explain::tests::test_deserialize_explain_response_minimal ... ok
+test types::explain::tests::test_explain_api_call ... ok
+test types::query::tests::proptests::prop_default_is_empty_and_done ... ok
+test types::query::tests::proptests::prop_done_implies_not_has_more ... ok
+test types::query::tests::proptests::prop_has_more_requires_next_url_and_not_done ... ok
+test types::query::tests::proptests::prop_is_empty_consistent ... ok
+test types::query::tests::proptests::prop_len_matches_records ... ok
+test types::query::tests::proptests::prop_map_preserves_metadata ... ok
+test types::query::tests::proptests::prop_map_transforms_records ... ok
+test api::bulk::csv::tests::proptests::prop_batch_processing_complete ... ok
+test types::query::tests::test_query_iterator_empty ... ok
+test types::query::tests::test_query_iterator_empty_middle_page ... ok
+test types::query::tests::test_query_iterator_iterates_records_in_order ... ok
+test types::query::tests::test_query_iterator_multiple_pages ... ok
+test types::query::tests::test_query_iterator_new ... ok
+test types::query::tests::test_query_iterator_size_hint ... ok
+test types::query::tests::test_query_locator_as_ref ... ok
+test types::query::tests::test_query_locator_deserialize ... ok
+test types::query::tests::test_query_locator_from_str ... ok
+test types::query::tests::test_query_locator_from_string ... ok
+test types::query::tests::test_query_locator_from_url ... ok
+test types::query::tests::test_query_locator_serialize ... ok
+test types::query::tests::test_query_result_deserialize ... ok
+test types::query::tests::test_query_result_empty ... ok
+test types::query::tests::test_query_result_for_loop ... ok
+test types::query::tests::test_query_result_into_iter ... ok
+test types::query::tests::test_query_result_into_records ... ok
+test types::query::tests::test_query_result_invalid_state_done_with_next_url ... ok
+test types::query::tests::test_query_result_invalid_state_not_done_without_next_url ... ok
+test types::query::tests::test_query_result_iter ... ok
+test types::query::tests::test_query_result_map ... ok
+test types::query::tests::test_query_result_new ... ok
+test types::query::tests::test_query_result_serialize ... ok
+test types::query::tests::test_query_result_try_map_failure ... ok
+test types::query::tests::test_query_result_try_map_success ... ok
+test types::query::tests::test_query_result_with_next_page ... ok
+test types::query::tests::test_query_result_with_next_url_serialize ... ok
+test types::query::tests::proptests::prop_with_next_page_not_done ... ok
+test types::salesforce_id::tests::proptests::prop_display_consistent_with_as_str ... ok
+test types::salesforce_id::tests::proptests::prop_bad_checksum_rejects ... ok
+test types::salesforce_id::tests::proptests::prop_invalid_length_rejects ... ok
+test types::salesforce_id::tests::proptests::prop_non_alphanumeric_rejects ... ok
+test types::salesforce_id::tests::proptests::prop_roundtrip_15_to_18_to_15 ... ok
+test types::salesforce_id::tests::proptests::prop_roundtrip_18_to_15_to_18 ... ok
+test types::salesforce_id::tests::proptests::prop_to_15_idempotent_on_15_char ... ok
+test types::salesforce_id::tests::proptests::prop_to_18_idempotent_on_18_char ... ok
+test types::salesforce_id::tests::test_as_ref_trait ... ok
+test types::salesforce_id::tests::test_case_sensitivity ... ok
+test types::salesforce_id::tests::test_checksum_computation ... ok
+test types::salesforce_id::tests::test_display_trait ... ok
+test types::salesforce_id::tests::test_equality_15_and_18 ... ok
+test types::salesforce_id::tests::test_into_string ... ok
+test types::salesforce_id::tests::test_new_15_char_valid ... ok
+test types::salesforce_id::tests::test_new_18_char_valid ... ok
+test types::salesforce_id::tests::test_new_invalid_characters ... ok
+test types::salesforce_id::tests::test_new_invalid_checksum ... ok
+test types::salesforce_id::tests::test_new_invalid_length_too_long ... ok
+test types::salesforce_id::tests::test_new_invalid_length_too_short ... ok
+test types::salesforce_id::tests::test_to_15_from_15 ... ok
+test types::salesforce_id::tests::test_to_15_from_18 ... ok
+test types::salesforce_id::tests::test_to_18_from_15 ... ok
+test types::salesforce_id::tests::test_to_18_from_18 ... ok
+test types::salesforce_id::tests::test_try_from_string ... ok
+test types::salesforce_id::tests::test_try_from_string_invalid ... ok
+test types::sobject::tests::test_attributes_deserialize ... ok
+test types::sobject::tests::test_attributes_new ... ok
+test types::sobject::tests::test_attributes_object_type ... ok
+test types::sobject::tests::test_attributes_serialize ... ok
+test types::sobject::tests::test_dynamic_sobject_deserialize ... ok
+test types::sobject::tests::test_dynamic_sobject_field_count ... ok
+test types::sobject::tests::test_dynamic_sobject_field_names ... ok
+test types::sobject::tests::test_dynamic_sobject_from_value ... ok
+test types::sobject::tests::test_dynamic_sobject_from_value_missing_attributes ... ok
+test types::sobject::tests::test_dynamic_sobject_get_field_as ... ok
+test types::sobject::tests::test_dynamic_sobject_get_field_as_type_mismatch ... ok
+test types::sobject::tests::test_dynamic_sobject_get_field_nonexistent ... ok
+test types::sobject::tests::test_dynamic_sobject_has_field ... ok
+test types::sobject::tests::test_dynamic_sobject_new ... ok
+test types::sobject::tests::test_dynamic_sobject_remove_field ... ok
+test types::sobject::tests::test_dynamic_sobject_remove_field_nonexistent ... ok
+test types::sobject::tests::test_dynamic_sobject_serialize ... ok
+test types::sobject::tests::test_dynamic_sobject_set_and_get_field ... ok
+test types::sobject::tests::test_dynamic_sobject_to_value ... ok
+test types::sobject::tests::test_manual_construction_basic ... ok
+test types::sobject::tests::test_manual_construction_empty ... ok
+test types::sobject::tests::test_manual_construction_multiple_fields ... ok
+test types::sobject::tests::test_roundtrip_serialization ... ok
+test types::salesforce_id::tests::proptests::prop_to_18_produces_valid_id ... ok
+test types::validator::tests::test_validate_external_id_field_invalid ... ok
+test types::validator::tests::test_validate_external_id_field_valid ... ok
+test types::validator::tests::test_validate_field_name_edge_cases_dots ... ok
+test types::validator::tests::test_validate_field_name_invalid ... ok
+test types::validator::tests::test_validate_field_name_valid ... ok
+test types::validator::tests::test_validate_sobject_name_invalid ... ok
+test types::validator::tests::test_validate_sobject_name_valid ... ok
+test types::validator::havoc_tests::havoc_never_panics_on_any_string ... ok
+test http::tests::integration_tests::test_503_can_retry_mutation_with_explicit_policy ... ok
+test http::tests::integration_tests::test_idempotent_mutation_retries_on_503 ... ok
+
+test result: ok. 626 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.18s
+
+     Running tests/auth_timeout.rs (target/llvm-cov-target/debug/deps/auth_timeout-5b088674d85c4f9e)
+
+running 2 tests
+test test_client_credentials_timeout ... ok
+test test_jwt_bearer_timeout ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+
+     Running tests/composite_batch.rs (target/llvm-cov-target/debug/deps/composite_batch-d3a7aa7c77e3402f)
+
+running 2 tests
+test test_composite_batch_execution ... ok
+test test_composite_batch_failure_handling ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/havoc_api_soql_limits.rs (target/llvm-cov-target/debug/deps/havoc_api_soql_limits-c81442ddf9ff69eb)
+
+running 1 test
+test tests::test_soql_limit_offset_no_panic ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/havoc_api_soql_proptest.rs (target/llvm-cov-target/debug/deps/havoc_api_soql_proptest-04e286219cf395e2)
+
+running 1 test
+test tests::test_escape_soql_no_panic ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+     Running tests/havoc_api_sosl_proptest.rs (target/llvm-cov-target/debug/deps/havoc_api_sosl_proptest-bf7c953be05c2694)
+
+running 1 test
+test tests::test_sosl_builder_no_panic ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+     Running tests/havoc_batch_panic.rs (target/llvm-cov-target/debug/deps/havoc_batch_panic-ce3d06a1a335e076)
+
+running 4 tests
+test test_batch_builder_len_limit ... ok
+test test_escape_soql_cow_byte_mismatch_panic ... ok
+test test_batch_builder_robustness ... ok
+test test_soql_builder_where_in_panic ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.56s
+
+     Running tests/havoc_clear_race.rs (target/llvm-cov-target/debug/deps/havoc_clear_race-60990fafc3c76c0e)
+
+running 1 test
+test test_havoc_clear_race_condition ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s
+
+     Running tests/havoc_concurrency.rs (target/llvm-cov-target/debug/deps/havoc_concurrency-2ef00817eee0daa2)
+
+running 2 tests
+test tests::test_concurrent_get_and_force_refresh ... ok
+test tests::test_double_checked_locking ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/havoc_csv_panic.rs (target/llvm-cov-target/debug/deps/havoc_csv_panic-399aa8e64c2e6c4b)
+
+running 1 test
+test test_process_csv_batches_panic ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/havoc_dos_query_limit.rs (target/llvm-cov-target/debug/deps/havoc_dos_query_limit-2b169a95b8792992)
+
+running 3 tests
+test tests::test_bulk_query_csv_dos_limit ... ok
+test tests::test_query_dos_limit ... ok
+test tests::test_query_more_dos_limit ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/havoc_force_refresh.rs (target/llvm-cov-target/debug/deps/havoc_force_refresh-50d9c97f0211346e)
+
+running 1 test
+test tests::test_force_refresh_race_condition ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/havoc_force_refresh_cleared.rs (target/llvm-cov-target/debug/deps/havoc_force_refresh_cleared-c2a0ecfc3460aa20)
+
+running 1 test
+test test_havoc_force_refresh_cleared ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/havoc_force_refresh_resolution.rs (target/llvm-cov-target/debug/deps/havoc_force_refresh_resolution-f3773201663827e7)
+
+running 1 test
+test tests::test_force_refresh_timestamp_resolution_stampede ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s
+
+     Running tests/havoc_graph_limit.rs (target/llvm-cov-target/debug/deps/havoc_graph_limit-cf3c45c05b349c6e)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/havoc_soft_refresh_stale_return.rs (target/llvm-cov-target/debug/deps/havoc_soft_refresh_stale_return-fe0ded98fec7e359)
+
+running 1 test
+test tests::test_soft_refresh_try_lock_failure_returns_latest_published_token ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests/havoc_soql_panic.rs (target/llvm-cov-target/debug/deps/havoc_soql_panic-9e1b854e948a47d6)
+
+running 3 tests
+test tests::test_soql_try_order_by_no_panic ... ok
+test tests::test_soql_try_where_eq_no_panic ... ok
+test tests::test_soql_try_where_in_no_panic ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.70s
+
+     Running tests/havoc_token_leak.rs (target/llvm-cov-target/debug/deps/havoc_token_leak-22c2cd7553063c57)
+
+running 1 test
+test test_havoc_token_leak_via_absolute_url ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/havoc_token_manager_loom.rs (target/llvm-cov-target/debug/deps/havoc_token_manager_loom-c1edfabeefc71b36)
+
+running 1 test
+test test_havoc_token_manager_loom ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 56.51s
+
+     Running tests/havoc_token_overwrite.rs (target/llvm-cov-target/debug/deps/havoc_token_overwrite-ddfb9d5f970f5add)
+
+running 1 test
+test tests::test_get_token_overwrites_newer_token ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests/havoc_token_stall.rs (target/llvm-cov-target/debug/deps/havoc_token_stall-7766b9e150886ca3)
+
+running 1 test
+test test_token_stall_during_soft_expiry ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.50s
+
+     Running tests/havoc_username_password_race.rs (target/llvm-cov-target/debug/deps/havoc_username_password_race-00fb76a47108c227)
+
+running 1 test
+test tests::test_refresh_clears_newer_token ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/live_salesforce.rs (target/llvm-cov-target/debug/deps/live_salesforce-57fdfad07b77c7ad)
+
+running 25 tests
+test bulk_roundtrip_tests::live_bulk_insert_delete_convenience ... ignored, requires a live Salesforce org
+test bulk_roundtrip_tests::live_smart_ingest_round_trip ... ignored, requires a live Salesforce org
+test client_credentials_auth_tests::live_client_credentials_authenticate_returns_valid_token ... ignored, requires live Salesforce org with Client Credentials configured
+test client_credentials_auth_tests::live_client_credentials_invalid_secret_fails ... ignored, requires live Salesforce org with Client Credentials configured
+test client_credentials_auth_tests::live_client_credentials_refresh_returns_fresh_token ... ignored, requires live Salesforce org with Client Credentials configured
+test config_resolution_tests::parse_sf_cli_org_display_extracts_credentials ... ok
+test client_credentials_contract_rejects_non_token_endpoint ... ok
+test client_credentials_contract_accepts_explicit_token_endpoints ... ok
+test client_credentials_contract_normalizes_my_domain_base_urls ... ok
+test jwt_auth_tests::live_jwt_bearer_authenticate_returns_valid_token ... ignored, requires live Salesforce org with JWT Bearer Flow configured
+test jwt_auth_tests::live_jwt_bearer_invalid_client_id_fails ... ignored, requires live Salesforce org with JWT Bearer Flow configured
+test config_resolution_tests::sf_cli_command_candidates_match_platform ... ok
+test jwt_auth_tests::live_jwt_bearer_refresh_returns_fresh_token ... ignored, requires live Salesforce org with JWT Bearer Flow configured
+test live_bulk_ingest_partial_failure_results ... ignored, requires a live Salesforce org
+test live_bulk_query_stream_smoke ... ignored, requires a live Salesforce org
+test live_composite_batch_smoke ... ignored, requires a live Salesforce org
+test live_rest_query_invalid_locator_error_payload ... ignored, requires a live Salesforce org
+test live_rest_query_malformed_soql_error_payload ... ignored, requires a live Salesforce org
+test live_rest_query_smoke ... ignored, requires a live Salesforce org
+test live_rest_throttling_error_payload ... ignored, requires a live Salesforce org
+test username_password_auth_tests::live_username_password_authenticate_returns_valid_token ... ignored, requires live Salesforce org with Username-Password flow configured
+test username_password_auth_tests::live_username_password_invalid_password_fails ... ignored, requires live Salesforce org with Username-Password flow configured
+test username_password_auth_tests::live_username_password_refresh_returns_fresh_token ... ignored, requires live Salesforce org with Username-Password flow configured
+test jwt_login_url_contract_normalizes_bare_hosts_and_token_endpoints ... ok
+test username_password_contract_normalizes_base_token_urls ... ok
+
+test result: ok. 7 passed; 0 failed; 18 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/promoted_public_paths.rs (target/llvm-cov-target/debug/deps/promoted_public_paths-24c996e7cf55f455)
+
+running 1 test
+test promoted_public_paths_compile ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/query_stream_correctness.rs (target/llvm-cov-target/debug/deps/query_stream_correctness-d48036ac789cba38)
+
+running 1 test
+test test_query_stream_empty_middle_page_repro ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/regression_bulk_batch_size.rs (target/llvm-cov-target/debug/deps/regression_bulk_batch_size-5e3fd0c1a4beb98f)
+
+running 2 tests
+test test_process_csv_batches_errors_on_zero_batch_size ... ok
+test test_smart_ingest_errors_on_zero_batch_size ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/regression_query_more_absolute_url.rs (target/llvm-cov-target/debug/deps/regression_query_more_absolute_url-3552cb02ae43016a)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/regression_smart_ingest_batch_size.rs (target/llvm-cov-target/debug/deps/regression_smart_ingest_batch_size-1e09b8ec3b2ac3fa)
+
+running 1 test
+test tests::test_smart_ingest_huge_batch_size_no_panic ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/regression_token_overflow.rs (target/llvm-cov-target/debug/deps/regression_token_overflow-d83c9931fbd76d6e)
+
+running 1 test
+test havoc_access_token_overflow ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/security_bulk_injection.rs (target/llvm-cov-target/debug/deps/security_bulk_injection-a597f506eb93a16f)
+
+running 2 tests
+test test_create_job_rejects_invalid_external_id_field ... ok
+test test_create_job_rejects_invalid_object_name ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/security_soql_injection.rs (target/llvm-cov-target/debug/deps/security_soql_injection-145bb3b798728ee2)
+
+running 3 tests
+test test_soql_injection_complex_chars ... ok
+test test_soql_injection_prevention ... ok
+test test_soql_injection_real_world_vectors ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/security_sosl_injection.rs (target/llvm-cov-target/debug/deps/security_sosl_injection-78ea1b71a4efd700)
+
+running 2 tests
+test test_sosl_injection_vulnerability_sobject - should panic ... ok
+test test_sosl_injection_vulnerability_field - should panic ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/security_upsert_injection.rs (target/llvm-cov-target/debug/deps/security_upsert_injection-4930a008d7f8f14a)
+
+running 1 test
+test test_upsert_path_injection ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/smart_ingest_allocation.rs (target/llvm-cov-target/debug/deps/smart_ingest_allocation-02a7547bf1db7c3d)
+
+running 1 test
+test tests::test_smart_ingest_multi_batch_allocation ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/test_query_batch.rs (target/llvm-cov-target/debug/deps/test_query_batch-3f5172b838240d47)
+
+running 8 tests
+test test_query_batch_empty_results ... ok
+test test_query_batch_halt_on_error_false ... ok
+test test_query_batch_mixed_results ... ok
+test test_query_batch_halt_on_error ... ok
+test test_query_batch_ops_counts ... ok
+test test_query_batch_returns_default_stats_if_empty ... ok
+test test_query_batch_pagination_and_update ... ok
+test test_query_batch_multiple_batches ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/token_audit.rs (target/llvm-cov-target/debug/deps/token_audit-89d1754220214b35)
+
+running 2 tests
+test test_expires_in_inconsistency_repro ... ok
+test test_invalid_issued_at_extends_validity_repro ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/llvm-cov-target/debug/deps/force_pubsub-d146defa7fb1c03f)
+
+running 42 tests
+test config::tests::test_backoff_delay_capped_at_max ... ok
+test config::tests::test_backoff_delay_for_attempt_0 ... ok
+test codec::tests::test_decode_invalid_bytes_returns_error ... ok
+test codec::tests::test_encode_decode_roundtrip_dynamic ... ok
+test codec::tests::test_encode_decode_roundtrip_typed ... ok
+test config::tests::test_backoff_delay_for_attempt_1 ... ok
+test config::tests::test_default_config ... ok
+test config::tests::test_default_reconnect_policy ... ok
+test config::tests::test_replay_preset_variants_exist ... ok
+test error::tests::test_avro_error_display ... ok
+test error::tests::test_config_error_display ... ok
+test error::tests::test_from_tonic_status ... ok
+test error::tests::test_reconnect_failed_display ... ok
+test error::tests::test_schema_not_found_display ... ok
+test interceptor::tests::test_build_metadata_all_headers_present ... ok
+test interceptor::tests::test_build_metadata_happy_path ... ok
+test interceptor::tests::test_build_metadata_invalid_token_chars ... ok
+test interceptor::tests::test_build_metadata_invalid_tenant_id_chars ... ok
+test publish_sink::tests::test_map_proto_response_error_result ... ok
+test publish_sink::tests::test_map_proto_response_success ... ok
+test publish_sink::tests::test_publish_result_error_is_not_success ... ok
+test publish_sink::tests::test_publish_result_success_is_success ... ok
+test publisher::tests::test_empty_events_vec_is_valid ... ok
+test schema_cache::tests::test_default_is_empty ... ok
+test schema_cache::tests::test_get_miss_returns_none ... ok
+test schema_cache::tests::test_new_cache_is_empty ... ok
+test schema_cache::tests::test_cache_is_cloneable_and_shared ... ok
+test subscriber::tests::test_build_fetch_request_custom ... ok
+test schema_cache::tests::test_parse_and_insert ... ok
+test subscriber::tests::test_build_fetch_request_earliest ... ok
+test schema_cache::tests::test_parse_invalid_schema_returns_error ... ok
+test subscriber::tests::test_preset_to_proto_latest ... ok
+test subscriber::tests::test_build_fetch_request_latest ... ok
+test subscriber::tests::test_preset_to_proto_custom ... ok
+test subscriber::tests::test_preset_to_proto_earliest ... ok
+test types::tests::test_publish_response_all_succeeded ... ok
+test types::tests::test_publish_response_partial_failure ... ok
+test types::tests::test_publish_result_failure ... ok
+test types::tests::test_publish_result_success ... ok
+test types::tests::test_replay_id_empty ... ok
+test types::tests::test_replay_id_from_bytes_roundtrip ... ok
+test types::tests::test_replay_id_not_empty ... ok
+
+test result: ok. 42 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/handler_tests.rs (target/llvm-cov-target/debug/deps/handler_tests-789dfe0af5e5afb6)
+
+running 8 tests
+test test_connect_rejects_invalid_batch_size_zero ... ok
+test test_connect_rejects_invalid_batch_size_over_100 ... ok
+test test_get_schema_not_found_returns_error ... ok
+test test_get_topic_can_publish_is_true ... ok
+test test_get_schema_returns_info ... ok
+test test_handler_is_cloneable ... ok
+test test_get_topic_returns_info ... ok
+test test_connect_https_endpoint_uses_tls_connector ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.21s
+
+     Running tests/live_salesforce_pubsub.rs (target/llvm-cov-target/debug/deps/live_salesforce_pubsub-54ea1fb4e131f586)
+
+running 1 test
+test live_pubsub_get_topic_and_schema_smoke ... ignored, requires a live Salesforce org with Pub/Sub API and SF_PUBSUB_TOPIC configured
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/publish_stream_tests.rs (target/llvm-cov-target/debug/deps/publish_stream_tests-d8d68140224c795f)
+
+running 6 tests
+test test_publish_sink_is_reexported ... ok
+test test_publish_stream_empty_batch_succeeds ... ok
+test test_publish_stream_response_has_results ... ok
+test test_publish_stream_send_encodes_avro_and_populates_cache ... ok
+test test_publish_stream_close_drains_responses ... ok
+test test_publish_stream_sends_events_and_receives_responses ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/publisher_tests.rs (target/llvm-cov-target/debug/deps/publisher_tests-0433e682fa3e3aae)
+
+running 4 tests
+test test_publish_schema_cached_is_reused ... ok
+test test_publish_returns_response ... ok
+test test_publish_empty_events_succeeds ... ok
+test test_publish_populates_schema_cache_on_miss ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/subscribe_events_tests.rs (target/llvm-cov-target/debug/deps/subscribe_events_tests-66394bda598b25af)
+
+running 4 tests
+test test_subscribe_yields_keepalive ... ok
+test test_subscribe_yields_events ... ok
+test test_subscribe_reconnects_on_disconnect ... ok
+test test_subscribe_exhausts_retries_returns_error ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+     Running tests/subscriber_tests.rs (target/llvm-cov-target/debug/deps/subscriber_tests-291382d663acb4dc)
+
+running 4 tests
+test test_subscribe_typed_returns_stream ... ok
+test test_subscribe_returns_stream ... ok
+test test_subscribe_stream_ends_on_no_reconnect ... ok
+test test_subscribe_yields_keepalive_when_no_events ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running unittests src/lib.rs (target/llvm-cov-target/debug/deps/force_sync-a1e743a86e82b121)
+
+running 90 tests
+test capture::postgres::tests::outbox_operation_delete_not_tombstone_is_invalid ... ok
+test capture::postgres::tests::outbox_operation_upsert_not_tombstone ... ok
+test capture::postgres::tests::outbox_operation_delete_tombstone ... ok
+test capture::postgres::tests::outbox_operation_unknown_op_is_invalid ... ok
+test capture::postgres::tests::outbox_source_cursor_plain_lsn_succeeds ... ok
+test capture::postgres::tests::outbox_source_cursor_rejects_postgres_lsn_prefix ... ok
+test capture::postgres::tests::outbox_operation_upsert_tombstone_is_invalid ... ok
+test capture::postgres::tests::outbox_source_cursor_rejects_salesforce_replay_id_prefix ... ok
+test capture::postgres::tests::outbox_source_cursor_rejects_snapshot_prefix ... ok
+test capture::postgres::tests::row_content_error_recognizes_empty_sync_key_part ... ok
+test capture::postgres::tests::row_content_error_recognizes_invalid_outbox_cursor ... ok
+test capture::postgres::tests::row_content_error_recognizes_invalid_outbox_operation ... ok
+test capture::postgres::tests::row_content_error_rejects_missing_source_cursor ... ok
+test capture::salesforce::tests::change_operation_returns_delete_for_delete_change_type ... ok
+test capture::postgres::tests::row_content_error_recognizes_json_error ... ok
+test capture::salesforce::tests::change_operation_returns_upsert_for_create_change_type ... ok
+test capture::salesforce::tests::change_operation_returns_upsert_for_update_change_type ... ok
+test capture::salesforce::tests::change_operation_returns_upsert_when_header_missing ... ok
+test capture::salesforce::tests::change_operation_returns_upsert_when_change_type_missing ... ok
+test capture::salesforce::tests::replay_id_from_position_rejects_negative ... ok
+test capture::salesforce::tests::replay_id_from_position_multi_byte_value ... ok
+test capture::salesforce::tests::replay_id_from_position_small_value ... ok
+test capture::salesforce::tests::replay_id_from_position_zero ... ok
+test capture::salesforce::tests::replay_id_round_trip_preserves_value ... ok
+test capture::salesforce::tests::replay_id_to_position_full_8_bytes ... ok
+test capture::salesforce::tests::replay_id_to_position_multi_byte ... ok
+test capture::salesforce::tests::replay_id_to_position_rejects_more_than_8_bytes ... ok
+test capture::salesforce::tests::replay_id_to_position_rejects_value_exceeding_i64_max ... ok
+test capture::salesforce::tests::replay_id_to_position_single_byte ... ok
+test config::tests::object_sync_external_id_builder_stores_config ... ok
+test config::tests::object_sync_field_owner_builder_stores_rules ... ok
+test identity::tests::sync_key_requires_non_empty_parts ... ok
+test model::tests::change_envelope_with_cursor_attaches_cursor ... ok
+test model::tests::change_envelope_payload_hash_is_stable_for_identical_payloads ... ok
+test model::tests::change_envelope_payload_hash_matches_semantically_equal_payloads ... ok
+test model::tests::payload_hash_matches_pre_sorted_payloads ... ok
+test plan::tests::merge_payload_identical_payloads_returns_noop ... ok
+test plan::tests::merge_payload_empty_incoming_object_returns_current ... ok
+test plan::tests::merge_payload_new_field_no_ownership_is_added ... ok
+test plan::tests::merge_payload_multiple_conflicts_collected ... ok
+test plan::tests::merge_payload_new_field_postgres_owned_ignored_from_salesforce ... ok
+test plan::tests::merge_payload_new_field_salesforce_owned_ignored_from_postgres ... ok
+test plan::tests::merge_payload_new_shared_field_is_added ... ok
+test plan::tests::merge_payload_no_current_returns_incoming_as_merged ... ok
+test plan::tests::merge_payload_new_field_salesforce_owned_added_from_salesforce ... ok
+test plan::tests::merge_payload_non_object_identical_returns_noop ... ok
+test plan::tests::merge_payload_non_object_mismatch_returns_conflict ... ok
+test plan::tests::merge_payload_null_field_in_incoming_no_ownership ... ok
+test plan::tests::merge_payload_postgres_owned_field_accepted_from_postgres ... ok
+test plan::tests::merge_payload_postgres_owned_field_rejected_from_salesforce ... ok
+test plan::tests::merge_payload_salesforce_owned_field_accepted_from_salesforce ... ok
+test plan::tests::merge_payload_salesforce_owned_field_rejected_from_postgres ... ok
+test plan::tests::merge_payload_null_field_in_incoming_with_ownership ... ok
+test plan::tests::merge_payload_shared_field_conflict_on_change ... ok
+test plan::tests::plan_change_batch_at_bulk_threshold_routes_to_bulk ... ok
+test plan::tests::plan_change_conflict_returns_conflict_lane ... ok
+test plan::tests::plan_change_batch_below_bulk_threshold_routes_to_rest ... ok
+test plan::tests::plan_change_delete_no_current_routes_to_rest ... ok
+test plan::tests::plan_change_dependencies_take_priority_over_bulk ... ok
+test plan::tests::plan_change_dependencies_take_priority_over_urgent ... ok
+test plan::tests::plan_change_identical_payload_returns_noop ... ok
+test plan::tests::plan_change_large_batch_routes_to_bulk ... ok
+test plan::tests::plan_change_merged_equals_current_returns_noop ... ok
+test plan::tests::plan_change_new_record_routes_to_rest ... ok
+test plan::tests::plan_change_semantically_equal_payload_returns_noop ... ok
+test plan::tests::plan_change_urgent_routes_to_rest ... ok
+test plan::tests::plan_change_urgent_takes_priority_over_bulk ... ok
+test plan::tests::plan_change_with_dependencies_routes_to_composite_graph ... ok
+test runtime::tests::local_projection_returns_none_when_no_link_and_no_payload_id ... ok
+test runtime::tests::local_projection_salesforce_id_prefers_existing_link ... ok
+test runtime::tests::local_projection_salesforce_id_uses_payload_id_when_link_is_missing ... ok
+test runtime::tests::parse_change_operation_delete ... ok
+test runtime::tests::parse_change_operation_unknown_returns_error ... ok
+test runtime::tests::parse_change_operation_upsert ... ok
+test runtime::tests::parse_source_cursor_invalid_replay_id_returns_error ... ok
+test runtime::tests::parse_source_cursor_postgres_lsn ... ok
+test runtime::tests::parse_source_cursor_salesforce_replay_id ... ok
+test runtime::tests::parse_source_cursor_snapshot ... ok
+test runtime::tests::parse_source_cursor_unknown_prefix_returns_error ... ok
+test runtime::tests::builder_tests::build_fails_without_postgres ... ok
+test runtime::tests::parse_source_system_postgres ... ok
+test runtime::tests::parse_source_system_unknown_returns_error ... ok
+test runtime::tests::should_not_project_local_noops_back_to_salesforce ... ok
+test runtime::tests::should_not_project_locally_postgres_bulk ... ok
+test runtime::tests::builder_tests::build_fails_with_empty_objects ... ok
+test runtime::tests::should_not_project_locally_salesforce_conflict ... ok
+test runtime::tests::should_project_locally_salesforce_bulk ... ok
+test runtime::tests::parse_source_system_salesforce ... ok
+test store::pg::journal::tests::journal_values_keep_observed_at_as_datetime ... ok
+test store::pg::task_queue::tests::lease_deadline_keeps_datetime_type ... ok
+
+test result: ok. 90 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/bulk_reconcile.rs (target/llvm-cov-target/debug/deps/bulk_reconcile-216289b9287da683)
+
+running 6 tests
+test detect_drift_finds_hash_mismatches ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+test reconcile_repair_enqueues_a_new_apply_task ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+test repeated_reconcile_passes_do_not_duplicate_repair_work ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+test run_reconcile_once_queues_repairs_for_drift ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+test planner_sends_large_homogeneous_batches_to_bulk_lane ... ok
+test bulk_upsert_uses_the_external_id_field ... ok
+
+test result: ok. 2 passed; 0 failed; 4 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/cdc_capture.rs (target/llvm-cov-target/debug/deps/cdc_capture-5aa3b453e182f822)
+
+running 3 tests
+test cdc_event_creates_journal_task_and_checkpoint ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+test duplicate_cdc_event_is_deduped_by_replay_id ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+test restart_uses_the_stored_replay_cursor ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+
+test result: ok. 0 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/control_plane_repos.rs (target/llvm-cov-target/debug/deps/control_plane_repos-ed27b052778a11c1)
+
+running 4 tests
+test checkpoint_advances_only_when_the_position_increases ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+test insert_conflict_writes_a_row ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+test insert_dead_letter_writes_a_row ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+test put_link_upserts_the_latest_values ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+
+test result: ok. 0 passed; 0 failed; 4 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/end_to_end_postgres_to_salesforce.rs (target/llvm-cov-target/debug/deps/end_to_end_postgres_to_salesforce-22ccceaf35c8a93b)
+
+running 2 tests
+test replayed_postgres_change_is_not_reapplied_to_salesforce ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+test run_capture_and_apply_once_converges_one_postgres_record ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+
+test result: ok. 0 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/havoc_lease_panic.rs (target/llvm-cov-target/debug/deps/havoc_lease_panic-7ed026df6fbb6a03)
+
+running 1 test
+test tests::test_lease_duration_panic ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/journal_tasks.rs (target/llvm-cov-target/debug/deps/journal_tasks-774ce83927c35253)
+
+running 12 tests
+test appending_a_journal_entry_creates_a_row ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+test done_task_cannot_be_re_leased ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+test duplicate_source_cursor_is_deduped ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+test enqueuing_a_task_in_the_same_transaction_works ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+test failed_task_cannot_be_re_leased ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+test in_tx_lease_and_ack_round_trip ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+test in_tx_retry_and_fail_round_trip ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+test leasing_a_task_marks_owner_and_until ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+test retry_task_with_future_next_attempt_at_is_not_leasable_until_due ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+test worker_guarded_task_updates_require_the_current_lease_and_clear_retry_state ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+test wrong_worker_cannot_ack_task ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+test wrong_worker_cannot_fail_task ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+
+test result: ok. 0 passed; 0 failed; 12 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/pg_migrations.rs (target/llvm-cov-target/debug/deps/pg_migrations-0ff79db0607e766f)
+
+running 1 test
+test applies_initial_schema ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/pg_store_bootstrap.rs (target/llvm-cov-target/debug/deps/pg_store_bootstrap-074aba1e4184932a)
+
+running 1 test
+test pg_store_can_open_transaction ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/planner.rs (target/llvm-cov-target/debug/deps/planner-04198dd559d1dc2b)
+
+running 7 tests
+test dependent_records_choose_composite_graph ... ok
+test large_batches_choose_bulk ... ok
+test identical_hashes_become_noop ... ok
+test conflict_required_field_opens_a_conflict ... ok
+test postgres_owned_field_wins_when_salesforce_changes_it ... ok
+test urgent_singleton_changes_choose_rest ... ok
+test duplicate_envelopes_plan_to_noop ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running tests/postgres_capture.rs (target/llvm-cov-target/debug/deps/postgres_capture-9212e64ef25d5743)
+
+running 5 tests
+test already_encoded_cursor_is_rejected_safely ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+test contradictory_op_and_tombstone_rows_are_rejected_safely ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+test duplicate_source_cursors_do_not_enqueue_duplicate_tasks ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+test invalid_outbox_row_is_dead_lettered_and_marked_processed ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+test outbox_rows_are_captured_into_the_journal_and_marked_processed ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+
+test result: ok. 0 passed; 0 failed; 5 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/rest_apply.rs (target/llvm-cov-target/debug/deps/rest_apply-311aa2845f2eadc3)
+
+running 10 tests
+test apply_rest_delete_404_is_idempotent_success ... ok
+test apply_rest_delete_bad_request_is_permanent ... ok
+test apply_rest_delete_uses_salesforce_id ... ok
+test apply_rest_delete_server_error_is_retryable ... ok
+test apply_rest_upsert_create_returns_created_id ... ok
+test apply_rest_upsert_update_204_fails_when_id_field_is_null_in_query_result ... ok
+test apply_rest_upsert_permanent_400_classified_correctly ... ok
+test apply_rest_upsert_update_204_fails_when_lookup_finds_no_row ... ok
+test apply_rest_upsert_update_204_resolves_salesforce_id_when_link_missing ... ok
+test transient_rest_upsert_failure_is_retryable ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.52s
+
+     Running tests/runtime_coverage.rs (target/llvm-cov-target/debug/deps/runtime_coverage-f4776eee5bad7e4a)
+
+running 1 test
+test runtime_coverage_combined_tests ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/runtime_salesforce_origin.rs (target/llvm-cov-target/debug/deps/runtime_salesforce_origin-3c3c75850d949af1)
+
+running 1 test
+test salesforce_originated_task_is_projected_locally_without_salesforce_echo ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/smoke.rs (target/llvm-cov-target/debug/deps/smoke-12a169772cf3c1c9)
+
+running 1 test
+test force_sync_exposes_version ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+Filename                                      Regions    Missed Regions     Cover   Functions  Missed Functions  Executed       Lines      Missed Lines     Cover    Branches   Missed Branches     Cover
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+force-pubsub/src/codec.rs                         121                25    79.34%          13                 5    61.54%          67                14    79.10%           0                 0         -
+force-pubsub/src/config.rs                         74                 2    97.30%          10                 0   100.00%          56                 1    98.21%           0                 0         -
+force-pubsub/src/error.rs                          40                 1    97.50%           5                 0   100.00%          28                 0   100.00%           0                 0         -
+force-pubsub/src/handler.rs                       245                27    88.98%          26                 4    84.62%         177                 8    95.48%           0                 0         -
+force-pubsub/src/interceptor.rs                   137                 9    93.43%          12                 1    91.67%          89                 5    94.38%           0                 0         -
+force-pubsub/src/publish_sink.rs                  189                16    91.53%          18                 1    94.44%         163                 8    95.09%           0                 0         -
+force-pubsub/src/publisher.rs                      73                22    69.86%           6                 3    50.00%          60                13    78.33%           0                 0         -
+force-pubsub/src/schema_cache.rs                  147                11    92.52%          17                 1    94.12%          87                 6    93.10%           0                 0         -
+force-pubsub/src/subscriber.rs                    340                72    78.82%          24                 5    79.17%         243                41    83.13%           0                 0         -
+force-pubsub/src/types.rs                          95                 0   100.00%          14                 0   100.00%          80                 0   100.00%           0                 0         -
+force-sync/src/apply/postgres.rs                   28                28     0.00%           5                 5     0.00%          24                24     0.00%           0                 0         -
+force-sync/src/apply/salesforce.rs                130                 9    93.08%          15                 1    93.33%         128                12    90.62%           0                 0         -
+force-sync/src/capture/postgres.rs                265               152    42.64%          26                 9    65.38%         214               128    40.19%           0                 0         -
+force-sync/src/capture/salesforce.rs              311               139    55.31%          33                11    66.67%         225               116    48.44%           0                 0         -
+force-sync/src/config.rs                           75                 6    92.00%          14                 2    85.71%          57                 6    89.47%           0                 0         -
+force-sync/src/error.rs                             3                 3     0.00%           1                 1     0.00%           3                 3     0.00%           0                 0         -
+force-sync/src/identity.rs                         41                 3    92.68%           5                 0   100.00%          41                 7    82.93%           0                 0         -
+force-sync/src/lib.rs                               3                 0   100.00%           1                 0   100.00%           3                 0   100.00%           0                 0         -
+force-sync/src/model.rs                           239                29    87.87%          19                 0   100.00%         171                15    91.23%           0                 0         -
+force-sync/src/plan.rs                            872                17    98.05%          49                 1    97.96%         439                11    97.49%           0                 0         -
+force-sync/src/reconcile.rs                       104               104     0.00%          18                18     0.00%         110               110     0.00%           0                 0         -
+force-sync/src/runtime.rs                         852               531    37.68%          81                46    43.21%         700               427    39.00%           0                 0         -
+force-sync/src/store/pg/checkpoint.rs              65                65     0.00%          11                11     0.00%          75                75     0.00%           0                 0         -
+force-sync/src/store/pg/conflict.rs                25                25     0.00%           4                 4     0.00%          37                37     0.00%           0                 0         -
+force-sync/src/store/pg/dead_letter.rs             30                30     0.00%           6                 6     0.00%          47                47     0.00%           0                 0         -
+force-sync/src/store/pg/journal.rs                160               104    35.00%          21                19     9.52%         176               144    18.18%           0                 0         -
+force-sync/src/store/pg/link.rs                    75                75     0.00%          10                10     0.00%         102               102     0.00%           0                 0         -
+force-sync/src/store/pg/migrate.rs                 38                38     0.00%           2                 2     0.00%          29                29     0.00%           0                 0         -
+force-sync/src/store/pg/store.rs                   40                37     7.50%           6                 5    16.67%          33                30     9.09%           0                 0         -
+force-sync/src/store/pg/task_queue.rs             304               249    18.09%          40                36    10.00%         322               289    10.25%           0                 0         -
+force/src/api/builder_unwrap.rs                    22                 0   100.00%           4                 0   100.00%          13                 0   100.00%           0                 0         -
+force/src/api/bulk/csv.rs                         472                15    96.82%          35                 2    94.29%         305                11    96.39%           0                 0         -
+force/src/api/bulk/handler.rs                     114                 0   100.00%          13                 0   100.00%          64                 0   100.00%           0                 0         -
+force/src/api/bulk/ingest.rs                     1627                78    95.21%          95                 2    97.89%        1172                38    96.76%           0                 0         -
+force/src/api/bulk/policy.rs                      115                 1    99.13%          10                 0   100.00%          62                 1    98.39%           0                 0         -
+force/src/api/bulk/query.rs                      1441                33    97.71%          94                 2    97.87%        1000                20    98.00%           0                 0         -
+force/src/api/bulk/smart_ingest.rs               1232                46    96.27%          57                 3    94.74%         887                41    95.38%           0                 0         -
+force/src/api/bulk/types.rs                       282                 0   100.00%          15                 0   100.00%         203                 0   100.00%           0                 0         -
+force/src/api/composite/batch.rs                  598                51    91.47%          50                 2    96.00%         437                25    94.28%           0                 0         -
+force/src/api/composite/mod.rs                     11                 0   100.00%           3                 0   100.00%          11                 0   100.00%           0                 0         -
+force/src/api/composite/query_batch.rs            344                12    96.51%          16                 0   100.00%         206                 4    98.06%           0                 0         -
+force/src/api/composite/soql_mass_op.rs           304                 7    97.70%          20                 1    95.00%         187                 7    96.26%           0                 0         -
+force/src/api/path_utils.rs                        37                 0   100.00%           3                 0   100.00%          21                 0   100.00%           0                 0         -
+force/src/api/query_stream.rs                     539                 0   100.00%          26                 0   100.00%         306                 0   100.00%           0                 0         -
+force/src/api/rest/crud.rs                        758                 9    98.81%          32                 0   100.00%         445                 8    98.20%           0                 0         -
+force/src/api/rest/describe.rs                    152                 0   100.00%           8                 0   100.00%         250                 0   100.00%           0                 0         -
+force/src/api/rest/limits.rs                      209                 0   100.00%          18                 0   100.00%         239                 0   100.00%           0                 0         -
+force/src/api/rest/mod.rs                         269                37    86.25%          34                 6    82.35%         170                26    84.71%           0                 0         -
+force/src/api/rest/query.rs                       853                 7    99.18%          33                 0   100.00%         472                 6    98.73%           0                 0         -
+force/src/api/rest/query_plan_analyzer.rs         164                 2    98.78%          10                 0   100.00%         140                 1    99.29%           0                 0         -
+force/src/api/rest/search.rs                      737                13    98.24%          68                 6    91.18%         546                10    98.17%           0                 0         -
+force/src/api/rest_operation.rs                  1238                57    95.40%          88                 5    94.32%         871                21    97.59%           0                 0         -
+force/src/api/soql.rs                             784                30    96.17%          69                 5    92.75%         488                10    97.95%           0                 0         -
+force/src/api/url_encoded_writer.rs                21                 0   100.00%           2                 0   100.00%          18                 0   100.00%           0                 0         -
+force/src/auth/authenticator.rs                    35                 0   100.00%           6                 0   100.00%          19                 0   100.00%           0                 0         -
+force/src/auth/client_credentials.rs               73                12    83.56%          13                 3    76.92%          59                 8    86.44%           0                 0         -
+force/src/auth/jwt_bearer.rs                      168                10    94.05%          17                 3    82.35%         143                14    90.21%           0                 0         -
+force/src/auth/mod.rs                              45                 9    80.00%           4                 1    75.00%          33                 5    84.85%           0                 0         -
+force/src/auth/token.rs                           446                10    97.76%          42                 2    95.24%         299                10    96.66%           0                 0         -
+force/src/auth/token_manager.rs                   911                17    98.13%          68                 0   100.00%         549                12    97.81%           0                 0         -
+force/src/auth/username_password.rs               651                 4    99.39%          46                 0   100.00%         418                 1    99.76%           0                 0         -
+force/src/client/builder.rs                       140                 4    97.14%          16                 1    93.75%         122                 3    97.54%           0                 0         -
+force/src/client/mod.rs                            53                 4    92.45%          10                 2    80.00%          36                 4    88.89%           0                 0         -
+force/src/config.rs                                76                 0   100.00%          11                 0   100.00%          74                 0   100.00%           0                 0         -
+force/src/error.rs                                262                 8    96.95%          28                 0   100.00%         180                 2    98.89%           0                 0         -
+force/src/http/error.rs                           221                18    91.86%          17                 1    94.12%         149                13    91.28%           0                 0         -
+force/src/http/executor.rs                       1096               109    90.05%          89                25    71.91%         782                73    90.66%           0                 0         -
+force/src/http/retry.rs                           297                 1    99.66%          26                 0   100.00%         165                 1    99.39%           0                 0         -
+force/src/http/telemetry.rs                       193                 4    97.93%          17                 4    76.47%         142                 4    97.18%           0                 0         -
+force/src/lib.rs                                    7                 0   100.00%           2                 0   100.00%           6                 0   100.00%           0                 0         -
+force/src/session.rs                              173                22    87.28%          23                 4    82.61%         109                 8    92.66%           0                 0         -
+force/src/test_support.rs                         236               113    52.12%          35                18    48.57%         199               126    36.68%           0                 0         -
+force/src/types/api_version.rs                    255                 5    98.04%          25                 0   100.00%         141                 0   100.00%           0                 0         -
+force/src/types/common.rs                         315                 0   100.00%          32                 0   100.00%         205                 0   100.00%           0                 0         -
+force/src/types/describe.rs                        15                 0   100.00%           1                 0   100.00%          10                 0   100.00%           0                 0         -
+force/src/types/explain.rs                        116                 0   100.00%           4                 0   100.00%          67                 0   100.00%           0                 0         -
+force/src/types/query.rs                          569                 1    99.82%          60                 0   100.00%         319                 0   100.00%           0                 0         -
+force/src/types/salesforce_id.rs                  335                 6    98.21%          36                 0   100.00%         186                 1    99.46%           0                 0         -
+force/src/types/sobject.rs                        553                 2    99.64%          40                 0   100.00%         256                 1    99.61%           0                 0         -
+force/src/types/validator.rs                      200                11    94.50%          16                 2    87.50%         130                21    83.85%           0                 0         -
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+TOTAL                                           24885              2597    89.56%        1999               307    84.64%       17297              2244    87.03%           0                 0         -

@@ -1,0 +1,16 @@
+<<<<<<< SEARCH
+    let value = Option::<StringOrNumber>::deserialize(deserializer)?;
+    Ok(match value {
+        Some(StringOrNumber::String(value)) => Some(value),
+        Some(StringOrNumber::Number(value)) => Some(value.to_string()),
+        Some(StringOrNumber::Null) | None => None,
+    })
+=======
+    // Ensure we handle missing/null gracefully without overriding valid defaults
+    let value = Option::<StringOrNumber>::deserialize(deserializer)?;
+    Ok(match value {
+        Some(StringOrNumber::String(value)) => Some(value),
+        Some(StringOrNumber::Number(value)) => Some(value.to_string()),
+        Some(StringOrNumber::Null) | None => None,
+    })
+>>>>>>> REPLACE
