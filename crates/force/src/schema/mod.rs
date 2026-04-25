@@ -17,7 +17,6 @@ pub(crate) mod prisma_generator;
 #[cfg(feature = "schema")]
 pub(crate) mod protobuf_generator;
 pub(crate) mod pydantic_generator;
-pub(crate) mod record_validator;
 pub(crate) mod scanner;
 pub(crate) mod schema_analyzer;
 pub(crate) mod schema_changelog;
@@ -58,7 +57,6 @@ pub use prisma_generator::{generate_prisma_model, write_prisma_model};
 #[cfg(feature = "schema")]
 pub use protobuf_generator::{generate_protobuf_schema, write_protobuf_schema};
 pub use pydantic_generator::{generate_pydantic_model, write_pydantic_model};
-pub use record_validator::{RecordValidator, ValidationError};
 pub use scanner::{FieldUsage, FieldUsageScanner};
 pub use schema_analyzer::{SchemaInsights, analyze_schema};
 pub use schema_changelog::{generate_changelog, write_changelog};

@@ -48,28 +48,17 @@ impl std::fmt::Display for ValidationError {
         match self {
             Self::UnknownField(name) => write!(f, "Unknown field: {}", name),
             Self::MissingRequiredField(name) => write!(f, "Missing required field: {}", name),
-            Self::LengthExceeded {
-                field_name,
-                actual_length,
-                max_length,
-            } => write!(
+            Self::LengthExceeded { field_name, actual_length, max_length } => write!(
                 f,
                 "Field {} exceeds maximum length ({} > {})",
                 field_name, actual_length, max_length
             ),
-            Self::ReadOnlyFieldModified {
-                field_name,
-                createable,
-                updateable,
-            } => write!(
+            Self::ReadOnlyFieldModified { field_name, createable, updateable } => write!(
                 f,
                 "Field {} cannot be modified (createable: {}, updateable: {})",
                 field_name, createable, updateable
             ),
-            Self::InvalidType {
-                field_name,
-                expected_type,
-            } => write!(
+            Self::InvalidType { field_name, expected_type } => write!(
                 f,
                 "Field {} has an invalid type (expected {})",
                 field_name, expected_type
@@ -102,21 +91,13 @@ impl<'a> RecordValidator<'a> {
     ///
     /// A list of validation errors. An empty list indicates the record is valid.
     #[must_use]
-    pub fn validate_record(
-        &self,
-        record: &DynamicSObject,
-        is_update: bool,
-    ) -> Vec<ValidationError> {
+    pub fn validate_record(&self, record: &DynamicSObject, is_update: bool) -> Vec<ValidationError> {
         let mut errors = Vec::new();
 
         // Check for missing required fields (only on insert)
         if !is_update {
             for field in &self.describe.fields {
-                if !field.nillable
-                    && !field.defaulted_on_create
-                    && field.name != "Id"
-                    && !record.fields.contains_key(&field.name)
-                {
+                if !field.nillable && !field.defaulted_on_create && field.name != "Id" && !record.fields.contains_key(&field.name) {
                     errors.push(ValidationError::MissingRequiredField(field.name.clone()));
                 }
             }
@@ -179,18 +160,15 @@ impl<'a> RecordValidator<'a> {
                             | FieldType::Location
                             | FieldType::AnyType
                     ) {
-                        errors.push(ValidationError::InvalidType {
-                            field_name: field.name.clone(),
-                            expected_type: format!("{:?}", field.type_),
-                        });
+                         errors.push(ValidationError::InvalidType {
+                             field_name: field.name.clone(),
+                             expected_type: format!("{:?}", field.type_),
+                         });
                     }
                 } else if let Value::Number(_) = value {
                     if !matches!(
                         field.type_,
-                        FieldType::Int
-                            | FieldType::Double
-                            | FieldType::Currency
-                            | FieldType::Percent
+                        FieldType::Int | FieldType::Double | FieldType::Currency | FieldType::Percent
                     ) {
                         errors.push(ValidationError::InvalidType {
                             field_name: field.name.clone(),
@@ -219,6 +197,8 @@ mod tests {
     use super::*;
     use crate::test_support::Must;
     use crate::types::Attributes;
+    use crate::types::SalesforceId;
+    use crate::types::api_version::ApiVersion;
     use serde_json::json;
 
     fn create_mock_describe(fields_json: &serde_json::Value) -> SObjectDescribe {
@@ -272,9 +252,6 @@ mod tests {
         })
     }
 
-    use crate::types::SalesforceId;
-    use crate::types::api_version::ApiVersion;
-
     fn create_record(fields: serde_json::Map<String, Value>) -> DynamicSObject {
         let id = SalesforceId::new("001000000000000AAA").must();
         let api_ver = ApiVersion::V60;
@@ -313,10 +290,7 @@ mod tests {
 
         let errors = validator.validate_record(&record, false);
         assert_eq!(errors.len(), 1);
-        assert_eq!(
-            errors[0],
-            ValidationError::MissingRequiredField("Name".to_string())
-        );
+        assert_eq!(errors[0], ValidationError::MissingRequiredField("Name".to_string()));
     }
 
     #[test]
@@ -334,10 +308,7 @@ mod tests {
 
         let errors = validator.validate_record(&record, false);
         assert_eq!(errors.len(), 1);
-        assert_eq!(
-            errors[0],
-            ValidationError::UnknownField("Unknown__c".to_string())
-        );
+        assert_eq!(errors[0], ValidationError::UnknownField("Unknown__c".to_string()));
     }
 
     #[test]
@@ -375,10 +346,7 @@ mod tests {
         let validator = RecordValidator::new(&describe);
         let mut map = serde_json::Map::new();
         map.insert("Name".to_string(), Value::String("Acme Corp".to_string()));
-        map.insert(
-            "CreatedDate".to_string(),
-            Value::String("2023-01-01T00:00:00Z".to_string()),
-        );
+        map.insert("CreatedDate".to_string(), Value::String("2023-01-01T00:00:00Z".to_string()));
         let record = create_record(map);
 
         let errors = validator.validate_record(&record, false);
@@ -402,24 +370,17 @@ mod tests {
 
         let validator = RecordValidator::new(&describe);
         let mut map = serde_json::Map::new();
-        map.insert(
-            "Id".to_string(),
-            Value::String("001000000000000AAA".to_string()),
-        );
+        map.insert("Id".to_string(), Value::String("001000000000000AAA".to_string()));
         map.insert("Name".to_string(), Value::String("Acme Corp".to_string()));
         let record = create_record(map);
 
         let errors = validator.validate_record(&record, true);
-        assert!(
-            errors.is_empty(),
-            "Expected no errors on update with Id, got {:?}",
-            errors
-        );
+        assert!(errors.is_empty(), "Expected no errors on update with Id, got {:?}", errors);
     }
 
     #[test]
     fn test_invalid_type() {
-        let describe = create_mock_describe(&json!([
+         let describe = create_mock_describe(&json!([
             mock_field("Id", "id", false, false, false, false, 18),
             mock_field("Name", "string", false, false, true, true, 255),
             mock_field("Amount", "currency", true, false, true, true, 0),
@@ -441,5 +402,166 @@ mod tests {
                 expected_type: "Currency".to_string(),
             }
         );
+    }
+
+    #[test]
+    fn test_valid_update() {
+        let describe = create_mock_describe(&json!([
+            mock_field("Id", "id", false, false, false, false, 18),
+            mock_field("Name", "string", false, false, true, true, 255),
+        ]));
+
+        let validator = RecordValidator::new(&describe);
+        let mut map = serde_json::Map::new();
+        map.insert(
+            "Id".to_string(),
+            Value::String("001000000000000AAA".to_string()),
+        );
+        map.insert("Name".to_string(), Value::String("Acme Corp".to_string()));
+        let record = create_record(map);
+
+        let errors = validator.validate_record(&record, true);
+        assert!(errors.is_empty());
+    }
+
+    #[test]
+    fn test_read_only_field_on_update() {
+        let describe = create_mock_describe(&json!([
+            mock_field("Id", "id", false, false, false, false, 18),
+            mock_field("Name", "string", false, false, true, false, 255), // Name is createable but not updateable
+        ]));
+
+        let validator = RecordValidator::new(&describe);
+        let mut map = serde_json::Map::new();
+        map.insert(
+            "Id".to_string(),
+            Value::String("001000000000000AAA".to_string()),
+        );
+        map.insert("Name".to_string(), Value::String("Acme Corp".to_string()));
+        let record = create_record(map);
+
+        let errors = validator.validate_record(&record, true);
+        assert_eq!(errors.len(), 1);
+        assert_eq!(
+            errors[0],
+            ValidationError::ReadOnlyFieldModified {
+                field_name: "Name".to_string(),
+                createable: true,
+                updateable: false,
+            }
+        );
+    }
+
+    #[test]
+    fn test_missing_required_field_null_value() {
+        let describe = create_mock_describe(&json!([
+            mock_field("Id", "id", false, false, false, false, 18),
+            mock_field("Name", "string", false, false, true, true, 255),
+        ]));
+
+        let validator = RecordValidator::new(&describe);
+        let mut map = serde_json::Map::new();
+        map.insert("Name".to_string(), Value::Null);
+        let record = create_record(map);
+
+        let errors = validator.validate_record(&record, false);
+        assert_eq!(errors.len(), 1);
+        assert_eq!(
+            errors[0],
+            ValidationError::MissingRequiredField("Name".to_string())
+        );
+    }
+
+    #[test]
+    fn test_valid_number_type() {
+         let describe = create_mock_describe(&json!([
+            mock_field("Id", "id", false, false, false, false, 18),
+            mock_field("Amount", "currency", true, false, true, true, 0),
+        ]));
+
+        let validator = RecordValidator::new(&describe);
+        let mut map = serde_json::Map::new();
+        map.insert("Amount".to_string(), Value::Number(serde_json::Number::from_f64(100.0).unwrap()));
+        let record = create_record(map);
+
+        let errors = validator.validate_record(&record, false);
+        assert!(errors.is_empty());
+    }
+
+    #[test]
+    fn test_valid_boolean_type() {
+         let describe = create_mock_describe(&json!([
+            mock_field("Id", "id", false, false, false, false, 18),
+            mock_field("IsActive", "boolean", true, false, true, true, 0),
+        ]));
+
+        let validator = RecordValidator::new(&describe);
+        let mut map = serde_json::Map::new();
+        map.insert("IsActive".to_string(), Value::Bool(true));
+        let record = create_record(map);
+
+        let errors = validator.validate_record(&record, false);
+        assert!(errors.is_empty());
+    }
+
+    #[test]
+    fn test_invalid_boolean_type() {
+         let describe = create_mock_describe(&json!([
+            mock_field("Id", "id", false, false, false, false, 18),
+            mock_field("Name", "string", true, false, true, true, 255),
+        ]));
+
+        let validator = RecordValidator::new(&describe);
+        let mut map = serde_json::Map::new();
+        map.insert("Name".to_string(), Value::Bool(true));
+        let record = create_record(map);
+
+        let errors = validator.validate_record(&record, false);
+        assert_eq!(errors.len(), 1);
+    }
+
+    #[test]
+    fn test_invalid_number_type() {
+         let describe = create_mock_describe(&json!([
+            mock_field("Id", "id", false, false, false, false, 18),
+            mock_field("Name", "string", true, false, true, true, 255),
+        ]));
+
+        let validator = RecordValidator::new(&describe);
+        let mut map = serde_json::Map::new();
+        map.insert("Name".to_string(), Value::Number(serde_json::Number::from_f64(100.0).unwrap()));
+        let record = create_record(map);
+
+        let errors = validator.validate_record(&record, false);
+        assert_eq!(errors.len(), 1);
+    }
+
+    #[test]
+    fn test_display_validation_error() {
+        let e1 = ValidationError::UnknownField("Unknown".to_string());
+        assert_eq!(e1.to_string(), "Unknown field: Unknown");
+
+        let e2 = ValidationError::MissingRequiredField("Name".to_string());
+        assert_eq!(e2.to_string(), "Missing required field: Name");
+
+        let e3 = ValidationError::LengthExceeded {
+            field_name: "Name".to_string(),
+            actual_length: 10,
+            max_length: 5,
+        };
+        assert_eq!(e3.to_string(), "Field Name exceeds maximum length (10 > 5)");
+
+        let e4 = ValidationError::ReadOnlyFieldModified {
+            field_name: "Id".to_string(),
+            createable: false,
+            updateable: false,
+        };
+        assert_eq!(e4.to_string(), "Field Id cannot be modified (createable: false, updateable: false)");
+
+        let e5 = ValidationError::InvalidType {
+            field_name: "Amount".to_string(),
+            expected_type: "Currency".to_string(),
+        };
+        assert_eq!(e5.to_string(), "Field Amount has an invalid type (expected Currency)");
     }
 }
