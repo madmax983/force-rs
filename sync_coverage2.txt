@@ -1,0 +1,507 @@
+[2m2026-04-25T14:14:42.006134Z[0m [32m INFO[0m [2mcargo_tarpaulin::config[0m[2m:[0m Creating config
+[2m2026-04-25T14:14:42.898545Z[0m [32m INFO[0m [2mcargo_tarpaulin[0m[2m:[0m Running Tarpaulin
+[2m2026-04-25T14:14:42.898587Z[0m [32m INFO[0m [2mcargo_tarpaulin[0m[2m:[0m Building project
+[2m2026-04-25T14:14:42.900559Z[0m [32m INFO[0m [2mcargo_tarpaulin::cargo[0m[2m:[0m Cleaning project
+[2m2026-04-25T14:16:30.854475Z[0m [32m INFO[0m [2mcargo_tarpaulin::process_handling::linux[0m[2m:[0m Launching test
+[2m2026-04-25T14:16:30.854566Z[0m [32m INFO[0m [2mcargo_tarpaulin::process_handling[0m[2m:[0m running /app/target/debug/deps/pg_store_bootstrap-060e0c1acaf95c9a
+
+running 1 test
+test pg_store_can_open_transaction ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+[2m2026-04-25T14:16:38.490510Z[0m [32m INFO[0m [2mcargo_tarpaulin::process_handling::linux[0m[2m:[0m Launching test
+[2m2026-04-25T14:16:38.490602Z[0m [32m INFO[0m [2mcargo_tarpaulin::process_handling[0m[2m:[0m running /app/target/debug/deps/postgres_capture-95829d98a860ab37
+
+running 5 tests
+test already_encoded_cursor_is_rejected_safely ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+test contradictory_op_and_tombstone_rows_are_rejected_safely ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+test duplicate_source_cursors_do_not_enqueue_duplicate_tasks ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+test invalid_outbox_row_is_dead_lettered_and_marked_processed ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+test outbox_rows_are_captured_into_the_journal_and_marked_processed ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+
+test result: ok. 0 passed; 0 failed; 5 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+[2m2026-04-25T14:16:46.390440Z[0m [32m INFO[0m [2mcargo_tarpaulin::process_handling::linux[0m[2m:[0m Launching test
+[2m2026-04-25T14:16:46.390517Z[0m [32m INFO[0m [2mcargo_tarpaulin::process_handling[0m[2m:[0m running /app/target/debug/deps/smoke-de5d1a9f2e5d17d0
+
+running 1 test
+test force_sync_exposes_version ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+[2m2026-04-25T14:16:47.378617Z[0m [32m INFO[0m [2mcargo_tarpaulin::process_handling::linux[0m[2m:[0m Launching test
+[2m2026-04-25T14:16:47.378713Z[0m [32m INFO[0m [2mcargo_tarpaulin::process_handling[0m[2m:[0m running /app/target/debug/deps/end_to_end_postgres_to_salesforce-93cfce1f289c9aea
+
+running 2 tests
+test replayed_postgres_change_is_not_reapplied_to_salesforce ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+test run_capture_and_apply_once_converges_one_postgres_record ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+
+test result: ok. 0 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+[2m2026-04-25T14:16:56.078416Z[0m [32m INFO[0m [2mcargo_tarpaulin::process_handling::linux[0m[2m:[0m Launching test
+[2m2026-04-25T14:16:56.078499Z[0m [32m INFO[0m [2mcargo_tarpaulin::process_handling[0m[2m:[0m running /app/target/debug/deps/force_sync-7a71c6dc4eb946e8
+
+running 93 tests
+test capture::postgres::tests::outbox_operation_upsert_not_tombstone ... ok
+test capture::postgres::tests::outbox_operation_delete_tombstone ... ok
+test capture::postgres::tests::outbox_operation_upsert_tombstone_is_invalid ... ok
+test capture::postgres::tests::outbox_operation_unknown_op_is_invalid ... ok
+test capture::postgres::tests::outbox_operation_delete_not_tombstone_is_invalid ... ok
+test capture::postgres::tests::outbox_source_cursor_rejects_snapshot_prefix ... ok
+test capture::postgres::tests::outbox_source_cursor_rejects_salesforce_replay_id_prefix ... ok
+test capture::postgres::tests::outbox_source_cursor_rejects_postgres_lsn_prefix ... ok
+test capture::postgres::tests::row_content_error_recognizes_invalid_outbox_operation ... ok
+test capture::postgres::tests::row_content_error_recognizes_invalid_outbox_cursor ... ok
+test capture::postgres::tests::row_content_error_recognizes_empty_sync_key_part ... ok
+test capture::postgres::tests::outbox_source_cursor_plain_lsn_succeeds ... ok
+test capture::postgres::tests::row_content_error_recognizes_json_error ... ok
+test capture::postgres::tests::row_content_error_rejects_missing_source_cursor ... ok
+test capture::salesforce::tests::change_operation_returns_upsert_when_change_type_missing ... ok
+test capture::salesforce::tests::change_operation_returns_upsert_for_update_change_type ... ok
+test capture::salesforce::tests::change_operation_returns_upsert_for_create_change_type ... ok
+test capture::salesforce::tests::change_operation_returns_upsert_when_header_missing ... ok
+test capture::salesforce::tests::change_operation_returns_delete_for_delete_change_type ... ok
+test capture::salesforce::tests::replay_id_from_position_rejects_negative ... ok
+test capture::salesforce::tests::replay_id_from_position_zero ... ok
+test capture::salesforce::tests::replay_id_from_position_small_value ... ok
+test capture::salesforce::tests::replay_id_from_position_multi_byte_value ... ok
+test capture::salesforce::tests::replay_id_to_position_rejects_more_than_8_bytes ... ok
+test capture::salesforce::tests::replay_id_to_position_multi_byte ... ok
+test capture::salesforce::tests::replay_id_to_position_full_8_bytes ... ok
+test capture::salesforce::tests::replay_id_round_trip_preserves_value ... ok
+test capture::salesforce::tests::replay_id_to_position_single_byte ... ok
+test capture::salesforce::tests::replay_id_to_position_rejects_value_exceeding_i64_max ... ok
+test identity::tests::sync_key_requires_non_empty_parts ... ok
+test config::tests::object_sync_field_owner_builder_stores_rules ... ok
+test config::tests::object_sync_external_id_builder_stores_config ... ok
+test model::tests::change_envelope_with_cursor_attaches_cursor ... ok
+test model::tests::test_hash_json_value_array ... ok
+test model::tests::payload_hash_matches_pre_sorted_payloads ... ok
+test model::tests::test_hash_json_value_nested_array ... ok
+test model::tests::test_hash_json_value_primitives ... ok
+test model::tests::change_envelope_payload_hash_matches_semantically_equal_payloads ... ok
+test model::tests::change_envelope_payload_hash_is_stable_for_identical_payloads ... ok
+test plan::tests::merge_payload_identical_payloads_returns_noop ... ok
+test plan::tests::merge_payload_new_field_postgres_owned_ignored_from_salesforce ... ok
+test plan::tests::merge_payload_empty_incoming_object_returns_current ... ok
+test plan::tests::merge_payload_multiple_conflicts_collected ... ok
+test plan::tests::merge_payload_new_field_salesforce_owned_ignored_from_postgres ... ok
+test plan::tests::merge_payload_new_shared_field_is_added ... ok
+test plan::tests::merge_payload_new_field_no_ownership_is_added ... ok
+test plan::tests::merge_payload_no_current_returns_incoming_as_merged ... ok
+test plan::tests::merge_payload_non_object_identical_returns_noop ... ok
+test plan::tests::merge_payload_null_field_in_incoming_no_ownership ... ok
+test plan::tests::merge_payload_non_object_mismatch_returns_conflict ... ok
+test plan::tests::merge_payload_postgres_owned_field_rejected_from_salesforce ... ok
+test plan::tests::merge_payload_new_field_salesforce_owned_added_from_salesforce ... ok
+test plan::tests::merge_payload_salesforce_owned_field_rejected_from_postgres ... ok
+test plan::tests::merge_payload_null_field_in_incoming_with_ownership ... ok
+test plan::tests::merge_payload_salesforce_owned_field_accepted_from_salesforce ... ok
+test plan::tests::merge_payload_shared_field_conflict_on_change ... ok
+test plan::tests::merge_payload_postgres_owned_field_accepted_from_postgres ... ok
+test plan::tests::plan_change_conflict_returns_conflict_lane ... ok
+test plan::tests::plan_change_batch_at_bulk_threshold_routes_to_bulk ... ok
+test plan::tests::plan_change_dependencies_take_priority_over_bulk ... ok
+test plan::tests::plan_change_batch_below_bulk_threshold_routes_to_rest ... ok
+test plan::tests::plan_change_dependencies_take_priority_over_urgent ... ok
+test plan::tests::plan_change_delete_no_current_routes_to_rest ... ok
+test plan::tests::plan_change_new_record_routes_to_rest ... ok
+test plan::tests::plan_change_large_batch_routes_to_bulk ... ok
+test plan::tests::plan_change_identical_payload_returns_noop ... ok
+test plan::tests::plan_change_semantically_equal_payload_returns_noop ... ok
+test plan::tests::plan_change_merged_equals_current_returns_noop ... ok
+test plan::tests::plan_change_urgent_routes_to_rest ... ok
+test plan::tests::plan_change_with_dependencies_routes_to_composite_graph ... ok
+test plan::tests::plan_change_urgent_takes_priority_over_bulk ... ok
+test runtime::tests::local_projection_returns_none_when_no_link_and_no_payload_id ... ok
+test runtime::tests::local_projection_salesforce_id_uses_payload_id_when_link_is_missing ... ok
+test runtime::tests::local_projection_salesforce_id_prefers_existing_link ... ok
+test runtime::tests::parse_change_operation_delete ... ok
+test runtime::tests::parse_change_operation_unknown_returns_error ... ok
+test runtime::tests::parse_change_operation_upsert ... ok
+test runtime::tests::parse_source_cursor_postgres_lsn ... ok
+test runtime::tests::parse_source_cursor_invalid_replay_id_returns_error ... ok
+test runtime::tests::parse_source_cursor_salesforce_replay_id ... ok
+test runtime::tests::parse_source_cursor_snapshot ... ok
+test runtime::tests::parse_source_cursor_unknown_prefix_returns_error ... ok
+test runtime::tests::builder_tests::build_fails_without_postgres ... ok
+test runtime::tests::parse_source_system_salesforce ... ok
+test runtime::tests::builder_tests::build_fails_with_empty_objects ... ok
+test runtime::tests::parse_source_system_unknown_returns_error ... ok
+test runtime::tests::should_not_project_locally_salesforce_conflict ... ok
+test runtime::tests::should_not_project_locally_postgres_bulk ... ok
+test runtime::tests::should_not_project_local_noops_back_to_salesforce ... ok
+test runtime::tests::parse_source_system_postgres ... ok
+test runtime::tests::should_project_locally_salesforce_bulk ... ok
+test store::pg::task_queue::tests::lease_deadline_keeps_datetime_type ... ok
+test store::pg::journal::tests::journal_values_keep_observed_at_as_datetime ... ok
+
+test result: ok. 93 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.14s
+
+[2m2026-04-25T14:17:03.654435Z[0m [32m INFO[0m [2mcargo_tarpaulin::process_handling::linux[0m[2m:[0m Launching test
+[2m2026-04-25T14:17:03.654515Z[0m [32m INFO[0m [2mcargo_tarpaulin::process_handling[0m[2m:[0m running /app/target/debug/deps/runtime_coverage-2f5220c9dec0d17a
+
+running 1 test
+test runtime_coverage_combined_tests ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+[2m2026-04-25T14:17:12.334414Z[0m [32m INFO[0m [2mcargo_tarpaulin::process_handling::linux[0m[2m:[0m Launching test
+[2m2026-04-25T14:17:12.334491Z[0m [32m INFO[0m [2mcargo_tarpaulin::process_handling[0m[2m:[0m running /app/target/debug/deps/control_plane_repos-23dcd87a22d32d0d
+
+running 4 tests
+test checkpoint_advances_only_when_the_position_increases ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+test insert_conflict_writes_a_row ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+test insert_dead_letter_writes_a_row ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+test put_link_upserts_the_latest_values ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+
+test result: ok. 0 passed; 0 failed; 4 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+[2m2026-04-25T14:17:19.758412Z[0m [32m INFO[0m [2mcargo_tarpaulin::process_handling::linux[0m[2m:[0m Launching test
+[2m2026-04-25T14:17:19.758489Z[0m [32m INFO[0m [2mcargo_tarpaulin::process_handling[0m[2m:[0m running /app/target/debug/deps/runtime_salesforce_origin-f7335dee1ad7975a
+
+running 1 test
+test salesforce_originated_task_is_projected_locally_without_salesforce_echo ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+[2m2026-04-25T14:17:28.586448Z[0m [32m INFO[0m [2mcargo_tarpaulin::process_handling::linux[0m[2m:[0m Launching test
+[2m2026-04-25T14:17:28.586533Z[0m [32m INFO[0m [2mcargo_tarpaulin::process_handling[0m[2m:[0m running /app/target/debug/deps/journal_tasks-f4d0c5a0564595b5
+
+running 12 tests
+test appending_a_journal_entry_creates_a_row ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+test done_task_cannot_be_re_leased ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+test duplicate_source_cursor_is_deduped ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+test enqueuing_a_task_in_the_same_transaction_works ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+test failed_task_cannot_be_re_leased ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+test in_tx_lease_and_ack_round_trip ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+test in_tx_retry_and_fail_round_trip ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+test leasing_a_task_marks_owner_and_until ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+test retry_task_with_future_next_attempt_at_is_not_leasable_until_due ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+test worker_guarded_task_updates_require_the_current_lease_and_clear_retry_state ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+test wrong_worker_cannot_ack_task ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+test wrong_worker_cannot_fail_task ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+
+test result: ok. 0 passed; 0 failed; 12 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+[2m2026-04-25T14:17:36.106403Z[0m [32m INFO[0m [2mcargo_tarpaulin::process_handling::linux[0m[2m:[0m Launching test
+[2m2026-04-25T14:17:36.106480Z[0m [32m INFO[0m [2mcargo_tarpaulin::process_handling[0m[2m:[0m running /app/target/debug/deps/planner-e013fa076cddac19
+
+running 7 tests
+test dependent_records_choose_composite_graph ... ok
+test identical_hashes_become_noop ... ok
+test large_batches_choose_bulk ... ok
+test conflict_required_field_opens_a_conflict ... ok
+test postgres_owned_field_wins_when_salesforce_changes_it ... ok
+test urgent_singleton_changes_choose_rest ... ok
+test duplicate_envelopes_plan_to_noop ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.27s
+
+[2m2026-04-25T14:17:45.774492Z[0m [32m INFO[0m [2mcargo_tarpaulin::process_handling::linux[0m[2m:[0m Launching test
+[2m2026-04-25T14:17:45.774591Z[0m [32m INFO[0m [2mcargo_tarpaulin::process_handling[0m[2m:[0m running /app/target/debug/deps/pg_migrations-d03b8a0079bf7f9f
+
+running 1 test
+test applies_initial_schema ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+[2m2026-04-25T14:17:54.146410Z[0m [32m INFO[0m [2mcargo_tarpaulin::process_handling::linux[0m[2m:[0m Launching test
+[2m2026-04-25T14:17:54.146490Z[0m [32m INFO[0m [2mcargo_tarpaulin::process_handling[0m[2m:[0m running /app/target/debug/deps/havoc_lease_panic-578f38e58f36c418
+
+running 1 test
+test tests::test_lease_duration_panic ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+[2m2026-04-25T14:18:01.674416Z[0m [32m INFO[0m [2mcargo_tarpaulin::process_handling::linux[0m[2m:[0m Launching test
+[2m2026-04-25T14:18:01.674543Z[0m [32m INFO[0m [2mcargo_tarpaulin::process_handling[0m[2m:[0m running /app/target/debug/deps/bulk_reconcile-a1b93de54a861aee
+
+running 6 tests
+test detect_drift_finds_hash_mismatches ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+test reconcile_repair_enqueues_a_new_apply_task ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+test repeated_reconcile_passes_do_not_duplicate_repair_work ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+test run_reconcile_once_queues_repairs_for_drift ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+test planner_sends_large_homogeneous_batches_to_bulk_lane ... ok
+test bulk_upsert_uses_the_external_id_field ... ok
+
+test result: ok. 2 passed; 0 failed; 4 ignored; 0 measured; 0 filtered out; finished in 0.24s
+
+[2m2026-04-25T14:18:10.826441Z[0m [32m INFO[0m [2mcargo_tarpaulin::process_handling::linux[0m[2m:[0m Launching test
+[2m2026-04-25T14:18:10.826686Z[0m [32m INFO[0m [2mcargo_tarpaulin::process_handling[0m[2m:[0m running /app/target/debug/deps/cdc_capture-b946870a12091d26
+
+running 3 tests
+test cdc_event_creates_journal_task_and_checkpoint ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+test duplicate_cdc_event_is_deduped_by_replay_id ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+test restart_uses_the_stored_replay_cursor ... ignored, requires FORCE_SYNC_TEST_DATABASE_URL
+
+test result: ok. 0 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+[2m2026-04-25T14:18:18.358402Z[0m [32m INFO[0m [2mcargo_tarpaulin::process_handling::linux[0m[2m:[0m Launching test
+[2m2026-04-25T14:18:18.358478Z[0m [32m INFO[0m [2mcargo_tarpaulin::process_handling[0m[2m:[0m running /app/target/debug/deps/rest_apply-a186c38871ae04f2
+
+running 10 tests
+test apply_rest_delete_uses_salesforce_id ... ok
+test apply_rest_delete_404_is_idempotent_success ... ok
+test apply_rest_delete_server_error_is_retryable ... ok
+test apply_rest_delete_bad_request_is_permanent ... ok
+test apply_rest_upsert_create_returns_created_id ... ok
+test apply_rest_upsert_permanent_400_classified_correctly ... ok
+test apply_rest_upsert_update_204_fails_when_lookup_finds_no_row ... ok
+test apply_rest_upsert_update_204_fails_when_id_field_is_null_in_query_result ... ok
+test apply_rest_upsert_update_204_resolves_salesforce_id_when_link_missing ... ok
+test transient_rest_upsert_failure_is_retryable ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.95s
+
+[2m2026-04-25T14:18:31.002369Z[0m [32m INFO[0m [2mcargo_tarpaulin::report[0m[2m:[0m Coverage Results:
+|| Uncovered Lines:
+|| crates/force/src/api/apex_rest/mod.rs: 46, 48, 56, 73-78, 99-103, 105-108, 129-133, 135-138, 153, 166-170, 172-175, 188-192, 194-197, 207-213
+|| crates/force/src/api/bulk/csv.rs: 52, 128, 132, 134-137, 190-192, 196, 198-199, 202, 215-216, 218, 231, 233-234, 236-240, 242, 246-247, 249
+|| crates/force/src/api/bulk/ingest.rs: 81, 90-92, 94-95, 97, 100-105, 107-108, 119-122, 124-126, 129, 131-132, 135-136, 139-142, 157-160, 172-173, 176, 197-198, 200, 203-207, 210, 212-215, 224-226, 236-238, 240-243, 254-255, 257-260, 262, 265-268, 270, 273, 281-283, 295, 297, 299, 301-304, 308-310, 312, 315-317, 319, 323-325, 327, 330-331, 338-339, 341-344, 347, 349-352, 359-360, 368-369, 377-378, 386-387, 391-392, 394-398, 400, 402-403, 472, 507, 511, 556, 560, 595-602, 604-605, 607-608, 610-611, 659-660, 663, 666-668, 671-672, 681, 734-735, 738, 741-743, 746-747, 756, 788, 798, 800, 804, 807, 810-812, 815-816, 821-822
+|| crates/force/src/api/bulk/policy.rs: 22, 32-36, 38, 43-48, 50
+|| crates/force/src/api/bulk/query.rs: 65, 67-68, 131, 135, 152, 172-173, 177-178, 181-183, 186, 189-191, 203-205, 209-216, 219, 221-222, 224-225, 227, 230-238, 240, 250-251, 253, 256-259, 262, 285-289, 304-305, 333-338, 340, 342-344, 369-376, 378, 380, 382-383, 385, 410-415, 421-423, 425, 427, 429-430, 432, 455-462, 464-465, 467-468, 470-471, 508-510, 554-555, 564, 580-583, 586, 595, 597, 599-600, 602-604, 606, 609-611, 613, 616-618, 620, 623-624
+|| crates/force/src/api/bulk/smart_ingest.rs: 31-32, 37-38, 40, 46-47, 49, 55-56, 58, 127-129, 151-152, 157-158, 199-200, 202, 209-211, 213-214, 216, 223-224, 245-247, 257-259, 262-263, 265-266, 293-297, 300, 303-305, 307, 310-312, 314, 316-317, 334-335, 338, 348-349, 356, 360, 365-366, 377-378, 386
+|| crates/force/src/api/bulk/types.rs: 8, 23-27
+|| crates/force/src/api/composite/batch.rs: 16-18, 20, 38, 41, 51-53, 67-70, 72-73, 88-90, 92-93, 109-112, 114-115, 130-133, 135-136, 172-176, 180-183, 185, 223-225, 230-231, 236-237, 244-245, 259-263, 268, 270-272, 274-276, 282, 285-289, 291, 293-296, 302-305, 308-309, 312-314, 317-318, 321-326, 329-331, 334-337, 339-340, 343-347
+|| crates/force/src/api/composite/graph.rs: 55, 58, 71-76, 79-80, 93-97, 103, 106, 109-113, 115, 117-120, 148, 150-151, 298-304
+|| crates/force/src/api/composite/mod.rs: 41, 43, 51, 69-70, 79-80
+|| crates/force/src/api/composite/query_batch.rs: 52, 55, 62-64, 81-82, 84, 87-94, 99-100, 103-104, 106, 111-112, 115, 118-120, 123-124, 127, 129-133, 137, 139-141, 143, 147
+|| crates/force/src/api/composite/soql_mass_op.rs: 68, 80-82, 97-98, 100, 102-103, 105-109, 111-112, 114, 117, 133-136, 140, 142, 144-150, 152-153, 155-158, 162
+|| crates/force/src/api/consent/action.rs: 33-36, 38-41, 43, 45-48, 50-53, 87, 89-92, 94, 97-100, 102, 104-109, 112-115
+|| crates/force/src/api/consent/mod.rs: 54, 56, 64, 71-74, 76, 83-86, 88-90
+|| crates/force/src/api/consent/portability.rs: 32-36, 38-41, 67-72
+|| crates/force/src/api/consent/types.rs: 29-33, 43-46, 116, 118, 120, 141-145, 155-158
+|| crates/force/src/api/cpq/config.rs: 38-40, 42-43, 46-47, 70-73, 76-77
+|| crates/force/src/api/cpq/contract.rs: 31-34, 37
+|| crates/force/src/api/cpq/document.rs: 36-37, 40
+|| crates/force/src/api/cpq/mod.rs: 63, 65, 76, 88-93, 95-98, 109-114, 116-119
+|| crates/force/src/api/cpq/product.rs: 28-31, 34
+|| crates/force/src/api/cpq/quote.rs: 32-35, 38-39, 57-59, 62-63, 84-86, 115-117, 119-121, 124-125
+|| crates/force/src/api/cpq/types.rs: 368, 370, 373, 379-381, 386-388
+|| crates/force/src/api/data_cloud/mod.rs: 58, 60, 68, 75-78, 80, 91-95, 97-98, 108-111, 113-114
+|| crates/force/src/api/data_cloud/query.rs: 55-58
+|| crates/force/src/api/data_cloud/types.rs: 24-25
+|| crates/force/src/api/files.rs: 23, 31-33, 35-40, 42, 44, 51-54, 72-73, 75, 77-78, 81-83, 86, 88, 90-91, 93, 95-97, 99-104, 106-107, 109-112, 114-115, 118-119, 121-122, 124-125, 137-139, 141, 143-145, 148-152, 154-155, 157-160, 162-163, 166, 182-183, 185, 187-188, 191-194, 197-202, 204-205, 207-210, 212-213, 216-217, 219-220, 222-223
+|| crates/force/src/api/graphql/mod.rs: 58, 60, 68, 75-76, 93-98, 100, 102-105, 107-109, 111-115, 132-136, 138, 140-143, 145-148, 158-161, 163
+|| crates/force/src/api/graphql/types.rs: 42, 44, 59-61, 87-88, 90
+|| crates/force/src/api/query_stream.rs: 49, 53-54, 65, 68-69, 73-74, 78, 80-81, 86-88, 93-95, 103-107, 110-111, 114, 116, 119-120, 127-134
+|| crates/force/src/api/rest/limits.rs: 145, 164-166, 168, 170-171, 176-177, 196-197
+|| crates/force/src/api/rest/mod.rs: 42, 44, 51, 55, 92-93, 103-104, 106-107, 110-111, 121-125, 127-128, 150-152, 193-195, 214-215, 217, 220
+|| crates/force/src/api/rest/query_plan_analyzer.rs: 58, 60-61, 67-68, 71, 73-75, 79, 83, 85-86, 91-92, 94-95, 100-101, 103, 107, 112-115, 117, 120, 122-123, 129
+|| crates/force/src/api/rest/search.rs: 106, 108, 110, 124-126, 131-133, 138-140, 145-147, 152-154, 159-161, 180-181, 186-190, 193-194, 209-210, 216-218, 223-225, 233, 236-238, 242-244, 248, 250-251, 253-255, 258, 261-263, 266-268, 272-274, 276, 278, 282-284, 287-289, 292, 301-302, 307-308, 315-319, 322-327, 330-331, 333, 336, 338, 345-346, 357, 366-368, 370, 373-376, 379-381, 384-386, 388, 391, 394-397, 399-403, 407-409, 411-413, 417-419, 423, 426-428, 430-433, 436-437, 439
+|| crates/force/src/api/rest_operation.rs: 96-100, 130-134, 136, 138-139, 141, 143-145, 170-174, 176, 178, 180, 182-184, 217-220, 222, 224-225, 227, 229-232, 312-313, 316-322, 324, 360-364, 454, 456-457, 459, 461, 463, 465-467, 488, 512-514, 516, 518, 520, 522-524, 553-558, 560, 562, 564, 566-568, 576, 606, 611, 631, 664-666, 670-673, 675, 677, 681-685, 687-688, 690-695, 699
+|| crates/force/src/api/soql.rs: 27-28, 39-41, 48-53, 56, 67-69, 74-75, 78-81, 84, 128-130, 136-137, 143, 217-219, 270-271, 280-281, 389-390, 399-400, 438-440, 460-463, 472-473, 493-496, 505-506, 517-518, 522-523, 573, 582, 588, 597-598, 606
+|| crates/force/src/api/tooling/completions.rs: 117-118, 120-121, 123, 125-127
+|| crates/force/src/api/tooling/execute_anonymous.rs: 122, 125, 127, 129-130, 132, 134-136
+|| crates/force/src/api/tooling/mod.rs: 55, 57, 70, 76-77, 80-81
+|| crates/force/src/api/tooling/run_tests.rs: 177, 180-181, 183-184, 186-189, 224, 227, 230-231, 233-234, 236-239
+|| crates/force/src/api/ui/actions.rs: 61-66, 68, 70-71
+|| crates/force/src/api/ui/favorites.rs: 76-78, 92-93, 111-112, 124-126
+|| crates/force/src/api/ui/layouts.rs: 106, 108, 110-111, 113-115, 117-118, 121-125, 128-129, 131, 134
+|| crates/force/src/api/ui/list_views.rs: 124-125, 127-128, 144, 146-147, 167, 169, 171-173, 175-176, 178-179, 181-183, 186-187, 189, 192, 208, 210-211
+|| crates/force/src/api/ui/lookups.rs: 66-67, 69-72, 96-98, 100-103
+|| crates/force/src/api/ui/mod.rs: 76, 78, 86, 93-96, 98, 109-112, 114-115, 125-129, 131-132, 142-146, 148-149, 153-157, 159-163
+|| crates/force/src/api/ui/object_info.rs: 103, 105-106, 123-124, 128-133, 135, 137-138
+|| crates/force/src/api/ui/records.rs: 130-131, 135-139, 141, 144-145, 148-149, 151-155, 157, 159-160, 162-166, 168, 170-171, 174-175, 177, 180, 198, 200, 202, 205-206, 208, 210-213, 215, 217-218, 221-222, 224, 227, 245-246, 250-254, 256, 259, 262-263, 265, 267-270, 272, 274-275, 278-279, 281, 284-285, 299, 314, 316-317, 327-328, 330-331, 345, 347-349, 363, 365-367
+|| crates/force/src/api/url_encoded_writer.rs: 4-6
+|| crates/force/src/auth/authenticator.rs: 91-92, 95-96
+|| crates/force/src/auth/client_credentials.rs: 92-95, 103-105, 124, 126, 128, 143-144, 159-160, 164, 171, 173-176, 180, 182-183, 185-186, 188-189, 193-195, 197, 200, 203
+|| crates/force/src/auth/data_cloud.rs: 145-146, 150-151, 156-158, 160, 165-167, 174, 176, 179, 181-184, 187-190, 192-193, 195-198, 200, 204-206, 208-209, 213, 216
+|| crates/force/src/auth/jwt_bearer.rs: 112-116, 120-126, 144-148, 159-163
+|| crates/force/src/auth/mod.rs: 62-64, 66, 78, 82-85, 88-89, 91, 94-96, 100, 102, 105-107, 109-111
+|| crates/force/src/auth/token.rs: 46-47, 52-53, 137-138, 149-150, 157-158, 201-202, 228, 232, 253-254, 259-260
+|| crates/force/src/auth/token_manager.rs: 63, 70-71, 79-80, 82-84, 93, 97, 103-104, 106-107, 132, 137, 154-156, 160-163, 168, 170-171, 174-175, 177, 198-200, 218, 220-222, 226, 230-231, 234-236, 238-239, 244-246, 249-250, 252, 257-259, 265-267
+|| crates/force/src/auth/username_password.rs: 127-134, 156-161, 176-181
+|| crates/force/src/client/builder.rs: 53-55, 72-73, 80-82, 103-105, 139, 141-144, 146-148, 151-154, 156-160, 163-167, 180-181
+|| crates/force/src/client/mod.rs: 26, 28, 30, 62-63, 71-72, 80-81, 182-185, 188-189
+|| crates/force/src/config.rs: 23-27
+|| crates/force/src/data/data_archiver.rs: 30, 50-52, 54-56, 58-59, 61, 64-65, 89-90, 92-93, 95, 97-98, 100-101, 103-104, 106-107, 109, 112-113
+|| crates/force/src/data/data_masker.rs: 54, 63, 65, 67-69, 72-75, 80-81, 86-88, 90, 99-101, 104-106, 109-113, 115, 118, 122-125, 127, 129-130
+|| crates/force/src/data/data_seeder.rs: 28, 39-41, 57-59, 62, 64-66, 69, 71-75, 79, 81-88, 94-98, 102
+|| crates/force/src/error.rs: 172, 174-176, 188-189, 196-202, 204, 206, 208
+|| crates/force/src/http/error.rs: 41, 56, 99, 103, 143, 147
+|| crates/force/src/http/executor.rs: 36, 38-42, 48, 50-51, 53-54, 72, 74, 77-78, 84-86, 91-93, 138, 144-146, 159, 164-168, 170, 176-180, 183-187, 189, 193, 200, 225-227, 229, 234-236, 241-245, 247, 251, 257-258, 260, 310, 321, 329, 362-363, 365-370, 372, 375, 395-399, 404-405
+|| crates/force/src/http/retry.rs: 32-34, 73, 101-105
+|| crates/force/src/http/telemetry.rs: 72-75, 96-97, 106-107, 146, 153-155, 159, 163, 170-172
+|| crates/force/src/schema/data_dictionary.rs: 31, 45-46, 48-53, 55, 59, 63-66, 68, 70-72, 74-75, 78-79, 81-83, 85, 88-89, 91, 95-98, 100-101, 104-106, 108, 111, 115
+|| crates/force/src/schema/scanner.rs: 39, 62, 64, 67-68, 70, 73-74, 79, 82-84, 87, 100, 102, 104-106, 109-110, 113, 115, 119-126, 128, 131-132, 134, 136-138, 140-141, 143, 146-151, 155
+|| crates/force/src/schema/schema_graph.rs: 62, 65-66, 74-75, 78-80, 86-88, 92, 94-96, 106, 111-114, 118, 120, 123-124, 127-129, 131-140, 143, 145, 149-153, 155, 158-159, 161
+|| crates/force/src/schema/schema_linter.rs: 102-103
+|| crates/force/src/schema/schema_visualizer.rs: 32, 34, 36, 40-42, 44-46, 48, 50-52, 54, 56-58, 60, 66-67, 69, 72-73, 75-78, 80-85, 88-90, 92-93, 95-97, 99, 104
+|| crates/force/src/session.rs: 39-40, 52-53, 58-60, 76-77, 79, 139-142, 144, 146-150, 153, 155-159, 180-185, 225-226
+|| crates/force/src/types/api_version.rs: 59, 74-75, 104-105, 110-111, 116-120, 122, 150, 152, 155, 158, 160, 162-163, 166
+|| crates/force/src/types/common.rs: 61, 63, 65, 71, 81-82, 87-88, 100, 104, 108, 123-124, 132-133, 138-139, 232, 237, 243, 248, 254, 265-266, 271-272, 277-278, 283-284
+|| crates/force/src/types/query.rs: 62, 73, 78, 84-85, 90-91, 96-97, 102-103, 107-108, 115-116, 125-128, 141-146, 152-153, 161-162, 186-187, 264-266, 269-270, 279-280, 285-286, 293, 296-298, 302-303, 307-309
+|| crates/force/src/types/salesforce_id.rs: 49-50, 55, 76-78, 81-85, 87, 95-97, 100, 114, 135, 151-152, 157-158, 163-164
+|| crates/force/src/types/sobject.rs: 41-43, 45-47, 54-55, 93, 96, 105-106, 111-112, 129, 134-136, 143-144, 149-150, 155-156, 160-161, 166-167, 175-176
+|| crates/force/src/types/validator.rs: 14, 17, 70-71, 77, 88-91, 96-97, 102-103, 109, 115, 134-137, 140-141, 148, 150-152, 157, 159-160, 165
+|| crates/force-pubsub/src/codec.rs: 15, 28, 49-51, 62-67
+|| crates/force-pubsub/src/handler.rs: 35-37, 39-41, 43-44, 46-49, 53-55, 57-58, 60, 115-118, 122-125, 127, 129, 131-136, 141-142, 154-158, 165-171, 179-182, 184, 186-193, 205-208, 210, 212-216, 237-238, 241-246, 249-255, 257, 273-281, 298-306, 325-326, 329-334, 336
+|| crates/force-pubsub/src/interceptor.rs: 41, 47, 53
+|| crates/force-pubsub/src/publish_sink.rs: 39-40, 43-44, 112, 129, 131-136, 139-144, 149, 153-155, 169-170, 183, 185, 188-189, 192, 201-203, 205, 207-209, 211, 238-239, 241-242, 244-246, 251-254, 257-264
+|| crates/force-pubsub/src/publisher.rs: 34-37, 40-45, 49-50, 52-54, 56, 58-60, 63-64, 66-68, 70, 72-74, 76, 82-84
+|| crates/force-pubsub/src/schema_cache.rs: 29, 31, 38-39, 44-45, 50-51, 56-57, 63-67, 80, 87-88, 92-93, 95, 97-99, 102, 107-108
+|| crates/force-pubsub/src/subscriber.rs: 71-72, 75-76, 80-85, 93-98, 100-102, 104-107, 118-119, 122-126, 131, 133-135, 139-141, 144-147, 150-154, 156, 160-161, 165-166, 168-169, 175, 177-179, 187, 189-191, 193-194, 196-206, 209-210, 213-214, 216-218, 221-224, 226, 253-261, 263-264, 266, 289, 292-298, 301-305, 307-314, 318-320, 323-324, 329
+|| crates/force-pubsub/src/types.rs: 23-24, 69-70, 86-87, 92-93
+|| crates/force-sync/src/apply/postgres.rs: 9, 16-18, 22-23, 27
+|| crates/force-sync/src/apply/salesforce.rs: 78, 99-101, 151, 167, 170-174, 179-180, 217, 222
+|| crates/force-sync/src/capture/postgres.rs: 52-53, 55-57, 59, 61-62, 65-66, 68, 81, 89, 92-95, 99-100, 106, 108-109, 112, 120-121, 124, 132, 134, 136, 138, 140-148, 151-155, 161, 163-164, 167, 173, 175-176, 179-181, 183, 187, 196, 201-203, 205
+|| crates/force-sync/src/capture/salesforce.rs: 56, 62, 65, 68-71, 73, 76-80, 83-85, 87, 90, 101-103, 105, 108-111, 113, 116-118, 126, 136, 138-153, 155, 158, 160, 163, 167, 175, 179-181
+|| crates/force-sync/src/config.rs: 36-37, 107-108
+|| crates/force-sync/src/error.rs: 91-92
+|| crates/force-sync/src/identity.rs: 33-34, 39-40
+|| crates/force-sync/src/model.rs: 22, 43, 65-68, 76-80
+|| crates/force-sync/src/plan.rs: 114, 196-198
+|| crates/force-sync/src/reconcile.rs: 23, 27-28, 31, 58, 60, 62-69, 71, 74, 78-79, 82, 85, 92-93, 102, 104, 106, 114-116, 124-127, 135-140, 142-144, 147, 149, 151
+|| crates/force-sync/src/runtime.rs: 69, 71-73, 75, 83-89, 91-93, 97, 105-106, 109, 114-117, 119-120, 123-124, 127-131, 134-135, 137-139, 141, 144-149, 151, 154-159, 161, 164, 172-173, 175-178, 183, 185-186, 188-190, 192-193, 196-200, 203-204, 207, 209-210, 212-216, 219-220, 222-226, 229-230, 232-234, 236-237, 243, 249, 251-254, 256-260, 263, 271, 273-278, 281-282, 284-288, 291, 293-295, 298-303, 306-311, 314-315, 320, 328, 330-331, 333-337, 339-340, 342, 344-345, 347-349, 352-356, 358, 362-364, 366-367, 370-371, 373-375, 377-378, 381-382, 384-387, 390-393, 397-399, 402-406, 408, 414, 419-420, 422, 424-427, 429, 432-434, 438, 441, 445-446, 478, 480, 482, 517-519, 524-526, 536, 540, 544-557, 562-572, 574-578, 581-583, 585, 587, 589, 592, 611, 623
+|| crates/force-sync/src/store/pg/checkpoint.rs: 20, 29, 38, 40, 42, 45, 52, 57, 59, 61-64, 76, 82-85, 93, 102, 110, 114-115
+|| crates/force-sync/src/store/pg/conflict.rs: 30, 37, 49-56, 59, 61, 70-72
+|| crates/force-sync/src/store/pg/dead_letter.rs: 28, 35, 46-52, 55, 57, 65, 72, 81, 85-86
+|| crates/force-sync/src/store/pg/journal.rs: 58, 62-63, 90-100, 103, 105, 108, 115-116, 144-154, 157, 159, 168-171, 179, 183-186, 188-189, 201, 208-209, 217, 224, 226-228
+|| crates/force-sync/src/store/pg/link.rs: 32, 34-42, 46, 50-51, 84-93, 96, 98, 101, 110, 116, 118, 120, 129-131, 139, 145-146
+|| crates/force-sync/src/store/pg/migrate.rs: 20-22, 24, 29, 32-34, 37, 39, 42, 45, 49-50, 53-54
+|| crates/force-sync/src/store/pg/store.rs: 25, 35, 40-41, 50, 56-57, 59-62, 64-68
+|| crates/force-sync/src/store/pg/task_queue.rs: 48, 56-57, 62, 64, 66, 69, 78, 99, 101, 103-108, 110, 113, 123-133, 135, 138, 149-161, 163, 166, 177-178, 180-185, 187, 190, 201, 206-207, 222-223, 231-233, 243, 248-249, 257, 263-264, 266-267, 269-271, 273, 283, 290-291, 293-294, 296-298, 300, 308, 313-315, 325, 331-332, 334-335, 337-339, 341, 349, 357, 365, 374-375, 383, 387, 395, 404, 406-407, 409-411, 413, 421, 429-430
+|| crates/force-sync/tests/bulk_reconcile.rs: 23, 25-26, 34, 49, 90, 92, 198, 202, 211, 213-216, 218-219, 221, 224-226, 228-236, 238-239, 241-246, 248, 250-253, 255-256, 258, 261-263, 265-268, 272, 274, 276-280, 282, 284-287, 289-290, 292, 295-307, 309-310, 312, 314-316, 320-323, 325, 327-330, 332-333, 335, 338-350, 352-353, 355-356, 358-360, 364-367
+|| crates/force-sync/tests/cdc_capture.rs: 11-18, 20, 22-27, 29-30, 42-43, 45-47, 53-56, 58-59, 63-64, 66-67, 71-74, 78-79, 81, 83-88, 90, 98-100, 103-104, 106-108, 112-113, 115-116, 120-121, 123-124, 126, 128-133, 135-136, 147, 150-151, 153-154
+|| crates/force-sync/tests/control_plane_repos.rs: 9, 11-14, 16, 18-26, 28, 30-34, 36-37, 39-40, 42-45, 47-55, 58-61, 63, 65-68, 70, 72-75, 78-81, 84-87, 91-94, 98-102, 104, 106-109, 111-120, 122, 124-127, 131, 133-142, 144, 146-149, 151-152, 154-159, 161, 163-166, 170, 172-177, 180-183, 185-186
+|| crates/force-sync/tests/end_to_end_postgres_to_salesforce.rs: 19, 21-22, 26-31, 34, 36-42, 44-46, 48-50, 53-59, 61-68, 86, 88-90, 92, 94-96, 98-99, 101-104, 109-112, 114-117, 119-123, 125-126, 128-130, 136-138, 141-142, 145-146, 149, 151-152, 156-158, 160-161, 163, 165-167, 169-170, 172-175, 180-183, 185-187, 189-193, 195-196, 198-200, 202-204, 208-210, 212-213
+|| crates/force-sync/tests/journal_tasks.rs: 15-18, 21-22, 25-26, 30-32, 34, 36-39, 41-42, 44-47, 51, 53, 55-63, 65, 67-70, 72-73, 75-77, 79-80, 82-83, 87-94, 96, 98, 100-102, 104-105, 107-116, 118-121, 123, 125-128, 130, 132-135, 137-140, 142-147, 149-152, 154, 156-160, 162, 164-168, 170-173, 175-178, 180-183, 187-191, 195-198, 200-204, 207, 211-215, 217-220, 224-227, 231, 233-238, 240, 242-245, 247-250, 252-255, 258-261, 264-269, 271, 273-276, 278-281, 283-286, 289-292, 295-298, 300-303, 305, 307-311, 313-314, 316, 318-322, 324-327, 329-332, 335-339, 342-345, 348-351, 353-359, 361, 363-366, 368-371, 373-376, 379, 382-387, 389, 391-394, 396-397, 400-409, 412-416, 419, 421-428, 431-437, 440-443, 445, 447-450, 452, 454-457, 459-462, 464-468, 471-478, 481-484, 486-493, 495-498, 500, 502-506, 508, 510-513, 515-518, 520-523, 526-528, 531-536
+|| crates/force-sync/tests/pg_migrations.rs: 5, 7-9, 11, 13-16, 18-19, 22-23
+|| crates/force-sync/tests/pg_store_bootstrap.rs: 7, 9-12, 14, 16-24, 26-31, 33-34
+|| crates/force-sync/tests/planner.rs: 15, 84, 122, 181
+|| crates/force-sync/tests/postgres_capture.rs: 19-25, 43-50, 53, 55-56, 58-64, 66-72, 74, 76, 78-79, 81, 83-87, 89-90, 99, 101-103, 105-107, 113-119, 121-122, 126-127, 129-130, 132, 134-137, 139, 141-144, 146-147, 149, 159-160, 162, 169, 172, 174-176, 178-180, 184-185, 187-188, 192-193, 195-196, 198, 200-203, 205, 207-210, 212-214, 216, 226-227, 230-232, 236-237, 239-240, 242, 244-247, 249-250, 252, 262, 264-265, 267-269, 273-274, 276-280, 284-285, 289-292, 294, 296-299, 301-303, 305, 315-316, 319-321, 325-326, 328-329
+|| crates/force-sync/tests/rest_apply.rs: 18, 20-21, 29, 44, 149, 288, 314, 339, 373, 429, 432
+|| crates/force-sync/tests/runtime_coverage.rs: 28, 30-31, 35-40, 43, 45-51, 53-55, 57-59, 62-68, 70-73, 76-82, 85, 87-91, 94-95, 98-105, 107-121, 123-126, 128-134, 136, 138-141, 143, 147-151, 160, 163-164, 166-168, 171-174, 178-179, 181-187, 189-191, 194, 197, 199-200, 202-203, 206-208, 213-215, 219-220, 223, 226, 228-229, 231-234, 237, 242-243, 245-249, 251-252, 255, 258, 260-261, 263-264, 268-269, 272, 276-277, 279-280, 284-288, 290-291, 294, 297, 299-300, 302-305, 310-311, 313-317, 319-321, 324, 327, 329-330, 332-334, 336-337
+|| crates/force-sync/tests/runtime_salesforce_origin.rs: 19, 21-22, 26-31, 34, 36-42, 44-46, 48-50, 53-59, 61-64, 66-72, 74-75, 79-84, 86, 88-91, 93-112, 114-117, 119-122, 124, 126-128, 134-136, 139-140, 143, 145-146, 150-152, 154-155
+|| crates/force-sync/tests/support/postgres.rs: 12-17, 20-24, 27-33
+|| Tested/Total Lines:
+|| crates/force/src/api/apex_rest/mod.rs: 0/53 +0.00%
+|| crates/force/src/api/builder_unwrap.rs: 2/2 +0.00%
+|| crates/force/src/api/bulk/csv.rs: 11/40 +0.00%
+|| crates/force/src/api/bulk/handler.rs: 3/3 +0.00%
+|| crates/force/src/api/bulk/ingest.rs: 37/213 +0.00%
+|| crates/force/src/api/bulk/policy.rs: 3/17 +0.00%
+|| crates/force/src/api/bulk/query.rs: 0/139 +0.00%
+|| crates/force/src/api/bulk/smart_ingest.rs: 85/152 +0.00%
+|| crates/force/src/api/bulk/types.rs: 0/6 +0.00%
+|| crates/force/src/api/composite/batch.rs: 0/105 +0.00%
+|| crates/force/src/api/composite/graph.rs: 0/37 +0.00%
+|| crates/force/src/api/composite/mod.rs: 0/7 +0.00%
+|| crates/force/src/api/composite/query_batch.rs: 0/41 +0.00%
+|| crates/force/src/api/composite/soql_mass_op.rs: 0/38 +0.00%
+|| crates/force/src/api/consent/action.rs: 0/38 +0.00%
+|| crates/force/src/api/consent/mod.rs: 0/15 +0.00%
+|| crates/force/src/api/consent/portability.rs: 0/15 +0.00%
+|| crates/force/src/api/consent/types.rs: 0/21 +0.00%
+|| crates/force/src/api/cpq/config.rs: 0/13 +0.00%
+|| crates/force/src/api/cpq/contract.rs: 0/5 +0.00%
+|| crates/force/src/api/cpq/document.rs: 0/3 +0.00%
+|| crates/force/src/api/cpq/mod.rs: 0/23 +0.00%
+|| crates/force/src/api/cpq/product.rs: 0/5 +0.00%
+|| crates/force/src/api/cpq/quote.rs: 0/22 +0.00%
+|| crates/force/src/api/cpq/types.rs: 0/9 +0.00%
+|| crates/force/src/api/data_cloud/mod.rs: 0/21 +0.00%
+|| crates/force/src/api/data_cloud/query.rs: 0/4 +0.00%
+|| crates/force/src/api/data_cloud/types.rs: 0/2 +0.00%
+|| crates/force/src/api/files.rs: 0/102 +0.00%
+|| crates/force/src/api/graphql/mod.rs: 0/43 +0.00%
+|| crates/force/src/api/graphql/types.rs: 0/8 +0.00%
+|| crates/force/src/api/path_utils.rs: 11/11 +0.00%
+|| crates/force/src/api/query_stream.rs: 0/36 +0.00%
+|| crates/force/src/api/rest/limits.rs: 0/11 +0.00%
+|| crates/force/src/api/rest/mod.rs: 3/32 +0.00%
+|| crates/force/src/api/rest/query_plan_analyzer.rs: 0/30 +0.00%
+|| crates/force/src/api/rest/search.rs: 0/138 +0.00%
+|| crates/force/src/api/rest_operation.rs: 60/173 +0.00%
+|| crates/force/src/api/soql.rs: 78/142 +0.00%
+|| crates/force/src/api/tooling/completions.rs: 0/8 +0.00%
+|| crates/force/src/api/tooling/execute_anonymous.rs: 0/9 +0.00%
+|| crates/force/src/api/tooling/mod.rs: 0/7 +0.00%
+|| crates/force/src/api/tooling/run_tests.rs: 0/19 +0.00%
+|| crates/force/src/api/ui/actions.rs: 0/9 +0.00%
+|| crates/force/src/api/ui/favorites.rs: 0/10 +0.00%
+|| crates/force/src/api/ui/layouts.rs: 0/18 +0.00%
+|| crates/force/src/api/ui/list_views.rs: 0/26 +0.00%
+|| crates/force/src/api/ui/lookups.rs: 0/13 +0.00%
+|| crates/force/src/api/ui/mod.rs: 0/38 +0.00%
+|| crates/force/src/api/ui/object_info.rs: 0/14 +0.00%
+|| crates/force/src/api/ui/records.rs: 0/89 +0.00%
+|| crates/force/src/api/url_encoded_writer.rs: 0/3 +0.00%
+|| crates/force/src/auth/authenticator.rs: 0/4 +0.00%
+|| crates/force/src/auth/client_credentials.rs: 0/33 +0.00%
+|| crates/force/src/auth/data_cloud.rs: 0/36 +0.00%
+|| crates/force/src/auth/jwt_bearer.rs: 0/22 +0.00%
+|| crates/force/src/auth/mod.rs: 0/23 +0.00%
+|| crates/force/src/auth/token.rs: 35/53 +0.00%
+|| crates/force/src/auth/token_manager.rs: 36/92 +0.00%
+|| crates/force/src/auth/username_password.rs: 0/20 +0.00%
+|| crates/force/src/client/builder.rs: 14/49 +0.00%
+|| crates/force/src/client/mod.rs: 4/19 +0.00%
+|| crates/force/src/config.rs: 3/8 +0.00%
+|| crates/force/src/data/data_archiver.rs: 0/28 +0.00%
+|| crates/force/src/data/data_masker.rs: 0/36 +0.00%
+|| crates/force/src/data/data_seeder.rs: 0/32 +0.00%
+|| crates/force/src/error.rs: 0/16 +0.00%
+|| crates/force/src/http/error.rs: 48/54 +0.00%
+|| crates/force/src/http/executor.rs: 59/141 +0.00%
+|| crates/force/src/http/retry.rs: 20/29 +0.00%
+|| crates/force/src/http/telemetry.rs: 8/25 +0.00%
+|| crates/force/src/schema/data_dictionary.rs: 0/42 +0.00%
+|| crates/force/src/schema/scanner.rs: 0/47 +0.00%
+|| crates/force/src/schema/schema_graph.rs: 0/48 +0.00%
+|| crates/force/src/schema/schema_linter.rs: 0/2 +0.00%
+|| crates/force/src/schema/schema_visualizer.rs: 0/43 +0.00%
+|| crates/force/src/session.rs: 52/86 +0.00%
+|| crates/force/src/types/api_version.rs: 2/23 +0.00%
+|| crates/force/src/types/common.rs: 3/33 +0.00%
+|| crates/force/src/types/query.rs: 0/49 +0.00%
+|| crates/force/src/types/salesforce_id.rs: 29/53 +0.00%
+|| crates/force/src/types/sobject.rs: 3/33 +0.00%
+|| crates/force/src/types/validator.rs: 18/47 +0.00%
+|| crates/force-pubsub/src/codec.rs: 0/11 +0.00%
+|| crates/force-pubsub/src/handler.rs: 0/114 +0.00%
+|| crates/force-pubsub/src/interceptor.rs: 0/3 +0.00%
+|| crates/force-pubsub/src/publish_sink.rs: 0/56 +0.00%
+|| crates/force-pubsub/src/publisher.rs: 0/32 +0.00%
+|| crates/force-pubsub/src/schema_cache.rs: 0/27 +0.00%
+|| crates/force-pubsub/src/subscriber.rs: 0/125 +0.00%
+|| crates/force-pubsub/src/types.rs: 4/12 +0.00%
+|| crates/force-sync/src/apply/postgres.rs: 0/7 +0.00%
+|| crates/force-sync/src/apply/salesforce.rs: 62/77 +0.00%
+|| crates/force-sync/src/capture/postgres.rs: 18/79 +0.00%
+|| crates/force-sync/src/capture/salesforce.rs: 23/80 +0.00%
+|| crates/force-sync/src/config.rs: 24/28 +0.00%
+|| crates/force-sync/src/error.rs: 0/2 +0.00%
+|| crates/force-sync/src/identity.rs: 18/22 +0.00%
+|| crates/force-sync/src/model.rs: 63/74 +0.00%
+|| crates/force-sync/src/plan.rs: 60/64 +0.00%
+|| crates/force-sync/src/reconcile.rs: 0/44 +0.00%
+|| crates/force-sync/src/runtime.rs: 51/311 +0.00%
+|| crates/force-sync/src/store/pg/checkpoint.rs: 0/23 +0.00%
+|| crates/force-sync/src/store/pg/conflict.rs: 0/15 +0.00%
+|| crates/force-sync/src/store/pg/dead_letter.rs: 0/16 +0.00%
+|| crates/force-sync/src/store/pg/journal.rs: 14/65 +0.00%
+|| crates/force-sync/src/store/pg/link.rs: 0/36 +0.00%
+|| crates/force-sync/src/store/pg/migrate.rs: 0/16 +0.00%
+|| crates/force-sync/src/store/pg/store.rs: 1/17 +0.00%
+|| crates/force-sync/src/store/pg/task_queue.rs: 14/130 +0.00%
+|| crates/force-sync/tests/bulk_reconcile.rs: 100/222 +0.00%
+|| crates/force-sync/tests/cdc_capture.rs: 1/77 +0.00%
+|| crates/force-sync/tests/control_plane_repos.rs: 1/132 +0.00%
+|| crates/force-sync/tests/end_to_end_postgres_to_salesforce.rs: 1/121 +0.00%
+|| crates/force-sync/tests/havoc_lease_panic.rs: 16/16 +0.00%
+|| crates/force-sync/tests/journal_tasks.rs: 1/383 +0.00%
+|| crates/force-sync/tests/pg_migrations.rs: 1/14 +0.00%
+|| crates/force-sync/tests/pg_store_bootstrap.rs: 1/24 +0.00%
+|| crates/force-sync/tests/planner.rs: 98/102 +0.00%
+|| crates/force-sync/tests/postgres_capture.rs: 1/165 +0.00%
+|| crates/force-sync/tests/rest_apply.rs: 270/282 +0.00%
+|| crates/force-sync/tests/runtime_coverage.rs: 1/196 +0.00%
+|| crates/force-sync/tests/runtime_salesforce_origin.rs: 1/100 +0.00%
+|| crates/force-sync/tests/smoke.rs: 4/4 +0.00%
+|| crates/force-sync/tests/support/postgres.rs: 0/18 +0.00%
+||
+22.34% coverage, 1476/6606 lines covered, +0.00% change in coverage

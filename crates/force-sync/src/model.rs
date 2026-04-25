@@ -327,7 +327,6 @@ mod tests {
     fn test_hash_json_value_array() {
         let arr1 = serde_json::json!(["a", "b"]);
         let arr2 = serde_json::json!(["b", "a"]);
-        // Arrays are ordered, so hashes should be different
         assert_ne!(super::payload_hash(&arr1), super::payload_hash(&arr2));
     }
 
@@ -336,5 +335,24 @@ mod tests {
         let obj1 = serde_json::json!({"arr": ["a", "b"]});
         let obj2 = serde_json::json!({"arr": ["b", "a"]});
         assert_ne!(super::payload_hash(&obj1), super::payload_hash(&obj2));
+    }
+
+    #[test]
+    fn test_hash_json_value_primitives() {
+        let n1 = serde_json::json!(42);
+        let n2 = serde_json::json!(43);
+        assert_ne!(super::payload_hash(&n1), super::payload_hash(&n2));
+
+        let s1 = serde_json::json!("test");
+        let s2 = serde_json::json!("other");
+        assert_ne!(super::payload_hash(&s1), super::payload_hash(&s2));
+
+        let b1 = serde_json::json!(true);
+        let b2 = serde_json::json!(false);
+        assert_ne!(super::payload_hash(&b1), super::payload_hash(&b2));
+
+        let nul = serde_json::json!(null);
+        let nul2 = serde_json::json!(null);
+        assert_eq!(super::payload_hash(&nul), super::payload_hash(&nul2));
     }
 }
