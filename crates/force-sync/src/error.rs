@@ -103,3 +103,27 @@ impl From<force_pubsub::PubSubError> for ForceSyncError {
 
 /// Convenience Result alias for Force Sync operations.
 pub type Result<T> = std::result::Result<T, ForceSyncError>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_apply_error_display() {
+        let retryable = ForceSyncError::ApplyRetryable(force::error::ForceError::NotImplemented(
+            "test".to_string(),
+        ));
+        assert_eq!(
+            retryable.to_string(),
+            "retryable Salesforce apply error: not implemented: test"
+        );
+
+        let permanent = ForceSyncError::ApplyPermanent(force::error::ForceError::NotImplemented(
+            "test".to_string(),
+        ));
+        assert_eq!(
+            permanent.to_string(),
+            "permanent Salesforce apply error: not implemented: test"
+        );
+    }
+}
