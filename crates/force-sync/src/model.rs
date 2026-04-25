@@ -322,4 +322,20 @@ mod tests {
             "Name": "Acme"
         })));
     }
+
+    #[test]
+    fn test_hash_json_value_array() {
+        let arr1 = serde_json::json!(["a", "b"]);
+        let arr2 = serde_json::json!(["b", "a"]);
+        // Arrays are ordered, so hashes should be different
+        assert_ne!(super::payload_hash(&arr1), super::payload_hash(&arr2));
+    }
+
+
+    #[test]
+    fn test_hash_json_value_nested_array() {
+        let obj1 = serde_json::json!({"arr": ["a", "b"]});
+        let obj2 = serde_json::json!({"arr": ["b", "a"]});
+        assert_ne!(super::payload_hash(&obj1), super::payload_hash(&obj2));
+    }
 }
