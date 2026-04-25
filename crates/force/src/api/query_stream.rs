@@ -90,7 +90,7 @@ where
             // 5. If fetch returned nothing and we are done, mark exhausted.
             // If fetch returned nothing but not done (weird), loop again to fetch next page.
             // Note: self.current_page.len() requires ExactSizeIterator which IntoIter is.
-            if self.current_page.len() == 0 && self.done {
+            if self.current_page.len() == 0 && self.done && self.next_url.is_none() {
                 self.exhausted = true;
                 return Ok(None);
             }
