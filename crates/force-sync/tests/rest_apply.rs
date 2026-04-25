@@ -13,7 +13,7 @@ use wiremock::{
     matchers::{body_json, header, method, path, query_param},
 };
 
-use force_sync::{ApplyError, RestApplyResult, SalesforceApplier};
+use force_sync::{RestApplyResult, SalesforceApplier, ForceSyncError};
 
 #[derive(Debug, Clone)]
 struct MockAuthenticator {
@@ -149,7 +149,7 @@ async fn apply_rest_upsert_update_204_fails_when_lookup_finds_no_row() {
         panic!("expected 204 follow-up lookup failure");
     };
 
-    assert!(matches!(error, ApplyError::Permanent(_)));
+    assert!(matches!(error, ForceSyncError::ApplyPermanent(_)));
     assert!(
         error
             .to_string()
@@ -288,7 +288,7 @@ async fn transient_rest_upsert_failure_is_retryable() {
         panic!("expected retryable apply error");
     };
 
-    assert!(matches!(error, ApplyError::Retryable(_)));
+    assert!(matches!(error, ForceSyncError::ApplyRetryable(_)));
     assert!(error.to_string().contains("temporary outage"));
 }
 
@@ -314,7 +314,7 @@ async fn apply_rest_delete_server_error_is_retryable() {
         panic!("expected retryable delete error");
     };
 
-    assert!(matches!(error, ApplyError::Retryable(_)));
+    assert!(matches!(error, ForceSyncError::ApplyRetryable(_)));
 }
 
 #[tokio::test]
@@ -339,7 +339,7 @@ async fn apply_rest_delete_bad_request_is_permanent() {
         panic!("expected permanent delete error");
     };
 
-    assert!(matches!(error, ApplyError::Permanent(_)));
+    assert!(matches!(error, ForceSyncError::ApplyPermanent(_)));
 }
 
 #[tokio::test]
@@ -373,7 +373,7 @@ async fn apply_rest_upsert_permanent_400_classified_correctly() {
         panic!("expected permanent apply error for 400");
     };
 
-    assert!(matches!(error, ApplyError::Permanent(_)));
+    assert!(matches!(error, ForceSyncError::ApplyPermanent(_)));
 }
 
 #[tokio::test]
@@ -430,7 +430,7 @@ async fn apply_rest_upsert_update_204_fails_when_id_field_is_null_in_query_resul
     };
 
     assert!(
-        matches!(error, ApplyError::Permanent(_)),
+        matches!(error, ForceSyncError::ApplyPermanent(_)),
         "expected Permanent error, got: {error}"
     );
     let error_text = error.to_string();

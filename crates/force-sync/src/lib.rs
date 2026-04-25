@@ -30,7 +30,7 @@ pub const fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")
 }
 
-pub use apply::{ApplyError, RestApplyResult, SalesforceApplier, project_sync_link};
+pub use apply::{RestApplyResult, SalesforceApplier, project_sync_link};
 pub use capture::{capture_batch, capture_stream, load_replay_id};
 pub use config::{ConflictPolicy, LaneThresholds, ObjectSync, Owner};
 pub use error::ForceSyncError;

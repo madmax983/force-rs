@@ -24,7 +24,7 @@ fn change_operation(payload: &Value) -> ChangeOperation {
     }
 }
 
-fn replay_id_to_position(replay_id: &ReplayId) -> Result<i64, ForceSyncError> {
+fn replay_id_to_position(replay_id: &ReplayId) -> crate::error::Result<i64> {
     if replay_id.as_bytes().len() > 8 {
         return Err(ForceSyncError::InvalidStoredValue {
             field: "replay_id",
@@ -43,7 +43,7 @@ fn replay_id_to_position(replay_id: &ReplayId) -> Result<i64, ForceSyncError> {
     })
 }
 
-fn replay_id_from_position(position: i64) -> Result<ReplayId, ForceSyncError> {
+fn replay_id_from_position(position: i64) -> crate::error::Result<ReplayId> {
     let unsigned = u64::try_from(position).map_err(|_| ForceSyncError::InvalidStoredValue {
         field: "cursor_position",
         value: position.to_string(),
@@ -58,7 +58,7 @@ fn build_envelope(
     object: &ObjectSync,
     payload: Value,
     replay_position: i64,
-) -> Result<ChangeEnvelope, ForceSyncError> {
+) -> crate::error::Result<ChangeEnvelope> {
     let external_id_field =
         object
             .external_id_field()
@@ -94,7 +94,7 @@ async fn capture_event_in_tx<C>(
     object: &ObjectSync,
     payload: Value,
     replay_id: &ReplayId,
-) -> Result<bool, ForceSyncError>
+) -> crate::error::Result<bool>
 where
     C: GenericClient + Sync + ?Sized,
 {
@@ -129,7 +129,7 @@ pub async fn capture_stream<S>(
     tenant: &str,
     object: &ObjectSync,
     mut stream: S,
-) -> Result<usize, ForceSyncError>
+) -> crate::error::Result<usize>
 where
     S: Stream<Item = Result<PubSubEvent<Value>, force_pubsub::PubSubError>> + Unpin,
 {
@@ -175,7 +175,7 @@ where
 pub async fn load_replay_id(
     store: &PgStore,
     stream_name: &str,
-) -> Result<Option<ReplayId>, ForceSyncError> {
+) -> crate::error::Result<Option<ReplayId>> {
     let checkpoint = store.get_checkpoint(stream_name).await?;
     checkpoint
         .map(|checkpoint| replay_id_from_position(checkpoint.cursor_position))

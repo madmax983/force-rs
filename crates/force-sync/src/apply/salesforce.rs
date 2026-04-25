@@ -1,5 +1,6 @@
 //! Salesforce REST apply helpers.
 
+use crate::error::ForceSyncError;
 use force::{
     api::RestOperation,
     api::SoqlQueryBuilder,
@@ -21,18 +22,6 @@ pub struct RestApplyResult {
     pub salesforce_id: Option<SalesforceId>,
     /// Whether the upsert created a new record.
     pub created: bool,
-}
-
-/// Error returned when a Salesforce apply operation fails.
-#[derive(Debug, thiserror::Error)]
-pub enum ApplyError {
-    /// A transient failure occurred and the operation can be retried.
-    #[error("retryable Salesforce apply error: {0}")]
-    Retryable(ForceError),
-
-    /// A non-retryable failure occurred.
-    #[error("permanent Salesforce apply error: {0}")]
-    Permanent(ForceError),
 }
 
 /// Minimal Salesforce REST applier for force-sync lanes.
@@ -59,7 +48,7 @@ impl<A: Authenticator> SalesforceApplier<A> {
         external_id_field: &str,
         external_id_value: &str,
         payload: &Value,
-    ) -> Result<RestApplyResult, ApplyError> {
+    ) -> crate::error::Result<RestApplyResult> {
         let rest = self.client.rest();
 
         match rest
@@ -90,7 +79,7 @@ impl<A: Authenticator> SalesforceApplier<A> {
         &self,
         sobject: &str,
         salesforce_id: &SalesforceId,
-    ) -> Result<(), ApplyError> {
+    ) -> crate::error::Result<()> {
         match self.client.rest().delete(sobject, salesforce_id).await {
             Ok(_) => Ok(()),
             Err(error) => {
@@ -120,7 +109,7 @@ impl<A: Authenticator> SalesforceApplier<A> {
         external_id_field: &str,
         batch_size: usize,
         records: Vec<T>,
-    ) -> Result<SmartIngestResult, ApplyError>
+    ) -> crate::error::Result<SmartIngestResult>
     where
         T: Serialize + Send + Sync,
     {
@@ -139,7 +128,7 @@ impl<A: Authenticator> SalesforceApplier<A> {
         sobject: &str,
         external_id_field: &str,
         external_id_value: &str,
-    ) -> Result<SalesforceId, ApplyError> {
+    ) -> crate::error::Result<SalesforceId> {
         let query = SoqlQueryBuilder::new()
             .select(&["Id"])
             .from(sobject)
@@ -163,7 +152,7 @@ impl<A: Authenticator> SalesforceApplier<A> {
         };
 
         let Some(id) = record.get_field_as::<String>("Id").map_err(|error| {
-            ApplyError::Permanent(ForceError::InvalidInput(format!(
+            ForceSyncError::ApplyPermanent(ForceError::InvalidInput(format!(
                 "invalid Salesforce query result: {error}"
             )))
         })?
@@ -176,7 +165,7 @@ impl<A: Authenticator> SalesforceApplier<A> {
         };
 
         SalesforceId::new(&id).map_err(|error| {
-            ApplyError::Permanent(ForceError::InvalidInput(format!(
+            ForceSyncError::ApplyPermanent(ForceError::InvalidInput(format!(
                 "invalid Salesforce query result ID: {error}"
             )))
         })
@@ -191,11 +180,11 @@ fn is_missing_id_upsert_update(error: &ForceError) -> bool {
     )
 }
 
-const fn classify_force_error(error: ForceError) -> ApplyError {
+const fn classify_force_error(error: ForceError) -> ForceSyncError {
     if is_retryable_force_error(&error) {
-        ApplyError::Retryable(error)
+        ForceSyncError::ApplyRetryable(error)
     } else {
-        ApplyError::Permanent(error)
+        ForceSyncError::ApplyPermanent(error)
     }
 }
 
@@ -203,8 +192,8 @@ fn missing_follow_up_id_error(
     sobject: &str,
     external_id_field: &str,
     external_id_value: &str,
-) -> ApplyError {
-    ApplyError::Permanent(ForceError::InvalidInput(format!(
+) -> ForceSyncError {
+    ForceSyncError::ApplyPermanent(ForceError::InvalidInput(format!(
         "upsert updated existing {sobject} via {external_id_field}={external_id_value}, but follow-up lookup did not return a Salesforce Id"
     )))
 }

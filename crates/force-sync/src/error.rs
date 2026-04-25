@@ -82,6 +82,14 @@ pub enum ForceSyncError {
         value: String,
     },
 
+    /// A transient failure occurred during application and the operation can be retried.
+    #[error("retryable Salesforce apply error: {0}")]
+    ApplyRetryable(force::error::ForceError),
+
+    /// A non-retryable failure occurred during application.
+    #[error("permanent Salesforce apply error: {0}")]
+    ApplyPermanent(force::error::ForceError),
+
     /// Placeholder variant while the crate surface is being implemented.
     #[error("not implemented")]
     NotImplemented,
@@ -92,3 +100,6 @@ impl From<force_pubsub::PubSubError> for ForceSyncError {
         Self::PubSub(Box::new(error))
     }
 }
+
+/// Convenience Result alias for Force Sync operations.
+pub type Result<T> = std::result::Result<T, ForceSyncError>;
