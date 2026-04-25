@@ -394,7 +394,12 @@ impl<'a> FieldSyntaxValidator<'a> {
     fn process_unquoted_char(&mut self, c: char) -> Result<(), String> {
         match c {
             '\'' | '"' => self.in_quote = Some(c),
-            '(' => self.balance += 1,
+            '(' => {
+                self.balance = self
+                    .balance
+                    .checked_add(1)
+                    .ok_or_else(|| "Parentheses nesting too deep".to_string())?;
+            }
             ')' => {
                 self.balance -= 1;
                 if self.balance < 0 {
@@ -870,6 +875,23 @@ mod tests {
             .find("test")
             .returning("Account", &["toLabel(Industry"])
             .build();
+    }
+
+    #[test]
+    fn test_returning_invalid_parentheses_overflow() {
+        let mut validator = FieldSyntaxValidator {
+            field: "overflow",
+            balance: i32::MAX,
+            in_quote: None,
+            escaped: false,
+        };
+
+        // Directly call the method to trigger the checked_add error
+        let result = validator.process_unquoted_char('(');
+        match result {
+            Err(msg) => assert_eq!(msg, "Parentheses nesting too deep"),
+            Ok(()) => panic!("Expected error due to parenthesis overflow"),
+        }
     }
 
     #[test]
