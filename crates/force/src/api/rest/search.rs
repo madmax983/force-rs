@@ -319,24 +319,40 @@ fn escape_sosl<'a>(text: impl Into<Cow<'a, str>>) -> Cow<'a, str> {
         '-',
     ]);
 
-    match first_special {
-        Some(idx) => {
-            let mut escaped = String::with_capacity(text.len() + 8);
-            escaped.push_str(&text[..idx]);
-            for c in text[idx..].chars() {
-                match c {
-                    '?' | '&' | '|' | '!' | '{' | '}' | '[' | ']' | '(' | ')' | '^' | '~' | '*'
-                    | ':' | '\\' | '"' | '\'' | '+' | '-' => {
-                        escaped.push('\\');
-                        escaped.push(c);
-                    }
-                    _ => escaped.push(c),
-                }
-            }
-            Cow::Owned(escaped)
+    let Some(idx) = first_special else {
+        return text;
+    };
+
+    let mut escaped = String::with_capacity(text.len() + 8);
+    escaped.push_str(&text[..idx]);
+    for c in text[idx..].chars() {
+        if matches!(
+            c,
+            '?' | '&'
+                | '|'
+                | '!'
+                | '{'
+                | '}'
+                | '['
+                | ']'
+                | '('
+                | ')'
+                | '^'
+                | '~'
+                | '*'
+                | ':'
+                | '\\'
+                | '"'
+                | '\''
+                | '+'
+                | '-'
+        ) {
+            escaped.push('\\');
         }
-        None => text,
+        escaped.push(c);
     }
+
+    Cow::Owned(escaped)
 }
 
 /// Validates field syntax to prevent SOSL injection while allowing complex clauses.

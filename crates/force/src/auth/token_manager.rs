@@ -62,16 +62,14 @@ impl<A: Authenticator> TokenManager<A> {
             if current.issued_at() > arc_token.issued_at() || Arc::ptr_eq(current, &arc_token) {
                 return Ok(current.clone());
             }
-            state.token = Some(arc_token.clone());
-        } else if is_initial_auth {
-            state.token = Some(arc_token.clone());
-        } else {
+        } else if !is_initial_auth {
             // The state was cleared, we shouldn't revive the session!
             return Err(crate::error::ForceError::Authentication(
                 crate::error::AuthenticationError::InvalidToken,
             ));
         }
 
+        state.token = Some(arc_token.clone());
         Ok(arc_token)
     }
 
@@ -79,10 +77,13 @@ impl<A: Authenticator> TokenManager<A> {
     async fn latest_token_or(&self, fallback: Arc<AccessToken>) -> Arc<AccessToken> {
         let state = self.state.read().await;
 
-        match &state.token {
-            Some(current) if current.issued_at() >= fallback.issued_at() => current.clone(),
-            _ => fallback,
+        if let Some(current) = &state.token {
+            if current.issued_at() >= fallback.issued_at() {
+                return current.clone();
+            }
         }
+
+        fallback
     }
 
     /// Returns the current access token as an Arc reference, refreshing if necessary.
@@ -231,12 +232,11 @@ impl<A: Authenticator> TokenManager<A> {
             if let Some(token) = &state.token {
                 // If the token in state is a different allocation (Arc::ptr_eq is false) than what we captured,
                 // another thread just refreshed it. Return that one!
-                let is_same = match &current_arc {
-                    Some(arc) => Arc::ptr_eq(token, arc),
-                    None => false,
-                };
+                let is_same = current_arc
+                    .as_ref()
+                    .is_some_and(|arc| Arc::ptr_eq(token, arc));
                 if !is_same {
-                    return Ok((*token.clone()).clone());
+                    return Ok((**token).clone());
                 }
             }
         }
