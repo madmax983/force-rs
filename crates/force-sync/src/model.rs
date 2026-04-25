@@ -331,7 +331,6 @@ mod tests {
         assert_ne!(super::payload_hash(&arr1), super::payload_hash(&arr2));
     }
 
-
     #[test]
     fn test_hash_json_value_nested_array() {
         let obj1 = serde_json::json!({"arr": ["a", "b"]});
