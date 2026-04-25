@@ -25,23 +25,27 @@ pub fn write_openapi_schema(out: &mut String, describe: &SObjectDescribe) {
     }
 
     // Find required fields for the required array
-    let required_fields: Vec<&str> = describe
-        .fields
-        .iter()
-        .filter(|f| {
-            !f.nillable
-                && !f.defaulted_on_create
-                && f.createable
-                && f.type_ != FieldType::Id
-                && f.type_ != FieldType::Boolean
-        })
-        .map(|f| f.name.as_str())
-        .collect();
+    // ⚡ Bolt: Iterate directly over the fields to write required properties
+    // instead of allocating an intermediate `Vec<&str>` via `.collect()`.
+    let has_required_fields = describe.fields.iter().any(|f| {
+        !f.nillable
+            && !f.defaulted_on_create
+            && f.createable
+            && f.type_ != FieldType::Id
+            && f.type_ != FieldType::Boolean
+    });
 
-    if !required_fields.is_empty() {
+    if has_required_fields {
         out.push_str("      required:\n");
-        for field in required_fields {
-            let _ = writeln!(out, "        - {}", field);
+        for field in &describe.fields {
+            if !field.nillable
+                && !field.defaulted_on_create
+                && field.createable
+                && field.type_ != FieldType::Id
+                && field.type_ != FieldType::Boolean
+            {
+                let _ = writeln!(out, "        - {}", field.name);
+            }
         }
     }
 
