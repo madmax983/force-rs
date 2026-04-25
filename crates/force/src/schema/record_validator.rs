@@ -141,7 +141,7 @@ impl<'a> RecordValidator<'a> {
                 }
 
                 if value.is_null() {
-                    if !field.nillable && field.name != "Id" {
+                    if !field.nillable && !field.defaulted_on_create && field.name != "Id" {
                         errors.push(ValidationError::MissingRequiredField(field.name.clone()));
                     }
                     continue;
@@ -238,6 +238,7 @@ mod tests {
         serde_json::from_value(describe_json).must()
     }
 
+    #[allow(clippy::fn_params_excessive_bools)]
     fn mock_field(
         name: &str,
         field_type: &str,
