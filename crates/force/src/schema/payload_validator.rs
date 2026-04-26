@@ -259,7 +259,9 @@ mod tests {
         });
 
         let result = validator.validate_create(&payload);
-        let Err(errs) = result else { panic!("Expected validation error"); };
+        let Err(errs) = result else {
+            panic!("Expected validation error");
+        };
         assert_eq!(errs.len(), 1);
         assert_eq!(
             errs[0],
@@ -289,7 +291,9 @@ mod tests {
         });
 
         let result = validator.validate_create(&payload);
-        let Err(errs) = result else { panic!("Expected validation error"); };
+        let Err(errs) = result else {
+            panic!("Expected validation error");
+        };
         assert_eq!(errs.len(), 1);
         assert_eq!(
             errs[0],
@@ -322,7 +326,9 @@ mod tests {
         });
 
         let result = validator.validate_create(&payload);
-        let Err(errs) = result else { panic!("Expected validation error"); };
+        let Err(errs) = result else {
+            panic!("Expected validation error");
+        };
         assert_eq!(errs.len(), 1);
         assert_eq!(
             errs[0],
@@ -356,7 +362,9 @@ mod tests {
         });
 
         let result = validator.validate_create(&payload);
-        let Err(errs) = result else { panic!("Expected validation error"); };
+        let Err(errs) = result else {
+            panic!("Expected validation error");
+        };
         assert_eq!(errs.len(), 1);
         assert_eq!(
             errs[0],
