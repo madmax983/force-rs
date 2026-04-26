@@ -155,8 +155,9 @@ pub fn validate_url_path(path: &str) -> Result<(), ForceError> {
     // directly won't catch `..`. So we need to look at the raw input string,
     // but only the path part (before `?` or `#`).
     let path_only = path.split(['?', '#']).next().unwrap_or(path);
+    let decoded_path = percent_encoding::percent_decode_str(path_only).decode_utf8_lossy();
 
-    if path_only.contains("..") || path_only.contains("//") {
+    if decoded_path.contains("..") || decoded_path.contains("//") {
         return Err(ForceError::InvalidInput(format!(
             "URL path contains invalid path traversal characters: {path}"
         )));
@@ -247,6 +248,10 @@ mod tests {
         assert!(validate_url_path("sobjects/Account/../../Contact").is_err());
         assert!(validate_url_path("sobjects//Account").is_err());
         assert!(validate_url_path("../../../etc/passwd").is_err());
+        assert!(validate_url_path("sobjects/Account/%2e%2e/Contact").is_err());
+        assert!(validate_url_path("sobjects/Account/%2E%2E/Contact").is_err());
+        assert!(validate_url_path("%2e%2e/%2e%2e/%2e%2e/etc/passwd").is_err());
+        assert!(validate_url_path("%2f%2f").is_err());
     }
 }
 
