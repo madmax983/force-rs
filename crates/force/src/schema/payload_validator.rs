@@ -174,9 +174,7 @@ impl<'a> PayloadValidator<'a> {
             Value::Object(_) => "Object",
         }
     }
-
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -374,7 +372,6 @@ mod tests {
         );
     }
 
-
     #[test]
     fn test_validation_error_display() {
         let err1 = ValidationError::MissingRequiredField("Name".to_string());
@@ -385,26 +382,50 @@ mod tests {
             expected: "Number".to_string(),
             actual: "String".to_string(),
         };
-        assert_eq!(err2.to_string(), "Type mismatch on field Age: expected Number, got String");
+        assert_eq!(
+            err2.to_string(),
+            "Type mismatch on field Age: expected Number, got String"
+        );
 
         let err3 = ValidationError::LengthExceeded {
             field: "Description".to_string(),
             max_len: 255,
         };
-        assert_eq!(err3.to_string(), "Field Description exceeds max length of 255");
+        assert_eq!(
+            err3.to_string(),
+            "Field Description exceeds max length of 255"
+        );
 
         let err4 = ValidationError::ReadOnlyField("CreatedDate".to_string());
-        assert_eq!(err4.to_string(), "Field CreatedDate is read-only in this context");
+        assert_eq!(
+            err4.to_string(),
+            "Field CreatedDate is read-only in this context"
+        );
     }
 
     #[test]
     fn test_value_type_name() {
         assert_eq!(PayloadValidator::value_type_name(&Value::Null), "Null");
-        assert_eq!(PayloadValidator::value_type_name(&Value::Bool(true)), "Boolean");
-        assert_eq!(PayloadValidator::value_type_name(&Value::Number(serde_json::Number::from(42))), "Number");
-        assert_eq!(PayloadValidator::value_type_name(&Value::String("hi".to_string())), "String");
-        assert_eq!(PayloadValidator::value_type_name(&Value::Array(vec![])), "Array");
-        assert_eq!(PayloadValidator::value_type_name(&Value::Object(serde_json::Map::new())), "Object");
+        assert_eq!(
+            PayloadValidator::value_type_name(&Value::Bool(true)),
+            "Boolean"
+        );
+        assert_eq!(
+            PayloadValidator::value_type_name(&Value::Number(serde_json::Number::from(42))),
+            "Number"
+        );
+        assert_eq!(
+            PayloadValidator::value_type_name(&Value::String("hi".to_string())),
+            "String"
+        );
+        assert_eq!(
+            PayloadValidator::value_type_name(&Value::Array(vec![])),
+            "Array"
+        );
+        assert_eq!(
+            PayloadValidator::value_type_name(&Value::Object(serde_json::Map::new())),
+            "Object"
+        );
     }
 
     #[test]
@@ -423,9 +444,18 @@ mod tests {
         let validator = PayloadValidator::new(&describe);
 
         let result = validator.validate_create(&json!([]));
-        let Err(errs) = result else { panic!("Expected validation error"); };
+        let Err(errs) = result else {
+            panic!("Expected validation error");
+        };
         assert_eq!(errs.len(), 1);
-        assert_eq!(errs[0], ValidationError::TypeMismatch { field: "payload".to_string(), expected: "Object".to_string(), actual: "Other".to_string() });
+        assert_eq!(
+            errs[0],
+            ValidationError::TypeMismatch {
+                field: "payload".to_string(),
+                expected: "Object".to_string(),
+                actual: "Other".to_string()
+            }
+        );
     }
 
     #[test]
@@ -446,9 +476,108 @@ mod tests {
         let validator = PayloadValidator::new(&describe);
 
         let result = validator.validate_create(&json!({"Name": null}));
-        let Err(errs) = result else { panic!("Expected validation error"); };
+        let Err(errs) = result else {
+            panic!("Expected validation error");
+        };
         assert_eq!(errs.len(), 1);
-        assert_eq!(errs[0], ValidationError::MissingRequiredField("Name".to_string()));
+        assert_eq!(
+            errs[0],
+            ValidationError::MissingRequiredField("Name".to_string())
+        );
     }
 
+    #[test]
+    fn test_validate_field_value_null_nillable() {
+        let describe_json = json!({
+            "name": "Account", "label": "Account", "custom": false, "queryable": true,
+            "activateable": false, "createable": true, "customSetting": false, "deletable": true,
+            "deprecatedAndHidden": false, "feedEnabled": false, "hasSubtypes": false,
+            "isSubtype": false, "keyPrefix": "001", "labelPlural": "Accounts", "layoutable": false,
+            "mergeable": false, "mruEnabled": false, "replicateable": false, "retrieveable": false,
+            "searchable": false, "triggerable": false, "undeletable": false, "updateable": false,
+            "urls": {}, "childRelationships": [], "recordTypeInfos": [],
+            "fields": [
+                mock_field("Name", "string", true, true, 255)
+            ]
+        });
+        let describe: SObjectDescribe = serde_json::from_value(describe_json).must();
+        let validator = PayloadValidator::new(&describe);
+
+        let result = validator.validate_create(&json!({"Name": null}));
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_field_value_string_mismatch() {
+        let describe_json = json!({
+            "name": "Account", "label": "Account", "custom": false, "queryable": true,
+            "activateable": false, "createable": true, "customSetting": false, "deletable": true,
+            "deprecatedAndHidden": false, "feedEnabled": false, "hasSubtypes": false,
+            "isSubtype": false, "keyPrefix": "001", "labelPlural": "Accounts", "layoutable": false,
+            "mergeable": false, "mruEnabled": false, "replicateable": false, "retrieveable": false,
+            "searchable": false, "triggerable": false, "undeletable": false, "updateable": false,
+            "urls": {}, "childRelationships": [], "recordTypeInfos": [],
+            "fields": [
+                mock_field("Name", "string", true, true, 255)
+            ]
+        });
+        let describe: SObjectDescribe = serde_json::from_value(describe_json).must();
+        let validator = PayloadValidator::new(&describe);
+
+        let result = validator.validate_create(&json!({"Name": 42}));
+        let Err(errs) = result else {
+            panic!("Expected validation error");
+        };
+        assert_eq!(errs.len(), 1);
+        assert_eq!(
+            errs[0],
+            ValidationError::TypeMismatch {
+                field: "Name".to_string(),
+                expected: "String".to_string(),
+                actual: "Number".to_string()
+            }
+        );
+    }
+
+    #[test]
+    fn test_validate_field_value_number_success() {
+        let describe_json = json!({
+            "name": "Account", "label": "Account", "custom": false, "queryable": true,
+            "activateable": false, "createable": true, "customSetting": false, "deletable": true,
+            "deprecatedAndHidden": false, "feedEnabled": false, "hasSubtypes": false,
+            "isSubtype": false, "keyPrefix": "001", "labelPlural": "Accounts", "layoutable": false,
+            "mergeable": false, "mruEnabled": false, "replicateable": false, "retrieveable": false,
+            "searchable": false, "triggerable": false, "undeletable": false, "updateable": false,
+            "urls": {}, "childRelationships": [], "recordTypeInfos": [],
+            "fields": [
+                mock_field("Revenue", "currency", true, true, 0)
+            ]
+        });
+        let describe: SObjectDescribe = serde_json::from_value(describe_json).must();
+        let validator = PayloadValidator::new(&describe);
+
+        let result = validator.validate_create(&json!({"Revenue": 100.50}));
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_field_value_boolean_success() {
+        let describe_json = json!({
+            "name": "Account", "label": "Account", "custom": false, "queryable": true,
+            "activateable": false, "createable": true, "customSetting": false, "deletable": true,
+            "deprecatedAndHidden": false, "feedEnabled": false, "hasSubtypes": false,
+            "isSubtype": false, "keyPrefix": "001", "labelPlural": "Accounts", "layoutable": false,
+            "mergeable": false, "mruEnabled": false, "replicateable": false, "retrieveable": false,
+            "searchable": false, "triggerable": false, "undeletable": false, "updateable": false,
+            "urls": {}, "childRelationships": [], "recordTypeInfos": [],
+            "fields": [
+                mock_field("IsActive", "boolean", true, true, 0)
+            ]
+        });
+        let describe: SObjectDescribe = serde_json::from_value(describe_json).must();
+        let validator = PayloadValidator::new(&describe);
+
+        let result = validator.validate_create(&json!({"IsActive": false}));
+        assert!(result.is_ok());
+    }
 }
