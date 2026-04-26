@@ -1,13 +1,13 @@
 #![allow(missing_docs)]
 #[cfg(test)]
 mod tests {
-    use force::api::RestOperation;
-    use force::client::builder;
-    use force::auth::{Authenticator, AccessToken, TokenResponse};
     use async_trait::async_trait;
-    use wiremock::{MockServer, Mock, ResponseTemplate};
-    use wiremock::matchers::{method, path};
+    use force::api::RestOperation;
+    use force::auth::{AccessToken, Authenticator, TokenResponse};
+    use force::client::builder;
     use serde::Deserialize;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
 
     #[derive(Debug, Clone)]
     struct MockAuthenticator {
@@ -60,7 +60,11 @@ mod tests {
 
         let instance_url = mock_server.uri();
         let auth = MockAuthenticator::new(&instance_url);
-        let client = builder().authenticate(auth).build().await.unwrap_or_else(|e| panic!("Failed to build client: {e}"));
+        let client = builder()
+            .authenticate(auth)
+            .build()
+            .await
+            .unwrap_or_else(|e| panic!("Failed to build client: {e}"));
         let handler = client.rest();
 
         // This is the SSRF payload.
@@ -70,10 +74,14 @@ mod tests {
         // which sends the request to `evil.com`.
         // After the fix, it creates `http://127.0.0.1:port/@evil.com/...`
         // which is a relative path sent to the mock server!
-        let result: Result<force::types::QueryResult<Dummy>, force::error::ForceError> = handler.query_more::<Dummy>(next_records_url).await;
+        let result: Result<force::types::QueryResult<Dummy>, force::error::ForceError> =
+            handler.query_more::<Dummy>(next_records_url).await;
 
         // Because the mock server is configured to handle the relative path `/@evil.com/...`,
         // it should return Ok!
-        assert!(result.is_ok(), "The request failed! Expected the relative path to hit the mock server successfully. Result: {result:?}");
+        assert!(
+            result.is_ok(),
+            "The request failed! Expected the relative path to hit the mock server successfully. Result: {result:?}"
+        );
     }
 }
