@@ -59,7 +59,11 @@ impl<A: Authenticator> TokenManager<A> {
         let mut state = self.state.write().await;
 
         if let Some(current) = &state.token {
-            if current.issued_at() >= arc_token.issued_at() || Arc::ptr_eq(current, &arc_token) {
+            // Use > instead of >= to ensure that if a refresh returns a token with the SAME timestamp,
+            // we STILL overwrite the old token. This changes the Arc pointer, which allows other threads
+            // waiting in `force_refresh` to detect that a refresh occurred and return early, preventing
+            // a stampede of authentications.
+            if current.issued_at() > arc_token.issued_at() || Arc::ptr_eq(current, &arc_token) {
                 return Ok(current.clone());
             }
             state.token = Some(arc_token.clone());
@@ -235,6 +239,7 @@ impl<A: Authenticator> TokenManager<A> {
                     Some(arc) => Arc::ptr_eq(token, arc),
                     None => false,
                 };
+
                 if !is_same {
                     return Ok((*token.clone()).clone());
                 }
@@ -850,8 +855,8 @@ mod tests {
         let result = eq_manager.force_refresh().await.must();
         assert_eq!(
             result.as_str(),
-            "old_token",
-            "Equality should NOT trigger an overwrite in force_refresh"
+            "new_token",
+            "Equality should trigger an overwrite in force_refresh"
         );
 
         // Now let's test equality overwrite for hard expiration (line 114)
@@ -876,8 +881,8 @@ mod tests {
         let result = hard_eq_manager.token().await.must();
         assert_eq!(
             result.as_str(),
-            "hard_old_token",
-            "Equality should NOT trigger an overwrite in hard refresh"
+            "new_token",
+            "Equality should trigger an overwrite in hard refresh"
         );
 
         // Now let's test equality overwrite for soft expiration (line 146)
@@ -901,8 +906,8 @@ mod tests {
         let result = soft_eq_manager.token().await.must();
         assert_eq!(
             result.as_str(),
-            "soft_old_token",
-            "Equality should NOT trigger an overwrite in soft refresh"
+            "new_token",
+            "Equality should trigger an overwrite in soft refresh"
         );
     }
 
