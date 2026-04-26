@@ -147,6 +147,23 @@ mod tests {
     }
 
     #[test]
+    fn test_decode_typed_invalid_bytes_returns_error() {
+        #[derive(Deserialize)]
+        struct Dummy {}
+
+        let Ok(schema) = Schema::parse_str(SIMPLE_SCHEMA) else {
+            panic!("valid schema")
+        };
+        let garbage = vec![0xFF, 0xFE, 0xFD];
+
+        let result = decode_avro_typed::<Dummy>(&schema, &garbage);
+        let Err(err) = result else {
+            panic!("Expected an error");
+        };
+        assert!(matches!(err, PubSubError::Avro(_)));
+    }
+
+    #[test]
     fn test_decode_invalid_bytes_returns_error() {
         let Ok(schema) = Schema::parse_str(SIMPLE_SCHEMA) else {
             panic!("valid schema")

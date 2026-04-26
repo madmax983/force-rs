@@ -1,0 +1,23 @@
+--- crates/force-pubsub/src/codec.rs
++++ crates/force-pubsub/src/codec.rs
+@@ -124,6 +124,20 @@
+     }
+
+     #[test]
++    fn test_decode_typed_invalid_bytes_returns_error() {
++        let Ok(schema) = Schema::parse_str(SIMPLE_SCHEMA) else {
++            panic!("valid schema")
++        };
++        let garbage = vec![0xFF, 0xFE, 0xFD];
++        #[derive(Deserialize)]
++        struct Dummy {}
++        let result = decode_avro_typed::<Dummy>(&schema, &garbage);
++        let Err(err) = result else {
++            panic!("Expected an error");
++        };
++        assert!(matches!(err, PubSubError::Avro(_)));
++    }
++
++    #[test]
+     fn test_decode_invalid_bytes_returns_error() {
+         let Ok(schema) = Schema::parse_str(SIMPLE_SCHEMA) else {

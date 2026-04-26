@@ -323,4 +323,27 @@ mod tests {
         assert_eq!(stats.ops_succeeded, 0);
         assert_eq!(stats.ops_failed, 0);
     }
+
+    #[tokio::test]
+    async fn test_update_all_invalid_json() {
+        let mock_server = create_mock_server().await;
+        let client = create_test_client(&mock_server).await;
+
+        let query = SoqlQueryBuilder::new().select(&["Id"]).from("Account");
+        let op = SoqlMassOp::new(&client, query);
+        let result = op.update_all(json!("invalid")).await;
+        let Err(err) = result else {
+            panic!("Expected error");
+        };
+        assert!(matches!(err, ForceError::InvalidInput(_)));
+    }
+
+    #[tokio::test]
+    async fn test_halt_on_error() {
+        let mock_server = create_mock_server().await;
+        let client = create_test_client(&mock_server).await;
+        let query = SoqlQueryBuilder::new().select(&["Id"]).from("Account");
+        let op = SoqlMassOp::new(&client, query).halt_on_error(true);
+        assert!(op.halt_on_error);
+    }
 }

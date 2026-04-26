@@ -381,6 +381,7 @@ mod tests {
         let response = UpsertResponse::created(id.clone());
 
         assert!(response.is_success());
+        assert!(!response.is_failure());
         assert!(response.is_created());
         assert!(!response.is_updated());
         assert_eq!(response.id, id);

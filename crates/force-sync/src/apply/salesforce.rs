@@ -222,3 +222,70 @@ const fn is_retryable_force_error(error: &ForceError) -> bool {
         _ => false,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_is_retryable_force_error() {
+        assert!(is_retryable_force_error(&ForceError::Http(
+            HttpError::StatusError {
+                status_code: 408,
+                message: String::new(),
+            }
+        )));
+        assert!(is_retryable_force_error(&ForceError::Http(
+            HttpError::StatusError {
+                status_code: 409,
+                message: String::new(),
+            }
+        )));
+        assert!(is_retryable_force_error(&ForceError::Http(
+            HttpError::StatusError {
+                status_code: 429,
+                message: String::new(),
+            }
+        )));
+        assert!(is_retryable_force_error(&ForceError::Http(
+            HttpError::StatusError {
+                status_code: 500,
+                message: String::new(),
+            }
+        )));
+        assert!(is_retryable_force_error(&ForceError::Http(
+            HttpError::StatusError {
+                status_code: 503,
+                message: String::new(),
+            }
+        )));
+        assert!(!is_retryable_force_error(&ForceError::Http(
+            HttpError::StatusError {
+                status_code: 400,
+                message: String::new(),
+            }
+        )));
+        assert!(!is_retryable_force_error(&ForceError::Http(
+            HttpError::StatusError {
+                status_code: 404,
+                message: String::new(),
+            }
+        )));
+
+        assert!(is_retryable_force_error(&ForceError::Http(
+            HttpError::RateLimitExceeded {
+                retry_after_seconds: 0,
+            }
+        )));
+        assert!(is_retryable_force_error(&ForceError::Http(
+            HttpError::Timeout {
+                timeout_seconds: 30,
+            }
+        )));
+
+        // Not testing RequestFailed due to reqwest::Error mocking complexity
+        assert!(!is_retryable_force_error(&ForceError::Serialization(
+            force::error::SerializationError::InvalidFormat(String::new())
+        )));
+    }
+}
