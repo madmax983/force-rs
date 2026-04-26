@@ -662,19 +662,19 @@ async fn upsert_with_retry_class_impl<A: Authenticator>(
 /// - The origin does not match the instance
 /// - Credentials are embedded in the URL
 pub fn resolve_next_records_url(instance_url: &str, next_records_url: &str) -> Result<String> {
-    if !next_records_url.starts_with("http") {
-        return Ok(format!("{}{}", instance_url, next_records_url));
-    }
-
-    // Security check: absolute URL must match the instance host
-    let next_parsed = url::Url::parse(next_records_url)
-        .map_err(|e| ForceError::InvalidInput(format!("Invalid nextRecordsUrl: {}", e)))?;
     let instance_parsed = url::Url::parse(instance_url)
         .map_err(|e| ForceError::InvalidInput(format!("Invalid instance URL in token: {}", e)))?;
 
+    // Combine safely using `url::Url::join` which handles relative vs absolute correctly
+    // and prevents `@evil.com` from changing the host.
+    let next_parsed = instance_parsed
+        .join(next_records_url)
+        .map_err(|e| ForceError::InvalidInput(format!("Invalid nextRecordsUrl: {}", e)))?;
+
+    // Security check: the resolved absolute URL must match the instance host
     validate_url_origin_match(&instance_parsed, &next_parsed)?;
 
-    Ok(next_records_url.to_string())
+    Ok(next_parsed.to_string())
 }
 
 /// Helper function to validate that the origin and credentials of an absolute URL match the instance.
