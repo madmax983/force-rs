@@ -1,0 +1,201 @@
+   Compiling force v0.2.0 (/app/crates/force)
+error: the `#[test]` attribute may only be used on a free function
+   --> crates/force/src/schema/payload_validator.rs:178:5
+    |
+178 |     #[test]
+    |     ^^^^^^^ the `#[test]` macro causes a function to be run as a test and has no effect on non-functions
+    |
+help: replace with conditional compilation to make the item only exist when tests are being run
+    |
+178 -     #[test]
+178 +     #[cfg(test)]
+    |
+
+error: the `#[test]` attribute may only be used on a free function
+   --> crates/force/src/schema/payload_validator.rs:200:5
+    |
+200 |     #[test]
+    |     ^^^^^^^ the `#[test]` macro causes a function to be run as a test and has no effect on non-functions
+    |
+help: replace with conditional compilation to make the item only exist when tests are being run
+    |
+200 -     #[test]
+200 +     #[cfg(test)]
+    |
+
+error: the `#[test]` attribute may only be used on a free function
+   --> crates/force/src/schema/payload_validator.rs:210:5
+    |
+210 |     #[test]
+    |     ^^^^^^^ the `#[test]` macro causes a function to be run as a test and has no effect on non-functions
+    |
+help: replace with conditional compilation to make the item only exist when tests are being run
+    |
+210 -     #[test]
+210 +     #[cfg(test)]
+    |
+
+error: the `#[test]` attribute may only be used on a free function
+   --> crates/force/src/schema/payload_validator.rs:231:5
+    |
+231 |     #[test]
+    |     ^^^^^^^ the `#[test]` macro causes a function to be run as a test and has no effect on non-functions
+    |
+help: replace with conditional compilation to make the item only exist when tests are being run
+    |
+231 -     #[test]
+231 +     #[cfg(test)]
+    |
+
+error: cannot find macro `json` in this scope
+   --> crates/force/src/schema/payload_validator.rs:248:49
+    |
+248 |         let result = validator.validate_create(&json!({"Name": null}));
+    |                                                 ^^^^
+    |
+help: consider importing this macro
+    |
+ 12 + use serde_json::json;
+    |
+
+error: cannot find macro `json` in this scope
+   --> crates/force/src/schema/payload_validator.rs:233:29
+    |
+233 |         let describe_json = json!({
+    |                             ^^^^
+    |
+help: consider importing this macro
+    |
+ 12 + use serde_json::json;
+    |
+
+error: cannot find macro `json` in this scope
+   --> crates/force/src/schema/payload_validator.rs:225:49
+    |
+225 |         let result = validator.validate_create(&json!([]));
+    |                                                 ^^^^
+    |
+help: consider importing this macro
+    |
+ 12 + use serde_json::json;
+    |
+
+error: cannot find macro `json` in this scope
+   --> crates/force/src/schema/payload_validator.rs:212:29
+    |
+212 |         let describe_json = json!({
+    |                             ^^^^
+    |
+help: consider importing this macro
+    |
+ 12 + use serde_json::json;
+    |
+
+error: cannot find macro `json` in this scope
+   --> crates/force/src/schema/payload_validator.rs:248:49
+    |
+248 |         let result = validator.validate_create(&json!({"Name": null}));
+    |                                                 ^^^^
+    |
+    = note: macro `crate::types::query::tests::proptests::json` exists but is inaccessible
+help: consider importing this macro
+    |
+ 12 + use serde_json::json;
+    |
+
+error: cannot find macro `json` in this scope
+   --> crates/force/src/schema/payload_validator.rs:233:29
+    |
+233 |         let describe_json = json!({
+    |                             ^^^^
+    |
+    = note: macro `crate::types::query::tests::proptests::json` exists but is inaccessible
+help: consider importing this macro
+    |
+ 12 + use serde_json::json;
+    |
+
+error: cannot find macro `json` in this scope
+   --> crates/force/src/schema/payload_validator.rs:225:49
+    |
+225 |         let result = validator.validate_create(&json!([]));
+    |                                                 ^^^^
+    |
+    = note: macro `crate::types::query::tests::proptests::json` exists but is inaccessible
+help: consider importing this macro
+    |
+ 12 + use serde_json::json;
+    |
+
+error: cannot find macro `json` in this scope
+   --> crates/force/src/schema/payload_validator.rs:212:29
+    |
+212 |         let describe_json = json!({
+    |                             ^^^^
+    |
+    = note: macro `crate::types::query::tests::proptests::json` exists but is inaccessible
+help: consider importing this macro
+    |
+ 12 + use serde_json::json;
+    |
+
+error[E0599]: no method named `must` found for enum `std::result::Result<T, E>` in the current scope
+   --> crates/force/src/schema/payload_validator.rs:222:79
+    |
+222 | ...rom_value(describe_json).must();
+    |                             ^^^^ method not found in `std::result::Result<_, serde_json::Error>`
+
+error[E0599]: no method named `must` found for enum `std::result::Result<T, E>` in the current scope
+   --> crates/force/src/schema/payload_validator.rs:245:79
+    |
+245 | ...rom_value(describe_json).must();
+    |                             ^^^^ method not found in `std::result::Result<_, serde_json::Error>`
+
+For more information about this error, try `rustc --explain E0599`.
+error: could not compile `force` (lib) due to 10 previous errors
+warning: build failed, waiting for other jobs to finish...
+error[E0599]: no method named `must` found for enum `std::result::Result<T, E>` in the current scope
+   --> crates/force/src/schema/payload_validator.rs:222:79
+    |
+222 | ...json::from_value(describe_json).must();
+    |                                    ^^^^
+    |
+   ::: crates/force/src/test_support.rs:15:8
+    |
+ 15 |     fn must(self) -> T;
+    |        ---- the method is available for `std::result::Result<_, serde_json::Error>` here
+    |
+    = help: items from traits can only be used if the trait is in scope
+help: there is a method `must_msg` with a similar name, but with different arguments
+   --> crates/force/src/test_support.rs:39:5
+    |
+ 39 |     fn must_msg(self, message: &str) -> T;
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+help: trait `Must` which provides `must` is implemented but not in scope; perhaps you want to import it
+    |
+ 12 + use crate::test_support::Must;
+    |
+
+error[E0599]: no method named `must` found for enum `std::result::Result<T, E>` in the current scope
+   --> crates/force/src/schema/payload_validator.rs:245:79
+    |
+245 | ...json::from_value(describe_json).must();
+    |                                    ^^^^
+    |
+   ::: crates/force/src/test_support.rs:15:8
+    |
+ 15 |     fn must(self) -> T;
+    |        ---- the method is available for `std::result::Result<_, serde_json::Error>` here
+    |
+    = help: items from traits can only be used if the trait is in scope
+help: there is a method `must_msg` with a similar name, but with different arguments
+   --> crates/force/src/test_support.rs:39:5
+    |
+ 39 |     fn must_msg(self, message: &str) -> T;
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+help: trait `Must` which provides `must` is implemented but not in scope; perhaps you want to import it
+    |
+ 12 + use crate::test_support::Must;
+    |
+
+error: could not compile `force` (lib test) due to 10 previous errors
