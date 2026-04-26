@@ -150,7 +150,9 @@ impl<'a> PayloadValidator<'a> {
                 });
             }
 
-            FieldType::Int | FieldType::Double | FieldType::Currency | FieldType::Percent if !val.is_number() => {
+            FieldType::Int | FieldType::Double | FieldType::Currency | FieldType::Percent
+                if !val.is_number() =>
+            {
                 errors.push(ValidationError::TypeMismatch {
                     field: field.name.clone(),
                     expected: "Number".to_string(),
