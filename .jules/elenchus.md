@@ -31,6 +31,6 @@
 **[Elenchus Verdict: TokenManager update_token_state missing mutation coverage resolved]**
 **Module:** `force::auth::token_manager`
 **Severity:** 🟢 Acquitted
-**Finding:** Sentry successfully strengthened the tests for `update_token_state`. The early return equality overwrite bug (`> ` instead of `>=`) was found to be incorrectly asserted on in `test_token_manager_equality_overwrites`. It was fixed and tests now correctly assert that older/equal tokens do NOT overwrite newer tokens.
+**Finding:** Sentry successfully strengthened the tests for `update_token_state`. The early return equality overwrite bug (`> ` instead of `>=`) was found to be incorrectly asserted on in `test_token_manager_equality_overwrites` and caused a stampede in `test_force_refresh_timestamp_resolution_stampede`. It was fixed and tests now correctly assert that equal tokens DO overwrite each other to avoid a refresh stampede.
 **Evidence:** The test `test_token_manager_equality_overwrites` is present and passing.
 **Recommendation:** None.
