@@ -59,10 +59,6 @@ impl<A: Authenticator> TokenManager<A> {
         let mut state = self.state.write().await;
 
         if let Some(current) = &state.token {
-            // Use > instead of >= to ensure that if a refresh returns a token with the SAME timestamp,
-            // we STILL overwrite the old token. This changes the Arc pointer, which allows other threads
-            // waiting in `force_refresh` to detect that a refresh occurred and return early, preventing
-            // a stampede of authentications.
             if current.issued_at() > arc_token.issued_at() || Arc::ptr_eq(current, &arc_token) {
                 return Ok(current.clone());
             }
@@ -239,7 +235,6 @@ impl<A: Authenticator> TokenManager<A> {
                     Some(arc) => Arc::ptr_eq(token, arc),
                     None => false,
                 };
-
                 if !is_same {
                     return Ok((*token.clone()).clone());
                 }
@@ -850,8 +845,8 @@ mod tests {
         }
 
         // Call force_refresh. The new token will have the same `issued_at`.
-        // Since `old.issued_at >= new.issued_at` is true, it SHOULD NOT overwrite
-        // and return the old token ("old_token").
+        // Since `old.issued_at > new.issued_at` is false, it SHOULD overwrite
+        // and return the new token ("new_token").
         let result = eq_manager.force_refresh().await.must();
         assert_eq!(
             result.as_str(),

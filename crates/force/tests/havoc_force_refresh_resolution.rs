@@ -72,12 +72,10 @@ mod tests {
 
         let final_count = refresh_count.load(Ordering::SeqCst);
 
-        // We expect AT MOST 2 authentications: 1 for initial token(), and 1 for the first force_refresh()
+        // We expect EXACTLY 2 authentications: 1 for initial token(), and 1 for the first force_refresh()
         // The other 9 should deduplicate and return early because they see a new Arc pointer in the double-check.
-        // Or if the first force_refresh() gets deduplicated by the initial token() call due to race conditions
-        // we might see 1.
-        assert!(
-            final_count == 1 || final_count == 2,
+        assert_eq!(
+            final_count, 2,
             "👺 Havoc: force_refresh triggered a stampede due to timestamp resolution! Expected 2, got {final_count}"
         );
     }
