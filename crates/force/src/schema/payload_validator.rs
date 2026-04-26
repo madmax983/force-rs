@@ -142,24 +142,22 @@ impl<'a> PayloadValidator<'a> {
                     });
                 }
             }
-            FieldType::Boolean => {
-                if !val.is_boolean() {
-                    errors.push(ValidationError::TypeMismatch {
-                        field: field.name.clone(),
-                        expected: "Boolean".to_string(),
-                        actual: Self::value_type_name(val).to_string(),
-                    });
-                }
+            FieldType::Boolean if !val.is_boolean() => {
+                errors.push(ValidationError::TypeMismatch {
+                    field: field.name.clone(),
+                    expected: "Boolean".to_string(),
+                    actual: Self::value_type_name(val).to_string(),
+                });
             }
-            FieldType::Int | FieldType::Double | FieldType::Currency | FieldType::Percent => {
-                if !val.is_number() {
-                    errors.push(ValidationError::TypeMismatch {
-                        field: field.name.clone(),
-                        expected: "Number".to_string(),
-                        actual: Self::value_type_name(val).to_string(),
-                    });
-                }
+
+            FieldType::Int | FieldType::Double | FieldType::Currency | FieldType::Percent if !val.is_number() => {
+                errors.push(ValidationError::TypeMismatch {
+                    field: field.name.clone(),
+                    expected: "Number".to_string(),
+                    actual: Self::value_type_name(val).to_string(),
+                });
             }
+
             _ => {} // Other types omitted for brevity in prototype
         }
     }
