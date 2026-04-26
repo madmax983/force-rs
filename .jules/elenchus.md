@@ -27,3 +27,10 @@
 **Finding:** `QueryStream::next()` failed to loop properly when an empty middle page was fetched, immediately marking the stream as exhausted. `cargo mutants` exposed that this path was not tested at all.
 **Evidence:** `cargo mutants` mutated `if self.records.is_empty()` replacing the condition causing early termination and no tests failed.
 **Recommendation:** Wrap the fetching logic inside `QueryStream::next()` in a `loop` so that if an empty page is fetched but `next_locator` is still present, the stream fetches the next page. Add a test `test_query_results_fetch_csv_data_empty_middle_page` to simulate an empty middle page using `wiremock`.
+
+**[Elenchus Verdict: TokenManager update_token_state missing mutation coverage resolved]**
+**Module:** `force::auth::token_manager`
+**Severity:** 🟢 Acquitted
+**Finding:** Sentry successfully strengthened the tests for `update_token_state`. The early return equality overwrite bug (`> ` instead of `>=`) was found to be incorrectly asserted on in `test_token_manager_equality_overwrites`. It was fixed and tests now correctly assert that older/equal tokens do NOT overwrite newer tokens.
+**Evidence:** The test `test_token_manager_equality_overwrites` is present and passing.
+**Recommendation:** None.
