@@ -24,25 +24,22 @@ pub fn write_openapi_schema(out: &mut String, describe: &SObjectDescribe) {
         let _ = writeln!(out, "      description: {}", describe.label);
     }
 
-    // Find required fields for the required array
-    let required_fields: Vec<&str> = describe
-        .fields
-        .iter()
-        .filter(|f| {
-            !f.nillable
-                && !f.defaulted_on_create
-                && f.createable
-                && f.type_ != FieldType::Id
-                && f.type_ != FieldType::Boolean
-        })
-        .map(|f| f.name.as_str())
-        .collect();
+    // ⚒️ Forge: Avoid intermediate `Vec` allocation when conditionally writing required fields
+    let mut has_required = false;
+    let required_fields_iter = describe.fields.iter().filter(|f| {
+        !f.nillable
+            && !f.defaulted_on_create
+            && f.createable
+            && f.type_ != FieldType::Id
+            && f.type_ != FieldType::Boolean
+    });
 
-    if !required_fields.is_empty() {
-        out.push_str("      required:\n");
-        for field in required_fields {
-            let _ = writeln!(out, "        - {}", field);
+    for field in required_fields_iter {
+        if !has_required {
+            out.push_str("      required:\n");
+            has_required = true;
         }
+        let _ = writeln!(out, "        - {}", field.name);
     }
 
     out.push_str("      properties:\n");

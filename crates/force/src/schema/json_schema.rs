@@ -13,19 +13,6 @@ pub fn generate_json_schema(describe: &SObjectDescribe) -> Value {
     let mut properties = serde_json::Map::new();
 
     // Find required fields
-    let required_fields: Vec<Value> = describe
-        .fields
-        .iter()
-        .filter(|f| {
-            !f.nillable
-                && !f.defaulted_on_create
-                && f.createable
-                && f.type_ != FieldType::Id
-                && f.type_ != FieldType::Boolean
-        })
-        .map(|f| Value::String(f.name.clone()))
-        .collect();
-
     for field in &describe.fields {
         properties.insert(field.name.clone(), generate_field_schema(field));
     }
@@ -44,6 +31,20 @@ pub fn generate_json_schema(describe: &SObjectDescribe) -> Value {
                 Value::String(describe.label.clone()),
             );
         }
+
+        // ⚒️ Forge: Avoid checking `is_empty` and allocating at the top level
+        let required_fields: Vec<Value> = describe
+            .fields
+            .iter()
+            .filter(|f| {
+                !f.nillable
+                    && !f.defaulted_on_create
+                    && f.createable
+                    && f.type_ != FieldType::Id
+                    && f.type_ != FieldType::Boolean
+            })
+            .map(|f| Value::String(f.name.clone()))
+            .collect();
 
         if !required_fields.is_empty() {
             obj.insert("required".to_string(), Value::Array(required_fields));
