@@ -323,4 +323,34 @@ mod tests {
         assert_eq!(stats.ops_succeeded, 0);
         assert_eq!(stats.ops_failed, 0);
     }
+
+    #[tokio::test]
+    async fn test_update_all_invalid_updates_is_err() {
+        let mock_server = create_mock_server().await;
+        let client = create_test_client(&mock_server).await;
+        let query = SoqlQueryBuilder::new().select(&["Id"]).from("Account");
+        let op = SoqlMassOp::new(&client, query);
+        let result = op.update_all(json!("not an object")).await;
+        assert!(matches!(result, Err(ForceError::InvalidInput(_))));
+    }
+
+    #[tokio::test]
+    async fn test_delete_all_invalid_query_is_err() {
+        let mock_server = create_mock_server().await;
+        let client = create_test_client(&mock_server).await;
+        let query = SoqlQueryBuilder::new().select(&["Id"]); // missing FROM
+        let op = SoqlMassOp::new(&client, query);
+        let result = op.delete_all().await;
+        assert!(matches!(result, Err(ForceError::InvalidInput(_))));
+    }
+
+    #[tokio::test]
+    async fn test_update_all_invalid_query_is_err() {
+        let mock_server = create_mock_server().await;
+        let client = create_test_client(&mock_server).await;
+        let query = SoqlQueryBuilder::new().select(&["Id"]); // missing FROM
+        let op = SoqlMassOp::new(&client, query);
+        let result = op.update_all(json!({"Name": "Updated"})).await;
+        assert!(matches!(result, Err(ForceError::InvalidInput(_))));
+    }
 }
