@@ -116,7 +116,6 @@ impl<'a, A: Authenticator> SchemaGraph<'a, A> {
 
     /// Writes a Mermaid.js ER diagram from the scanned objects into the provided string buffer.
     pub fn write_mermaid(&self, mermaid: &mut String) {
-        use std::fmt::Write;
         mermaid.push_str("erDiagram\n");
 
         // Sort nodes for deterministic output
@@ -125,46 +124,58 @@ impl<'a, A: Authenticator> SchemaGraph<'a, A> {
 
         // 1. Define entities and fields
         for name in &node_names {
-            let node = &self.nodes[*name];
-            let _ = writeln!(mermaid, "    {} {{", node.name);
-
-            for field in &node.fields {
-                let type_str = match field.type_ {
-                    FieldType::Int => "int",
-                    FieldType::Double => "double",
-                    FieldType::Boolean => "boolean",
-                    FieldType::Id => "id",
-                    FieldType::Reference => "reference",
-                    FieldType::Date => "date",
-                    FieldType::Datetime => "datetime",
-                    FieldType::Picklist => "picklist",
-                    _ => "string", // Simplify other types for visualization
-                };
-                let _ = writeln!(mermaid, "        {} {}", type_str, field.name);
-            }
-            mermaid.push_str("    }\n\n");
+            Self::write_mermaid_entity(mermaid, &self.nodes[*name]);
         }
 
         // 2. Define relationships
         for name in &node_names {
-            let node = &self.nodes[*name];
-            for field in &node.fields {
-                if field.type_ == FieldType::Reference {
-                    for target in &field.reference_to {
-                        // Only draw edge if target is also in graph (to avoid dangling edges)
-                        if self.nodes.contains_key(target) {
-                            // Relationship: Target ||--o{ Source : FieldName
-                            // Example: Account ||--o{ Contact : AccountId
-                            let _ = writeln!(
-                                mermaid,
-                                "    {} ||--o{{ {} : \"{}\"",
-                                target, node.name, field.name
-                            );
-                        }
+            self.write_mermaid_relationships(mermaid, &self.nodes[*name]);
+        }
+    }
+
+    fn write_mermaid_entity(mermaid: &mut String, node: &SchemaNode) {
+        use std::fmt::Write;
+        let _ = writeln!(mermaid, "    {} {{", node.name);
+
+        for field in &node.fields {
+            let type_str = mermaid_type_str(&field.type_);
+            let _ = writeln!(mermaid, "        {} {}", type_str, field.name);
+        }
+        mermaid.push_str("    }\n\n");
+    }
+
+    fn write_mermaid_relationships(&self, mermaid: &mut String, node: &SchemaNode) {
+        use std::fmt::Write;
+        for field in &node.fields {
+            if field.type_ == FieldType::Reference {
+                for target in &field.reference_to {
+                    // Only draw edge if target is also in graph (to avoid dangling edges)
+                    if self.nodes.contains_key(target) {
+                        // Relationship: Target ||--o{ Source : FieldName
+                        // Example: Account ||--o{ Contact : AccountId
+                        let _ = writeln!(
+                            mermaid,
+                            "    {} ||--o{{ {} : \"{}\"",
+                            target, node.name, field.name
+                        );
                     }
                 }
             }
         }
+    }
+}
+
+fn mermaid_type_str(field_type: &FieldType) -> &'static str {
+    match field_type {
+        FieldType::Int => "int",
+        FieldType::Double => "double",
+        FieldType::Boolean => "boolean",
+        FieldType::Id => "id",
+        FieldType::Reference => "reference",
+        FieldType::Date => "date",
+        FieldType::Datetime => "datetime",
+        FieldType::Picklist => "picklist",
+        _ => "string", // Simplify other types for visualization
     }
 }
 
