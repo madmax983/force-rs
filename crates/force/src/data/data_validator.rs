@@ -109,7 +109,9 @@ impl<'a> DataValidator<'a> {
                 // Length check for string-like fields
                 if Self::is_string_type(&field.type_) {
                     if let Value::String(s) = val {
-                        if field.length > 0 && s.chars().count() > field.length.unsigned_abs() as usize {
+                        if field.length > 0
+                            && s.chars().count() > field.length.unsigned_abs() as usize
+                        {
                             errors.push(ValidationError::LengthExceeded(
                                 field.name.clone(),
                                 field.length,
