@@ -52,10 +52,10 @@ pub struct SchemaInsights {
 #[must_use]
 pub fn analyze_schema(describe: &SObjectDescribe) -> SchemaInsights {
     let total_fields = describe.fields.len();
-    let mut custom_field_count = 0;
-    let mut required_field_count = 0;
-    let mut formula_field_count = 0;
-    let mut relationship_field_count = 0;
+    let mut custom_field_count: usize = 0;
+    let mut required_field_count: usize = 0;
+    let mut formula_field_count: usize = 0;
+    let mut relationship_field_count: usize = 0;
 
     for field in &describe.fields {
         if field.custom {
@@ -83,9 +83,9 @@ pub fn analyze_schema(describe: &SObjectDescribe) -> SchemaInsights {
     // +5 for every formula field (impacts query perf)
     // +3 for every relationship field (joins)
     let complexity_score = (total_fields / 10)
-        + (custom_field_count * 2)
-        + (formula_field_count * 5)
-        + (relationship_field_count * 3);
+        .saturating_add(custom_field_count.saturating_mul(2))
+        .saturating_add(formula_field_count.saturating_mul(5))
+        .saturating_add(relationship_field_count.saturating_mul(3));
 
     SchemaInsights {
         total_fields,
@@ -277,6 +277,22 @@ mod tests {
         // (relationship*3) = 6
         // Total = 17
         assert_eq!(insights.complexity_score, 17);
+    }
+
+    #[test]
+    fn test_schema_analyzer_complexity_overflow() {
+        // This is a unit test that passes massive numbers into the manual calculation just to ensure it saturates instead of panicking.
+        let total_fields = usize::MAX / 2;
+        let custom_field_count = usize::MAX / 2;
+        let formula_field_count = usize::MAX / 2;
+        let relationship_field_count = usize::MAX / 2;
+
+        let complexity_score = (total_fields / 10)
+            .saturating_add(custom_field_count.saturating_mul(2))
+            .saturating_add(formula_field_count.saturating_mul(5))
+            .saturating_add(relationship_field_count.saturating_mul(3));
+
+        assert_eq!(complexity_score, usize::MAX);
     }
 
     #[test]
