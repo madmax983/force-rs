@@ -207,13 +207,14 @@ fn merge_object_payload(
         }
     }
 
-    let merged = merged.unwrap_or_else(|| current.clone());
-
     if !conflicts.is_empty() {
         return MergeOutcome::Conflict { fields: conflicts };
     }
 
-    MergeOutcome::Merged(Value::Object(merged))
+    merged.map_or_else(
+        || MergeOutcome::Merged(Value::Object(current.clone())),
+        |merged| MergeOutcome::Merged(Value::Object(merged)),
+    )
 }
 
 #[cfg(test)]
