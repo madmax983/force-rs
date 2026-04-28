@@ -34,11 +34,22 @@ pub fn parse_api_error(status_code: u16, body: &str) -> HttpError {
 
             // ⚡ Bolt: Pre-allocate a single buffer to avoid multiple heap allocations
             // from intermediate strings and `.join(", ")`.
-            let mut cap = code.len() + first_error.message.len() + 4; // "[{}] "
+            // 🔒 Warden: Use saturating math to prevent integer overflow DOS vectors on malformed payloads.
+            let mut cap = code
+                .len()
+                .saturating_add(first_error.message.len())
+                .saturating_add(4); // "[{}] "
             if !first_error.fields.is_empty() {
-                cap += 11 + first_error.fields.iter().map(|f| f.len()).sum::<usize>(); // " (fields: )" + field lengths
+                let fields_len_sum: usize = first_error
+                    .fields
+                    .iter()
+                    .map(|f| f.len())
+                    .fold(0, |acc, len| acc.saturating_add(len));
+                cap = cap.saturating_add(11).saturating_add(fields_len_sum); // " (fields: )" + field lengths
                 if first_error.fields.len() > 1 {
-                    cap += (first_error.fields.len() - 1) * 2; // ", " separators
+                    cap = cap.saturating_add(
+                        first_error.fields.len().saturating_sub(1).saturating_mul(2),
+                    ); // ", " separators
                 }
             }
 
