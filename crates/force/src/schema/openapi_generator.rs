@@ -161,4 +161,83 @@ mod tests {
         assert!(schema.contains("readOnly: true"));
         assert!(schema.contains("maxLength: 18"));
     }
+
+    #[test]
+    fn test_openapi_generator_all_types() {
+        let describe = MockSObjectDescribeBuilder::new("AllTypes")
+            .field(MockFieldDescribeBuilder::new("BoolField", FieldType::Boolean).build())
+            .field(MockFieldDescribeBuilder::new("IntField", FieldType::Int).build())
+            .field(MockFieldDescribeBuilder::new("DoubleField", FieldType::Double).build())
+            .field(MockFieldDescribeBuilder::new("PercentField", FieldType::Percent).build())
+            .field(MockFieldDescribeBuilder::new("CurrencyField", FieldType::Currency).build())
+            .field(MockFieldDescribeBuilder::new("DateField", FieldType::Date).build())
+            .field(MockFieldDescribeBuilder::new("DatetimeField", FieldType::Datetime).build())
+            .field(MockFieldDescribeBuilder::new("Base64Field", FieldType::Base64).build())
+            .field(MockFieldDescribeBuilder::new("TextareaField", FieldType::Textarea).build())
+            .field(
+                MockFieldDescribeBuilder::new("PicklistField", FieldType::Picklist)
+                    .picklist_values(vec![
+                        crate::types::describe::PicklistValue {
+                            active: true,
+                            default_value: false,
+                            label: "A".to_string(),
+                            valid_for: None,
+                            value: "A".to_string(),
+                        },
+                        crate::types::describe::PicklistValue {
+                            active: true,
+                            default_value: false,
+                            label: "B".to_string(),
+                            valid_for: None,
+                            value: "B".to_string(),
+                        },
+                    ])
+                    .build(),
+            )
+            .field(MockFieldDescribeBuilder::new("UnknownField", FieldType::AnyType).build())
+            .build();
+
+        let schema = generate_openapi_schema(&describe);
+
+        assert!(schema.contains("BoolField:"));
+        assert!(schema.contains("type: boolean"));
+
+        assert!(schema.contains("IntField:"));
+        assert!(schema.contains("type: integer"));
+
+        assert!(schema.contains("DoubleField:"));
+        assert!(schema.contains("type: number"));
+
+        assert!(schema.contains("PercentField:"));
+
+        assert!(schema.contains("CurrencyField:"));
+
+        assert!(schema.contains("DateField:"));
+        assert!(schema.contains(
+            "format: date
+"
+        ));
+
+        assert!(schema.contains("DatetimeField:"));
+        assert!(schema.contains(
+            "format: date-time
+"
+        ));
+
+        assert!(schema.contains("Base64Field:"));
+        assert!(schema.contains(
+            "format: byte
+"
+        ));
+
+        assert!(schema.contains("TextareaField:"));
+        assert!(schema.contains("type: string"));
+
+        assert!(schema.contains("PicklistField:"));
+        assert!(schema.contains("enum:"));
+        assert!(schema.contains("- A"));
+        assert!(schema.contains("- B"));
+
+        assert!(schema.contains("UnknownField:"));
+    }
 }
