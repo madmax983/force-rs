@@ -78,7 +78,10 @@ pub fn merge_payload(
 
     match (current_payload, incoming_payload) {
         (Value::Object(current), Value::Object(incoming)) => {
-            merge_object_payload(object, current, source, incoming)
+            match merge_object_payload(object, current, source, incoming) {
+                MergeOutcome::Noop => MergeOutcome::Merged(Value::Object(current.clone())),
+                other => other,
+            }
         }
         _ if current_payload == incoming_payload => MergeOutcome::Noop,
         _ => MergeOutcome::Conflict {
@@ -212,7 +215,7 @@ fn merge_object_payload(
     }
 
     merged.map_or_else(
-        || MergeOutcome::Merged(Value::Object(current.clone())),
+        || MergeOutcome::Noop,
         |merged| MergeOutcome::Merged(Value::Object(merged)),
     )
 }
