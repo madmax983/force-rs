@@ -41,6 +41,9 @@ pub mod schema;
 pub mod session;
 #[cfg(test)]
 pub(crate) mod test_support;
+#[cfg(test)]
+#[allow(missing_docs)]
+pub mod test_utils;
 pub mod types;
 
 /// Force crate placeholder - foundation being built
