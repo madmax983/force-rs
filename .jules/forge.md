@@ -84,3 +84,6 @@
 **[Flattening is_retryable_error in HttpExecutor]**
 **Learning:** The `is_retryable_error` function in `HttpExecutor` had a double `match` statement ('Pyramid of Doom') on `ForceError::Http` checking `HttpError::Timeout` and `HttpError::RequestFailed`. This caused deep nesting.
 **Action:** Flattened into a single `match error` that matches `ForceError::Http(HttpError::Timeout { .. })` and `ForceError::Http(HttpError::RequestFailed(re))` directly.
+**[Extract and flatten subscribe_loop]**
+**Learning:** `subscribe_loop` was a "God Function" with deep nesting ("Pyramid of Doom") that handled stream listening, event processing, decoding, schema fetching, and reconnect logic all in one place, triggering `clippy::too_many_lines` and `clippy::cognitive_complexity`.
+**Action:** Extract the complex inner logic into well-named private methods (`process_events` and `handle_reconnect`) on the state struct (`SubscribeState`), and use guard clauses (`let Ok(Some(response)) = ... else { ... }`) to flatten the outer loop structure.
