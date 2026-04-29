@@ -77,61 +77,73 @@ impl MockFieldDescribeBuilder {
         }
     }
 
+    #[must_use]
     pub fn length(mut self, length: i32) -> Self {
         self.field.length = length;
         self
     }
 
+    #[must_use]
     pub fn byte_length(mut self, byte_length: i32) -> Self {
         self.field.byte_length = byte_length;
         self
     }
 
+    #[must_use]
     pub fn nillable(mut self, nillable: bool) -> Self {
         self.field.nillable = nillable;
         self
     }
 
+    #[must_use]
     pub fn createable(mut self, createable: bool) -> Self {
         self.field.createable = createable;
         self
     }
 
+    #[must_use]
     pub fn updateable(mut self, updateable: bool) -> Self {
         self.field.updateable = updateable;
         self
     }
 
+    #[must_use]
     pub fn permissionable(mut self, permissionable: bool) -> Self {
         self.field.permissionable = permissionable;
         self
     }
 
+    #[must_use]
     pub fn defaulted_on_create(mut self, defaulted_on_create: bool) -> Self {
         self.field.defaulted_on_create = defaulted_on_create;
         self
     }
 
+    #[must_use]
     pub fn picklist_values(mut self, values: Vec<crate::types::describe::PicklistValue>) -> Self {
         self.field.picklist_values = Some(values);
         self
     }
 
+    #[must_use]
     pub fn precision(mut self, precision: i32) -> Self {
         self.field.precision = precision;
         self
     }
 
+    #[must_use]
     pub fn digits(mut self, digits: i32) -> Self {
         self.field.digits = digits;
         self
     }
 
+    #[must_use]
     pub fn label(mut self, label: &str) -> Self {
         self.field.label = label.to_string();
         self
     }
 
+    #[must_use]
     pub fn soap_type(mut self, soap_type: &str) -> Self {
         self.field.soap_type = soap_type.to_string();
         self
@@ -182,11 +194,13 @@ impl MockSObjectDescribeBuilder {
         }
     }
 
+    #[must_use]
     pub fn field(mut self, field: FieldDescribe) -> Self {
         self.describe.fields.push(field);
         self
     }
 
+    #[must_use]
     pub fn feed_enabled(mut self, feed_enabled: bool) -> Self {
         self.describe.feed_enabled = feed_enabled;
         self
