@@ -237,4 +237,65 @@ mod tests {
         assert_eq!(infos.len(), 1);
         assert!(infos[0].message.contains("Not considered for indexing"));
     }
+
+    #[test]
+    fn test_analyze_query_plan_boundary_conditions() {
+        // Test < vs <= for lowest cost logic
+        // Create 2 identical plans with the same cost.
+        let response = ExplainResponse {
+            plans: vec![
+                create_plan("IndexScan", 0.5, 10, 10000, vec![]),
+                create_plan("OtherScan", 0.5, 10, 10000, vec![]),
+            ],
+        };
+        let insights = analyze_query_plan(&response);
+        // Because of `<`, it should keep the first one
+        assert_eq!(insights.best_operation_type, Some("IndexScan"));
+
+        // Test > vs >= for relative cost warning
+        let response_cost_1 = ExplainResponse {
+            plans: vec![create_plan("IndexScan", 1.0, 10, 10000, vec![])],
+        };
+        let insights_cost_1 = analyze_query_plan(&response_cost_1);
+        assert!(
+            insights_cost_1.insights.is_empty(),
+            "Cost 1.0 should not trigger a warning"
+        );
+
+        // Test > vs >= for sobject cardinality
+        let response_zero_cardinality = ExplainResponse {
+            plans: vec![create_plan("IndexScan", 0.1, 10, 0, vec![])],
+        };
+        let insights_zero_cardinality = analyze_query_plan(&response_zero_cardinality);
+        assert!(
+            insights_zero_cardinality.insights.is_empty(),
+            "0 sobject_cardinality should not cause a divide by zero or selectivity warning"
+        );
+
+        // Test > vs >= for selectivity threshold
+        let response_selectivity_exact = ExplainResponse {
+            plans: vec![create_plan("IndexScan", 0.1, 30, 100, vec![])],
+        };
+        let insights_selectivity_exact = analyze_query_plan(&response_selectivity_exact);
+        assert!(
+            insights_selectivity_exact.insights.is_empty(),
+            "Selectivity exactly 0.3 should not trigger warning"
+        );
+
+        // selectivity slightly over 0.3
+        let response_selectivity_over = ExplainResponse {
+            plans: vec![create_plan("IndexScan", 0.1, 31, 100, vec![])],
+        };
+        let insights_selectivity_over = analyze_query_plan(&response_selectivity_over);
+        assert_eq!(
+            insights_selectivity_over.insights.len(),
+            1,
+            "Selectivity > 0.3 should trigger warning"
+        );
+        assert!(
+            insights_selectivity_over.insights[0]
+                .message
+                .contains("lacks selectivity")
+        );
+    }
 }

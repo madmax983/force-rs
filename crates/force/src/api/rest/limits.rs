@@ -456,6 +456,58 @@ mod tests {
 
         assert_eq!(original, deserialized);
     }
+
+    #[test]
+    #[allow(clippy::float_cmp)]
+    fn test_percentage_used_boundary_conditions() {
+        // Test < vs <= for lowest cost logic
+        let l1 = LimitInfo {
+            max: 100,
+            remaining: 25,
+            used: None,
+        };
+        assert_eq!(l1.percentage_used(), 75.0);
+        let l0 = LimitInfo {
+            max: 0,
+            remaining: 0,
+            used: None,
+        };
+        assert_eq!(l0.percentage_used(), 0.0);
+        let l2 = LimitInfo {
+            max: 100,
+            remaining: 0,
+            used: None,
+        };
+        assert_eq!(l2.percentage_used(), 100.0);
+        assert!(l2.is_at_limit());
+        let l3 = LimitInfo {
+            max: 100,
+            remaining: 100,
+            used: None,
+        };
+        assert_eq!(l3.percentage_used(), 0.0);
+        assert!(!l3.is_at_limit());
+
+        let l4 = LimitInfo {
+            max: 100,
+            remaining: 25,
+            used: None,
+        };
+        assert!(l4.is_above_threshold(70.0));
+        assert!(!l4.is_above_threshold(80.0));
+        assert!(!l4.is_above_threshold(75.0)); // Exact match should return false
+    }
+
+    #[cfg(feature = "mock")]
+    #[test]
+    fn test_sample_limits_response_is_valid() {
+        let resp = super::integration_tests::sample_limits_response();
+        assert!(resp.is_object());
+        let Some(obj) = resp.as_object() else {
+            panic!("Expected JSON Object");
+        };
+        assert!(!obj.is_empty());
+    }
 }
 
 // Integration tests with wiremock
@@ -467,7 +519,7 @@ mod integration_tests {
     use wiremock::matchers::{bearer_token, header, method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
-    fn sample_limits_response() -> serde_json::Value {
+    pub fn sample_limits_response() -> serde_json::Value {
         serde_json::json!({
             "DailyApiRequests": {
                 "Max": 15000,
