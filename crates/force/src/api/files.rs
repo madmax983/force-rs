@@ -135,6 +135,7 @@ impl<A: Authenticator> FilesHandler<A> {
     /// # Returns
     /// The binary content as a `Vec<u8>`.
     pub async fn download(&self, content_version_id: &str) -> Result<Vec<u8>> {
+        crate::types::validator::validate_identifier(content_version_id, "ContentVersion ID")?;
         let token = self.session.token_manager.token().await?;
         let api_version = self.session.config.api_version.as_str();
 
@@ -179,6 +180,8 @@ impl<A: Authenticator> FilesHandler<A> {
         content_document_id: &str,
         linked_entity_id: &str,
     ) -> Result<String> {
+        crate::types::validator::validate_identifier(content_document_id, "ContentDocument ID")?;
+        crate::types::validator::validate_identifier(linked_entity_id, "Linked Entity ID")?;
         let token = self.session.token_manager.token().await?;
         let api_version = self.session.config.api_version.as_str();
 

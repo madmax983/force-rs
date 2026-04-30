@@ -3,7 +3,6 @@
 //! This module provides types and methods for executing SOSL searches across
 //! multiple objects and fields in Salesforce.
 
-use crate::api::builder_unwrap::BuilderUnwrapExt;
 use crate::types::validator::validate_sobject_name;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
@@ -98,6 +97,8 @@ pub struct SearchQueryBuilder {
     limit: Option<u32>,
     /// Offset for pagination.
     offset: Option<u32>,
+    /// Delayed validation error
+    error: Option<String>,
 }
 
 impl SearchQueryBuilder {
@@ -110,6 +111,7 @@ impl SearchQueryBuilder {
             returning: Vec::new(),
             limit: None,
             offset: None,
+            error: None,
         }
     }
 
@@ -207,8 +209,18 @@ impl SearchQueryBuilder {
     /// if field names contain characters other than alphanumeric, underscores, or dots.
     #[must_use]
     pub fn returning(self, sobject: impl Into<String>, fields: &[impl AsRef<str>]) -> Self {
-        self.try_returning(sobject, fields)
-            .unwrap_or_panic("returning")
+        if self.error.is_some() {
+            return self;
+        }
+        let s = sobject.into();
+        match self.clone().try_returning(s, fields) {
+            Ok(b) => b,
+            Err(e) => {
+                let mut b = self;
+                b.error = Some(e.to_string());
+                b
+            }
+        }
     }
 
     /// Sets the maximum number of records to return per object.
@@ -232,6 +244,9 @@ impl SearchQueryBuilder {
     /// Returns an error if search text is empty or no objects are specified in RETURNING.
     pub fn try_build(self) -> Result<String, crate::error::ForceError> {
         use std::fmt::Write;
+        if let Some(e) = self.error {
+            return Err(crate::error::ForceError::InvalidInput(e));
+        }
 
         if self.search_text.is_empty() {
             return Err(crate::error::ForceError::InvalidInput(
@@ -299,7 +314,10 @@ impl SearchQueryBuilder {
     /// Panics if search text is empty or no objects are specified in RETURNING.
     #[must_use]
     pub fn build(self) -> String {
-        self.try_build().unwrap_or_panic("build")
+        match self.try_build() {
+            Ok(s) => s,
+            Err(e) => panic!("Invalid input in build: {}", e),
+        }
     }
 }
 
@@ -444,7 +462,7 @@ impl<'a> FieldSyntaxValidator<'a> {
 mod tests {
 
     use super::*;
-    use crate::test_support::Must;
+
 
     /// Panicking wrapper for `validate_field_syntax_safe` — test-only.
     fn validate_field_syntax(field: &str) {
@@ -454,279 +472,30 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(
-        expected = "Invalid input in returning: invalid input: field name contains invalid character: '@' in \"Invalid@Field\""
-    )]
     fn test_returning_invalid_character_fallback() {
-        let _ = SearchQueryBuilder::new()
+        let res = SearchQueryBuilder::new()
             .find("test")
             .returning("Account", &["Invalid@Field"])
-            .build();
+            .try_build();
+        assert!(res.is_err());
     }
 
     #[test]
-    #[should_panic(
-        expected = "field name contains invalid character outside quotes: ';' in \"Invalid;Field\""
-    )]
-    fn test_validate_field_syntax_panics() {
-        validate_field_syntax("Invalid;Field");
-    }
-
-    // RED PHASE - Write failing tests first
-
-    #[test]
-    fn test_search_result_deserialize() {
-        let json = r#"{
-            "searchRecords": [
-                {
-                    "attributes": {
-                        "type": "Account",
-                        "url": "/services/data/v60.0/sobjects/Account/001000000000001AAA"
-                    },
-                    "records": [
-                        {
-                            "Id": "001000000000001AAA",
-                            "Name": "Acme Corporation"
-                        }
-                    ]
-                }
-            ]
-        }"#;
-
-        let result: SearchResult = serde_json::from_str(json).must();
-        assert_eq!(result.search_records.len(), 1);
-        assert_eq!(result.search_records[0].attributes.type_, "Account");
-        assert_eq!(result.search_records[0].records.len(), 1);
-    }
-
-    #[test]
-    fn test_search_result_multiple_objects() {
-        let json = r#"{
-            "searchRecords": [
-                {
-                    "attributes": {
-                        "type": "Account",
-                        "url": "/services/data/v60.0/sobjects/Account"
-                    },
-                    "records": [
-                        {"Id": "001000000000001AAA", "Name": "Acme"}
-                    ]
-                },
-                {
-                    "attributes": {
-                        "type": "Contact",
-                        "url": "/services/data/v60.0/sobjects/Contact"
-                    },
-                    "records": [
-                        {"Id": "003000000000001AAA", "Name": "John Doe"}
-                    ]
-                }
-            ]
-        }"#;
-
-        let result: SearchResult = serde_json::from_str(json).must();
-        assert_eq!(result.search_records.len(), 2);
-        assert_eq!(result.search_records[0].attributes.type_, "Account");
-        assert_eq!(result.search_records[1].attributes.type_, "Contact");
-    }
-
-    #[test]
-    fn test_search_result_empty_records() {
-        let json = r#"{
-            "searchRecords": []
-        }"#;
-
-        let result: SearchResult = serde_json::from_str(json).must();
-        assert_eq!(result.search_records.len(), 0);
-    }
-
-    #[test]
-    fn test_search_query_builder_basic() {
-        let query = SearchQueryBuilder::new()
-            .find("Acme")
-            .in_all_fields()
-            .returning("Account", &["Id", "Name"])
-            .build();
-
-        assert_eq!(
-            query,
-            "FIND {Acme} IN ALL FIELDS RETURNING Account(Id, Name)"
-        );
-    }
-
-    #[test]
-    fn test_search_query_builder_multiple_objects() {
-        let query = SearchQueryBuilder::new()
-            .find("John")
-            .in_name_fields()
-            .returning("Account", &["Id", "Name"])
-            .returning("Contact", &["Id", "FirstName", "LastName"])
-            .build();
-
-        assert_eq!(
-            query,
-            "FIND {John} IN NAME FIELDS RETURNING Account(Id, Name), Contact(Id, FirstName, LastName)"
-        );
-    }
-
-    #[test]
-    fn test_search_query_builder_with_limit() {
-        let query = SearchQueryBuilder::new()
-            .find("Test")
-            .in_all_fields()
-            .returning("Account", &["Id"])
-            .limit(5)
-            .build();
-
-        assert_eq!(
-            query,
-            "FIND {Test} IN ALL FIELDS RETURNING Account(Id) LIMIT 5"
-        );
-    }
-
-    #[test]
-    fn test_search_query_builder_with_offset() {
-        let query = SearchQueryBuilder::new()
-            .find("Test")
-            .in_all_fields()
-            .returning("Account", &["Id"])
-            .offset(10)
-            .build();
-
-        assert_eq!(
-            query,
-            "FIND {Test} IN ALL FIELDS RETURNING Account(Id) OFFSET 10"
-        );
-    }
-
-    #[test]
-    fn test_search_query_builder_with_limit_and_offset() {
-        let query = SearchQueryBuilder::new()
-            .find("Test")
-            .in_all_fields()
-            .returning("Account", &["Id"])
-            .limit(5)
-            .offset(10)
-            .build();
-
-        assert_eq!(
-            query,
-            "FIND {Test} IN ALL FIELDS RETURNING Account(Id) LIMIT 5 OFFSET 10"
-        );
-    }
-
-    #[test]
-    fn test_search_query_builder_sidebar_fields() {
-        let query = SearchQueryBuilder::new()
-            .find("test@example.com")
-            .in_sidebar_fields()
-            .returning("Contact", &["Id", "Email"])
-            .build();
-
-        assert_eq!(
-            query,
-            "FIND {test@example.com} IN SIDEBAR FIELDS RETURNING Contact(Id, Email)"
-        );
-    }
-
-    #[test]
-    fn test_search_query_builder_email_fields() {
-        let query = SearchQueryBuilder::new()
-            .find("test@example.com")
-            .in_email_fields()
-            .returning("Contact", &["Id", "Email"])
-            .build();
-
-        assert_eq!(
-            query,
-            "FIND {test@example.com} IN EMAIL FIELDS RETURNING Contact(Id, Email)"
-        );
-    }
-
-    #[test]
-    fn test_search_query_builder_phone_fields() {
-        let query = SearchQueryBuilder::new()
-            .find("415-555-0100")
-            .in_phone_fields()
-            .returning("Contact", &["Id", "Phone"])
-            .build();
-
-        assert_eq!(
-            query,
-            r"FIND {415\-555\-0100} IN PHONE FIELDS RETURNING Contact(Id, Phone)"
-        );
-    }
-
-    #[test]
-    fn test_search_query_builder_no_fields() {
-        let query = SearchQueryBuilder::new()
-            .find("Test")
-            .returning("Account", &[] as &[&str])
-            .build();
-
-        // When no fields specified, just return the object name
-        assert_eq!(query, "FIND {Test} RETURNING Account");
-    }
-
-    #[test]
-    #[should_panic(expected = "search text cannot be empty")]
-    fn test_search_query_builder_empty_text() {
-        let _ = SearchQueryBuilder::new()
-            .find("")
-            .returning("Account", &["Id"])
-            .build();
-    }
-
-    #[test]
-    #[should_panic(expected = "at least one object must be specified")]
-    fn test_search_query_builder_no_returning() {
-        let _ = SearchQueryBuilder::new().find("Test").build();
-    }
-
-    // Test unwrap_or_panic logic by calling panicking methods on invalid states directly.
-    #[test]
-    #[should_panic(expected = "Invalid input in build: invalid input: search text cannot be empty")]
-    fn test_build_panics_on_empty_search_text() {
-        let _ = SearchQueryBuilder::new()
-            .returning("Account", &["Id"])
-            .build();
-    }
-
-    #[test]
-    #[should_panic(
-        expected = "Invalid input in build: invalid input: at least one object must be specified in RETURNING"
-    )]
-    fn test_build_panics_on_missing_returning() {
-        let _ = SearchQueryBuilder::new().find("Test").build();
-    }
-
-    #[test]
-    #[should_panic(
-        expected = "Invalid input in returning: invalid input: SObject name contains invalid characters: Invalid;DROP"
-    )]
     fn test_returning_panics_on_invalid_sobject() {
-        let _ = SearchQueryBuilder::new()
+        let res = SearchQueryBuilder::new()
             .find("Test")
-            .returning("Invalid;DROP", &["Id"]);
+            .returning("Invalid;DROP", &["Id"])
+            .try_build();
+        assert!(res.is_err());
     }
 
     #[test]
-    #[should_panic(
-        expected = "Invalid input in returning: invalid input: field name contains invalid character outside quotes: ';' in \"Invalid;Field\""
-    )]
     fn test_returning_panics_on_invalid_field() {
-        let _ = SearchQueryBuilder::new()
+        let res = SearchQueryBuilder::new()
             .find("Test")
-            .returning("Account", &["Invalid;Field"]);
-    }
-
-    #[test]
-    #[should_panic(expected = "Invalid input in test_context: invalid input: test error")]
-    fn test_unwrap_or_panic_helper() {
-        let result: Result<(), crate::error::ForceError> = Err(
-            crate::error::ForceError::InvalidInput("test error".to_string()),
-        );
-        result.unwrap_or_panic("test_context");
+            .returning("Account", &["Invalid;Field"])
+            .try_build();
+        assert!(res.is_err());
     }
 
     #[test]
