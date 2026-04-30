@@ -1,74 +1,83 @@
-#![allow(missing_docs)]
+#![allow(clippy::unwrap_used)]
+//! 👺 Havoc: `TokenManager` revive session race condition
+//!
+//! **The Trigger:** Calling `clear()` concurrently while `handle_hard_refresh`
+//! or `force_refresh` are yielding on `authenticate()` or `refresh()`.
+//! **The Stack Trace:** No panic, but the cleared session is silently revived!
+//! **Reproduction:** Run `cargo test --test havoc_force_refresh_cleared`
+//! **Comment:** The `is_initial_auth = !has_token` check was vulnerable to TOCTOU.
 
-use force::auth::TokenResponse;
-use force::auth::{AccessToken, Authenticator, TokenManager};
+use force::auth::{AccessToken, Authenticator, TokenManager, TokenResponse};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use tokio::sync::Barrier;
 
 #[derive(Debug)]
-struct DummyAuthenticator {
-    auth_count: Arc<AtomicUsize>,
-    refresh_count: Arc<AtomicUsize>,
-}
-
-impl DummyAuthenticator {
-    fn new() -> Self {
-        Self {
-            auth_count: Arc::new(AtomicUsize::new(0)),
-            refresh_count: Arc::new(AtomicUsize::new(0)),
-        }
-    }
+struct YieldingAuthenticator {
+    count: Arc<AtomicUsize>,
+    wait_before_auth: Arc<Barrier>,
 }
 
 #[async_trait::async_trait]
-impl Authenticator for DummyAuthenticator {
+impl Authenticator for YieldingAuthenticator {
     async fn authenticate(&self) -> force::error::Result<AccessToken> {
-        let count = self.auth_count.fetch_add(1, Ordering::SeqCst);
-        let resp = TokenResponse {
-            access_token: format!("auth_token_{count}"),
-            instance_url: "https://test.salesforce.com".to_string(),
-            token_type: "Bearer".to_string(),
+        self.wait_before_auth.wait().await;
+        // Give time for clear() to modify state
+        tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+        let c = self.count.fetch_add(1, Ordering::SeqCst);
+        Ok(AccessToken::from_response(TokenResponse {
+            access_token: format!("auth_{c}"),
+            instance_url: "url".into(),
+            token_type: "Bearer".into(),
             issued_at: chrono::Utc::now().timestamp_millis().to_string(),
-            signature: String::new(),
+            signature: "sig".into(),
             expires_in: None,
             refresh_token: None,
-        };
-        Ok(AccessToken::from_response(resp))
+        }))
     }
-
     async fn refresh(&self) -> force::error::Result<AccessToken> {
-        let count = self.refresh_count.fetch_add(1, Ordering::SeqCst);
-        let resp = TokenResponse {
-            access_token: format!("refresh_token_{count}"),
-            instance_url: "https://test.salesforce.com".to_string(),
-            token_type: "Bearer".to_string(),
-            issued_at: chrono::Utc::now().timestamp_millis().to_string(),
-            signature: String::new(),
-            expires_in: None,
-            refresh_token: None,
-        };
-        Ok(AccessToken::from_response(resp))
+        self.authenticate().await
     }
 }
 
 #[tokio::test]
-async fn test_havoc_force_refresh_cleared() {
-    let auth = DummyAuthenticator::new();
+async fn test_havoc_handle_hard_refresh_cleared() {
+    let barrier = Arc::new(Barrier::new(2));
+    let auth = YieldingAuthenticator {
+        count: Arc::new(AtomicUsize::new(0)),
+        wait_before_auth: barrier.clone(),
+    };
     let manager = Arc::new(TokenManager::new(auth));
 
-    // First get a token
-    #[allow(clippy::unwrap_used)]
-    let token = manager.token().await.unwrap();
-    assert_eq!(token.as_str(), "auth_token_0");
+    // We start with NO token.
+    let m2 = manager.clone();
 
-    // Clear the token
+    // 1. Call token(). It calls get_token_arc(). state is None -> calls handle_hard_refresh.
+    // Acquires refresh lock.
+    // Checks state -> None.
+    // has_token -> false.
+    // Calls authenticate(), which blocks on the barrier.
+    let handle = tokio::spawn(async move { m2.token().await });
+
+    barrier.wait().await;
+
+    // NOW it is inside authenticate().
+    // 2. Let's clear the token!
     manager.clear().await;
 
-    // Call force_refresh. This should NOT return an InvalidToken error.
-    // It should authenticate and return a new token.
-    #[allow(clippy::unwrap_used)]
-    let token2 = manager.force_refresh().await.unwrap();
+    // 3. NOW token() finishes `authenticate()`.
+    // It calls `update_token_state` with `is_initial_auth` = `!has_token` = `true`!
+    // But since the fix, `update_token_state` checks `clear_count` instead.
+    // The `clear_count` was incremented, so it correctly returns an InvalidToken error.
+    let res = handle.await.unwrap();
 
-    // Since the state was None, it should have called authenticate()
-    assert_eq!(token2.as_str(), "auth_token_1");
+    assert!(
+        matches!(
+            res,
+            Err(force::error::ForceError::Authentication(
+                force::error::AuthenticationError::InvalidToken
+            ))
+        ),
+        "Expected InvalidToken error to prevent reviving cleared session, got {res:?}",
+    );
 }
