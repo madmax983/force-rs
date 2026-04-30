@@ -621,6 +621,7 @@ impl SoqlQueryBuilder {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)]
     use super::*;
     use crate::test_support::Must;
 
@@ -854,24 +855,18 @@ mod tests {
         // Missing fields
         let builder = SoqlQueryBuilder::new().from("Account");
         let result = builder.try_build();
-        match result {
-            Err(e) => assert_eq!(
-                e.to_string(),
-                "invalid input: Select fields cannot be empty"
-            ),
-            Ok(_) => panic!("Expected error"),
-        }
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "invalid input: Select fields cannot be empty"
+        );
 
         // Missing SObject
         let builder = SoqlQueryBuilder::new().select(&["Id"]);
         let result = builder.try_build();
-        match result {
-            Err(e) => assert_eq!(
-                e.to_string(),
-                "invalid input: FROM clause (SObject) is required"
-            ),
-            Ok(_) => panic!("Expected error"),
-        }
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "invalid input: FROM clause (SObject) is required"
+        );
     }
 
     #[test]

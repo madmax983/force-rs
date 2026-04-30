@@ -87,3 +87,6 @@
 **[Extract and flatten subscribe_loop]**
 **Learning:** `subscribe_loop` was a "God Function" with deep nesting ("Pyramid of Doom") that handled stream listening, event processing, decoding, schema fetching, and reconnect logic all in one place, triggering `clippy::too_many_lines` and `clippy::cognitive_complexity`.
 **Action:** Extract the complex inner logic into well-named private methods (`process_events` and `handle_reconnect`) on the state struct (`SubscribeState`), and use guard clauses (`let Ok(Some(response)) = ... else { ... }`) to flatten the outer loop structure.
+**[Test Unwrap Simplification]**
+**Learning:** Re-implementing unwraps in tests with `match` statements (e.g. `match result { Err(e) => e, Ok(_) => panic!("Expected error") }`) is verbose and obscures test intent, while using `.unwrap_err()` directly triggers `clippy::unwrap_used`.
+**Action:** Always prefer `result.unwrap_err()` in test modules and explicitly add `#![allow(clippy::unwrap_used)]` at the top of the test module or file.
