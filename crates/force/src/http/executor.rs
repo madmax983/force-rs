@@ -156,7 +156,7 @@ impl HttpExecutor {
         let max_retries = self.max_retries_for(request_class);
         loop {
             let req_clone = request.try_clone().ok_or_else(|| {
-                HttpError::InvalidUrl("cannot clone request for retry".to_string())
+                HttpError::RequestBuildError("cannot clone request for retry: streaming bodies cannot be retried automatically".to_string())
             })?;
 
             let response = match self.execute_attempt(req_clone, retry_attempt, &ctx).await {

@@ -124,6 +124,10 @@ pub enum HttpError {
     #[error("invalid URL: {0}")]
     InvalidUrl(String),
 
+    /// Request body could not be built or cloned.
+    #[error("request build error: {0}")]
+    RequestBuildError(String),
+
     /// Response payload too large.
     #[error("response payload exceeded the safety limit of {limit_bytes} bytes")]
     PayloadTooLarge {
