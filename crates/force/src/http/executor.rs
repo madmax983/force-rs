@@ -411,7 +411,7 @@ mod tests {
     use super::*;
     use crate::auth::AccessToken;
     use crate::error::HttpError;
-    use crate::test_support::Must;
+    use crate::test_utils::must::Must;
     use reqwest::Method;
     use std::time::Duration;
     use wiremock::matchers::{header, method, path};

@@ -288,7 +288,7 @@ impl<A: Authenticator> TokenManager<A> {
 mod tests {
     use super::*;
     use crate::auth::authenticator::Authenticator;
-    use crate::test_support::Must;
+    use crate::test_utils::must::Must;
     use async_trait::async_trait;
     use chrono::{Duration, Utc};
     use std::sync::Arc as StdArc;

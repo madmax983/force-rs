@@ -212,7 +212,7 @@ mod tests {
     #[cfg(feature = "mock")]
     use crate::error::AuthenticationError;
     #[cfg(feature = "mock")]
-    use crate::test_support::Must;
+    use crate::test_utils::must::Must;
 
     // RED PHASE - Write failing tests first
 

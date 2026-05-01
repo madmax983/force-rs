@@ -288,7 +288,7 @@ impl UpsertResponse {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_support::Must;
+    use crate::test_utils::must::Must;
 
     // RED PHASE - Write failing tests first
 

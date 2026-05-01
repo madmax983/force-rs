@@ -120,7 +120,8 @@ mod tests {
 
     use crate::auth::DataCloudConfig;
     use crate::client::{ForceClient, builder};
-    use crate::test_support::{MockAuthenticator, Must, MustMsg};
+    use crate::test_utils::mock_auth::MockAuthenticator;
+    use crate::test_utils::must::{Must, MustMsg};
 
     async fn test_dc_client() -> ForceClient<MockAuthenticator> {
         let auth = MockAuthenticator::new("test_token", "https://test.salesforce.com");

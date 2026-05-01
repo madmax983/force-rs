@@ -62,7 +62,7 @@ impl<A: crate::auth::Authenticator> super::DataCloudHandler<A> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_support::Must;
+    use crate::test_utils::must::Must;
 
     #[test]
     fn test_sql_query_response_deserialization() {
@@ -130,7 +130,8 @@ mod tests {
     mod integration {
         use crate::auth::DataCloudConfig;
         use crate::client::builder;
-        use crate::test_support::{MockAuthenticator, Must};
+        use crate::test_utils::mock_auth::MockAuthenticator;
+        use crate::test_utils::must::Must;
         use wiremock::matchers::{method, path};
         use wiremock::{Mock, MockServer, ResponseTemplate};
 

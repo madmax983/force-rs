@@ -196,7 +196,7 @@ impl<'a> DataValidator<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_support::Must;
+    use crate::test_utils::must::Must;
     use crate::types::{Attributes, SalesforceId};
     use serde_json::json;
 

@@ -76,7 +76,8 @@ impl<A: crate::auth::Authenticator> ConsentHandler<A> {
 #[cfg(test)]
 mod tests {
     use crate::api::consent::{PortabilityRequest, PortabilityStatus};
-    use crate::test_support::{MockAuthenticator, Must};
+    use crate::test_utils::mock_auth::MockAuthenticator;
+    use crate::test_utils::must::Must;
     use wiremock::matchers::{method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 

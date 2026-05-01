@@ -220,7 +220,7 @@ impl<A: Authenticator> Authenticator for DataCloudAuthenticator<A> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_support::Must;
+    use crate::test_utils::must::Must;
 
     // ── DataCloudConfig tests ────────────────────────────────────────────
 
@@ -348,7 +348,7 @@ mod tests {
     #[test]
     fn test_grant_type() {
         assert_eq!(
-            DataCloudAuthenticator::<crate::test_support::MockAuthenticator>::grant_type(),
+            DataCloudAuthenticator::<crate::test_utils::mock_auth::MockAuthenticator>::grant_type(),
             "urn:salesforce:grant-type:external:cdp"
         );
     }
@@ -356,7 +356,7 @@ mod tests {
     #[test]
     fn test_subject_token_type() {
         assert_eq!(
-            DataCloudAuthenticator::<crate::test_support::MockAuthenticator>::subject_token_type(),
+            DataCloudAuthenticator::<crate::test_utils::mock_auth::MockAuthenticator>::subject_token_type(),
             "urn:ietf:params:oauth:token-type:access_token"
         );
     }
@@ -364,7 +364,7 @@ mod tests {
     #[test]
     fn test_resolve_exchange_url_default() {
         let tm = Arc::new(TokenManager::new(
-            crate::test_support::MockAuthenticator::new("t", "https://na1.salesforce.com"),
+            crate::test_utils::mock_auth::MockAuthenticator::new("t", "https://na1.salesforce.com"),
         ));
         let auth =
             DataCloudAuthenticator::new(tm, reqwest::Client::new(), DataCloudConfig::default());
@@ -375,7 +375,7 @@ mod tests {
     #[test]
     fn test_resolve_exchange_url_override() {
         let tm = Arc::new(TokenManager::new(
-            crate::test_support::MockAuthenticator::new("t", "https://na1.salesforce.com"),
+            crate::test_utils::mock_auth::MockAuthenticator::new("t", "https://na1.salesforce.com"),
         ));
         let config = DataCloudConfig {
             token_exchange_url: Some("https://custom.sf.com/a360/token".into()),
@@ -389,7 +389,10 @@ mod tests {
     #[test]
     fn test_authenticator_debug_does_not_leak() {
         let tm = Arc::new(TokenManager::new(
-            crate::test_support::MockAuthenticator::new("secret_token", "https://na1.sf.com"),
+            crate::test_utils::mock_auth::MockAuthenticator::new(
+                "secret_token",
+                "https://na1.sf.com",
+            ),
         ));
         let auth =
             DataCloudAuthenticator::new(tm, reqwest::Client::new(), DataCloudConfig::default());
@@ -404,7 +407,8 @@ mod tests {
     mod integration {
         use super::*;
         use crate::error::AuthenticationError;
-        use crate::test_support::{MockAuthenticator, Must};
+        use crate::test_utils::mock_auth::MockAuthenticator;
+        use crate::test_utils::must::Must;
         use wiremock::matchers::{method, path};
         use wiremock::{Mock, MockServer, ResponseTemplate};
 

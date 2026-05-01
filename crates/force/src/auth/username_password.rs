@@ -275,7 +275,7 @@ mod tests {
     use super::*;
     use crate::auth::Authenticator;
     use crate::error::AuthenticationError;
-    use crate::test_support::Must;
+    use crate::test_utils::must::Must;
     use wiremock::matchers::{body_string_contains, method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 

@@ -70,7 +70,7 @@ impl Mode {
 mod tests {
 
     use super::*;
-    use crate::test_support::Must;
+    use crate::test_utils::must::Must;
 
     #[test]
     fn test_layout_type_as_str() {

@@ -390,7 +390,7 @@ pub struct BatchSubResponse {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_support::{Must, MustMsg};
+    use crate::test_utils::must::{Must, MustMsg};
 
     // Unit tests for serialization logic
 
@@ -456,7 +456,7 @@ mod tests {
     }
 
     use crate::client::builder as client_builder;
-    use crate::test_support::MockAuthenticator;
+    use crate::test_utils::mock_auth::MockAuthenticator;
 
     async fn create_builder() -> BatchRequest<MockAuthenticator> {
         let auth = MockAuthenticator::new("token", "https://test.salesforce.com");

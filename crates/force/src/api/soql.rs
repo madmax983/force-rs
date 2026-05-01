@@ -622,7 +622,7 @@ impl SoqlQueryBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_support::Must;
+    use crate::test_utils::must::Must;
 
     #[test]
     fn test_escape_soql() {
@@ -957,7 +957,7 @@ mod tests {
 
     #[test]
     fn test_soql_from_describe() {
-        use crate::test_support::Must;
+        use crate::test_utils::must::Must;
         use crate::types::describe::SObjectDescribe;
 
         // Simplify to avoid json! macro recursion limit on big objects.

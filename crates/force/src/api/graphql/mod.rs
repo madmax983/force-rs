@@ -167,7 +167,8 @@ impl<A: crate::auth::Authenticator> GraphqlHandler<A> {
 #[cfg(test)]
 mod tests {
     use crate::client::{ForceClient, builder};
-    use crate::test_support::{MockAuthenticator, Must, MustMsg};
+    use crate::test_utils::mock_auth::MockAuthenticator;
+    use crate::test_utils::must::{Must, MustMsg};
 
     async fn test_client() -> ForceClient<MockAuthenticator> {
         let auth = MockAuthenticator::new("test_token", "https://test.salesforce.com");
@@ -236,7 +237,8 @@ mod integration_tests {
 
     use super::*;
     use crate::client::builder;
-    use crate::test_support::{MockAuthenticator, Must};
+    use crate::test_utils::mock_auth::MockAuthenticator;
+    use crate::test_utils::must::Must;
     use serde::Deserialize;
     use serde_json::json;
     use wiremock::matchers::{body_json, header, method, path};

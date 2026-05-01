@@ -372,12 +372,12 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
 
 #[cfg(test)]
 mod tests {
-    use crate::test_support::Must;
+    use crate::test_utils::must::Must;
 
     use super::*;
     use crate::api::ui::types::{LayoutType, Mode};
     use crate::client::builder;
-    use crate::test_support::MockAuthenticator;
+    use crate::test_utils::mock_auth::MockAuthenticator;
     use serde_json::json;
     use wiremock::matchers::{method, path, query_param};
     use wiremock::{Mock, MockServer, ResponseTemplate};

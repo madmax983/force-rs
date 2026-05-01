@@ -83,7 +83,7 @@ pub fn analyze_schema_limits(describe: &SObjectDescribe) -> SchemaLimitInsights 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_support::Must;
+    use crate::test_utils::must::Must;
     use serde_json::json;
 
     fn create_mock_describe(fields_json: &serde_json::Value) -> SObjectDescribe {
