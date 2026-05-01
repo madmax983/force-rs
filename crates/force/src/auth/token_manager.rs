@@ -14,6 +14,8 @@ use tokio::sync::{Mutex, RwLock};
 struct TokenState {
     /// The current access token (if any).
     token: Option<Arc<AccessToken>>,
+    /// Number of times the token state has been cleared. Used to prevent race conditions.
+    clear_count: u64,
 }
 
 /// Thread-safe token manager with automatic refresh.
@@ -45,7 +47,10 @@ impl<A: Authenticator> TokenManager<A> {
     pub fn new(authenticator: A) -> Self {
         Self {
             authenticator,
-            state: Arc::new(RwLock::new(TokenState { token: None })),
+            state: Arc::new(RwLock::new(TokenState {
+                token: None,
+                clear_count: 0,
+            })),
             refresh_lock: Mutex::new(()),
         }
     }
@@ -54,23 +59,25 @@ impl<A: Authenticator> TokenManager<A> {
     async fn update_token_state(
         &self,
         arc_token: Arc<AccessToken>,
-        is_initial_auth: bool,
+        clear_count_at_start: u64,
     ) -> Result<Arc<AccessToken>> {
         let mut state = self.state.write().await;
+
+        if state.clear_count != clear_count_at_start {
+            // The state was cleared while we were authenticating/refreshing,
+            // we shouldn't revive the session!
+            return Err(crate::error::ForceError::Authentication(
+                crate::error::AuthenticationError::InvalidToken,
+            ));
+        }
 
         if let Some(current) = &state.token {
             if current.issued_at() > arc_token.issued_at() || Arc::ptr_eq(current, &arc_token) {
                 return Ok(current.clone());
             }
-            state.token = Some(arc_token.clone());
-        } else if is_initial_auth {
-            state.token = Some(arc_token.clone());
-        } else {
-            // The state was cleared, we shouldn't revive the session!
-            return Err(crate::error::ForceError::Authentication(
-                crate::error::AuthenticationError::InvalidToken,
-            ));
         }
+
+        state.token = Some(arc_token.clone());
 
         Ok(arc_token)
     }
@@ -150,9 +157,9 @@ impl<A: Authenticator> TokenManager<A> {
             }
         }
 
-        let has_token = {
+        let (has_token, clear_count) = {
             let state = self.state.read().await;
-            state.token.is_some()
+            (state.token.is_some(), state.clear_count)
         };
 
         let new_token = if has_token {
@@ -164,7 +171,7 @@ impl<A: Authenticator> TokenManager<A> {
         // ⚡ Bolt: Moving `new_token` directly into `Arc` avoids an unnecessary `.clone()` allocation
         // when transferring ownership, saving one heap allocation per token refresh/auth.
         let arc_token = Arc::new(new_token);
-        self.update_token_state(arc_token, !has_token).await
+        self.update_token_state(arc_token, clear_count).await
     }
 
     async fn handle_soft_refresh(&self, valid_token: Arc<AccessToken>) -> Result<Arc<AccessToken>> {
@@ -172,14 +179,15 @@ impl<A: Authenticator> TokenManager<A> {
             return Ok(self.latest_token_or(valid_token).await);
         };
 
-        {
+        let clear_count = {
             let state = self.state.read().await;
             if let Some(token) = &state.token {
                 if !token.is_soft_expired() && !token.is_hard_expired() {
                     return Ok(token.clone());
                 }
             }
-        }
+            state.clear_count
+        };
 
         let refresh_result = self.authenticator.refresh().await;
 
@@ -188,7 +196,7 @@ impl<A: Authenticator> TokenManager<A> {
                 // ⚡ Bolt: Moving `new_token` directly into `Arc` avoids an unnecessary `.clone()` allocation
                 // when transferring ownership, saving one heap allocation per token refresh.
                 let arc_token = Arc::new(new_token);
-                self.update_token_state(arc_token, false).await
+                self.update_token_state(arc_token, clear_count).await
             }
             Err(_) => Ok(self.latest_token_or(valid_token).await),
         }
@@ -257,9 +265,9 @@ impl<A: Authenticator> TokenManager<A> {
             }
         }
 
-        let has_token = {
+        let (has_token, clear_count) = {
             let state = self.state.read().await;
-            state.token.is_some()
+            (state.token.is_some(), state.clear_count)
         };
 
         let new_token = if has_token {
@@ -271,7 +279,7 @@ impl<A: Authenticator> TokenManager<A> {
         // ⚡ Bolt: Moving `new_token` directly into `Arc` avoids an unnecessary `.clone()` allocation
         // when transferring ownership, saving one heap allocation per force refresh.
         let arc_token = Arc::new(new_token);
-        let final_token = self.update_token_state(arc_token, !has_token).await?;
+        let final_token = self.update_token_state(arc_token, clear_count).await?;
         Ok((*final_token).clone())
     }
 
@@ -281,6 +289,7 @@ impl<A: Authenticator> TokenManager<A> {
     pub async fn clear(&self) {
         let mut state = self.state.write().await;
         state.token = None;
+        state.clear_count += 1;
     }
 }
 
@@ -717,18 +726,18 @@ mod tests {
 
     #[tokio::test]
     async fn test_token_manager_update_token_state_cleared_token_rejects_non_initial() {
-        // Tests the branch at line 68-73: state cleared, is_initial_auth=false -> InvalidToken
-        // We can test this by calling update_token_state directly with is_initial_auth=false
+        // Tests the branch: state cleared (clear_count changed) -> InvalidToken
+        // We can test this by calling update_token_state directly with an old clear_count
         let auth = MockAuthenticator::new();
         let manager = TokenManager::new(auth);
 
-        // 1. Set a valid token
+        // 1. Set a valid token (clear_count is 0)
         let _token1 = manager.token().await.must();
 
-        // 2. Clear it
+        // 2. Clear it (clear_count becomes 1)
         manager.clear().await;
 
-        // 3. Directly call update_token_state with is_initial_auth=false
+        // 3. Directly call update_token_state with old clear_count = 0
         // Since the token was cleared, update_token_state should return InvalidToken
         let dummy_token = AccessToken::new(
             "dummy".to_string(),
@@ -736,7 +745,7 @@ mod tests {
             Some(Utc::now() + Duration::hours(1)),
         );
         let result = manager
-            .update_token_state(StdArc::new(dummy_token), false)
+            .update_token_state(StdArc::new(dummy_token), 0)
             .await;
         assert!(
             matches!(
