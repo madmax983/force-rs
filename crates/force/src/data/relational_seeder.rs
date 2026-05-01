@@ -84,7 +84,7 @@ impl<'a, A: Authenticator> RelationalSeeder<'a, A> {
         graph = graph.post(&parent_describe.name, parent_value, &parent_ref_id)?;
 
         // 3. Generate Child records and link them to the Parent.
-        let parent_id_ref_str = format!("@{{ {}.id }}", parent_ref_id).replace(" ", "");
+        let parent_id_ref_str = format!("@{{ {}.id }}", parent_ref_id).replace(' ', "");
 
         for i in 0..child_count {
             let mut child_record = generate_mock_record(child_describe);
