@@ -125,7 +125,7 @@ mod tests {
             "mergeable": true, "mruEnabled": true, "replicateable": true, "retrieveable": true,
             "searchable": true, "triggerable": true, "undeletable": true, "updateable": true,
             "urls": {}, "childRelationships": [], "recordTypeInfos": [],
-            "fields": fields_json.clone()
+            "fields": fields_json
         });
         serde_json::from_value(describe_json).must()
     }
