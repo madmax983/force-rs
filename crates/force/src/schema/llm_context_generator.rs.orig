@@ -56,9 +56,7 @@ pub fn generate_llm_context(describe: &SObjectDescribe, options: &LlmContextOpti
     );
     let _ = writeln!(context, "Fields:");
 
-    // ⚡ Bolt: Collecting references to fields into a Vec avoids the costly `describe.fields.clone()` heap allocation since we just need to sort them before iterating.
-    let mut sorted_fields: Vec<&crate::types::describe::FieldDescribe> =
-        describe.fields.iter().collect();
+    let mut sorted_fields = describe.fields.clone();
     sorted_fields.sort_by(|a, b| crate::schema::cmp_field_names(&a.name, &b.name));
 
     for field in sorted_fields {
@@ -172,7 +170,7 @@ pub fn generate_llm_context(describe: &SObjectDescribe, options: &LlmContextOpti
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::must::Must;
+    use crate::test_support::Must;
     use serde_json::json;
 
     fn mock_describe() -> SObjectDescribe {
