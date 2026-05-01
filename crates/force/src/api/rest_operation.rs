@@ -1066,7 +1066,13 @@ mod tests {
         let id = SalesforceId::new("001xx000003DHP0AAO").must();
         let result = rest.get("Account", &id).await.must();
 
-        assert_eq!(result["Name"], "Test Account");
+        assert_eq!(
+            result,
+            json!({
+                "Id": "001xx000003DHP0AAO",
+                "Name": "Test Account"
+            })
+        );
     }
 
     #[tokio::test]
@@ -1434,7 +1440,10 @@ mod tests {
         assert_eq!(result.total_size, 2);
         assert!(result.done);
         assert_eq!(result.records.len(), 1);
-        assert_eq!(result.records[0]["Name"], "Test Account 2");
+        assert_eq!(
+            result.records[0],
+            json!({"Id": "001xx000003DHP0AAO", "Name": "Test Account 2"})
+        );
     }
 
     #[test]
@@ -1478,6 +1487,108 @@ mod tests {
         let result = resolve_next_records_url(
             "https://na1.salesforce.com",
             "https://:password@na1.salesforce.com/services/data/v60.0/query/01g",
+        );
+        let Err(err) = result else {
+            panic!("Expected Err");
+        };
+        assert!(err.to_string().contains("Security Error"));
+    }
+
+    #[test]
+    fn test_validate_query_input_len_ok() {
+        let valid = "A".repeat(MAX_QUERY_INPUT_BYTES);
+        assert!(validate_query_input_len("test", &valid).is_ok());
+    }
+
+    #[test]
+    fn test_resolve_absolute_url_host_mismatch_rejected() {
+        let result = resolve_next_records_url(
+            "https://na1.salesforce.com",
+            "https://na2.salesforce.com/services/data/v60.0/query/01g",
+        );
+        let Err(err) = result else {
+            panic!("Expected Err");
+        };
+        assert!(err.to_string().contains("Security Error"));
+    }
+
+    #[test]
+    fn test_resolve_absolute_url_scheme_mismatch_https_http() {
+        let result = resolve_next_records_url(
+            "https://na1.salesforce.com",
+            "http://na1.salesforce.com/services/data/v60.0/query/01g",
+        );
+        let Err(err) = result else {
+            panic!("Expected Err");
+        };
+        assert!(err.to_string().contains("Security Error"));
+    }
+
+    #[test]
+    fn test_resolve_absolute_url_port_mismatch_different() {
+        let result = resolve_next_records_url(
+            "https://na1.salesforce.com:8443",
+            "https://na1.salesforce.com:443/services/data/v60.0/query/01g",
+        );
+        let Err(err) = result else {
+            panic!("Expected Err");
+        };
+        assert!(err.to_string().contains("Security Error"));
+    }
+
+    #[test]
+    fn test_resolve_absolute_url_scheme_mismatch_http_https() {
+        let result = resolve_next_records_url(
+            "http://na1.salesforce.com",
+            "https://na1.salesforce.com/services/data/v60.0/query/01g",
+        );
+        let Err(err) = result else {
+            panic!("Expected Err");
+        };
+        assert!(err.to_string().contains("Security Error"));
+    }
+
+    #[test]
+    fn test_resolve_absolute_url_port_mismatch_different_order() {
+        let result = resolve_next_records_url(
+            "https://na1.salesforce.com:443",
+            "https://na1.salesforce.com:8443/services/data/v60.0/query/01g",
+        );
+        let Err(err) = result else {
+            panic!("Expected Err");
+        };
+        assert!(err.to_string().contains("Security Error"));
+    }
+
+    #[test]
+    fn test_resolve_absolute_url_host_mismatch_different_order() {
+        let result = resolve_next_records_url(
+            "https://na2.salesforce.com",
+            "https://na1.salesforce.com/services/data/v60.0/query/01g",
+        );
+        let Err(err) = result else {
+            panic!("Expected Err");
+        };
+        assert!(err.to_string().contains("Security Error"));
+    }
+
+    #[test]
+    fn test_resolve_absolute_url_has_password() {
+        let result = resolve_next_records_url(
+            "https://na1.salesforce.com",
+            "https://:pass@na1.salesforce.com/services/data/v60.0/query/01g",
+        );
+        let Err(err) = result else {
+            panic!("Expected Err");
+        };
+        assert!(err.to_string().contains("Security Error"));
+    }
+
+    #[test]
+    fn test_resolve_absolute_url_multiple_mismatches_rejected() {
+        let result = resolve_next_records_url(
+            "https://na1.salesforce.com",
+            "http://attacker.com/services/data/v60.0/query/01g",
         );
         let Err(err) = result else {
             panic!("Expected Err");

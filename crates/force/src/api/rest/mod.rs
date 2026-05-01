@@ -342,4 +342,16 @@ mod tests {
         let debug_str = format!("{:?}", handler);
         assert!(!debug_str.is_empty());
     }
+
+
+
+
+    #[tokio::test]
+    async fn test_rest_handler_path_prefix() {
+        use crate::api::rest_operation::RestOperation;
+        let client: crate::client::ForceClient<crate::test_support::MockAuthenticator> = create_test_client().await;
+        let handler = client.rest();
+        assert_eq!(handler.path_prefix(), "");
+    }
+
 }
