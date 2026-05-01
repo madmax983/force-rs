@@ -99,8 +99,9 @@ impl<'a, A: Authenticator> RelationalSeeder<'a, A> {
 
             let child_ref_id = format!("ref_{}_{}", child_describe.name.to_lowercase(), i);
 
-            let child_value = serde_json::to_value(&child_record.fields)
-                .map_err(|e| ForceError::Serialization(crate::error::SerializationError::Json(e)))?;
+            let child_value = serde_json::to_value(&child_record.fields).map_err(|e| {
+                ForceError::Serialization(crate::error::SerializationError::Json(e))
+            })?;
 
             graph = graph.post(&child_describe.name, child_value, &child_ref_id)?;
         }
