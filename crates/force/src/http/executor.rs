@@ -128,7 +128,6 @@ impl HttpExecutor {
         F: Fn() -> Fut,
         Fut: std::future::Future<Output = Result<AccessToken>>,
     {
-        // Capture method/path once for both telemetry and tracing
         let method_str = request.method().as_str().to_string();
         let path_str = request.url().path().to_string();
 
@@ -147,22 +146,36 @@ impl HttpExecutor {
         );
         let _request_span_guard = request_span.enter();
 
-        // Inject Bearer token
         Self::inject_auth_header(&mut request, token)?;
 
-        // Execute with retry logic
+        self.retry_loop(request, refresh_token, request_class, &ctx)
+            .await
+    }
+
+    async fn retry_loop<F, Fut>(
+        &self,
+        mut request: Request,
+        refresh_token: F,
+        request_class: RequestRetryClass,
+        ctx: &TelemetryContext,
+    ) -> Result<Response>
+    where
+        F: Fn() -> Fut,
+        Fut: std::future::Future<Output = Result<AccessToken>>,
+    {
         let mut retry_attempt = 0;
         let mut refreshed = false;
         let max_retries = self.max_retries_for(request_class);
+
         loop {
             let req_clone = request.try_clone().ok_or_else(|| {
                 HttpError::InvalidUrl("cannot clone request for retry".to_string())
             })?;
 
-            let response = match self.execute_attempt(req_clone, retry_attempt, &ctx).await {
+            let response = match self.execute_attempt(req_clone, retry_attempt, ctx).await {
                 Ok(resp) => resp,
                 Err(e) if retry_attempt < max_retries && Self::is_retryable_error(&e) => {
-                    self.handle_transient_failure(retry_attempt, &ctx, None)
+                    self.handle_transient_failure(retry_attempt, ctx, None)
                         .await;
                     retry_attempt += 1;
                     continue;
@@ -181,7 +194,7 @@ impl HttpExecutor {
                 }
 
                 self.record_completion(
-                    &ctx,
+                    ctx,
                     Some(StatusCode::UNAUTHORIZED.as_u16()),
                     None,
                     retry_attempt,
@@ -190,17 +203,17 @@ impl HttpExecutor {
             }
 
             if status == StatusCode::TOO_MANY_REQUESTS {
-                return Err(self.handle_rate_limit(&response, retry_attempt, &ctx));
+                return Err(self.handle_rate_limit(&response, retry_attempt, ctx));
             }
 
             if status == StatusCode::SERVICE_UNAVAILABLE && retry_attempt < max_retries {
-                self.handle_transient_failure(retry_attempt, &ctx, Some(503))
+                self.handle_transient_failure(retry_attempt, ctx, Some(503))
                     .await;
                 retry_attempt += 1;
                 continue;
             }
 
-            self.record_completion(&ctx, Some(status.as_u16()), None, retry_attempt);
+            self.record_completion(ctx, Some(status.as_u16()), None, retry_attempt);
             return Ok(response);
         }
     }
@@ -239,9 +252,13 @@ impl HttpExecutor {
     }
 
     fn is_retryable_error(error: &crate::error::ForceError) -> bool {
-        match error {
-            crate::error::ForceError::Http(HttpError::Timeout { .. }) => true,
-            crate::error::ForceError::Http(HttpError::RequestFailed(re)) => {
+        let crate::error::ForceError::Http(http_error) = error else {
+            return false;
+        };
+
+        match http_error {
+            HttpError::Timeout { .. } => true,
+            HttpError::RequestFailed(re) => {
                 !re.is_builder() && !re.is_redirect() && !re.is_status()
             }
             _ => false,
