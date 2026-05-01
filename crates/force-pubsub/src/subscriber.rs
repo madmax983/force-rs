@@ -363,6 +363,12 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_stream_channel_capacity() {
+        assert_eq!(super::stream_channel_capacity(1), 2);
+        assert_eq!(super::stream_channel_capacity(50), 100);
+    }
+
+    #[test]
     fn test_preset_to_proto_latest() {
         assert_eq!(preset_to_proto(&ReplayPreset::Latest), 0);
     }
