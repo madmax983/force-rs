@@ -1,8 +1,8 @@
 #![allow(clippy::unwrap_used)]
 //! Test for request body cloning panic
 
-use force::http::HttpExecutor;
 use force::auth::{AccessToken, TokenResponse};
+use force::http::HttpExecutor;
 use reqwest::Method;
 use wiremock::MockServer;
 
@@ -21,7 +21,9 @@ async fn test_uncloneable_request_panic() {
     });
 
     // Create a streaming body which makes the request uncloneable
-    let body = reqwest::Body::wrap_stream(futures::stream::iter(vec![Ok::<_, std::io::Error>(bytes::Bytes::from("hello"))]));
+    let body = reqwest::Body::wrap_stream(futures::stream::iter(vec![Ok::<_, std::io::Error>(
+        bytes::Bytes::from("hello"),
+    )]));
     let request = reqwest::Client::new()
         .request(
             Method::POST,
@@ -31,9 +33,7 @@ async fn test_uncloneable_request_panic() {
         .build()
         .unwrap();
 
-    let refresh_token = || async {
-        Ok(token.clone())
-    };
+    let refresh_token = || async { Ok(token.clone()) };
 
     let result: Result<reqwest::Response, force::error::ForceError> = executor
         .execute_response(request, &token, refresh_token)
