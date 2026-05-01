@@ -10,7 +10,7 @@ mod common;
 
 use std::sync::Arc;
 use std::sync::atomic::AtomicU32;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
 use common::mock_server::{
@@ -231,6 +231,8 @@ async fn test_subscribe_reconnects_on_disconnect() {
         .await
         .unwrap();
 
+    let start_time = Instant::now();
+
     // Collect up to 10 items (guards against infinite reconnect loop)
     let mut items: Vec<_> = Vec::new();
     loop {
@@ -287,6 +289,14 @@ async fn test_subscribe_reconnects_on_disconnect() {
         other => panic!("item 2: expected Reconnected, got {other:?}"),
     }
 
+    let elapsed = start_time.elapsed();
+    // delay_for(0) with initial=10ms, multiplier=1.0 is 10ms. Elapsed must be at least 10ms.
+    // Time on CI could be much larger, so we just verify it waited the minimum backoff.
+    assert!(
+        elapsed >= Duration::from_millis(10),
+        "backoff delay not respected, elapsed: {elapsed:?}"
+    );
+
     // item 3: Event with field="c" (from second connection)
     let msg_c = match items[3].as_ref().expect("item 3 must be Ok") {
         PubSubEvent::Event(m) => m,
@@ -310,7 +320,7 @@ async fn test_subscribe_exhausts_retries_returns_error() {
             backoff: BackoffConfig {
                 initial_delay: Duration::from_millis(10),
                 max_delay: Duration::from_millis(50),
-                multiplier: 1.0,
+                multiplier: 2.0,
             },
         },
     )
@@ -321,16 +331,33 @@ async fn test_subscribe_exhausts_retries_returns_error() {
         .await
         .unwrap();
 
+    let start_time = Instant::now();
+
     // Drain items until we see ReconnectFailed or the stream ends.
     let mut reconnect_failed_seen = false;
     let mut count = 0usize;
+    let mut reconnect_events = 0;
     loop {
         match tokio::time::timeout(Duration::from_secs(5), stream.next()).await {
             Ok(Some(item)) => {
                 count += 1;
+                if let Ok(PubSubEvent::Reconnected { .. }) = &item {
+                    reconnect_events += 1;
+                }
                 if let Err(PubSubError::ReconnectFailed { attempts, .. }) = &item {
                     // attempts == max_retries + 1 due to the increment before the check
                     assert!(*attempts > 0, "attempts must be > 0");
+                    assert_eq!(*attempts, 3, "expected 3 attempts (max_retries 2 + 1)");
+                    assert_eq!(
+                        reconnect_events, 2,
+                        "should have seen exactly 2 reconnect events"
+                    );
+                    let elapsed = start_time.elapsed();
+                    // We expect total delay to be at least 30ms (10ms + 20ms).
+                    assert!(
+                        elapsed >= Duration::from_millis(30),
+                        "backoff delay too short, elapsed: {elapsed:?}"
+                    );
                     reconnect_failed_seen = true;
                     break;
                 }
