@@ -8,7 +8,8 @@
 mod tests {
     use crate::api::rest_operation::RestOperation;
     use crate::client::builder;
-    use crate::test_support::{MockAuthenticator, Must};
+    use crate::test_utils::mock_auth::MockAuthenticator;
+    use crate::test_utils::must::Must;
     use crate::types::SalesforceId;
 
     use serde_json::json;

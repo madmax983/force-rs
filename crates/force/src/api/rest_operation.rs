@@ -702,7 +702,7 @@ fn validate_url_origin_match(instance: &url::Url, next: &url::Url) -> Result<()>
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_support::Must;
+    use crate::test_utils::must::Must;
 
     // ── resolve_next_records_url unit tests ──────────────────────────
 
@@ -798,8 +798,8 @@ mod tests {
     #[derive(Clone)]
     struct TestRestOp;
 
-    impl RestOperation<crate::test_support::MockAuthenticator> for TestRestOp {
-        fn session(&self) -> &Arc<Session<crate::test_support::MockAuthenticator>> {
+    impl RestOperation<crate::test_utils::mock_auth::MockAuthenticator> for TestRestOp {
+        fn session(&self) -> &Arc<Session<crate::test_utils::mock_auth::MockAuthenticator>> {
             panic!("validation should fail before session access")
         }
         fn path_prefix(&self) -> &'static str {
@@ -811,8 +811,8 @@ mod tests {
     #[derive(Clone)]
     struct TestToolingOp;
 
-    impl RestOperation<crate::test_support::MockAuthenticator> for TestToolingOp {
-        fn session(&self) -> &Arc<Session<crate::test_support::MockAuthenticator>> {
+    impl RestOperation<crate::test_utils::mock_auth::MockAuthenticator> for TestToolingOp {
+        fn session(&self) -> &Arc<Session<crate::test_utils::mock_auth::MockAuthenticator>> {
             unimplemented!("not needed for path tests")
         }
         fn path_prefix(&self) -> &'static str {
@@ -929,7 +929,8 @@ mod tests {
         use wiremock::{Mock, MockServer, ResponseTemplate};
 
         let mock_server = MockServer::start().await;
-        let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
+        let auth =
+            crate::test_utils::mock_auth::MockAuthenticator::new("test_token", &mock_server.uri());
 
         Mock::given(method("PATCH"))
             .and(path(
@@ -965,7 +966,8 @@ mod tests {
         use wiremock::{Mock, MockServer, ResponseTemplate};
 
         let mock_server = MockServer::start().await;
-        let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
+        let auth =
+            crate::test_utils::mock_auth::MockAuthenticator::new("test_token", &mock_server.uri());
         let client = builder().authenticate(auth).build().await.must();
 
         // Testing the `_ if response.status().is_success()` match arm directly
@@ -1007,7 +1009,8 @@ mod tests {
         use wiremock::{Mock, MockServer, ResponseTemplate};
 
         let mock_server = MockServer::start().await;
-        let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
+        let auth =
+            crate::test_utils::mock_auth::MockAuthenticator::new("test_token", &mock_server.uri());
         let client = builder().authenticate(auth).build().await.must();
 
         Mock::given(method("PATCH"))
@@ -1047,7 +1050,8 @@ mod tests {
         use wiremock::{Mock, MockServer, ResponseTemplate};
 
         let mock_server = MockServer::start().await;
-        let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
+        let auth =
+            crate::test_utils::mock_auth::MockAuthenticator::new("test_token", &mock_server.uri());
         let client = builder().authenticate(auth).build().await.must();
 
         Mock::given(method("GET"))
@@ -1077,7 +1081,8 @@ mod tests {
         use wiremock::{Mock, MockServer, ResponseTemplate};
 
         let mock_server = MockServer::start().await;
-        let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
+        let auth =
+            crate::test_utils::mock_auth::MockAuthenticator::new("test_token", &mock_server.uri());
         let client = builder().authenticate(auth).build().await.must();
 
         Mock::given(method("POST"))
@@ -1110,7 +1115,8 @@ mod tests {
         use wiremock::{Mock, MockServer, ResponseTemplate};
 
         let mock_server = MockServer::start().await;
-        let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
+        let auth =
+            crate::test_utils::mock_auth::MockAuthenticator::new("test_token", &mock_server.uri());
         let client = builder().authenticate(auth).build().await.must();
 
         Mock::given(method("PATCH"))
@@ -1140,7 +1146,8 @@ mod tests {
         use wiremock::{Mock, MockServer, ResponseTemplate};
 
         let mock_server = MockServer::start().await;
-        let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
+        let auth =
+            crate::test_utils::mock_auth::MockAuthenticator::new("test_token", &mock_server.uri());
         let client = builder().authenticate(auth).build().await.must();
 
         Mock::given(method("DELETE"))
@@ -1167,7 +1174,8 @@ mod tests {
         use wiremock::{Mock, MockServer, ResponseTemplate};
 
         let mock_server = MockServer::start().await;
-        let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
+        let auth =
+            crate::test_utils::mock_auth::MockAuthenticator::new("test_token", &mock_server.uri());
         let client = builder().authenticate(auth).build().await.must();
 
         Mock::given(method("PATCH"))
@@ -1207,7 +1215,8 @@ mod tests {
         use wiremock::{Mock, MockServer, ResponseTemplate};
 
         let mock_server = MockServer::start().await;
-        let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
+        let auth =
+            crate::test_utils::mock_auth::MockAuthenticator::new("test_token", &mock_server.uri());
         let client = builder().authenticate(auth).build().await.must();
 
         let global_describe_json: serde_json::Value = serde_json::from_str(
@@ -1261,13 +1270,15 @@ mod tests {
     }
 
     #[tokio::test]
+    #[allow(clippy::too_many_lines)]
     async fn test_describe_success_mock() {
         use crate::client::builder;
         use wiremock::matchers::{method, path};
         use wiremock::{Mock, MockServer, ResponseTemplate};
 
         let mock_server = MockServer::start().await;
-        let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
+        let auth =
+            crate::test_utils::mock_auth::MockAuthenticator::new("test_token", &mock_server.uri());
         let client = builder().authenticate(auth).build().await.must();
 
         let describe_json: serde_json::Value = serde_json::from_str(
@@ -1377,7 +1388,8 @@ mod tests {
         use wiremock::{Mock, MockServer, ResponseTemplate};
 
         let mock_server = MockServer::start().await;
-        let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
+        let auth =
+            crate::test_utils::mock_auth::MockAuthenticator::new("test_token", &mock_server.uri());
         let client = builder().authenticate(auth).build().await.must();
 
         Mock::given(method("GET"))
@@ -1411,7 +1423,8 @@ mod tests {
         use wiremock::{Mock, MockServer, ResponseTemplate};
 
         let mock_server = MockServer::start().await;
-        let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
+        let auth =
+            crate::test_utils::mock_auth::MockAuthenticator::new("test_token", &mock_server.uri());
         let client = builder().authenticate(auth).build().await.must();
 
         Mock::given(method("GET"))

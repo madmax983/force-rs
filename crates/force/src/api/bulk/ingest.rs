@@ -828,7 +828,8 @@ mod tests {
     use super::*;
     use crate::api::bulk::types::{ContentType, JobOperation};
     use crate::client::{ForceClient, builder};
-    use crate::test_support::{MockAuthenticator, Must, MustMsg};
+    use crate::test_utils::mock_auth::MockAuthenticator;
+    use crate::test_utils::must::{Must, MustMsg};
     use wiremock::matchers::{bearer_token, body_bytes, header, method, path, path_regex};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 

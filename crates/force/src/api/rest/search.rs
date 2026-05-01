@@ -444,7 +444,7 @@ impl<'a> FieldSyntaxValidator<'a> {
 mod tests {
 
     use super::*;
-    use crate::test_support::Must;
+    use crate::test_utils::must::Must;
 
     /// Panicking wrapper for `validate_field_syntax_safe` — test-only.
     fn validate_field_syntax(field: &str) {
@@ -1015,7 +1015,8 @@ mod integration_tests {
     use super::*;
     use crate::client::builder;
     use crate::config::ClientConfig;
-    use crate::test_support::{MockAuthenticator, MustMsg};
+    use crate::test_utils::mock_auth::MockAuthenticator;
+    use crate::test_utils::must::MustMsg;
     use wiremock::matchers::{bearer_token, method, path, query_param};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 

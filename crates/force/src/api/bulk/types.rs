@@ -164,7 +164,7 @@ pub struct UpdateJobRequest {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_support::Must;
+    use crate::test_utils::must::Must;
 
     #[test]
     fn test_job_operation_serialization() {

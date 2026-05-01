@@ -86,7 +86,8 @@ impl<A: crate::auth::Authenticator> RestOperation<A> for ToolingHandler<A> {
 mod tests {
     use crate::api::rest_operation::RestOperation;
     use crate::client::{ForceClient, builder};
-    use crate::test_support::{MockAuthenticator, Must, MustMsg};
+    use crate::test_utils::mock_auth::MockAuthenticator;
+    use crate::test_utils::must::{Must, MustMsg};
     use crate::types::SalesforceId;
 
     use serde_json::json;

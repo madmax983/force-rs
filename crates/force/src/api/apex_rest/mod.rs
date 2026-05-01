@@ -217,7 +217,8 @@ impl<A: crate::auth::Authenticator> ApexRestHandler<A> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_support::{MockAuthenticator, Must};
+    use crate::test_utils::mock_auth::MockAuthenticator;
+    use crate::test_utils::must::Must;
     use serde::Deserialize;
     use wiremock::matchers::{method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};

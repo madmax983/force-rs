@@ -141,7 +141,8 @@ where
 #[cfg(test)]
 mod tests {
     use crate::client::builder;
-    use crate::test_support::{MockAuthenticator, Must};
+    use crate::test_utils::mock_auth::MockAuthenticator;
+    use crate::test_utils::must::Must;
     use futures::StreamExt;
     use serde::{Deserialize, Serialize};
     use serde_json::json;

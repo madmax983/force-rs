@@ -9,3 +9,7 @@
 **Extracted `test_utils` to break circular dependency**
 **Tangle:** The `test_support` module inside the `force` crate created circular dependencies where core modules (like `auth` and `types`) depended on `test_support` for mocking, but `test_support` depended back on them to instantiate those same mocks. This violated the unidirectional dependency graph and created cyclic module coupling.
 **Blueprint:** Created a new internal `test_utils` module containing `must`, `mock_auth`, and `mock_describe`. Moved the definitions of test macros and builders into this separate crate-level space so that `test_support` only acts as a facade re-exporting these tools, breaking the cycle and keeping the internal module boundaries acyclic.
+
+**Refactored test_support to test_utils to break circular dependencies**
+**Tangle:** The `test_support.rs` module created a circular dependency tangle (`types -> auth -> test_support -> types`) by functioning as a facade that test-only modules imported heavily, breaking strict DAG encapsulation.
+**Blueprint:** Removed `test_support.rs` entirely. Updated all internal module tests to import mock builders and auth directly from the newly encapsulated `test_utils` internal module (`test_utils::mock_auth`, `test_utils::mock_describe`, and `test_utils::must`), enforcing unidirectional graph dependencies.

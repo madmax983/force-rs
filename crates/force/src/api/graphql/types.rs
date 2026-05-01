@@ -123,7 +123,7 @@ pub struct GraphqlErrorLocation {
 
 #[cfg(test)]
 mod tests {
-    use crate::test_support::Must;
+    use crate::test_utils::must::Must;
 
     use super::*;
     use serde_json::json;

@@ -224,7 +224,8 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
 mod tests {
     use crate::client::{ForceClient, builder};
     use crate::config::ClientConfig;
-    use crate::test_support::{MockAuthenticator, Must, MustMsg};
+    use crate::test_utils::mock_auth::MockAuthenticator;
+    use crate::test_utils::must::{Must, MustMsg};
 
     async fn create_test_client() -> ForceClient<MockAuthenticator> {
         let auth = MockAuthenticator::new("test_token", "https://test.salesforce.com");

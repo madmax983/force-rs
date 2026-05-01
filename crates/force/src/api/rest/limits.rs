@@ -200,7 +200,7 @@ impl LimitInfo {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_support::Must;
+    use crate::test_utils::must::Must;
 
     // RED PHASE - Write failing tests first
 
@@ -463,7 +463,8 @@ mod tests {
 mod integration_tests {
     use crate::client::builder;
     use crate::config::ClientConfig;
-    use crate::test_support::{MockAuthenticator, Must, MustMsg};
+    use crate::test_utils::mock_auth::MockAuthenticator;
+    use crate::test_utils::must::{Must, MustMsg};
     use wiremock::matchers::{bearer_token, header, method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 

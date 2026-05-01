@@ -632,7 +632,8 @@ mod tests {
     use super::*;
     use crate::api::bulk::types::JobState;
     use crate::client::{ForceClient, builder};
-    use crate::test_support::{MockAuthenticator, Must, MustMsg};
+    use crate::test_utils::mock_auth::MockAuthenticator;
+    use crate::test_utils::must::{Must, MustMsg};
     use wiremock::matchers::{
         bearer_token, body_string_contains, header, method, path, query_param,
         query_param_is_missing,

@@ -396,7 +396,8 @@ mod tests {
     use super::SmartIngest;
     use crate::api::bulk::types::{JobOperation, JobState};
     use crate::client::{ForceClient, builder};
-    use crate::test_support::{MockAuthenticator, Must, MustMsg};
+    use crate::test_utils::mock_auth::MockAuthenticator;
+    use crate::test_utils::must::{Must, MustMsg};
     use serde::Serialize;
     use wiremock::matchers::{body_string, header, method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};

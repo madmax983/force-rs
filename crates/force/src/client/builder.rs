@@ -186,7 +186,8 @@ impl<A: Authenticator> AuthenticatedBuilder<A> {
 mod tests {
     use super::*;
     use crate::config::{ClientConfig, Environment};
-    use crate::test_support::{MockAuthenticator, Must};
+    use crate::test_utils::mock_auth::MockAuthenticator;
+    use crate::test_utils::must::Must;
 
     #[test]
     fn test_builder_new_creates_noauth() {

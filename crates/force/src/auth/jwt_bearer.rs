@@ -250,7 +250,7 @@ mod tests {
     use super::*;
     #[cfg(feature = "mock")]
     use crate::auth::Authenticator;
-    use crate::test_support::Must;
+    use crate::test_utils::must::Must;
 
     // Test RSA key pair for testing (DO NOT use in production)
     const TEST_PRIVATE_KEY: &str = r"-----BEGIN PRIVATE KEY-----
