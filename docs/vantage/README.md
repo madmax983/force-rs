@@ -33,6 +33,9 @@ Design backlog and product-spec notes for incubating `force-rs` capabilities. Th
 - [`zod-schema-generator.md`](zod-schema-generator.md): TypeScript Zod schema generation for runtime validation.
 - [`bigquery-schema-generator.md`](bigquery-schema-generator.md): Google BigQuery table schema generation.
 - [`prisma-schema-generator.md`](prisma-schema-generator.md): Prisma ORM schema generation for Node.js/TypeScript applications.
+- [`dbml-schema-generator.md`](dbml-schema-generator.md): Database Markup Language (DBML) generation for ERDs.
+- [`dbt-staging-model-generator.md`](dbt-staging-model-generator.md): dbt staging model SQL query generation.
+- [`llm-context-generator.md`](llm-context-generator.md): Dense text representation generation for LLM context windows.
 
 ## Metadata and Tooling
 
