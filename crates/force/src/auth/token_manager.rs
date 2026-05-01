@@ -123,11 +123,27 @@ impl<A: Authenticator> TokenManager<A> {
     }
 
     async fn handle_hard_refresh(&self) -> Result<Arc<AccessToken>> {
+        // Capture the current token's Arc pointer (if any)
+        let current_arc = {
+            let state = self.state.read().await;
+            state.token.clone()
+        };
+
         let _lock = self.refresh_lock.lock().await;
 
         {
             let state = self.state.read().await;
             if let Some(token) = &state.token {
+                // If the token in state is a different allocation (Arc::ptr_eq is false) than what we captured,
+                // another thread just refreshed it. Return that one!
+                let is_same = match &current_arc {
+                    Some(arc) => Arc::ptr_eq(token, arc),
+                    None => false,
+                };
+                if !is_same {
+                    return Ok(token.clone());
+                }
+
                 if !token.is_hard_expired() {
                     return Ok(token.clone());
                 }
