@@ -309,12 +309,7 @@ pub trait RestOperation<A: Authenticator> {
         external_id_value: &str,
         data: &serde_json::Value,
     ) -> Result<UpsertResponse> {
-        validate_sobject_name(sobject)?;
-        validate_external_id_field(external_id_field)?;
-
-        upsert_with_retry_class_impl(
-            self.session(),
-            self.path_prefix(),
+        self.upsert_with_retry_class(
             sobject,
             external_id_field,
             external_id_value,
@@ -351,12 +346,7 @@ pub trait RestOperation<A: Authenticator> {
         external_id_value: &str,
         data: &serde_json::Value,
     ) -> Result<UpsertResponse> {
-        validate_sobject_name(sobject)?;
-        validate_external_id_field(external_id_field)?;
-
-        upsert_with_retry_class_impl(
-            self.session(),
-            self.path_prefix(),
+        self.upsert_with_retry_class(
             sobject,
             external_id_field,
             external_id_value,
@@ -364,6 +354,62 @@ pub trait RestOperation<A: Authenticator> {
             crate::http::RequestRetryClass::IdempotentMutation,
         )
         .await
+    }
+
+    #[doc(hidden)]
+    async fn upsert_with_retry_class(
+        &self,
+        sobject: &str,
+        external_id_field: &str,
+        external_id_value: &str,
+        data: &serde_json::Value,
+        retry_class: crate::http::RequestRetryClass,
+    ) -> Result<UpsertResponse> {
+        validate_sobject_name(sobject)?;
+        validate_external_id_field(external_id_field)?;
+
+        // ⚡ Bolt: Pass `utf8_percent_encode` directly to `format!` to avoid an intermediate `String` allocation.
+        let encoded_value = utf8_percent_encode(external_id_value, UPSERT_ENCODE_SET);
+
+        let relative = format!(
+            "sobjects/{}/{}/{}",
+            sobject, external_id_field, encoded_value
+        );
+        let api_path = self.resolve_api_path(&relative);
+        let url = self.session().resolve_url(&api_path).await?;
+
+        let request = self
+            .session()
+            .patch(&url)
+            .json(data)
+            .build()
+            .map_err(crate::error::HttpError::from)?;
+
+        let response = self
+            .session()
+            .execute_request_with_retry_class(request, retry_class)
+            .await?;
+
+        let status = response.status();
+
+        if status.as_u16() == 204 {
+            // 204 No Content means an existing record was updated
+            // But the response does not include the record ID
+            return Err(ForceError::NotImplemented(
+                "Upsert update (204) response does not include record ID - use query to retrieve"
+                    .to_string(),
+            ));
+        }
+
+        if status.is_success() {
+            // Success codes (201 Created, 200 OK) - parse as upsert response
+            let bytes =
+                crate::http::error::read_capped_body_bytes(response, 100 * 1024 * 1024).await?;
+            return serde_json::from_slice::<UpsertResponse>(&bytes)
+                .map_err(|e| crate::error::SerializationError::from(e).into());
+        }
+
+        Err(crate::http::response_to_force_error(response, "Upsert request failed").await)
     }
 
     // ── Query Operations ─────────────────────────────────────────────
@@ -579,68 +625,6 @@ fn validate_query_input_len(name: &str, value: &str) -> Result<()> {
     }
 
     Ok(())
-}
-
-/// Internal helper shared by [`RestOperation::upsert`] and
-/// [`RestOperation::upsert_idempotent`].
-///
-/// Extracted as a standalone async function rather than a default trait method
-/// to keep the public trait surface clean while avoiding code duplication.
-async fn upsert_with_retry_class_impl<A: Authenticator>(
-    session: &Arc<Session<A>>,
-    api_path_prefix: &str,
-    sobject: &str,
-    external_id_field: &str,
-    external_id_value: &str,
-    data: &serde_json::Value,
-    retry_class: crate::http::RequestRetryClass,
-) -> Result<UpsertResponse> {
-    validate_sobject_name(sobject)?;
-    validate_external_id_field(external_id_field)?;
-
-    // ⚡ Bolt: Pass `utf8_percent_encode` directly to `format!` to avoid an intermediate `String` allocation.
-    let encoded_value = utf8_percent_encode(external_id_value, UPSERT_ENCODE_SET);
-
-    let relative = format!(
-        "sobjects/{}/{}/{}",
-        sobject, external_id_field, encoded_value
-    );
-    let api_path = if api_path_prefix.is_empty() {
-        relative
-    } else {
-        format!("{}/{}", api_path_prefix, relative)
-    };
-    let url = session.resolve_url(&api_path).await?;
-
-    let request = session
-        .patch(&url)
-        .json(data)
-        .build()
-        .map_err(crate::error::HttpError::from)?;
-
-    let response = session
-        .execute_request_with_retry_class(request, retry_class)
-        .await?;
-
-    let status = response.status();
-
-    if status.as_u16() == 204 {
-        // 204 No Content means an existing record was updated
-        // But the response does not include the record ID
-        return Err(ForceError::NotImplemented(
-            "Upsert update (204) response does not include record ID - use query to retrieve"
-                .to_string(),
-        ));
-    }
-
-    if status.is_success() {
-        // Success codes (201 Created, 200 OK) - parse as upsert response
-        let bytes = crate::http::error::read_capped_body_bytes(response, 100 * 1024 * 1024).await?;
-        return serde_json::from_slice::<UpsertResponse>(&bytes)
-            .map_err(|e| crate::error::SerializationError::from(e).into());
-    }
-
-    Err(crate::http::response_to_force_error(response, "Upsert request failed").await)
 }
 
 /// Resolves and validates the `nextRecordsUrl` for query pagination.

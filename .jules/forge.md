@@ -90,3 +90,7 @@
 **[Test Unwrap Simplification]**
 **Learning:** Re-implementing unwraps in tests with `match` statements (e.g. `match result { Err(e) => e, Ok(_) => panic!("Expected error") }`) is verbose and obscures test intent, while using `.unwrap_err()` directly triggers `clippy::unwrap_used`.
 **Action:** Always prefer `result.unwrap_err()` in test modules and explicitly add `#![allow(clippy::unwrap_used)]` at the top of the test module or file.
+
+**[Consolidate RestOperation Helpers]**
+**Learning:** Standalone helper functions for traits often duplicate internal logic (like `resolve_api_path`) because they lack access to the `self` context, leading to manual string formatting and potential errors.
+**Action:** Extract shared logic between trait methods into internal private/hidden methods on the trait itself, rather than free-standing functions, to reuse trait utilities.
