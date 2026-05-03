@@ -172,27 +172,31 @@ impl HttpExecutor {
                 HttpError::InvalidUrl("cannot clone request for retry".to_string())
             })?;
 
-            let response = match self.execute_attempt(req_clone, retry_attempt, ctx).await {
+            let response_result = self.execute_attempt(req_clone, retry_attempt, ctx).await;
+
+            let response = match response_result {
                 Ok(resp) => resp,
-                Err(e) if retry_attempt < max_retries && Self::is_retryable_error(&e) => {
-                    self.handle_transient_failure(retry_attempt, ctx, None)
-                        .await;
-                    retry_attempt += 1;
-                    continue;
+                Err(e) => {
+                    if retry_attempt < max_retries && Self::is_retryable_error(&e) {
+                        self.handle_transient_failure(retry_attempt, ctx, None)
+                            .await;
+                        retry_attempt += 1;
+                        continue;
+                    }
+                    return Err(e);
                 }
-                Err(e) => return Err(e),
             };
 
             let status = response.status();
 
-            if status == StatusCode::UNAUTHORIZED {
-                if !refreshed {
-                    let new_token = refresh_token().await?;
-                    Self::inject_auth_header(&mut request, &new_token)?;
-                    refreshed = true;
-                    continue;
-                }
+            if status == StatusCode::UNAUTHORIZED && !refreshed {
+                let new_token = refresh_token().await?;
+                Self::inject_auth_header(&mut request, &new_token)?;
+                refreshed = true;
+                continue;
+            }
 
+            if status == StatusCode::UNAUTHORIZED {
                 self.record_completion(
                     ctx,
                     Some(StatusCode::UNAUTHORIZED.as_u16()),
@@ -252,13 +256,9 @@ impl HttpExecutor {
     }
 
     fn is_retryable_error(error: &crate::error::ForceError) -> bool {
-        let crate::error::ForceError::Http(http_error) = error else {
-            return false;
-        };
-
-        match http_error {
-            HttpError::Timeout { .. } => true,
-            HttpError::RequestFailed(re) => {
+        match error {
+            crate::error::ForceError::Http(HttpError::Timeout { .. }) => true,
+            crate::error::ForceError::Http(HttpError::RequestFailed(re)) => {
                 !re.is_builder() && !re.is_redirect() && !re.is_status()
             }
             _ => false,
