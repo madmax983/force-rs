@@ -34,3 +34,10 @@
 **Finding:** `cargo mutants` exposed that capacity maths for `stream_channel_capacity`, retry delays based on `reconnect_count`, and `max_retries` comparison (`>`) were untested, masking false logic paths (like capping max delay on backoff or returning incorrect capacity).
 **Evidence:** 7 surviving mutants in `stream_channel_capacity`, `handle_reconnect` backoff arguments, and `reconnect_count` condition.
 **Recommendation:** Added explicit tests to verify max retries exhausted event states (checking exactly 2 Reconnected events for max 2 retries), backoff elapsed times via `Instant`, and `stream_channel_capacity` unit test to `crates/force-pubsub/tests/subscribe_events_tests.rs` and `crates/force-pubsub/src/subscriber.rs`.
+
+**[Elenchus: force-sync::task_queue missing retry_task_for_worker test]**
+**Module:** `crates/force-sync/src/store/pg/task_queue.rs`
+**Severity:** 🔴 Critical
+**Finding:** `cargo mutants` exposed that the `retry_task_for_worker` method's `expected_lease_owner` filtering (which should only retry if the current worker still holds the lease) was untested. A mutant survived that ignored the worker ID filter and always returned success, providing false confidence.
+**Evidence:** 2 surviving mutants in `PgStore::retry_task_for_worker` returning `Ok(0)` and `Ok(1)`. This means if the logic was broken, `retry_task_for_worker` could incorrectly retry tasks leased to other workers, causing duplicate processing or state corruption.
+**Recommendation:** Added a dedicated unit test `wrong_worker_cannot_retry_task` using `support::postgres::test_pool` to explicitly verify that a worker attempting to retry a task owned by a different worker returns 0 affected rows, and retrying their own task returns 1.

@@ -534,3 +534,45 @@ async fn failed_task_cannot_be_re_leased() -> Result<(), force_sync::ForceSyncEr
     assert!(leased_again.is_empty());
     Ok(())
 }
+
+#[tokio::test]
+#[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
+async fn wrong_worker_cannot_retry_task() -> Result<(), force_sync::ForceSyncError> {
+    let pool = support::postgres::test_pool();
+    support::postgres::reset_schema(&pool).await?;
+    force_sync::migrate(&pool).await?;
+
+    let store = force_sync::PgStore::new(pool.clone());
+    let envelope = test_envelope(12);
+    let journal_id = store.append_journal(&envelope).await?;
+    store.enqueue_apply_task(journal_id, 5).await?;
+
+    let leased = store
+        .lease_ready_tasks("worker-A", 1, Duration::from_secs(60))
+        .await?;
+    assert_eq!(leased.len(), 1);
+
+    // Wrong worker tries to retry -- should affect 0 rows.
+    let rows_affected = store
+        .retry_task_for_worker(
+            "worker-B",
+            leased[0].task_id,
+            chrono::Utc::now(),
+            "wrong worker error",
+        )
+        .await?;
+    assert_eq!(rows_affected, 0);
+
+    // Correct worker succeeds.
+    let rows_affected = store
+        .retry_task_for_worker(
+            "worker-A",
+            leased[0].task_id,
+            chrono::Utc::now(),
+            "real error",
+        )
+        .await?;
+    assert_eq!(rows_affected, 1);
+
+    Ok(())
+}
