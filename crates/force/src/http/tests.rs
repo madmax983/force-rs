@@ -8,10 +8,10 @@ mod integration_tests {
         HttpExecutor, RequestErrorKind, RequestRetryClass, RetryEvent, RetryPolicy, TelemetryHooks,
     };
     use crate::test_utils::must::Must;
+    use secrecy::SecretString;
     use std::sync::Arc;
     use std::sync::Mutex;
     use std::sync::atomic::{AtomicU32, Ordering};
-    use secrecy::SecretString;
     use wiremock::matchers::{header, method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 

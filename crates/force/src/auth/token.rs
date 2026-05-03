@@ -95,7 +95,8 @@ impl AccessToken {
     pub fn from_response(response: TokenResponse) -> Self {
         let issued_at = parse_issued_at(&response.issued_at).unwrap_or_else(|_| Utc::now());
         let expires_at = calculate_expiration(issued_at, response.expires_in);
-        let auth_header = create_auth_header(&response.token_type, response.access_token.expose_secret());
+        let auth_header =
+            create_auth_header(&response.token_type, response.access_token.expose_secret());
 
         Self {
             token: response.access_token,

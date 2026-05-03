@@ -508,7 +508,10 @@ mod tests {
         let _token = auth.authenticate().await.must();
 
         let stored = auth.refresh_token.read().await;
-        assert_eq!(stored.as_ref().map(|s| s.expose_secret()), Some("fake_refresh_token_for_testing"));
+        assert_eq!(
+            stored.as_ref().map(|s| s.expose_secret()),
+            Some("fake_refresh_token_for_testing")
+        );
     }
 
     #[tokio::test]
@@ -601,7 +604,10 @@ mod tests {
 
         // Stored refresh token should be the rotated one
         let stored = auth.refresh_token.read().await;
-        assert_eq!(stored.as_ref().map(|s| s.expose_secret()), Some("rotated_refresh_token"));
+        assert_eq!(
+            stored.as_ref().map(|s| s.expose_secret()),
+            Some("rotated_refresh_token")
+        );
     }
 
     #[tokio::test]
@@ -780,7 +786,11 @@ mod tests {
         // Initial auth stores "fake_refresh_token_for_testing"
         let _token1 = auth.authenticate().await.must();
         assert_eq!(
-            auth.refresh_token.read().await.as_ref().map(|s| s.expose_secret()),
+            auth.refresh_token
+                .read()
+                .await
+                .as_ref()
+                .map(|s| s.expose_secret()),
             Some("fake_refresh_token_for_testing")
         );
 
@@ -788,7 +798,9 @@ mod tests {
         // after our refresh request was sent but before we check-and-clear
         {
             let mut stored = auth.refresh_token.write().await;
-            *stored = Some(SecretString::new("newer_token_from_another_thread".to_string().into()));
+            *stored = Some(SecretString::new(
+                "newer_token_from_another_thread".to_string().into(),
+            ));
         }
 
         // Refresh should fail, but because the stored token != the one we used,

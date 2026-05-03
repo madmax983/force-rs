@@ -295,12 +295,12 @@ impl<A: Authenticator> TokenManager<A> {
 
 #[cfg(test)]
 mod tests {
-    use secrecy::SecretString;
     use super::*;
     use crate::auth::authenticator::Authenticator;
     use crate::test_utils::must::Must;
     use async_trait::async_trait;
     use chrono::{Duration, Utc};
+    use secrecy::SecretString;
     use std::sync::Arc as StdArc;
     use std::sync::atomic::{AtomicUsize, Ordering};
 

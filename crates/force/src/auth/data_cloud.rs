@@ -23,8 +23,8 @@ use crate::auth::token::{AccessToken, TokenResponse};
 use crate::auth::token_manager::TokenManager;
 use crate::error::{ForceError, HttpError, Result};
 use async_trait::async_trait;
-use serde::Deserialize;
 use secrecy::SecretString;
+use serde::Deserialize;
 
 use std::fmt;
 use std::sync::Arc;
@@ -221,9 +221,9 @@ impl<A: Authenticator> Authenticator for DataCloudAuthenticator<A> {
 
 #[cfg(test)]
 mod tests {
-    use secrecy::ExposeSecret;
     use super::*;
     use crate::test_utils::must::Must;
+    use secrecy::ExposeSecret;
 
     // ── DataCloudConfig tests ────────────────────────────────────────────
 
