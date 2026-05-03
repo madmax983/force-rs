@@ -414,4 +414,134 @@ mod tests {
             )
         );
     }
+
+    #[test]
+    fn test_valid_record_edge_cases() {
+        let describe = create_mock_describe(&json!([
+            mock_field("LastName", "string", false, 80),
+            mock_field("FirstName", "string", true, 40),
+            mock_field("Age", "int", true, 0)
+        ]));
+
+        let record_fields = serde_json::Map::new();
+        let record = create_mock_record(record_fields);
+
+        let mut describe2 = describe.clone();
+        describe2.fields[0].createable = false; // Not createable so not required
+
+        let validator2 = DataValidator::new(&describe2);
+        assert_eq!(validator2.validate(&record), Ok(()));
+
+        let mut describe3 = describe;
+        describe3.fields[0].defaulted_on_create = true; // Defaulted so not required
+        let validator3 = DataValidator::new(&describe3);
+        assert_eq!(validator3.validate(&record), Ok(()));
+    }
+
+    #[test]
+    fn test_valid_record_length_and_number_types() {
+        let describe = create_mock_describe(&json!([
+            mock_field("FirstName", "string", true, 5), // Exact length
+            mock_field("Balance", "double", true, 0),
+            mock_field("Discount", "percent", true, 0),
+            mock_field("Revenue", "currency", true, 0)
+        ]));
+
+        let validator = DataValidator::new(&describe);
+
+        let mut record_fields = serde_json::Map::new();
+        record_fields.insert("FirstName".to_string(), json!("Alice")); // length 5
+        record_fields.insert("Balance".to_string(), json!(10.5));
+        record_fields.insert("Discount".to_string(), json!(0.2));
+        record_fields.insert("Revenue".to_string(), json!(1000.0));
+
+        let record = create_mock_record(record_fields);
+
+        assert_eq!(validator.validate(&record), Ok(()));
+
+        // length exceeded by 1
+        let mut record_fields2 = serde_json::Map::new();
+        record_fields2.insert("FirstName".to_string(), json!("Alice1"));
+        let record2 = create_mock_record(record_fields2);
+
+        let errors = match validator.validate(&record2) {
+            Ok(()) => panic!("Expected validation error"),
+            Err(e) => e,
+        };
+        assert_eq!(errors.len(), 1);
+        assert_eq!(
+            errors[0],
+            ValidationError::LengthExceeded("FirstName".to_string(), 5)
+        );
+
+        // Not a number type should not validate as a number
+        let describe2 = create_mock_describe(&json!([mock_field("Name", "string", true, 50)]));
+        let validator2 = DataValidator::new(&describe2);
+        let mut record_fields3 = serde_json::Map::new();
+        record_fields3.insert("Name".to_string(), json!("John Doe"));
+        let record3 = create_mock_record(record_fields3);
+        assert_eq!(validator2.validate(&record3), Ok(()));
+
+        // length equals to field length
+        let mut record_fields4 = serde_json::Map::new();
+        record_fields4.insert("FirstName".to_string(), json!("Alice"));
+        let record4 = create_mock_record(record_fields4);
+        assert_eq!(validator.validate(&record4), Ok(()));
+
+        // Field length is 0 (unlimited/unspecified), shouldn't trigger length error
+        let mut describe3 = describe.clone();
+        describe3.fields[0].length = 0;
+        let validator3 = DataValidator::new(&describe3);
+        let mut record_fields5 = serde_json::Map::new();
+        record_fields5.insert("FirstName".to_string(), json!("AliceInWonderland"));
+        let record5 = create_mock_record(record_fields5);
+        assert_eq!(validator3.validate(&record5), Ok(()));
+
+        // length is less than field length
+        let mut record_fields6 = serde_json::Map::new();
+        record_fields6.insert("FirstName".to_string(), json!("Ali"));
+        let record6 = create_mock_record(record_fields6);
+        assert_eq!(validator.validate(&record6), Ok(()));
+
+        // non-string type is not constrained by length
+        let mut describe4 = describe.clone();
+        describe4.fields[0].type_ = crate::types::describe::FieldType::Int;
+        let validator4 = DataValidator::new(&describe4);
+        let mut record_fields7 = serde_json::Map::new();
+        record_fields7.insert("FirstName".to_string(), json!("123456"));
+        let record7 = create_mock_record(record_fields7);
+
+        let errors = match validator4.validate(&record7) {
+            Ok(()) => panic!("Expected validation error"),
+            Err(e) => e,
+        };
+        assert_eq!(errors.len(), 1);
+        assert_eq!(
+            errors[0],
+            ValidationError::TypeMismatch(
+                "FirstName".to_string(),
+                "number".to_string(),
+                "string".to_string()
+            )
+        );
+
+        // if is_number_type returns true for non-number fields, it should error when given a string for those fields
+        let mut describe5 = describe.clone();
+        // Any Type not string nor number nor boolean
+        describe5.fields[0].type_ = crate::types::describe::FieldType::Id;
+        describe5.fields[0].length = 18;
+        let validator5 = DataValidator::new(&describe5);
+        let mut record_fields8 = serde_json::Map::new();
+        record_fields8.insert("FirstName".to_string(), json!("001000000000001AAA"));
+        let record8 = create_mock_record(record_fields8);
+        assert_eq!(validator5.validate(&record8), Ok(())); // Because is_number_type is false for Id and is_string_type is true, this passes
+
+        let mut describe6 = describe.clone();
+        describe6.fields[0].type_ = crate::types::describe::FieldType::Date;
+        let validator6 = DataValidator::new(&describe6);
+        let mut record_fields9 = serde_json::Map::new();
+        record_fields9.insert("FirstName".to_string(), json!("2024-01-01"));
+        let record9 = create_mock_record(record_fields9);
+        assert_eq!(validator6.validate(&record9), Ok(())); // Date is not string, not boolean, not number. if mutant returns true, it fails.
+    }
 }

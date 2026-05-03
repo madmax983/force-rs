@@ -191,6 +191,10 @@ mod tests {
         assert_eq!(results[0].rule_name, "TooManyFields");
         assert_eq!(results[0].severity, LintSeverity::Warning);
         assert!(results[0].message.contains("has 105 fields"));
+
+        let describe2 = create_mock_describe("HealthyObject__c", 100, 5, false);
+        let results2 = rule.evaluate(&describe2);
+        assert_eq!(results2.len(), 0);
     }
 
     #[test]

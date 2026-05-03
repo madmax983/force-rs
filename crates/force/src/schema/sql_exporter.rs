@@ -224,4 +224,37 @@ mod tests {
         let expected = "CREATE TABLE Account (\n    Id VARCHAR(18) PRIMARY KEY,\n    AnnualRevenue DOUBLE PRECISION,\n    IsActive BOOLEAN,\n    Name VARCHAR(255) NOT NULL,\n    NumberOfEmployees INTEGER\n);";
         assert_eq!(ddl, expected);
     }
+
+    #[test]
+    fn test_sql_exporter_field_types() {
+        let mut out = String::new();
+
+        write_field_type(&mut out, &FieldType::Date, 0);
+        assert_eq!(out, "DATE");
+        out.clear();
+
+        write_field_type(&mut out, &FieldType::Datetime, 0);
+        assert_eq!(out, "TIMESTAMP");
+        out.clear();
+
+        write_field_type(&mut out, &FieldType::Time, 0);
+        assert_eq!(out, "TIME");
+        out.clear();
+
+        write_field_type(&mut out, &FieldType::String, 0);
+        assert_eq!(out, "VARCHAR(255)");
+        out.clear();
+
+        write_field_type(&mut out, &FieldType::String, -1);
+        assert_eq!(out, "VARCHAR(255)");
+        out.clear();
+
+        write_field_type(&mut out, &FieldType::String, 100);
+        assert_eq!(out, "VARCHAR(100)");
+        out.clear();
+
+        write_field_type(&mut out, &FieldType::String, 1);
+        assert_eq!(out, "VARCHAR(1)");
+        out.clear();
+    }
 }
