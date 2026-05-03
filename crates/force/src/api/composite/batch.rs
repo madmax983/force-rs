@@ -268,14 +268,10 @@ impl<A: Authenticator> BatchRequest<A> {
         let url = self.handler.inner.resolve_url("composite/batch").await?;
 
         let api_version = self.handler.inner.config.api_version.as_str();
-        let batch_requests = self
-            .requests
-            .into_iter()
-            .map(|mut request| {
-                request.url = normalize_subrequest_url(request.url, api_version);
-                request
-            })
-            .collect();
+        let mut batch_requests = self.requests;
+        for request in &mut batch_requests {
+            request.url = normalize_subrequest_url(std::mem::take(&mut request.url), api_version);
+        }
 
         let request_body = BatchRequestBody {
             batch_requests,
