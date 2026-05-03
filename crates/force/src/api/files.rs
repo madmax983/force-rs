@@ -232,6 +232,7 @@ mod tests {
     use crate::client::builder;
     use crate::test_utils::mock_auth::MockAuthenticator;
 use crate::test_utils::must::{Must, MustMsg};
+    use crate::test_utils::mock_auth::MockAuthenticator;
     use serde_json::json;
     use wiremock::matchers::{method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};

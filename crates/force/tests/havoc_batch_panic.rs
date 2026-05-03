@@ -22,7 +22,7 @@ struct MockAuthenticator;
 impl Authenticator for MockAuthenticator {
     async fn authenticate(&self) -> Result<AccessToken> {
         let response = TokenResponse {
-            access_token: "token".to_string(),
+            access_token: secrecy::SecretString::new("token".to_string().into()),
             instance_url: "https://test.salesforce.com".to_string(),
             token_type: "Bearer".to_string(),
             issued_at: "1704067200000".to_string(),

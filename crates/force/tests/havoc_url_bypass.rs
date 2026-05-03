@@ -26,7 +26,7 @@ mod tests {
     impl Authenticator for MockAuthenticator {
         async fn authenticate(&self) -> force::error::Result<AccessToken> {
             Ok(AccessToken::from_response(TokenResponse {
-                access_token: "test_token".to_string(),
+                access_token: secrecy::SecretString::new("test_token".to_string().into()),
                 instance_url: self.instance_url.clone(),
                 token_type: "Bearer".to_string(),
                 issued_at: "1704067200000".to_string(),

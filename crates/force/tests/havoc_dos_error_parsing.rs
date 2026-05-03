@@ -24,7 +24,7 @@ async fn test_error_parsing_integer_overflow() {
     impl Authenticator for MockAuthenticator {
         async fn authenticate(&self) -> Result<AccessToken> {
             Ok(AccessToken::from_response(TokenResponse {
-                access_token: "token".to_string(),
+                access_token: secrecy::SecretString::new("token".to_string().into()),
                 instance_url: self.0.clone(),
                 token_type: "Bearer".to_string(),
                 issued_at: "1704067200000".to_string(),

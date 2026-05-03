@@ -24,6 +24,8 @@ use crate::auth::token_manager::TokenManager;
 use crate::error::{ForceError, HttpError, Result};
 use async_trait::async_trait;
 use serde::Deserialize;
+use secrecy::SecretString;
+
 use std::fmt;
 use std::sync::Arc;
 
@@ -70,7 +72,7 @@ pub struct DataCloudConfig {
 #[derive(Debug, Clone, Deserialize)]
 struct DataCloudTokenResponse {
     /// The Data Cloud access token.
-    pub access_token: String,
+    pub access_token: SecretString,
 
     /// The Data Cloud tenant instance URL (e.g., `https://tenant.c360a.salesforce.com`).
     pub instance_url: String,
@@ -219,6 +221,7 @@ impl<A: Authenticator> Authenticator for DataCloudAuthenticator<A> {
 
 #[cfg(test)]
 mod tests {
+    use secrecy::ExposeSecret;
     use super::*;
     use crate::test_utils::must::Must;
 
@@ -282,7 +285,7 @@ mod tests {
         }"#;
 
         let response: DataCloudTokenResponse = serde_json::from_str(json).must();
-        assert_eq!(response.access_token, "dc_token_123");
+        assert_eq!(response.access_token.expose_secret(), "dc_token_123");
         assert_eq!(response.instance_url, "https://tenant.c360a.salesforce.com");
         assert_eq!(response.token_type, "Bearer");
         assert_eq!(response.expires_in, Some(7200));
@@ -296,7 +299,7 @@ mod tests {
         }"#;
 
         let response: DataCloudTokenResponse = serde_json::from_str(json).must();
-        assert_eq!(response.access_token, "dc_min");
+        assert_eq!(response.access_token.expose_secret(), "dc_min");
         assert_eq!(response.token_type, "Bearer"); // default
         assert!(response.expires_in.is_none());
     }
@@ -311,7 +314,7 @@ mod tests {
         };
 
         let token_response = dc_response.into_token_response();
-        assert_eq!(token_response.access_token, "dc_token");
+        assert_eq!(token_response.access_token.expose_secret(), "dc_token");
         assert_eq!(
             token_response.instance_url,
             "https://tenant.c360a.salesforce.com"

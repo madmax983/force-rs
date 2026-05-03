@@ -295,6 +295,7 @@ impl<A: Authenticator> TokenManager<A> {
 
 #[cfg(test)]
 mod tests {
+    use secrecy::SecretString;
     use super::*;
     use crate::auth::authenticator::Authenticator;
     use crate::test_utils::must::Must;
@@ -601,7 +602,7 @@ mod tests {
         // 1. Manually set a token with a FUTURE issued_at to simulate a concurrent refresh finishing later
         let future_ts = (Utc::now() + Duration::hours(1)).timestamp_millis();
         let response = crate::auth::token::TokenResponse {
-            access_token: "future_token".to_string(),
+            access_token: SecretString::new("future_token".to_string().into()),
             instance_url: "https://test.salesforce.com".to_string(),
             token_type: "Bearer".to_string(),
             issued_at: future_ts.to_string(),
@@ -643,7 +644,7 @@ mod tests {
         // Concurrently inject a FUTURE token
         let future_ts = (Utc::now() + Duration::hours(1)).timestamp_millis();
         let response = crate::auth::token::TokenResponse {
-            access_token: "future_token".to_string(),
+            access_token: SecretString::new("future_token".to_string().into()),
             instance_url: "https://test.salesforce.com".to_string(),
             token_type: "Bearer".to_string(),
             issued_at: future_ts.to_string(),
@@ -698,7 +699,7 @@ mod tests {
         // 4. Concurrently inject a FUTURE token
         let future_ts = (Utc::now() + Duration::hours(1)).timestamp_millis();
         let future_response = crate::auth::token::TokenResponse {
-            access_token: "future_token".to_string(),
+            access_token: SecretString::new("future_token".to_string().into()),
             instance_url: "https://test.salesforce.com".to_string(),
             token_type: "Bearer".to_string(),
             issued_at: future_ts.to_string(),
@@ -833,7 +834,7 @@ mod tests {
         impl Authenticator for EqAuth {
             async fn authenticate(&self) -> Result<AccessToken> {
                 let response = crate::auth::token::TokenResponse {
-                    access_token: "new_token".to_string(),
+                    access_token: SecretString::new("new_token".to_string().into()),
                     instance_url: "https://test.salesforce.com".to_string(),
                     token_type: "Bearer".to_string(),
                     issued_at: self.0.to_string(),
@@ -854,7 +855,7 @@ mod tests {
 
         // Inject a token with the EXACT SAME timestamp
         let response = crate::auth::token::TokenResponse {
-            access_token: "old_token".to_string(),
+            access_token: SecretString::new("old_token".to_string().into()),
             instance_url: "https://test.salesforce.com".to_string(),
             token_type: "Bearer".to_string(),
             issued_at: fixed_ts.to_string(),
@@ -884,7 +885,7 @@ mod tests {
         // Inject hard expired token with same timestamp
         // The mock will return a token with this exact timestamp
         let response = crate::auth::token::TokenResponse {
-            access_token: "hard_old_token".to_string(),
+            access_token: SecretString::new("hard_old_token".to_string().into()),
             instance_url: "https://test.salesforce.com".to_string(),
             token_type: "Bearer".to_string(),
             issued_at: fixed_ts.to_string(),
@@ -909,7 +910,7 @@ mod tests {
         let soft_eq_manager = TokenManager::new(EqAuth(fixed_ts));
         // Inject soft expired token with same timestamp
         let response = crate::auth::token::TokenResponse {
-            access_token: "soft_old_token".to_string(),
+            access_token: SecretString::new("soft_old_token".to_string().into()),
             instance_url: "https://test.salesforce.com".to_string(),
             token_type: "Bearer".to_string(),
             issued_at: fixed_ts.to_string(),

@@ -83,7 +83,7 @@ pub struct UsernamePassword {
     client: reqwest::Client,
 
     /// Stored refresh token from the most recent authentication.
-    refresh_token: Arc<RwLock<Option<String>>>,
+    refresh_token: Arc<RwLock<Option<SecretString>>>,
 }
 
 // Manual Debug to redact secrets.
@@ -249,7 +249,7 @@ impl crate::auth::authenticator::Authenticator for UsernamePassword {
                 ("grant_type", "refresh_token"),
                 ("client_id", self.client_id.as_str()),
                 ("client_secret", self.client_secret.expose_secret()),
-                ("refresh_token", rt.as_str()),
+                ("refresh_token", rt.expose_secret()),
             ];
 
             if let Ok(token_response) = self.send_token_request(&params).await {
@@ -260,7 +260,7 @@ impl crate::auth::authenticator::Authenticator for UsernamePassword {
             let mut stored = self.refresh_token.write().await;
             // 👺 Havoc: Only clear the token if another thread hasn't already authenticated
             // and provided a *newer* refresh token while we were awaiting the failed request.
-            if stored.as_deref() == Some(rt.as_str()) {
+            if stored.as_ref().map(|s| s.expose_secret()) == Some(rt.expose_secret()) {
                 *stored = None;
             }
         }
@@ -508,7 +508,7 @@ mod tests {
         let _token = auth.authenticate().await.must();
 
         let stored = auth.refresh_token.read().await;
-        assert_eq!(stored.as_deref(), Some("fake_refresh_token_for_testing"));
+        assert_eq!(stored.as_ref().map(|s| s.expose_secret()), Some("fake_refresh_token_for_testing"));
     }
 
     #[tokio::test]
@@ -601,7 +601,7 @@ mod tests {
 
         // Stored refresh token should be the rotated one
         let stored = auth.refresh_token.read().await;
-        assert_eq!(stored.as_deref(), Some("rotated_refresh_token"));
+        assert_eq!(stored.as_ref().map(|s| s.expose_secret()), Some("rotated_refresh_token"));
     }
 
     #[tokio::test]
@@ -780,7 +780,7 @@ mod tests {
         // Initial auth stores "fake_refresh_token_for_testing"
         let _token1 = auth.authenticate().await.must();
         assert_eq!(
-            auth.refresh_token.read().await.as_deref(),
+            auth.refresh_token.read().await.as_ref().map(|s| s.expose_secret()),
             Some("fake_refresh_token_for_testing")
         );
 
@@ -788,7 +788,7 @@ mod tests {
         // after our refresh request was sent but before we check-and-clear
         {
             let mut stored = auth.refresh_token.write().await;
-            *stored = Some("newer_token_from_another_thread".to_string());
+            *stored = Some(SecretString::new("newer_token_from_another_thread".to_string().into()));
         }
 
         // Refresh should fail, but because the stored token != the one we used,

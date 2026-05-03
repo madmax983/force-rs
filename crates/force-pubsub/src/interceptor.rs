@@ -63,7 +63,7 @@ mod tests {
 
     fn make_token(value: &str, url: &str) -> AccessToken {
         AccessToken::from_response(TokenResponse {
-            access_token: value.to_string(),
+            access_token: secrecy::SecretString::new(value.to_string().into()),
             instance_url: url.to_string(),
             token_type: "Bearer".to_string(),
             issued_at: "1704067200000".to_string(),

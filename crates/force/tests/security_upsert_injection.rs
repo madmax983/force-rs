@@ -29,7 +29,7 @@ impl MockAuthenticator {
 impl Authenticator for MockAuthenticator {
     async fn authenticate(&self) -> Result<AccessToken> {
         let response = TokenResponse {
-            access_token: self.token.clone(),
+            access_token: secrecy::SecretString::new(self.token.clone().into()),
             instance_url: self.instance_url.clone(),
             token_type: "Bearer".to_string(),
             issued_at: "1672531200000".to_string(), // 2023-01-01

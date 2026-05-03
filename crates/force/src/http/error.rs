@@ -111,6 +111,7 @@ pub async fn read_capped_body_bytes(
             }
 
             if chunk_bytes.len() > remaining {
+                // Return payload too large if we read more than the limit
                 return Err(HttpError::PayloadTooLarge { limit_bytes });
             }
             bytes.extend_from_slice(&chunk_bytes);
