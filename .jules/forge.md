@@ -94,3 +94,7 @@
 **[Consolidate RestOperation Helpers]**
 **Learning:** Standalone helper functions for traits often duplicate internal logic (like `resolve_api_path`) because they lack access to the `self` context, leading to manual string formatting and potential errors.
 **Action:** Extract shared logic between trait methods into internal private/hidden methods on the trait itself, rather than free-standing functions, to reuse trait utilities.
+
+**Extract Schema Generators Helpers**
+**Learning:** Functions that iterate over fields and generate schema artifacts (like Postman collections) become "God Functions" with high cognitive complexity due to large nested blocks.
+**Action:** Extract the complex nested logic within generator functions into private helper methods to flatten the structure, reduce cognitive load, and satisfy `clippy::cognitive_complexity` and `clippy::too_many_lines`.

@@ -10,10 +10,22 @@ use crate::types::describe::SObjectDescribe;
 #[cfg(feature = "schema")]
 use serde_json::{Value, json};
 
-/// Generates a Postman v2.1.0 Collection for an SObject.
-#[cfg(feature = "schema")]
+/// Generates a Postman Collection mapping CRUD operations for an SObject.
+///
+/// Builds a Postman Collection v2.1.0 JSON object containing standard
+/// POST (Create), GET (Read), PATCH (Update), and DELETE operations.
+/// It automatically populates request bodies for Create and Update based
+/// on the specific field-level `createable` and `updateable` flags of the SObject.
+///
+/// # Arguments
+///
+/// * `describe` - The SObject description metadata.
+///
+/// # Returns
+///
+/// A `serde_json::Value` representing the generated Postman collection.
 #[must_use]
-#[allow(clippy::too_many_lines)]
+#[cfg(feature = "schema")]
 pub fn generate_postman_collection(describe: &SObjectDescribe) -> Value {
     let name = &describe.name;
     let label = if describe.label.is_empty() {
@@ -22,29 +34,8 @@ pub fn generate_postman_collection(describe: &SObjectDescribe) -> Value {
         describe.label.clone()
     };
 
-    // Build dummy json body for create/update using fields that are createable/updateable
-    let mut create_body = serde_json::Map::new();
-    let mut update_body = serde_json::Map::new();
-
-    for field in &describe.fields {
-        if field.createable && field.name != "Id" {
-            create_body.insert(
-                field.name.clone(),
-                json!(format!("{{{{${}}}}}", field.name)),
-            );
-        }
-        if field.updateable && field.name != "Id" {
-            update_body.insert(
-                field.name.clone(),
-                json!(format!("{{{{${}}}}}", field.name)),
-            );
-        }
-    }
-
-    let create_body_str =
-        serde_json::to_string_pretty(&create_body).unwrap_or_else(|_| "{}".to_string());
-    let update_body_str =
-        serde_json::to_string_pretty(&update_body).unwrap_or_else(|_| "{}".to_string());
+    let create_body_str = build_request_body(describe, true);
+    let update_body_str = build_request_body(describe, false);
 
     json!({
         "info": {
@@ -53,108 +44,149 @@ pub fn generate_postman_collection(describe: &SObjectDescribe) -> Value {
             "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
         },
         "item": [
-            {
-                "name": format!("Create {}", label),
-                "request": {
-                    "method": "POST",
-                    "header": [
-                        {
-                            "key": "Content-Type",
-                            "value": "application/json"
-                        }
-                    ],
-                    "body": {
-                        "mode": "raw",
-                        "raw": create_body_str
-                    },
-                    "url": {
-                        "raw": format!("{{{{_endpoint}}}}/services/data/v60.0/sobjects/{}", name),
-                        "host": [
-                            "{{_endpoint}}"
-                        ],
-                        "path": [
-                            "services",
-                            "data",
-                            "v60.0",
-                            "sobjects",
-                            name
-                        ]
-                    }
-                }
-            },
-            {
-                "name": format!("Read {}", label),
-                "request": {
-                    "method": "GET",
-                    "header": [],
-                    "url": {
-                        "raw": format!("{{{{_endpoint}}}}/services/data/v60.0/sobjects/{}/{{{{recordId}}}}", name),
-                        "host": [
-                            "{{_endpoint}}"
-                        ],
-                        "path": [
-                            "services",
-                            "data",
-                            "v60.0",
-                            "sobjects",
-                            name,
-                            "{{recordId}}"
-                        ]
-                    }
-                }
-            },
-            {
-                "name": format!("Update {}", label),
-                "request": {
-                    "method": "PATCH",
-                    "header": [
-                        {
-                            "key": "Content-Type",
-                            "value": "application/json"
-                        }
-                    ],
-                    "body": {
-                        "mode": "raw",
-                        "raw": update_body_str
-                    },
-                    "url": {
-                        "raw": format!("{{{{_endpoint}}}}/services/data/v60.0/sobjects/{}/{{{{recordId}}}}", name),
-                        "host": [
-                            "{{_endpoint}}"
-                        ],
-                        "path": [
-                            "services",
-                            "data",
-                            "v60.0",
-                            "sobjects",
-                            name,
-                            "{{recordId}}"
-                        ]
-                    }
-                }
-            },
-            {
-                "name": format!("Delete {}", label),
-                "request": {
-                    "method": "DELETE",
-                    "header": [],
-                    "url": {
-                        "raw": format!("{{{{_endpoint}}}}/services/data/v60.0/sobjects/{}/{{{{recordId}}}}", name),
-                        "host": [
-                            "{{_endpoint}}"
-                        ],
-                        "path": [
-                            "services",
-                            "data",
-                            "v60.0",
-                            "sobjects",
-                            name,
-                            "{{recordId}}"
-                        ]
-                    }
-                }
-            }
+            build_create_request(&label, name, &create_body_str),
+            build_read_request(&label, name),
+            build_update_request(&label, name, &update_body_str),
+            build_delete_request(&label, name)
         ]
+    })
+}
+
+#[cfg(feature = "schema")]
+fn build_request_body(describe: &SObjectDescribe, is_create: bool) -> String {
+    let mut body = serde_json::Map::new();
+
+    for field in &describe.fields {
+        let include_field = if is_create {
+            field.createable
+        } else {
+            field.updateable
+        };
+        if include_field && field.name != "Id" {
+            body.insert(
+                field.name.clone(),
+                json!(format!("{{{{${}}}}}", field.name)),
+            );
+        }
+    }
+
+    serde_json::to_string_pretty(&body).unwrap_or_else(|_| "{}".to_string())
+}
+
+#[cfg(feature = "schema")]
+fn build_create_request(label: &str, name: &str, body_str: &str) -> Value {
+    json!({
+        "name": format!("Create {}", label),
+        "request": {
+            "method": "POST",
+            "header": [
+                {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                }
+            ],
+            "body": {
+                "mode": "raw",
+                "raw": body_str
+            },
+            "url": {
+                "raw": format!("{{{{_endpoint}}}}/services/data/v60.0/sobjects/{}", name),
+                "host": [
+                    "{{_endpoint}}"
+                ],
+                "path": [
+                    "services",
+                    "data",
+                    "v60.0",
+                    "sobjects",
+                    name
+                ]
+            }
+        }
+    })
+}
+
+#[cfg(feature = "schema")]
+fn build_read_request(label: &str, name: &str) -> Value {
+    json!({
+        "name": format!("Read {}", label),
+        "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+                "raw": format!("{{{{_endpoint}}}}/services/data/v60.0/sobjects/{}/{{{{recordId}}}}", name),
+                "host": [
+                    "{{_endpoint}}"
+                ],
+                "path": [
+                    "services",
+                    "data",
+                    "v60.0",
+                    "sobjects",
+                    name,
+                    "{{recordId}}"
+                ]
+            }
+        }
+    })
+}
+
+#[cfg(feature = "schema")]
+fn build_update_request(label: &str, name: &str, body_str: &str) -> Value {
+    json!({
+        "name": format!("Update {}", label),
+        "request": {
+            "method": "PATCH",
+            "header": [
+                {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                }
+            ],
+            "body": {
+                "mode": "raw",
+                "raw": body_str
+            },
+            "url": {
+                "raw": format!("{{{{_endpoint}}}}/services/data/v60.0/sobjects/{}/{{{{recordId}}}}", name),
+                "host": [
+                    "{{_endpoint}}"
+                ],
+                "path": [
+                    "services",
+                    "data",
+                    "v60.0",
+                    "sobjects",
+                    name,
+                    "{{recordId}}"
+                ]
+            }
+        }
+    })
+}
+
+#[cfg(feature = "schema")]
+fn build_delete_request(label: &str, name: &str) -> Value {
+    json!({
+        "name": format!("Delete {}", label),
+        "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+                "raw": format!("{{{{_endpoint}}}}/services/data/v60.0/sobjects/{}/{{{{recordId}}}}", name),
+                "host": [
+                    "{{_endpoint}}"
+                ],
+                "path": [
+                    "services",
+                    "data",
+                    "v60.0",
+                    "sobjects",
+                    name,
+                    "{{recordId}}"
+                ]
+            }
+        }
     })
 }
 
