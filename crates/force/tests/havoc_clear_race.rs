@@ -26,7 +26,7 @@ impl Authenticator for SlowAuthenticator {
     async fn authenticate(&self) -> force::error::Result<AccessToken> {
         let count = self.auth_count.fetch_add(1, Ordering::SeqCst);
         let resp = TokenResponse {
-            access_token: format!("auth_token_{count}"),
+            access_token: secrecy::SecretString::new(format!("auth_token_{count}").into()),
             instance_url: "https://test.salesforce.com".to_string(),
             token_type: "Bearer".to_string(),
             issued_at: chrono::Utc::now().timestamp_millis().to_string(),
@@ -42,7 +42,7 @@ impl Authenticator for SlowAuthenticator {
         sleep(Duration::from_millis(100)).await;
         let count = self.refresh_count.fetch_add(1, Ordering::SeqCst);
         let resp = TokenResponse {
-            access_token: format!("refresh_token_{count}"),
+            access_token: secrecy::SecretString::new(format!("refresh_token_{count}").into()),
             instance_url: "https://test.salesforce.com".to_string(),
             token_type: "Bearer".to_string(),
             issued_at: chrono::Utc::now().timestamp_millis().to_string(),

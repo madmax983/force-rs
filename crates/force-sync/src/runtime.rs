@@ -909,7 +909,7 @@ mod tests {
         impl Authenticator for StubAuth {
             async fn authenticate(&self) -> ForceResult<AccessToken> {
                 Ok(AccessToken::from_response(TokenResponse {
-                    access_token: "stub".to_owned(),
+                    access_token: secrecy::SecretString::new("stub".to_owned().into()),
                     instance_url: "https://stub.salesforce.com".to_owned(),
                     token_type: "Bearer".to_owned(),
                     issued_at: "1704067200000".to_owned(),

@@ -26,7 +26,7 @@ impl Authenticator for YieldingAuthenticator {
         tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
         let c = self.count.fetch_add(1, Ordering::SeqCst);
         Ok(AccessToken::from_response(TokenResponse {
-            access_token: format!("auth_{c}"),
+            access_token: secrecy::SecretString::new(format!("auth_{c}").into()),
             instance_url: "url".into(),
             token_type: "Bearer".into(),
             issued_at: chrono::Utc::now().timestamp_millis().to_string(),

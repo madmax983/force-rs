@@ -10,7 +10,7 @@ fn havoc_access_token_overflow() {
 
     // Create a TokenResponse with max valid issued_at
     let response = TokenResponse {
-        access_token: "token".to_string(),
+        access_token: secrecy::SecretString::new("token".to_string().into()),
         instance_url: "url".to_string(),
         token_type: "Bearer".to_string(),
         issued_at: max_timestamp_ms.to_string(),

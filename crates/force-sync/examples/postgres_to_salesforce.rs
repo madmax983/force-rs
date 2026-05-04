@@ -14,7 +14,7 @@ struct ExampleAuthenticator;
 impl Authenticator for ExampleAuthenticator {
     async fn authenticate(&self) -> force::error::Result<AccessToken> {
         Ok(AccessToken::from_response(TokenResponse {
-            access_token: "example-access-token".to_owned(),
+            access_token: secrecy::SecretString::new("example-access-token".to_owned().into()),
             instance_url: "https://example.my.salesforce.invalid".to_owned(),
             token_type: "Bearer".to_owned(),
             issued_at: "0".to_owned(),

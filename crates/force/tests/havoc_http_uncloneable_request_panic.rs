@@ -11,7 +11,7 @@ async fn test_uncloneable_request_panic() {
     let mock_server = MockServer::start().await;
     let executor = HttpExecutor::new();
     let token = AccessToken::from_response(TokenResponse {
-        access_token: "test".to_string(),
+        access_token: secrecy::SecretString::new("test".to_string().into()),
         instance_url: "http://localhost".to_string(),
         token_type: "Bearer".to_string(),
         issued_at: "0".to_string(),

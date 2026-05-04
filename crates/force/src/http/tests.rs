@@ -8,6 +8,7 @@ mod integration_tests {
         HttpExecutor, RequestErrorKind, RequestRetryClass, RetryEvent, RetryPolicy, TelemetryHooks,
     };
     use crate::test_utils::must::Must;
+    use secrecy::SecretString;
     use std::sync::Arc;
     use std::sync::Mutex;
     use std::sync::atomic::{AtomicU32, Ordering};
@@ -27,7 +28,7 @@ mod integration_tests {
 
     fn create_test_token() -> AccessToken {
         let response = TokenResponse {
-            access_token: "test_token_123".to_string(),
+            access_token: SecretString::new("test_token_123".to_string().into()),
             instance_url: "https://test.salesforce.com".to_string(),
             token_type: "Bearer".to_string(),
             issued_at: "1640000000000".to_string(), // 2021-12-20
@@ -106,7 +107,7 @@ mod integration_tests {
                 async move {
                     count.fetch_add(1, Ordering::SeqCst);
                     let response = TokenResponse {
-                        access_token: "new_token_456".to_string(),
+                        access_token: SecretString::new("new_token_456".to_string().into()),
                         instance_url: "https://test.salesforce.com".to_string(),
                         token_type: "Bearer".to_string(),
                         issued_at: "1640000000000".to_string(),
@@ -559,7 +560,7 @@ mod integration_tests {
         let result = executor
             .execute(request, &token, || async {
                 let response = TokenResponse {
-                    access_token: "new_token".to_string(),
+                    access_token: SecretString::new("new_token".to_string().into()),
                     instance_url: "https://test.salesforce.com".to_string(),
                     token_type: "Bearer".to_string(),
                     issued_at: "1640000000000".to_string(),

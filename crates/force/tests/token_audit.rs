@@ -7,7 +7,7 @@ use force::auth::{AccessToken, TokenResponse};
 fn test_expires_in_inconsistency_repro() {
     // Case A: u64::MAX (via overflow logic) -> 1 hour
     let response_overflow = TokenResponse {
-        access_token: "overflow_token".to_string(),
+        access_token: secrecy::SecretString::new("overflow_token".to_string().into()),
         instance_url: "https://test.salesforce.com".to_string(),
         token_type: "Bearer".to_string(),
         issued_at: Utc::now().timestamp_millis().to_string(),
@@ -25,7 +25,7 @@ fn test_expires_in_inconsistency_repro() {
 
     // Case B: 4 Billion (via cap logic) -> Infinite (None)
     let response_large = TokenResponse {
-        access_token: "large_token".to_string(),
+        access_token: secrecy::SecretString::new("large_token".to_string().into()),
         instance_url: "https://test.salesforce.com".to_string(),
         token_type: "Bearer".to_string(),
         issued_at: Utc::now().timestamp_millis().to_string(),
@@ -50,7 +50,7 @@ fn test_invalid_issued_at_extends_validity_repro() {
 
     // But provide garbage "issued_at" string
     let response_garbage = TokenResponse {
-        access_token: "garbage_token".to_string(),
+        access_token: secrecy::SecretString::new("garbage_token".to_string().into()),
         instance_url: "https://test.salesforce.com".to_string(),
         token_type: "Bearer".to_string(),
         issued_at: "not_a_timestamp".to_string(), // INVALID
