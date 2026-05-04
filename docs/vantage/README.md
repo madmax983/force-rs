@@ -53,4 +53,3 @@ Design backlog and product-spec notes for incubating `force-rs` capabilities. Th
 
 - [`saml-bearer-flow.md`](saml-bearer-flow.md): OAuth 2.0 SAML Bearer Assertion Flow for Salesforce authentication.
 - [`data-cloud-api.md`](data-cloud-api.md): Data Cloud API support.
-- [`oauth-device-flow-spec.md`](oauth-device-flow-spec.md): OAuth 2.0 Device Flow for headless CLI authentication.
