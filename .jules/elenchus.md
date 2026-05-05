@@ -34,3 +34,10 @@
 **Finding:** `cargo mutants` exposed that capacity maths for `stream_channel_capacity`, retry delays based on `reconnect_count`, and `max_retries` comparison (`>`) were untested, masking false logic paths (like capping max delay on backoff or returning incorrect capacity).
 **Evidence:** 7 surviving mutants in `stream_channel_capacity`, `handle_reconnect` backoff arguments, and `reconnect_count` condition.
 **Recommendation:** Added explicit tests to verify max retries exhausted event states (checking exactly 2 Reconnected events for max 2 retries), backoff elapsed times via `Instant`, and `stream_channel_capacity` unit test to `crates/force-pubsub/tests/subscribe_events_tests.rs` and `crates/force-pubsub/src/subscriber.rs`.
+
+**[Elenchus: path_utils capacity allocation untested]**
+**Module:** `force::api::path_utils`
+**Severity:** 🟡 Suspect
+**Finding:** The `capacity` arithmetic for pre-allocating the String in `format_sobject_path` was completely untested. `cargo mutants` exposed that altering the capacity calculation (+ to -, etc.) survived the tests.
+**Evidence:** 5 mutants survived in `crates/force/src/api/path_utils.rs` related to capacity calculation.
+**Recommendation:** Added `assert_eq!(path.capacity(), path.len());` to both tests to ensure the exact capacity is allocated, preventing future performance regressions from accidental allocations.

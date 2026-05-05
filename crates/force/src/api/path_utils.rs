@@ -29,14 +29,15 @@ mod tests {
 
     #[test]
     fn test_format_sobject_path_with_id() {
-        assert_eq!(
-            format_sobject_path("Account", Some("001000000000000")),
-            "sobjects/Account/001000000000000"
-        );
+        let path = format_sobject_path("Account", Some("001000000000000"));
+        assert_eq!(path, "sobjects/Account/001000000000000");
+        assert_eq!(path.capacity(), path.len());
     }
 
     #[test]
     fn test_format_sobject_path_without_id() {
-        assert_eq!(format_sobject_path("Account", None), "sobjects/Account");
+        let path = format_sobject_path("Account", None);
+        assert_eq!(path, "sobjects/Account");
+        assert_eq!(path.capacity(), path.len());
     }
 }
