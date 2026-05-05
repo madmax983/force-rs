@@ -93,7 +93,7 @@ pub struct SearchQueryBuilder {
     /// Search scope (e.g., "ALL FIELDS", "NAME FIELDS").
     search_scope: Option<&'static str>,
     /// Objects and fields to return.
-    returning: Vec<(String, Vec<String>)>,
+    returning: Vec<(String, String)>,
     /// Maximum number of records per object.
     limit: Option<u32>,
     /// Offset for pagination.
@@ -181,16 +181,18 @@ impl SearchQueryBuilder {
         validate_sobject_name(&sobject)?;
 
         #[allow(unused_doc_comments)]
-        /// ⚡ Bolt: Pre-allocating capacity avoids multiple heap reallocations
-        /// that would occur when using `.collect::<Result<Vec<_>, _>>()`
-        let mut safe_fields = Vec::with_capacity(fields.len());
-        for f in fields {
+        /// ⚡ Bolt: Join fields into a single string immediately to avoid storing `Vec<String>` allocations per object type.
+        let mut fields_str = String::with_capacity(fields.len() * 16);
+        for (i, f) in fields.iter().enumerate() {
             let f_str = f.as_ref();
             validate_field_syntax_safe(f_str).map_err(crate::error::ForceError::InvalidInput)?;
-            safe_fields.push(f_str.to_string());
+            if i > 0 {
+                fields_str.push_str(", ");
+            }
+            fields_str.push_str(f_str);
         }
 
-        self.returning.push((sobject, safe_fields));
+        self.returning.push((sobject, fields_str));
         Ok(self)
     }
 
@@ -257,7 +259,8 @@ impl SearchQueryBuilder {
 
         query.push_str(" RETURNING ");
 
-        // ⚡ Bolt: Write RETURNING clauses directly to the `query` buffer, avoiding a temporary `.collect::<Vec<_>>()` and `.join(", ")` allocation.
+        // ⚡ Bolt: Write RETURNING clauses directly to the `query` buffer.
+        // `fields` is already a comma-separated string, avoiding intermediate vector iteration.
         for (i, (sobject, fields)) in self.returning.into_iter().enumerate() {
             if i > 0 {
                 query.push_str(", ");
@@ -266,15 +269,7 @@ impl SearchQueryBuilder {
             query.push_str(&sobject);
             if !fields.is_empty() {
                 query.push('(');
-                #[allow(unused_doc_comments)]
-                /// ⚡ Bolt: Iterating over fields directly pushes them to the `query` string buffer.
-                /// This avoids the intermediate heap allocation that would occur if `fields.join(", ")` was used.
-                for (i, field) in fields.into_iter().enumerate() {
-                    if i > 0 {
-                        query.push_str(", ");
-                    }
-                    query.push_str(&field);
-                }
+                query.push_str(&fields);
                 query.push(')');
             }
         }
