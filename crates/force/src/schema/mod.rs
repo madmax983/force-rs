@@ -1,6 +1,8 @@
 //! Schema inspection, analysis, and code-generation utilities.
 
 #[cfg(feature = "schema")]
+pub(crate) mod apex_class_generator;
+#[cfg(feature = "schema")]
 pub(crate) mod avro_generator;
 #[cfg(feature = "schema")]
 pub(crate) mod bigquery_generator;
@@ -79,3 +81,6 @@ pub use llm_context_generator::{LlmContextOptions, generate_llm_context};
 pub(crate) mod dbt_generator;
 #[cfg(feature = "schema")]
 pub use dbt_generator::{generate_dbt_source_yml, generate_dbt_staging_model};
+
+#[cfg(feature = "schema")]
+pub use apex_class_generator::{generate_apex_wrapper, write_apex_wrapper};
