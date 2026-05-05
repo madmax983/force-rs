@@ -94,3 +94,7 @@
 **[Consolidate RestOperation Helpers]**
 **Learning:** Standalone helper functions for traits often duplicate internal logic (like `resolve_api_path`) because they lack access to the `self` context, leading to manual string formatting and potential errors.
 **Action:** Extract shared logic between trait methods into internal private/hidden methods on the trait itself, rather than free-standing functions, to reuse trait utilities.
+
+**[Flatten Apply Result Matches]**
+**Learning:** Re-implementing unwraps and nested match blocks on `Result` types inside `runtime.rs` apply task methods led to deeply nested code and unwrap warnings.
+**Action:** Use `match result { Ok(r) => r, Err(e) => return ... }` and `if let Err(e) = result { return ... }` guard clauses to flatten the result handling.
