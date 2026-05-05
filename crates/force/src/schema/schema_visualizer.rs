@@ -60,11 +60,17 @@ pub async fn generate_visualizer_report<A: Authenticator>(
         insights.required_field_count
     );
 
-    // ⚡ Bolt: Clone only `describe.fields` (if usage is requested) instead of deep cloning
-    // the entire `SObjectDescribe` AST (which contains huge vectors like childRelationships).
-    // Then, move the original `describe` into `SchemaGraph`.
+    // ⚡ Bolt: Avoid cloning `describe.fields` entirely by extracting just the `name` and `label`
+    // before `describe` is moved into `SchemaGraph`. This prevents a heap allocation of a large
+    // `Vec<FieldDescribe>` object.
     let fields_for_usage = if include_usage {
-        Some(describe.fields.clone())
+        let mut fields: Vec<_> = describe
+            .fields
+            .iter()
+            .map(|f| (f.name.clone(), f.label.clone()))
+            .collect();
+        fields.sort_by(|a, b| crate::schema::cmp_field_names(&a.0, &b.0));
+        Some(fields)
     } else {
         None
     };
@@ -89,14 +95,13 @@ pub async fn generate_visualizer_report<A: Authenticator>(
         let _ = writeln!(md, "| Label | API Name | Populated % |");
         let _ = writeln!(md, "|---|---|---|");
 
-        let mut fields = fields_for_usage.unwrap_or_default();
-        fields.sort_by(|a, b| crate::schema::cmp_field_names(&a.name, &b.name));
+        let fields = fields_for_usage.unwrap_or_default();
 
-        for field in &fields {
-            if let Some(pct) = usage_map.get(&field.name) {
-                let _ = writeln!(md, "| {} | `{}` | {:.1}% |", field.label, field.name, pct);
+        for (name, label) in &fields {
+            if let Some(pct) = usage_map.get(name) {
+                let _ = writeln!(md, "| {} | `{}` | {:.1}% |", label, name, pct);
             } else {
-                let _ = writeln!(md, "| {} | `{}` | N/A |", field.label, field.name);
+                let _ = writeln!(md, "| {} | `{}` | N/A |", label, name);
             }
         }
     }
