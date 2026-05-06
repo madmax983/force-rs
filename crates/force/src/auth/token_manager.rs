@@ -933,6 +933,90 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_token_manager_latest_token_or() {
+        let auth = MockAuthenticator::new();
+        let manager = TokenManager::new(auth);
+
+        let t1 = AccessToken::new(
+            "old_token".to_string(),
+            "https://test.salesforce.com".to_string(),
+            Some(Utc::now() - Duration::hours(1)),
+        );
+        let t2 = AccessToken::new(
+            "new_token".to_string(),
+            "https://test.salesforce.com".to_string(),
+            Some(Utc::now()),
+        );
+
+        let arc_t1 = StdArc::new(t1);
+        let arc_t2 = StdArc::new(t2);
+
+        {
+            let mut state = manager.state.write().await;
+            state.token = Some(arc_t1.clone());
+        }
+
+        // test when current token is old and fallback is new -> returns fallback
+        let latest = manager.latest_token_or(arc_t2.clone()).await;
+        assert_eq!(latest.as_str(), "new_token");
+
+        {
+            let mut state = manager.state.write().await;
+            state.token = Some(arc_t2.clone());
+        }
+
+        // test when current token is new and fallback is old -> returns current
+        let latest2 = manager.latest_token_or(arc_t1.clone()).await;
+        assert_eq!(latest2.as_str(), "new_token");
+    }
+
+    #[tokio::test]
+    async fn test_token_manager_get_token_arc_cleared_token() {
+        let auth = MockAuthenticator::with_failure();
+        let manager = TokenManager::new(auth);
+
+        let t1 = AccessToken::new(
+            "old_token".to_string(),
+            "https://test.salesforce.com".to_string(),
+            Some(Utc::now() - Duration::hours(1)), // expired
+        );
+        let arc_t1 = StdArc::new(t1);
+
+        {
+            let mut state = manager.state.write().await;
+            state.token = Some(arc_t1.clone());
+            state.clear_count = 1; // Mark as cleared
+        }
+
+        // This will call get_token_arc -> evaluate_token_state -> hard expired -> handle_hard_refresh
+        // The mock will fail, so it returns Error rather than old cleared token
+        let res = manager.token().await;
+        assert!(res.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_token_manager_unreachable_get_token_arc_else() {
+        // We know evaluate_token_state returns (false, false, Some) only if it's not hard/soft expired.
+        // It's impossible for it to return (false, false, None) because if token is None, it returns (true, true, None).
+        // This is a dummy test documenting that the else branch in get_token_arc is unreachable without a valid token.
+        // But we cover get_token_arc returning the valid token here.
+        let auth = MockAuthenticator::new();
+        let manager = TokenManager::new(auth);
+
+        let valid_token = AccessToken::new(
+            "valid_token".to_string(),
+            "https://test.salesforce.com".to_string(),
+            Some(Utc::now() + Duration::hours(1)),
+        );
+        {
+            let mut state = manager.state.write().await;
+            state.token = Some(StdArc::new(valid_token));
+        }
+        let token = manager.token().await.must();
+        assert_eq!(token.as_str(), "valid_token");
+    }
+
+    #[tokio::test]
     async fn test_token_manager_force_refresh_stampede() {
         let auth = MockAuthenticator::new().with_delay(std::time::Duration::from_millis(50));
         let manager = StdArc::new(TokenManager::new(auth));

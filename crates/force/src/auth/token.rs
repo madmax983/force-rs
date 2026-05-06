@@ -269,6 +269,26 @@ mod tests {
     use crate::test_utils::must::Must;
 
     #[test]
+    fn test_parse_issued_at_out_of_range() {
+        // Test an extremely large i64 value that exceeds valid DateTime range
+        let timestamp = "999999999999999999";
+        let result = parse_issued_at(timestamp);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_default_issued_at() {
+        let ts = default_issued_at();
+        // Should be roughly current time
+        assert!(ts.parse::<i64>().unwrap_or(0) > 1_700_000_000_000);
+    }
+
+    #[test]
+    fn test_default_token_type() {
+        assert_eq!(default_token_type(), "Bearer");
+    }
+
+    #[test]
     fn test_token_response_deserialization() {
         let json = r#"{
             "access_token": "00D123456789!token",

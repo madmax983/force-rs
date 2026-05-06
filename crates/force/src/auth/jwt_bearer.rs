@@ -499,7 +499,7 @@ QcWLHR6ul3bFRWNhXoThNBQ=
 
         Mock::given(method("POST"))
             .and(path("/services/oauth2/token"))
-            .respond_with(ResponseTemplate::new(400).set_body_string(large_body))
+            .respond_with(ResponseTemplate::new(200).set_body_string(large_body))
             .mount(&mock_server)
             .await;
 
