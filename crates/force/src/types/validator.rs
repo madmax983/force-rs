@@ -266,6 +266,8 @@ mod havoc_tests {
             let _ = validate_field_name(&s);
             let _ = validate_sobject_name(&s);
             let _ = validate_external_id_field(&s);
+            let _ = validate_identifier(&s, "test");
+            let _ = validate_url_path(&s);
         }
     }
 }
