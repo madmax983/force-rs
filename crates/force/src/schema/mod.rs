@@ -78,4 +78,8 @@ pub use llm_context_generator::{LlmContextOptions, generate_llm_context};
 #[cfg(feature = "schema")]
 pub(crate) mod dbt_generator;
 #[cfg(feature = "schema")]
+pub(crate) mod elastic_mapping_generator;
+#[cfg(feature = "schema")]
 pub use dbt_generator::{generate_dbt_source_yml, generate_dbt_staging_model};
+#[cfg(feature = "schema")]
+pub use elastic_mapping_generator::{generate_elastic_mapping, write_elastic_mapping};
