@@ -34,3 +34,10 @@
 **Finding:** `cargo mutants` exposed that capacity maths for `stream_channel_capacity`, retry delays based on `reconnect_count`, and `max_retries` comparison (`>`) were untested, masking false logic paths (like capping max delay on backoff or returning incorrect capacity).
 **Evidence:** 7 surviving mutants in `stream_channel_capacity`, `handle_reconnect` backoff arguments, and `reconnect_count` condition.
 **Recommendation:** Added explicit tests to verify max retries exhausted event states (checking exactly 2 Reconnected events for max 2 retries), backoff elapsed times via `Instant`, and `stream_channel_capacity` unit test to `crates/force-pubsub/tests/subscribe_events_tests.rs` and `crates/force-pubsub/src/subscriber.rs`.
+
+**[force-sync: task_queue coalesce logic hides null retries]**
+**Module:** `crates/force-sync/src/store/pg/task_queue.rs`
+**Severity:** 🔴 Critical
+**Finding:** In `update_task_status_unguarded` and `update_task_status_guarded`, `next_attempt_at = coalesce($4::timestamptz, next_attempt_at)` is used to update the `next_attempt_at` field. `cargo mutants` exposed that if `$4` is `None` (like when calling `fail_task`), `coalesce` evaluates to the current `next_attempt_at` value rather than clearing it to `null`.
+**Evidence:** 8 surviving mutants from modifying `PgStore` methods that call `update_task_status`, exposing lack of test coverage for clearing `next_attempt_at`.
+**Recommendation:** Replace `coalesce($4::timestamptz, next_attempt_at)` with just `$4::timestamptz` so that `None` correctly translates to `null` in the database, allowing tasks to truly fail or complete without lingering retry times. Add a test to assert that `fail_task` clears `next_attempt_at`.

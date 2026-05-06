@@ -534,3 +534,50 @@ async fn failed_task_cannot_be_re_leased() -> Result<(), force_sync::ForceSyncEr
     assert!(leased_again.is_empty());
     Ok(())
 }
+
+#[tokio::test]
+#[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
+async fn fail_task_clears_next_attempt_at() -> Result<(), force_sync::ForceSyncError> {
+    let pool = support::postgres::test_pool();
+    support::postgres::reset_schema(&pool).await?;
+    force_sync::migrate(&pool).await?;
+
+    let store = force_sync::PgStore::new(pool.clone());
+    let envelope = test_envelope(17);
+    let journal_id = store.append_journal(&envelope).await?;
+    store.enqueue_apply_task(journal_id, 5).await?;
+
+    let leased = store
+        .lease_ready_tasks("worker-1", 1, std::time::Duration::from_secs(60))
+        .await?;
+    assert_eq!(leased.len(), 1);
+
+    // Schedule retry 10 minutes in the future to set a next_attempt_at.
+    let future_retry = chrono::Utc::now() + chrono::Duration::minutes(10);
+    store
+        .retry_task(leased[0].task_id, future_retry, "transient error")
+        .await?;
+
+    // Fail task.
+    store
+        .fail_task(leased[0].task_id, "permanent error")
+        .await?;
+
+    let row = pool
+        .get()
+        .await?
+        .query_one(
+            "select next_attempt_at from sync_task where task_id = $1",
+            &[&leased[0].task_id],
+        )
+        .await?;
+
+    let next_attempt_at: Option<chrono::DateTime<chrono::Utc>> = row.get(0);
+    assert!(
+        next_attempt_at.is_none(),
+        "Expected next_attempt_at to be cleared to null upon failure, but it was {:?}",
+        next_attempt_at
+    );
+
+    Ok(())
+}
