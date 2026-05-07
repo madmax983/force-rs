@@ -394,9 +394,18 @@ impl<'a> FieldSyntaxValidator<'a> {
     fn process_unquoted_char(&mut self, c: char) -> Result<(), String> {
         match c {
             '\'' | '"' => self.in_quote = Some(c),
-            '(' => self.balance += 1,
+            '(' => {
+                self.balance = self.balance.checked_add(1).ok_or_else(|| {
+                    format!("parentheses nesting too deep in field: {}", self.field)
+                })?;
+            }
             ')' => {
-                self.balance -= 1;
+                self.balance = self.balance.checked_sub(1).ok_or_else(|| {
+                    format!(
+                        "unbalanced parentheses (unexpected closing) in field: {}",
+                        self.field
+                    )
+                })?;
                 if self.balance < 0 {
                     return Err(format!(
                         "unbalanced parentheses (unexpected closing) in field: {}",
@@ -470,6 +479,25 @@ mod tests {
     )]
     fn test_validate_field_syntax_panics() {
         validate_field_syntax("Invalid;Field");
+    }
+
+    #[test]
+    fn test_validate_field_syntax_overflow() {
+        // We can't realistically allocate strings > i32::MAX characters in memory during tests,
+        // so we must unit test the FieldSyntaxValidator directly with a modified balance.
+        let mut validator = FieldSyntaxValidator::new("()");
+        validator.balance = i32::MAX;
+
+        // This process_char('(') will trigger the overflow check for `balance.checked_add(1)`.
+        let result = validator.process_char('(');
+
+        let Err(err) = result else {
+            panic!("Expected an error due to checked_add overflow");
+        };
+        assert!(
+            err.contains("parentheses nesting too deep in field"),
+            "Error should indicate too deep nesting"
+        );
     }
 
     // RED PHASE - Write failing tests first
