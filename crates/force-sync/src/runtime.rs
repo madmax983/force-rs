@@ -573,10 +573,10 @@ fn build_apply_task_context(row: &tokio_postgres::Row) -> Result<ApplyTaskContex
 
     let sync_key = SyncKey::new(tenant, object_name, external_id)?;
     let payload = serde_json::from_str(&payload_json)?;
-    let current_payload = match current_payload_json {
-        Some(current_payload_json) => Some(serde_json::from_str(&current_payload_json)?),
-        None => None,
-    };
+    let current_payload = current_payload_json
+        .as_deref()
+        .map(serde_json::from_str)
+        .transpose()?;
     let envelope = ChangeEnvelope::new(
         sync_key,
         parse_source_system(&source)?,

@@ -176,15 +176,13 @@ impl HttpExecutor {
 
             let response = match response_result {
                 Ok(resp) => resp,
-                Err(e) => {
-                    if retry_attempt < max_retries && Self::is_retryable_error(&e) {
-                        self.handle_transient_failure(retry_attempt, ctx, None)
-                            .await;
-                        retry_attempt += 1;
-                        continue;
-                    }
-                    return Err(e);
+                Err(e) if retry_attempt < max_retries && Self::is_retryable_error(&e) => {
+                    self.handle_transient_failure(retry_attempt, ctx, None)
+                        .await;
+                    retry_attempt += 1;
+                    continue;
                 }
+                Err(e) => return Err(e),
             };
 
             let status = response.status();
@@ -246,13 +244,10 @@ impl HttpExecutor {
             .into());
         };
 
-        match req_result {
-            Ok(response) => Ok(response),
-            Err(error) => {
-                self.record_completion(ctx, None, Some(RequestErrorKind::Transport), retry_attempt);
-                Err(HttpError::from(error).into())
-            }
-        }
+        req_result.map_err(|error| {
+            self.record_completion(ctx, None, Some(RequestErrorKind::Transport), retry_attempt);
+            HttpError::from(error).into()
+        })
     }
 
     fn is_retryable_error(error: &crate::error::ForceError) -> bool {
@@ -380,17 +375,19 @@ impl HttpExecutor {
         let status = response.status();
 
         if status.is_success() {
-            Ok(response)
-        } else if status == StatusCode::UNAUTHORIZED {
-            Err(HttpError::StatusError {
+            return Ok(response);
+        }
+
+        if status == StatusCode::UNAUTHORIZED {
+            return Err(HttpError::StatusError {
                 status_code: 401,
                 message: "Unauthorized after token refresh".to_string(),
             }
-            .into())
-        } else {
-            // Parse API error from response body
-            Err(crate::http::error::response_to_force_error(response, "Unknown error").await)
+            .into());
         }
+
+        // Parse API error from response body
+        Err(crate::http::error::response_to_force_error(response, "Unknown error").await)
     }
 
     /// Executes a request and deserializes the JSON response.
