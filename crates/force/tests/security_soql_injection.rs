@@ -89,3 +89,26 @@ fn test_soql_injection_real_world_vectors() {
         );
     }
 }
+
+#[test]
+#[allow(deprecated)]
+fn test_soql_injection_exploit_unchecked() {
+    // 👺 Havoc: Test Exploit for `where_condition_unchecked`
+    // We demonstrate that passing a raw string to `where_condition_unchecked`
+    // leads directly to a SOQL injection vulnerability.
+
+    // Attacker input that breaks out of the intended query logic
+    let attacker_input = "Name = 'Safe' OR 1=1";
+
+    let query = SoqlQueryBuilder::new()
+        .select(&["Id", "Name"])
+        .from("Account")
+        .where_condition_unchecked(attacker_input)
+        .build();
+
+    // The vulnerability is successfully exploited if the output matches the injected payload exactly
+    assert_eq!(
+        query,
+        "SELECT Id, Name FROM Account WHERE Name = 'Safe' OR 1=1"
+    );
+}
