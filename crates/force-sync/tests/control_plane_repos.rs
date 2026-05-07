@@ -2,13 +2,14 @@
 
 mod support;
 
+use force_sync::ForceSyncError;
 use serde_json::{Value, json};
 
-use force_sync::{DeadLetter, ForceSyncError, SyncConflict, SyncLink};
+use force_sync::{DeadLetter, SyncConflict, SyncLink};
 
 #[tokio::test]
 #[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
-async fn put_link_upserts_the_latest_values() -> Result<(), ForceSyncError> {
+async fn put_link_upserts_the_latest_values() -> force_sync::error::Result<()> {
     let pool = support::postgres::test_pool();
     support::postgres::reset_schema(&pool).await?;
     force_sync::migrate(&pool).await?;
@@ -62,7 +63,7 @@ async fn put_link_upserts_the_latest_values() -> Result<(), ForceSyncError> {
 
 #[tokio::test]
 #[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
-async fn checkpoint_advances_only_when_the_position_increases() -> Result<(), ForceSyncError> {
+async fn checkpoint_advances_only_when_the_position_increases() -> force_sync::error::Result<()> {
     let pool = support::postgres::test_pool();
     support::postgres::reset_schema(&pool).await?;
     force_sync::migrate(&pool).await?;
@@ -103,7 +104,7 @@ async fn checkpoint_advances_only_when_the_position_increases() -> Result<(), Fo
 
 #[tokio::test]
 #[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
-async fn insert_conflict_writes_a_row() -> Result<(), ForceSyncError> {
+async fn insert_conflict_writes_a_row() -> force_sync::error::Result<()> {
     let pool = support::postgres::test_pool();
     support::postgres::reset_schema(&pool).await?;
     force_sync::migrate(&pool).await?;
@@ -143,7 +144,7 @@ async fn insert_conflict_writes_a_row() -> Result<(), ForceSyncError> {
 
 #[tokio::test]
 #[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
-async fn insert_dead_letter_writes_a_row() -> Result<(), ForceSyncError> {
+async fn insert_dead_letter_writes_a_row() -> force_sync::error::Result<()> {
     let pool = support::postgres::test_pool();
     support::postgres::reset_schema(&pool).await?;
     force_sync::migrate(&pool).await?;

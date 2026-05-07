@@ -1,13 +1,11 @@
 //! Journal write helpers for the `PostgreSQL` sync store.
 
+use crate::ForceSyncError;
 use chrono::{DateTime, Utc};
 use serde_json::Value;
 use tokio_postgres::GenericClient;
 
-use crate::{
-    error::ForceSyncError,
-    model::{ChangeEnvelope, ChangeOperation},
-};
+use crate::model::{ChangeEnvelope, ChangeOperation};
 
 use super::PgStore;
 
@@ -36,7 +34,7 @@ struct JournalValues {
     payload_hash: [u8; 32],
 }
 
-fn journal_values(envelope: &ChangeEnvelope) -> Result<JournalValues, ForceSyncError> {
+fn journal_values(envelope: &ChangeEnvelope) -> crate::error::Result<JournalValues> {
     let cursor = envelope
         .cursor()
         .ok_or(ForceSyncError::MissingSourceCursor)?;
@@ -55,7 +53,7 @@ fn journal_values(envelope: &ChangeEnvelope) -> Result<JournalValues, ForceSyncE
     })
 }
 
-async fn insert_journal<C>(client: &C, values: &JournalValues) -> Result<i64, ForceSyncError>
+async fn insert_journal<C>(client: &C, values: &JournalValues) -> crate::error::Result<i64>
 where
     C: GenericClient + Sync + ?Sized,
 {
@@ -108,7 +106,7 @@ where
 async fn insert_journal_if_new<C>(
     client: &C,
     values: &JournalValues,
-) -> Result<Option<i64>, ForceSyncError>
+) -> crate::error::Result<Option<i64>>
 where
     C: GenericClient + Sync + ?Sized,
 {
@@ -165,7 +163,7 @@ impl PgStore {
     /// # Errors
     ///
     /// Returns an error if the cursor is missing or the database write fails.
-    pub async fn append_journal(&self, envelope: &ChangeEnvelope) -> Result<i64, ForceSyncError> {
+    pub async fn append_journal(&self, envelope: &ChangeEnvelope) -> crate::error::Result<i64> {
         let values = journal_values(envelope)?;
         let client = self.pool().get().await?;
         insert_journal(&**client, &values).await
@@ -179,7 +177,7 @@ impl PgStore {
     pub async fn append_journal_if_new(
         &self,
         envelope: &ChangeEnvelope,
-    ) -> Result<AppendResult, ForceSyncError> {
+    ) -> crate::error::Result<AppendResult> {
         let values = journal_values(envelope)?;
         let client = self.pool().get().await?;
         insert_journal_if_new(&**client, &values)
@@ -201,7 +199,7 @@ impl PgStore {
     pub async fn append_journal_in_tx<C>(
         client: &C,
         envelope: &ChangeEnvelope,
-    ) -> Result<i64, ForceSyncError>
+    ) -> crate::error::Result<i64>
     where
         C: GenericClient + Sync + ?Sized,
     {
@@ -217,7 +215,7 @@ impl PgStore {
     pub async fn append_journal_if_new_in_tx<C>(
         client: &C,
         envelope: &ChangeEnvelope,
-    ) -> Result<AppendResult, ForceSyncError>
+    ) -> crate::error::Result<AppendResult>
     where
         C: GenericClient + Sync + ?Sized,
     {

@@ -1,8 +1,8 @@
 //! Canonical identity types for synced records.
 
-use crate::error::ForceSyncError;
+use crate::ForceSyncError;
 
-/// Canonical identity for a synced record.
+/// A canonical sync key identifying a unique record across systems.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SyncKey {
     tenant: String,
@@ -20,7 +20,7 @@ impl SyncKey {
         tenant: impl Into<String>,
         object_name: impl Into<String>,
         external_id: impl Into<String>,
-    ) -> Result<Self, ForceSyncError> {
+    ) -> crate::error::Result<Self> {
         let tenant = tenant.into();
         let object_name = object_name.into();
         let external_id = external_id.into();

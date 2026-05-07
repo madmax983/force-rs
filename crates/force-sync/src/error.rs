@@ -92,3 +92,6 @@ impl From<force_pubsub::PubSubError> for ForceSyncError {
         Self::PubSub(Box::new(error))
     }
 }
+
+/// Result type alias for force-sync.
+pub type Result<T> = std::result::Result<T, ForceSyncError>;

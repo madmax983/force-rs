@@ -10,7 +10,7 @@ pub(crate) mod capture;
 /// Object-level sync configuration and conflict policy types.
 pub(crate) mod config;
 /// Error types for force-sync.
-pub(crate) mod error;
+pub mod error;
 /// Canonical identity types for synced records.
 pub(crate) mod identity;
 /// Change envelope and cursor types for sync events.

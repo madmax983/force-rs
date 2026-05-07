@@ -13,3 +13,6 @@
 **Refactored test_support to test_utils to break circular dependencies**
 **Tangle:** The `test_support.rs` module created a circular dependency tangle (`types -> auth -> test_support -> types`) by functioning as a facade that test-only modules imported heavily, breaking strict DAG encapsulation.
 **Blueprint:** Removed `test_support.rs` entirely. Updated all internal module tests to import mock builders and auth directly from the newly encapsulated `test_utils` internal module (`test_utils::mock_auth`, `test_utils::mock_describe`, and `test_utils::must`), enforcing unidirectional graph dependencies.
+**Standardized Error Handling with Result Type Alias**
+**Tangle:** The `force-sync` crate had fragmented error handling, manually specifying `Result<T, ForceSyncError>` or `Result<T, tokio_postgres::Error>` in various files and repeatedly importing `ForceSyncError`. It lacked a unified standard error type alias (`Result<T>`), violating the "Atlas" convention.
+**Blueprint:** Unified the error responses across `force-sync` by defining `pub type Result<T> = std::result::Result<T, ForceSyncError>;` inside `error.rs` and making the error module public. Updated all function signatures crate-wide to use `Result<T>` instead of explicitly repeating the error type, reducing noise and standardizing error handling.
