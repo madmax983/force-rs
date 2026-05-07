@@ -92,3 +92,6 @@ impl From<force_pubsub::PubSubError> for ForceSyncError {
         Self::PubSub(Box::new(error))
     }
 }
+
+/// A specialized Result type for Force Sync operations.
+pub type Result<T> = std::result::Result<T, ForceSyncError>;
