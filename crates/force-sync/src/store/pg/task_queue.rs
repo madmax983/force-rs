@@ -125,7 +125,7 @@ where
             "update sync_task
                  set status = $2,
                      last_error = $3,
-                     next_attempt_at = $4::timestamptz,
+                     next_attempt_at = coalesce($4::timestamptz, 'now'::timestamptz),
                      lease_owner = null,
                      lease_until = null,
                      updated_at = now()
@@ -151,7 +151,7 @@ where
             "update sync_task
                  set status = $2,
                      last_error = $3,
-                     next_attempt_at = $4::timestamptz,
+                     next_attempt_at = coalesce($4::timestamptz, 'now'::timestamptz),
                      lease_owner = null,
                      lease_until = null,
                      updated_at = now()

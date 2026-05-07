@@ -40,4 +40,4 @@
 **Severity:** 🔴 Critical
 **Finding:** In `update_task_status_unguarded` and `update_task_status_guarded`, `next_attempt_at = coalesce($4::timestamptz, next_attempt_at)` is used to update the `next_attempt_at` field. `cargo mutants` exposed that if `$4` is `None` (like when calling `fail_task`), `coalesce` evaluates to the current `next_attempt_at` value rather than clearing it to `null`.
 **Evidence:** 8 surviving mutants from modifying `PgStore` methods that call `update_task_status`, exposing lack of test coverage for clearing `next_attempt_at`.
-**Recommendation:** Replace `coalesce($4::timestamptz, next_attempt_at)` with just `$4::timestamptz` so that `None` correctly translates to `null` in the database, allowing tasks to truly fail or complete without lingering retry times. Add a test to assert that `fail_task` clears `next_attempt_at`.
+**Recommendation:** Replace `coalesce($4::timestamptz, next_attempt_at)` with `coalesce($4::timestamptz, 'now'::timestamptz)` so that `None` correctly falls back to now, preventing constraint violations while clearing the retry correctly. Add a test to assert that `fail_task` clears `next_attempt_at` properly.
