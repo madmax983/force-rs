@@ -601,14 +601,16 @@ async fn upsert_with_retry_class_impl<A: Authenticator>(
     // ⚡ Bolt: Pass `utf8_percent_encode` directly to `format!` to avoid an intermediate `String` allocation.
     let encoded_value = utf8_percent_encode(external_id_value, UPSERT_ENCODE_SET);
 
-    let relative = format!(
-        "sobjects/{}/{}/{}",
-        sobject, external_id_field, encoded_value
-    );
     let api_path = if api_path_prefix.is_empty() {
-        relative
+        format!(
+            "sobjects/{}/{}/{}",
+            sobject, external_id_field, encoded_value
+        )
     } else {
-        format!("{}/{}", api_path_prefix, relative)
+        format!(
+            "{}/sobjects/{}/{}/{}",
+            api_path_prefix, sobject, external_id_field, encoded_value
+        )
     };
     let url = session.resolve_url(&api_path).await?;
 
