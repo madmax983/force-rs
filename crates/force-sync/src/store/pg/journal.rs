@@ -23,39 +23,41 @@ pub enum AppendResult {
     Duplicate,
 }
 
-struct JournalValues {
-    tenant: String,
-    object_name: String,
-    external_id: String,
+/// ⚡ Bolt: Values derived from a change envelope to be inserted into the journal.
+/// Lifetimes are used to borrow strings and the JSON payload directly to avoid unnecessary heap allocations per journal row.
+struct JournalValues<'a> {
+    tenant: &'a str,
+    object_name: &'a str,
+    external_id: &'a str,
     source: &'static str,
     source_cursor: String,
     observed_at: DateTime<Utc>,
     operation: &'static str,
     tombstone: bool,
-    payload: Value,
+    payload: &'a Value,
     payload_hash: [u8; 32],
 }
 
-fn journal_values(envelope: &ChangeEnvelope) -> Result<JournalValues, ForceSyncError> {
+fn journal_values(envelope: &ChangeEnvelope) -> Result<JournalValues<'_>, ForceSyncError> {
     let cursor = envelope
         .cursor()
         .ok_or(ForceSyncError::MissingSourceCursor)?;
 
     Ok(JournalValues {
-        tenant: envelope.sync_key().tenant().to_owned(),
-        object_name: envelope.sync_key().object_name().to_owned(),
-        external_id: envelope.sync_key().external_id().to_owned(),
+        tenant: envelope.sync_key().tenant(),
+        object_name: envelope.sync_key().object_name(),
+        external_id: envelope.sync_key().external_id(),
         source: envelope.source().as_db_value(),
         source_cursor: cursor.as_db_value(),
         observed_at: envelope.observed_at(),
         operation: envelope.operation().as_db_value(),
         tombstone: matches!(envelope.operation(), ChangeOperation::Delete),
-        payload: envelope.payload().clone(),
+        payload: envelope.payload(),
         payload_hash: envelope.payload_hash(),
     })
 }
 
-async fn insert_journal<C>(client: &C, values: &JournalValues) -> Result<i64, ForceSyncError>
+async fn insert_journal<C>(client: &C, values: &JournalValues<'_>) -> Result<i64, ForceSyncError>
 where
     C: GenericClient + Sync + ?Sized,
 {
@@ -107,7 +109,7 @@ where
 
 async fn insert_journal_if_new<C>(
     client: &C,
-    values: &JournalValues,
+    values: &JournalValues<'_>,
 ) -> Result<Option<i64>, ForceSyncError>
 where
     C: GenericClient + Sync + ?Sized,
@@ -259,8 +261,8 @@ mod tests {
             .unwrap_or_else(|error| panic!("unexpected journal values error: {error}"));
 
         let _: chrono::DateTime<chrono::Utc> = values.observed_at;
-        let _: &serde_json::Value = &values.payload;
+        let _: &serde_json::Value = values.payload;
         assert_eq!(values.observed_at, observed_at);
-        assert_eq!(values.payload, json!({"Name": "Acme"}));
+        assert_eq!(*values.payload, json!({"Name": "Acme"}));
     }
 }
