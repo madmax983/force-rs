@@ -139,8 +139,6 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
 
 #[cfg(test)]
 mod tests {
-    #![allow(clippy::unwrap_used)]
-
     use super::*;
     use crate::api::ui::types::{LayoutType, Mode};
     use crate::client::builder;
@@ -370,11 +368,9 @@ mod tests {
 
         let result = client.ui().layout("Account; DROP TABLE", None, None).await;
         assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .to_string()
-                .contains("contains invalid characters")
-        );
+        let Err(e) = result else {
+            panic!("Expected error");
+        };
+        assert!(e.to_string().contains("contains invalid characters"));
     }
 }
