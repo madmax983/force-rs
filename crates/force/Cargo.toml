@@ -57,7 +57,7 @@ composite = ["rest"]
 composite_graph = ["composite"]
 
 # Capability surfaces
-schema = ["rest"]
+schema = ["rest", "dep:csv"]
 data_utility = ["composite"]
 
 # Auth flows
