@@ -674,7 +674,8 @@ pub fn resolve_next_records_url(instance_url: &str, next_records_url: &str) -> R
     // Security check: the resolved absolute URL must match the instance host
     validate_url_origin_match(&instance_parsed, &next_parsed)?;
 
-    Ok(next_parsed.to_string())
+    // ⚡ Bolt: Avoid unnecessary heap allocation and copy by using `.into()` to consume the `Url` and yield its internal string buffer instead of `.to_string()`.
+    Ok(next_parsed.into())
 }
 
 /// Helper function to validate that the origin and credentials of an absolute URL match the instance.
