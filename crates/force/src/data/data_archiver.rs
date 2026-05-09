@@ -167,8 +167,7 @@ impl<'a, A: Authenticator> DataArchiver<'a, A> {
         wtr.write_record(&row)
             .map_err(|e| ForceError::from(SerializationError::from(e)))?;
 
-        wtr.into_inner()
-            .map_err(|e| ForceError::Io(e.into_error()))
+        wtr.into_inner().map_err(|e| ForceError::Io(e.into_error()))
     }
 
     /// Exports a SOQL query to a JSON Lines (JSONL) file, masking sensitive fields.
