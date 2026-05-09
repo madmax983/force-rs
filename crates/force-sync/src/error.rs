@@ -93,5 +93,4 @@ impl From<force_pubsub::PubSubError> for ForceSyncError {
     }
 }
 
-/// Convenience Result alias for `ForceSync` operations.
 pub type Result<T> = std::result::Result<T, ForceSyncError>;

@@ -3,6 +3,7 @@
 use serde_json::Value;
 use tokio_postgres::GenericClient;
 
+
 use super::PgStore;
 
 /// Conflict record stored for later review.
@@ -25,7 +26,10 @@ pub struct SyncConflict {
     pub resolution: Option<String>,
 }
 
-async fn insert_conflict_query<C>(client: &C, conflict: &SyncConflict) -> crate::error::Result<i64>
+async fn insert_conflict_query<C>(
+    client: &C,
+    conflict: &SyncConflict,
+) -> crate::error::Result<i64>
 where
     C: GenericClient + Sync + ?Sized,
 {

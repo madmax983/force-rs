@@ -2,6 +2,7 @@
 
 use deadpool_postgres::Pool;
 
+
 const MIGRATIONS: &[(i32, &str)] = &[
     (1, include_str!("../../../migrations/0001_init.sql")),
     (
