@@ -2,7 +2,6 @@
 
 use tokio_postgres::GenericClient;
 
-use crate::error::ForceSyncError;
 
 use super::PgStore;
 
@@ -22,7 +21,7 @@ async fn advance_checkpoint_if_greater_query<C>(
     stream_name: &str,
     cursor_position: i64,
     cursor: &str,
-) -> Result<u64, ForceSyncError>
+) -> crate::error::Result<u64>
 where
     C: GenericClient + Sync + ?Sized,
 {
@@ -45,7 +44,7 @@ where
 async fn get_checkpoint_query<C>(
     client: &C,
     stream_name: &str,
-) -> Result<Option<CheckpointState>, ForceSyncError>
+) -> crate::error::Result<Option<CheckpointState>>
 where
     C: GenericClient + Sync + ?Sized,
 {
@@ -78,7 +77,7 @@ impl PgStore {
         stream_name: impl AsRef<str>,
         cursor_position: i64,
         cursor: impl AsRef<str>,
-    ) -> Result<u64, ForceSyncError> {
+    ) -> crate::error::Result<u64> {
         let stream_name = stream_name.as_ref().to_owned();
         let cursor = cursor.as_ref().to_owned();
         let client = self.pool().get().await?;
@@ -95,7 +94,7 @@ impl PgStore {
         stream_name: &str,
         cursor_position: i64,
         cursor: &str,
-    ) -> Result<u64, ForceSyncError>
+    ) -> crate::error::Result<u64>
     where
         C: GenericClient + Sync + ?Sized,
     {
@@ -110,7 +109,7 @@ impl PgStore {
     pub async fn get_checkpoint(
         &self,
         stream_name: impl AsRef<str>,
-    ) -> Result<Option<CheckpointState>, ForceSyncError> {
+    ) -> crate::error::Result<Option<CheckpointState>> {
         let client = self.pool().get().await?;
         get_checkpoint_query(&**client, stream_name.as_ref()).await
     }
