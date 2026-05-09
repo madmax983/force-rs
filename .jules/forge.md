@@ -94,3 +94,7 @@
 **[Consolidate RestOperation Helpers]**
 **Learning:** Standalone helper functions for traits often duplicate internal logic (like `resolve_api_path`) because they lack access to the `self` context, leading to manual string formatting and potential errors.
 **Action:** Extract shared logic between trait methods into internal private/hidden methods on the trait itself, rather than free-standing functions, to reuse trait utilities.
+
+**[Consolidate and Flatten Nested Matches]**
+**Learning:** Nested `match` blocks ("Pyramid of Doom") on `Result` variants and deep nested error handling make code harder to read and increase indentation without semantic benefit.
+**Action:** Prefer guard clauses (`let Ok(val) = ... else { ... }`), mapping operations (`Option::map_or`), and inline match guards (`Err(e) if ...`) to flatten nesting and clarify the primary execution path.

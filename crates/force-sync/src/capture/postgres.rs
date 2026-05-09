@@ -148,39 +148,42 @@ where
             created_at: row.get("created_at"),
         };
 
-        match outbox_envelope(&outbox_row) {
-            Ok(envelope) => match PgStore::append_journal_if_new_in_tx(client, &envelope).await? {
-                AppendResult::Inserted { journal_id } => {
-                    PgStore::enqueue_apply_task_in_tx(client, journal_id, priority).await?;
-                    client
-                        .execute(
-                            "update force_sync_outbox
-                             set processed_at = now()
-                             where outbox_id = $1
-                               and processed_at is null",
-                            &[&outbox_row.outbox_id],
-                        )
-                        .await?;
-                    processed += 1;
-                }
-                AppendResult::Duplicate => {
-                    client
-                        .execute(
-                            "update force_sync_outbox
-                             set processed_at = now()
-                             where outbox_id = $1
-                               and processed_at is null",
-                            &[&outbox_row.outbox_id],
-                        )
-                        .await?;
-                    processed += 1;
-                }
-            },
+        let envelope = match outbox_envelope(&outbox_row) {
+            Ok(envelope) => envelope,
             Err(error) if row_content_error(&error) => {
                 quarantine_row(client, &outbox_row, &error).await?;
                 processed += 1;
+                continue;
             }
             Err(error) => return Err(error),
+        };
+
+        match PgStore::append_journal_if_new_in_tx(client, &envelope).await? {
+            AppendResult::Inserted { journal_id } => {
+                PgStore::enqueue_apply_task_in_tx(client, journal_id, priority).await?;
+                client
+                    .execute(
+                        "update force_sync_outbox
+                         set processed_at = now()
+                         where outbox_id = $1
+                           and processed_at is null",
+                        &[&outbox_row.outbox_id],
+                    )
+                    .await?;
+                processed += 1;
+            }
+            AppendResult::Duplicate => {
+                client
+                    .execute(
+                        "update force_sync_outbox
+                         set processed_at = now()
+                         where outbox_id = $1
+                           and processed_at is null",
+                        &[&outbox_row.outbox_id],
+                    )
+                    .await?;
+                processed += 1;
+            }
         }
     }
 

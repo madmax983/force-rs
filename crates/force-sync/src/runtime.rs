@@ -341,22 +341,18 @@ impl<A: Authenticator> SyncEngine<A> {
                     )
                     .await;
 
-                match result {
-                    Ok(result) => {
-                        let link = project_sync_link(
-                            existing_link,
-                            envelope,
-                            result.salesforce_id.as_ref(),
-                            false,
-                        );
-                        self.store.put_link(&link).await?;
-                        self.store
-                            .ack_task_for_worker(&self.worker_id, task.task_id)
-                            .await?;
-                        Ok(true)
-                    }
-                    Err(error) => self.handle_apply_error(task, error).await,
-                }
+                let salesforce_id = match result {
+                    Ok(res) => res.salesforce_id,
+                    Err(error) => return self.handle_apply_error(task, error).await,
+                };
+
+                let link =
+                    project_sync_link(existing_link, envelope, salesforce_id.as_ref(), false);
+                self.store.put_link(&link).await?;
+                self.store
+                    .ack_task_for_worker(&self.worker_id, task.task_id)
+                    .await?;
+                Ok(true)
             }
             ChangeOperation::Delete => {
                 let Some(existing_link) = existing_link else {
@@ -387,26 +383,21 @@ impl<A: Authenticator> SyncEngine<A> {
                         value: error.to_string(),
                     })?;
 
-                match self
+                if let Err(error) = self
                     .salesforce
                     .apply_rest_delete(envelope.sync_key().object_name(), &salesforce_id)
                     .await
                 {
-                    Ok(()) => {
-                        let link = project_sync_link(
-                            existing_link.into(),
-                            envelope,
-                            Some(&salesforce_id),
-                            true,
-                        );
-                        self.store.put_link(&link).await?;
-                        self.store
-                            .ack_task_for_worker(&self.worker_id, task.task_id)
-                            .await?;
-                        Ok(true)
-                    }
-                    Err(error) => self.handle_apply_error(task, error).await,
+                    return self.handle_apply_error(task, error).await;
                 }
+
+                let link =
+                    project_sync_link(existing_link.into(), envelope, Some(&salesforce_id), true);
+                self.store.put_link(&link).await?;
+                self.store
+                    .ack_task_for_worker(&self.worker_id, task.task_id)
+                    .await?;
+                Ok(true)
             }
         }
     }

@@ -172,19 +172,15 @@ impl HttpExecutor {
                 HttpError::InvalidUrl("cannot clone request for retry".to_string())
             })?;
 
-            let response_result = self.execute_attempt(req_clone, retry_attempt, ctx).await;
-
-            let response = match response_result {
+            let response = match self.execute_attempt(req_clone, retry_attempt, ctx).await {
                 Ok(resp) => resp,
-                Err(e) => {
-                    if retry_attempt < max_retries && Self::is_retryable_error(&e) {
-                        self.handle_transient_failure(retry_attempt, ctx, None)
-                            .await;
-                        retry_attempt += 1;
-                        continue;
-                    }
-                    return Err(e);
+                Err(e) if retry_attempt < max_retries && Self::is_retryable_error(&e) => {
+                    self.handle_transient_failure(retry_attempt, ctx, None)
+                        .await;
+                    retry_attempt += 1;
+                    continue;
                 }
+                Err(e) => return Err(e),
             };
 
             let status = response.status();
@@ -256,9 +252,12 @@ impl HttpExecutor {
     }
 
     fn is_retryable_error(error: &crate::error::ForceError) -> bool {
-        match error {
-            crate::error::ForceError::Http(HttpError::Timeout { .. }) => true,
-            crate::error::ForceError::Http(HttpError::RequestFailed(re)) => {
+        let crate::error::ForceError::Http(http_error) = error else {
+            return false;
+        };
+        match http_error {
+            HttpError::Timeout { .. } => true,
+            HttpError::RequestFailed(re) => {
                 !re.is_builder() && !re.is_redirect() && !re.is_status()
             }
             _ => false,

@@ -92,20 +92,12 @@ pub(crate) async fn handle_oauth_error(
     };
 
     if let Ok(oauth_error) = serde_json::from_str::<OAuthErrorResponse>(&error_text) {
-        let msg = match context {
-            Some(ctx) => format!(
-                "{ctx}: {}: {}",
-                oauth_error.error, oauth_error.error_description
-            ),
-            None => format!("{}: {}", oauth_error.error, oauth_error.error_description),
-        };
+        let error_msg = format!("{}: {}", oauth_error.error, oauth_error.error_description);
+        let msg = context.map_or_else(|| error_msg.clone(), |ctx| format!("{ctx}: {error_msg}"));
         return ForceError::Authentication(AuthenticationError::TokenRequestFailed(msg));
     }
 
-    let message = match context {
-        Some(ctx) => format!("{ctx}: {error_text}"),
-        None => error_text,
-    };
+    let message = context.map_or_else(|| error_text.clone(), |ctx| format!("{ctx}: {error_text}"));
     ForceError::Http(HttpError::StatusError {
         status_code: status.as_u16(),
         message,
