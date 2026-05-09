@@ -64,7 +64,7 @@ pub fn escape_soql_cow(input: &str) -> Cow<'_, str> {
 /// Validates the builder, then writes the SOQL through URL-encoding.
 /// Used by Composite Batch and Graph APIs to embed queries in subrequests.
 #[cfg(any(feature = "composite", feature = "composite_graph"))]
-pub fn encode_soql_query_url(query_builder: &SoqlQueryBuilder) -> Result<String, ForceError> {
+pub fn encode_soql_query_url(query_builder: &SoqlQueryBuilder) -> crate::error::Result<String> {
     if let Err(e) = query_builder.validate() {
         return Err(ForceError::InvalidInput(format!(
             "Invalid query builder: {e}"
@@ -150,7 +150,7 @@ impl SoqlQueryBuilder {
     /// # Errors
     ///
     /// Returns an error if any field name contains invalid characters.
-    pub fn try_select(mut self, fields: &[impl AsRef<str>]) -> Result<Self, ForceError> {
+    pub fn try_select(mut self, fields: &[impl AsRef<str>]) -> crate::error::Result<Self> {
         #[allow(unused_doc_comments)]
         /// ⚡ Bolt: Pre-allocating capacity avoids multiple heap reallocations
         /// that would occur when using `.collect::<Result<Vec<_>, _>>()`
@@ -179,7 +179,7 @@ impl SoqlQueryBuilder {
     /// # Errors
     ///
     /// Returns an error if the SObject name is invalid.
-    pub fn try_from(mut self, sobject: impl Into<String>) -> Result<Self, ForceError> {
+    pub fn try_from(mut self, sobject: impl Into<String>) -> crate::error::Result<Self> {
         let s = sobject.into();
         validate_sobject_name(&s)?;
         self.sobject = Some(s);
@@ -236,7 +236,7 @@ impl SoqlQueryBuilder {
     ///     .build();
     /// assert_eq!(query, "SELECT Id FROM Contact WHERE LastName = 'Smith'");
     /// ```
-    pub fn try_where_eq(self, field: &str, value: &str) -> Result<Self, ForceError> {
+    pub fn try_where_eq(self, field: &str, value: &str) -> crate::error::Result<Self> {
         self.try_add_condition(field, "=", value)
     }
 
@@ -267,7 +267,7 @@ impl SoqlQueryBuilder {
     ///     .build();
     /// assert_eq!(query, "SELECT Id FROM Contact WHERE LastName != 'Smith'");
     /// ```
-    pub fn try_where_ne(self, field: &str, value: &str) -> Result<Self, ForceError> {
+    pub fn try_where_ne(self, field: &str, value: &str) -> crate::error::Result<Self> {
         self.try_add_condition(field, "!=", value)
     }
 
@@ -282,7 +282,12 @@ impl SoqlQueryBuilder {
     }
 
     /// Adds a simple WHERE condition (helper).
-    fn try_add_condition(mut self, field: &str, op: &str, value: &str) -> Result<Self, ForceError> {
+    fn try_add_condition(
+        mut self,
+        field: &str,
+        op: &str,
+        value: &str,
+    ) -> crate::error::Result<Self> {
         use std::fmt::Write;
 
         validate_field_name(field).map_err(|e| ForceError::InvalidInput(e.to_string()))?;
@@ -323,7 +328,7 @@ impl SoqlQueryBuilder {
         mut self,
         field: &str,
         values: &[impl AsRef<str>],
-    ) -> Result<Self, ForceError> {
+    ) -> crate::error::Result<Self> {
         use std::fmt::Write;
 
         validate_field_name(field).map_err(|e| ForceError::InvalidInput(e.to_string()))?;
@@ -386,7 +391,7 @@ impl SoqlQueryBuilder {
     ///     .build();
     /// assert_eq!(query, "SELECT Id FROM Account WHERE Name LIKE 'Acme%'");
     /// ```
-    pub fn try_where_like(self, field: &str, value: &str) -> Result<Self, ForceError> {
+    pub fn try_where_like(self, field: &str, value: &str) -> crate::error::Result<Self> {
         self.try_add_condition(field, "LIKE", value)
     }
 
@@ -457,7 +462,7 @@ impl SoqlQueryBuilder {
     ///     .build();
     /// assert_eq!(query, "SELECT Id FROM Account ORDER BY Name");
     /// ```
-    pub fn try_order_by(mut self, field: &str) -> Result<Self, ForceError> {
+    pub fn try_order_by(mut self, field: &str) -> crate::error::Result<Self> {
         validate_field_name(field).map_err(|e| ForceError::InvalidInput(e.to_string()))?;
         self.order_by = Some(field.to_string());
         Ok(self)
@@ -490,7 +495,7 @@ impl SoqlQueryBuilder {
     ///     .build();
     /// assert_eq!(query, "SELECT Id FROM Account ORDER BY CreatedDate DESC");
     /// ```
-    pub fn try_order_by_desc(mut self, field: &str) -> Result<Self, ForceError> {
+    pub fn try_order_by_desc(mut self, field: &str) -> crate::error::Result<Self> {
         validate_field_name(field).map_err(|e| ForceError::InvalidInput(e.to_string()))?;
         self.order_by = Some(format!("{} DESC", field));
         Ok(self)
@@ -512,7 +517,7 @@ impl SoqlQueryBuilder {
     /// # Errors
     ///
     /// Returns an error if no fields are selected or no SObject is specified.
-    pub fn validate(&self) -> Result<(), ForceError> {
+    pub fn validate(&self) -> crate::error::Result<()> {
         if self.fields.is_empty() {
             return Err(ForceError::InvalidInput(
                 "Select fields cannot be empty".to_string(),
@@ -553,7 +558,7 @@ impl SoqlQueryBuilder {
     /// # Errors
     ///
     /// Returns an error if no fields are selected or no SObject is specified.
-    pub fn try_build(self) -> Result<String, ForceError> {
+    pub fn try_build(self) -> crate::error::Result<String> {
         self.validate()?;
 
         // 256 is a reasonable default to avoid immediate reallocations
@@ -843,7 +848,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "Invalid input in test_context: invalid input: test error")]
     fn test_unwrap_or_panic_helper() {
-        let result: Result<(), ForceError> =
+        let result: crate::error::Result<()> =
             Err(ForceError::InvalidInput("test error".to_string()));
         result.unwrap_or_panic("test_context");
     }
