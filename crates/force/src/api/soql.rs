@@ -807,6 +807,20 @@ mod tests {
         }
     }
 
+    #[test]
+    fn test_try_methods_ok() {
+        let builder = SoqlQueryBuilder::new();
+        let builder = match builder.try_select(&["Id"]) { Ok(v) => v, Err(e) => panic!("test failed: {e}") };
+        let builder = match builder.try_from("Account") { Ok(v) => v, Err(e) => panic!("test failed: {e}") };
+        let builder = match builder.try_where_eq("Id", "123") { Ok(v) => v, Err(e) => panic!("test failed: {e}") };
+        let builder = match builder.try_where_ne("Id", "456") { Ok(v) => v, Err(e) => panic!("test failed: {e}") };
+        let builder = match builder.try_where_in("Id", &["123", "456"]) { Ok(v) => v, Err(e) => panic!("test failed: {e}") };
+        let builder = match builder.try_where_like("Id", "12%") { Ok(v) => v, Err(e) => panic!("test failed: {e}") };
+        let builder = match builder.try_order_by("Id") { Ok(v) => v, Err(e) => panic!("test failed: {e}") };
+        let builder = match builder.try_order_by_desc("Name") { Ok(v) => v, Err(e) => panic!("test failed: {e}") };
+        let _result = match builder.try_build() { Ok(v) => v, Err(e) => panic!("test failed: {e}") };
+    }
+
     // Test unwrap_or_panic logic by calling `build` on invalid states directly.
     #[test]
     #[should_panic(

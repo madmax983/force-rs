@@ -26,4 +26,10 @@ mod tests {
             Err(ForceError::InvalidInput("test error".to_string()));
         result.unwrap_or_panic("test_context");
     }
+
+    #[test]
+    fn test_unwrap_or_panic_helper_ok() {
+        let result: Result<(), ForceError> = Ok(());
+        result.unwrap_or_panic("test_context");
+    }
 }

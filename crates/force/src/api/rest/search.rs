@@ -730,6 +730,28 @@ mod tests {
     }
 
     #[test]
+    fn test_unwrap_or_panic_helper_ok() {
+        let result: Result<(), crate::error::ForceError> = Ok(());
+        result.unwrap_or_panic("test_context");
+    }
+
+    #[test]
+    fn test_returning_unwrap_or_panic_helper_ok() {
+        // Valid returning shouldn't panic
+        let builder = SearchQueryBuilder::new().find("Test");
+        let result = builder.returning("Account", &["Id"]);
+        assert_eq!(result.returning[0].0, "Account");
+    }
+
+    #[test]
+    fn test_build_unwrap_or_panic_helper_ok() {
+        // Valid build shouldn't panic
+        let builder = SearchQueryBuilder::new().find("Test").returning("Account", &["Id"]);
+        let result = builder.build();
+        assert_eq!(result, "FIND {Test} RETURNING Account(Id)");
+    }
+
+    #[test]
 
     fn test_search_query_builder_try_build_errors() {
         let result = SearchQueryBuilder::new()
