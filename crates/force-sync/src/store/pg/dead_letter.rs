@@ -3,7 +3,6 @@
 use serde_json::Value;
 use tokio_postgres::GenericClient;
 
-
 use super::PgStore;
 
 /// Dead-letter row captured for operator review.
@@ -77,10 +76,7 @@ impl PgStore {
     /// # Errors
     ///
     /// Returns an error if the database write fails.
-    pub async fn insert_dead_letter(
-        &self,
-        dead_letter: &DeadLetter,
-    ) -> crate::error::Result<i64> {
+    pub async fn insert_dead_letter(&self, dead_letter: &DeadLetter) -> crate::error::Result<i64> {
         let client = self.pool().get().await?;
         insert_dead_letter_query(&**client, dead_letter).await
     }

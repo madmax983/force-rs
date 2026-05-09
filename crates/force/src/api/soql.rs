@@ -282,7 +282,12 @@ impl SoqlQueryBuilder {
     }
 
     /// Adds a simple WHERE condition (helper).
-    fn try_add_condition(mut self, field: &str, op: &str, value: &str) -> crate::error::Result<Self> {
+    fn try_add_condition(
+        mut self,
+        field: &str,
+        op: &str,
+        value: &str,
+    ) -> crate::error::Result<Self> {
         use std::fmt::Write;
 
         validate_field_name(field).map_err(|e| ForceError::InvalidInput(e.to_string()))?;
