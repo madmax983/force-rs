@@ -502,7 +502,7 @@ mod integration_tests {
         let url = format!("{}/test", mock_server.uri());
         let request = reqwest::Client::new().get(&url).build().must();
 
-        let result: Result<TestResponse, ForceError> = executor
+        let result: crate::error::Result<TestResponse> = executor
             .execute_json(request, &token, || async { panic!("Should not refresh") })
             .await;
 
@@ -529,7 +529,7 @@ mod integration_tests {
         let url = format!("{}/test", mock_server.uri());
         let request = reqwest::Client::new().get(&url).build().must();
 
-        let result: Result<IdOnlyResponse, ForceError> = executor
+        let result: crate::error::Result<IdOnlyResponse> = executor
             .execute_json(request, &token, || async { panic!("Should not refresh") })
             .await;
 

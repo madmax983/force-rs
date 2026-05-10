@@ -1597,7 +1597,7 @@ mod bulk_roundtrip_tests {
             config.auth,
         );
 
-        let result: std::result::Result<(), ForceError> =
+        let result: force::error::Result<()> =
             tokio::time::timeout(config.runtime.test_timeout, async {
                 let client = create_live_client(&config).await?;
                 let accounts = generate_accounts(&prefix, record_count);
@@ -1716,7 +1716,7 @@ mod bulk_roundtrip_tests {
             config.auth,
         );
 
-        let result: std::result::Result<(), ForceError> =
+        let result: force::error::Result<()> =
             tokio::time::timeout(config.runtime.test_timeout, async {
                 let client = create_live_client(&config).await?;
                 let accounts = generate_accounts(&prefix, record_count);

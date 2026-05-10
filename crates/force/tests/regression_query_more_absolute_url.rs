@@ -28,7 +28,7 @@ impl MockAuthenticator {
 
 #[async_trait]
 impl Authenticator for MockAuthenticator {
-    async fn authenticate(&self) -> Result<AccessToken, force::error::ForceError> {
+    async fn authenticate(&self) -> force::error::Result<AccessToken> {
         Ok(AccessToken::from_response(TokenResponse {
             access_token: secrecy::SecretString::new("test_token".to_string().into()),
             instance_url: self.instance_url.clone(),
@@ -40,7 +40,7 @@ impl Authenticator for MockAuthenticator {
         }))
     }
 
-    async fn refresh(&self) -> Result<AccessToken, force::error::ForceError> {
+    async fn refresh(&self) -> force::error::Result<AccessToken> {
         self.authenticate().await
     }
 }

@@ -9,7 +9,7 @@ use crate::error::ForceError;
 ///
 /// Shared logic for SObject names, external ID fields, and any other identifier
 /// that must be a strict `[a-zA-Z0-9_]+` pattern.
-pub fn validate_identifier(name: &str, label: &str) -> Result<(), ForceError> {
+pub fn validate_identifier(name: &str, label: &str) -> crate::error::Result<()> {
     if name.is_empty() {
         return Err(ForceError::InvalidInput(format!("{label} cannot be empty")));
     }
@@ -31,7 +31,7 @@ pub fn validate_identifier(name: &str, label: &str) -> Result<(), ForceError> {
 ///
 /// This prevents path traversal and injection attacks when SObject names are used
 /// in URLs or queries.
-pub fn validate_sobject_name(name: &str) -> Result<(), ForceError> {
+pub fn validate_sobject_name(name: &str) -> crate::error::Result<()> {
     validate_identifier(name, "SObject name")
 }
 
@@ -46,7 +46,7 @@ pub fn validate_sobject_name(name: &str) -> Result<(), ForceError> {
 /// # Security
 ///
 /// This prevents SOQL injection when field names are interpolated into queries.
-pub fn validate_field_name(name: &str) -> Result<(), ForceError> {
+pub fn validate_field_name(name: &str) -> crate::error::Result<()> {
     validate_field_name_internal(name, true)
 }
 
@@ -61,11 +61,11 @@ pub fn validate_field_name(name: &str) -> Result<(), ForceError> {
 ///
 /// This ensures that the external ID field is a valid identifier on the object,
 /// preventing path manipulation in upsert requests.
-pub fn validate_external_id_field(name: &str) -> Result<(), ForceError> {
+pub fn validate_external_id_field(name: &str) -> crate::error::Result<()> {
     validate_identifier(name, "External ID field name")
 }
 
-fn validate_field_name_internal(name: &str, allow_functions: bool) -> Result<(), ForceError> {
+fn validate_field_name_internal(name: &str, allow_functions: bool) -> crate::error::Result<()> {
     if name.is_empty() {
         return Err(ForceError::InvalidInput(
             "Field name cannot be empty".to_string(),
@@ -131,7 +131,7 @@ fn validate_field_name_internal(name: &str, allow_functions: bool) -> Result<(),
 ///
 /// This prevents SSRF and path traversal attacks when user inputs are used
 /// directly in composite requests or dynamic URLs.
-pub fn validate_url_path(path: &str) -> Result<(), ForceError> {
+pub fn validate_url_path(path: &str) -> crate::error::Result<()> {
     if path.is_empty() {
         return Err(ForceError::InvalidInput(
             "URL path cannot be empty".to_string(),
