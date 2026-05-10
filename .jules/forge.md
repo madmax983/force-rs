@@ -98,3 +98,6 @@
 **Extract Schema Generators Helpers**
 **Learning:** Functions that iterate over fields and generate schema artifacts (like Postman collections) become "God Functions" with high cognitive complexity due to large nested blocks.
 **Action:** Extract the complex nested logic within generator functions into private helper methods to flatten the structure, reduce cognitive load, and satisfy `clippy::cognitive_complexity` and `clippy::too_many_lines`.
+**[Flatten Match With Original Error Context]**
+**Learning:** When flattening nested `match` statements handling `Result` outputs, rewriting them with `let Ok(...) = result else` guard clauses can lead to silently swallowing the underlying original error if not passed through explicitly, which breaks observability and changes runtime behavior. Using `.map_err(...)?` provides a flatter structure while preserving the exact error mappings natively.
+**Action:** When acting as 'Forge', never drop the original underlying error variable (e.g., `e`). To flatten `Result` mapping, use `.map_err(|e| { ... })?` with the `?` operator instead of verbose `match` statements or dropping context inside `else` guards, ensuring the error propagates cleanly without over-nesting.

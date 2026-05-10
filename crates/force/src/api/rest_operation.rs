@@ -652,9 +652,9 @@ pub fn resolve_next_records_url(instance_url: &str, next_records_url: &str) -> R
 
     // Security check: absolute URL must match the instance host
     let next_parsed = url::Url::parse(next_records_url)
-        .map_err(|e| ForceError::InvalidInput(format!("Invalid nextRecordsUrl: {}", e)))?;
+        .map_err(|e| ForceError::InvalidInput(format!("Invalid nextRecordsUrl: {e}")))?;
     let instance_parsed = url::Url::parse(instance_url)
-        .map_err(|e| ForceError::InvalidInput(format!("Invalid instance URL in token: {}", e)))?;
+        .map_err(|e| ForceError::InvalidInput(format!("Invalid instance URL in token: {e}")))?;
 
     validate_url_origin_match(&instance_parsed, &next_parsed)?;
 
@@ -836,6 +836,10 @@ mod tests {
     #[tokio::test]
     async fn test_validation_query_rejects_oversized_soql_before_session() {
         let op = TestRestOp;
+
+        let exact = "A".repeat(MAX_QUERY_INPUT_BYTES);
+        assert!(super::validate_query_input_len("test", &exact).is_ok());
+
         let soql = "A".repeat(MAX_QUERY_INPUT_BYTES + 1);
         let result = op.query::<serde_json::Value>(&soql).await;
 
@@ -845,6 +849,10 @@ mod tests {
     #[tokio::test]
     async fn test_validation_query_more_rejects_oversized_url_before_session() {
         let op = TestRestOp;
+
+        let exact = "A".repeat(MAX_QUERY_INPUT_BYTES);
+        assert!(super::validate_query_input_len("test", &exact).is_ok());
+
         let next_records_url = "A".repeat(MAX_QUERY_INPUT_BYTES + 1);
         let result = op.query_more::<serde_json::Value>(&next_records_url).await;
 
@@ -979,6 +987,44 @@ mod tests {
         assert!(response.is_success());
         assert!(!response.is_created());
         assert_eq!(response.id.as_str(), "001xx000003DHP0AAO");
+    }
+
+    #[tokio::test]
+    async fn test_upsert_payload_too_large() {
+        use crate::client::builder;
+        use serde_json::json;
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let mock_server = MockServer::start().await;
+        let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
+        let client = builder().authenticate(auth).build().await.must();
+
+        let big_str = "A".repeat(100 * 1024 * 1024 + 1);
+        Mock::given(method("PATCH"))
+            .and(path(
+                "/services/data/v60.0/sobjects/Account/ExternalId__c/ACME-002",
+            ))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(big_str.into_bytes()))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let rest = client.rest();
+        let response = rest
+            .upsert(
+                "Account",
+                "ExternalId__c",
+                "ACME-002",
+                &json!({"Name": "Acme Corp"}),
+            )
+            .await;
+        assert!(matches!(
+            response,
+            Err(crate::error::ForceError::Http(
+                crate::error::HttpError::PayloadTooLarge { .. }
+            ))
+        ));
     }
 
     #[tokio::test]
