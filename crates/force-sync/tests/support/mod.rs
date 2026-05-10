@@ -1,3 +1,4 @@
+#![allow(clippy::redundant_pub_crate)]
 //! Integration test support utilities for force-sync.
 
-pub mod postgres;
+pub(crate) mod postgres;

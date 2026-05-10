@@ -1,3 +1,4 @@
+#![allow(clippy::redundant_pub_crate)]
 //! Correctness-first bidirectional Salesforce and Postgres sync engine.
 
 #![forbid(unsafe_code)]
