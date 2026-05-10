@@ -92,3 +92,55 @@ impl From<force_pubsub::PubSubError> for ForceSyncError {
         Self::PubSub(Box::new(error))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_pubsub_error_conversion() {
+        let pubsub_err = force_pubsub::PubSubError::Config("test".to_string());
+        let sync_err: ForceSyncError = pubsub_err.into();
+        assert!(matches!(sync_err, ForceSyncError::PubSub(_)));
+    }
+
+    #[test]
+    fn test_pool_error_conversion() {
+        let pool_err = deadpool_postgres::PoolError::Closed;
+        let sync_err: ForceSyncError = pool_err.into();
+        assert!(matches!(sync_err, ForceSyncError::Pool(_)));
+    }
+
+    #[test]
+    fn test_missing_config_display() {
+        let err = ForceSyncError::MissingConfiguration { field: "tenant_id" };
+        assert_eq!(err.to_string(), "missing required configuration: tenant_id");
+    }
+
+    #[test]
+    fn test_missing_source_cursor_display() {
+        let err = ForceSyncError::MissingSourceCursor;
+        assert_eq!(
+            err.to_string(),
+            "sync journal entries require a source cursor"
+        );
+    }
+
+    #[test]
+    fn test_missing_not_found_display() {
+        let err = ForceSyncError::NotFound { entity: "Account" };
+        assert_eq!(err.to_string(), "missing Account");
+    }
+
+    #[test]
+    fn test_invalid_lease_duration_display() {
+        let err = ForceSyncError::InvalidLeaseDuration;
+        assert_eq!(err.to_string(), "lease duration is out of range");
+    }
+
+    #[test]
+    fn test_not_implemented_display() {
+        let err = ForceSyncError::NotImplemented;
+        assert_eq!(err.to_string(), "not implemented");
+    }
+}

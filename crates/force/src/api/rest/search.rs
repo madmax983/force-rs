@@ -725,6 +725,15 @@ mod tests {
     }
 
     #[test]
+    #[should_panic(expected = "Invalid input in test_context: invalid input: test error")]
+    fn test_unwrap_or_panic_helper_err() {
+        let result: Result<(), crate::error::ForceError> = Err(
+            crate::error::ForceError::InvalidInput("test error".to_string()),
+        );
+        result.unwrap_or_panic("test_context");
+    }
+
+    #[test]
 
     fn test_search_query_builder_try_build_errors() {
         let result = SearchQueryBuilder::new()

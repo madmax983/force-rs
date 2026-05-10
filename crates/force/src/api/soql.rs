@@ -1031,4 +1031,11 @@ mod tests {
         // Assert fields: Id and Name are included, HiddenField__c is not.
         assert_eq!(builder.fields, vec!["Id".to_string(), "Name".to_string()]);
     }
+    #[test]
+    #[should_panic(
+        expected = "Invalid input in where_eq: invalid input: invalid input: Field name contains invalid character ';': Invalid;Field"
+    )]
+    fn test_where_eq_panics_on_invalid_field_semicolon() {
+        let _ = SoqlQueryBuilder::new().where_eq("Invalid;Field", "Value");
+    }
 }
