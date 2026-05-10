@@ -89,3 +89,15 @@ fn test_soql_injection_real_world_vectors() {
         );
     }
 }
+
+#[test]
+#[allow(deprecated)]
+fn test_where_condition_unchecked_exploit() {
+    let malicious_input = "' OR '1'='1";
+    let query = SoqlQueryBuilder::new()
+        .select(&["Id"])
+        .from("User")
+        .where_condition_unchecked(format!("Username = '{malicious_input}'"))
+        .build();
+    assert_eq!(query, "SELECT Id FROM User WHERE Username = '' OR '1'='1'");
+}

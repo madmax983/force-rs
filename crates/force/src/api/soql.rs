@@ -214,6 +214,10 @@ impl SoqlQueryBuilder {
     /// assert_eq!(query, "SELECT Id FROM Account WHERE CreatedDate > LAST_N_DAYS:30");
     /// ```
     #[must_use]
+    #[deprecated(
+        since = "0.2.1",
+        note = "Vulnerable to SOQL injection. Use `where_eq`, `where_in`, `where_like`, or manual validation and escaping instead."
+    )]
     pub fn where_condition_unchecked(mut self, condition: impl Into<String>) -> Self {
         self.where_clauses.push(condition.into());
         self
@@ -719,6 +723,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(deprecated)]
     fn test_where_condition_raw() {
         let query = SoqlQueryBuilder::new()
             .select(&["Id", "Amount"])
