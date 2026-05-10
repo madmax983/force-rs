@@ -60,16 +60,44 @@ pub async fn generate_visualizer_report<A: Authenticator>(
         insights.required_field_count
     );
 
-    // ⚡ Bolt: Clone only `describe.fields` (if usage is requested) instead of deep cloning
-    // the entire `SObjectDescribe` AST (which contains huge vectors like childRelationships).
-    // Then, move the original `describe` into `SchemaGraph`.
-    let fields_for_usage = if include_usage {
-        Some(describe.fields.clone())
+    let mut graph = SchemaGraph::new(client);
+
+    // ⚡ Bolt: We borrow fields from `describe` for usage stats before moving it into the graph.
+    // However, to satisfy the borrow checker when sorting, we collect references to fields
+    // rather than cloning the entire vector.
+    let usages = if include_usage {
+        let scanner = FieldUsageScanner::new(client);
+        let u = scanner.scan(sobject).await?;
+        let mut map = HashMap::with_capacity(u.len());
+        for usage in u {
+            map.insert(usage.name, usage.percentage);
+        }
+
+        let mut sorted_fields: Vec<&crate::types::describe::FieldDescribe> =
+            describe.fields.iter().collect();
+        sorted_fields.sort_by(|a, b| crate::schema::cmp_field_names(&a.name, &b.name));
+
+        let mut usage_md = String::with_capacity(1024);
+        let _ = writeln!(usage_md, "## Field Usage Statistics\n");
+        let _ = writeln!(usage_md, "| Label | API Name | Populated % |");
+        let _ = writeln!(usage_md, "|---|---|---|");
+
+        for field in sorted_fields {
+            if let Some(pct) = map.get(&field.name) {
+                let _ = writeln!(
+                    usage_md,
+                    "| {} | `{}` | {:.1}% |",
+                    field.label, field.name, pct
+                );
+            } else {
+                let _ = writeln!(usage_md, "| {} | `{}` | N/A |", field.label, field.name);
+            }
+        }
+        Some(usage_md)
     } else {
         None
     };
 
-    let mut graph = SchemaGraph::new(client);
     graph.add_describe(describe);
 
     let _ = writeln!(md, "## Entity-Relationship Diagram\n");
@@ -77,28 +105,8 @@ pub async fn generate_visualizer_report<A: Authenticator>(
     graph.write_mermaid(&mut md);
     let _ = writeln!(md, "```\n");
 
-    if include_usage {
-        let scanner = FieldUsageScanner::new(client);
-        let usages = scanner.scan(sobject).await?;
-        let mut usage_map = HashMap::with_capacity(usages.len());
-        for usage in usages {
-            usage_map.insert(usage.name, usage.percentage);
-        }
-
-        let _ = writeln!(md, "## Field Usage Statistics\n");
-        let _ = writeln!(md, "| Label | API Name | Populated % |");
-        let _ = writeln!(md, "|---|---|---|");
-
-        let mut fields = fields_for_usage.unwrap_or_default();
-        fields.sort_by(|a, b| crate::schema::cmp_field_names(&a.name, &b.name));
-
-        for field in &fields {
-            if let Some(pct) = usage_map.get(&field.name) {
-                let _ = writeln!(md, "| {} | `{}` | {:.1}% |", field.label, field.name, pct);
-            } else {
-                let _ = writeln!(md, "| {} | `{}` | N/A |", field.label, field.name);
-            }
-        }
+    if let Some(u_md) = usages {
+        md.push_str(&u_md);
     }
 
     Ok(md)
