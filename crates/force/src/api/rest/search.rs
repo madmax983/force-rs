@@ -176,7 +176,7 @@ impl SearchQueryBuilder {
         mut self,
         sobject: impl Into<String>,
         fields: &[impl AsRef<str>],
-    ) -> Result<Self, crate::error::ForceError> {
+    ) -> crate::error::Result<Self> {
         let sobject = sobject.into();
         validate_sobject_name(&sobject)?;
 
@@ -232,7 +232,7 @@ impl SearchQueryBuilder {
     /// # Errors
     ///
     /// Returns an error if search text is empty or no objects are specified in RETURNING.
-    pub fn try_build(self) -> Result<String, crate::error::ForceError> {
+    pub fn try_build(self) -> crate::error::Result<String> {
         use std::fmt::Write;
 
         if self.search_text.is_empty() {
@@ -718,18 +718,18 @@ mod tests {
     #[test]
     #[should_panic(expected = "Invalid input in test_context: invalid input: test error")]
     fn test_unwrap_or_panic_helper() {
-        let result: Result<(), crate::error::ForceError> = Err(
-            crate::error::ForceError::InvalidInput("test error".to_string()),
-        );
+        let result: crate::error::Result<()> = Err(crate::error::ForceError::InvalidInput(
+            "test error".to_string(),
+        ));
         result.unwrap_or_panic("test_context");
     }
 
     #[test]
     #[should_panic(expected = "Invalid input in test_context: invalid input: test error")]
     fn test_unwrap_or_panic_helper_err() {
-        let result: Result<(), crate::error::ForceError> = Err(
-            crate::error::ForceError::InvalidInput("test error".to_string()),
-        );
+        let result: crate::error::Result<()> = Err(crate::error::ForceError::InvalidInput(
+            "test error".to_string(),
+        ));
         result.unwrap_or_panic("test_context");
     }
 

@@ -35,7 +35,7 @@ async fn test_uncloneable_request_panic() {
 
     let refresh_token = || async { Ok(token.clone()) };
 
-    let result: Result<reqwest::Response, force::error::ForceError> = executor
+    let result: force::error::Result<reqwest::Response> = executor
         .execute_response(request, &token, refresh_token)
         .await;
 

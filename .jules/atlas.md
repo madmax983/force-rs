@@ -13,3 +13,6 @@
 **Refactored test_support to test_utils to break circular dependencies**
 **Tangle:** The `test_support.rs` module created a circular dependency tangle (`types -> auth -> test_support -> types`) by functioning as a facade that test-only modules imported heavily, breaking strict DAG encapsulation.
 **Blueprint:** Removed `test_support.rs` entirely. Updated all internal module tests to import mock builders and auth directly from the newly encapsulated `test_utils` internal module (`test_utils::mock_auth`, `test_utils::mock_describe`, and `test_utils::must`), enforcing unidirectional graph dependencies.
+**[Unify error handling]
+**Tangle:** Inconsistent error handling across modules where Result was used with explicit types.
+**Blueprint:** Standardized error types across all modules to enforce domain boundaries.

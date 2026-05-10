@@ -74,7 +74,7 @@ mod tests {
         // which sends the request to `evil.com`.
         // After the fix, it creates `http://127.0.0.1:port/@evil.com/...`
         // which is a relative path sent to the mock server!
-        let result: Result<force::types::QueryResult<Dummy>, force::error::ForceError> =
+        let result: force::error::Result<force::types::QueryResult<Dummy>> =
             handler.query_more::<Dummy>(next_records_url).await;
 
         // Because the mock server is configured to handle the relative path `/@evil.com/...`,
