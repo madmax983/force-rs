@@ -90,8 +90,7 @@ impl<'a, A: Authenticator> QueryBatch<'a, A> {
                 if let Some(op) = transform(record) {
                     buffer.push(op);
                     if buffer.len() >= 25 {
-                        self.flush_batch(buffer, &mut stats).await?;
-                        buffer = Vec::with_capacity(25);
+                        self.flush_batch(&mut buffer, &mut stats).await?;
                     }
                 }
             }
@@ -109,13 +108,13 @@ impl<'a, A: Authenticator> QueryBatch<'a, A> {
 
         // Flush remaining
         if !buffer.is_empty() {
-            self.flush_batch(buffer, &mut stats).await?;
+            self.flush_batch(&mut buffer, &mut stats).await?;
         }
 
         Ok(stats)
     }
 
-    async fn flush_batch(&self, ops: Vec<BatchOp>, stats: &mut BatchStats) -> Result<()> {
+    async fn flush_batch(&self, ops: &mut Vec<BatchOp>, stats: &mut BatchStats) -> Result<()> {
         if ops.is_empty() {
             return Ok(());
         }
@@ -126,7 +125,7 @@ impl<'a, A: Authenticator> QueryBatch<'a, A> {
             .batch()
             .halt_on_error(self.halt_on_error);
 
-        for op in ops {
+        for op in ops.drain(..) {
             batch = match op {
                 BatchOp::Update(sobject, id, fields) => batch.patch(&sobject, &id, fields)?,
                 BatchOp::Delete(sobject, id) => batch.delete(&sobject, &id)?,
