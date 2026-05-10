@@ -118,7 +118,7 @@ where
     C: GenericClient + Sync + ?Sized,
 {
     if limit <= 0 {
-        return Ok(0);
+        return Ok(0usize);
     }
 
     let rows = client
@@ -161,7 +161,7 @@ where
                             &[&outbox_row.outbox_id],
                         )
                         .await?;
-                    processed += 1;
+                    processed = processed.saturating_add(1);
                 }
                 AppendResult::Duplicate => {
                     client
@@ -173,12 +173,12 @@ where
                             &[&outbox_row.outbox_id],
                         )
                         .await?;
-                    processed += 1;
+                    processed = processed.saturating_add(1);
                 }
             },
             Err(error) if row_content_error(&error) => {
-                quarantine_row(client, &outbox_row, &error).await?;
-                processed += 1;
+                let _ = quarantine_row(client, &outbox_row, &error).await;
+                processed = processed.saturating_add(1);
             }
             Err(error) => return Err(error),
         }
@@ -198,6 +198,9 @@ pub async fn capture_batch(
     limit: i64,
     priority: i32,
 ) -> Result<usize, ForceSyncError> {
+    if limit <= 0 {
+        return Ok(0);
+    }
     store
         .with_transaction(|tx| {
             async move { capture_batch_in_tx(tx, limit, priority).await }.boxed()
