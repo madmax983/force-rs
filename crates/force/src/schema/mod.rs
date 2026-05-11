@@ -28,6 +28,7 @@ pub(crate) mod schema_visualizer;
 pub(crate) mod sql_exporter;
 #[allow(missing_docs)]
 pub(crate) mod type_generator;
+pub(crate) mod swift_generator;
 pub(crate) mod typescript_generator;
 pub(crate) mod zod_generator;
 
@@ -68,6 +69,7 @@ pub use schema_linter::{
 };
 pub use schema_visualizer::generate_visualizer_report;
 pub use sql_exporter::{generate_ddl, write_ddl};
+pub use swift_generator::{generate_swift_struct, write_swift_struct};
 pub use type_generator::generate_rust_struct;
 pub use typescript_generator::{generate_typescript_interface, write_typescript_interface};
 pub use zod_generator::{generate_zod_schema, write_zod_schema};
