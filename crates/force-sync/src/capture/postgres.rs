@@ -36,36 +36,76 @@ fn outbox_operation(op: &str, tombstone: bool) -> Result<ChangeOperation, ForceS
     }
 }
 
-fn outbox_source_cursor(raw: &str) -> Result<SourceCursor, ForceSyncError> {
+fn outbox_source_cursor(raw: String) -> Result<SourceCursor, ForceSyncError> {
     if raw.starts_with("postgres-lsn:")
         || raw.starts_with("salesforce-replay-id:")
         || raw.starts_with("snapshot:")
     {
-        return Err(ForceSyncError::InvalidOutboxCursor {
-            cursor: raw.to_string(),
-        });
+        return Err(ForceSyncError::InvalidOutboxCursor { cursor: raw });
     }
 
-    Ok(SourceCursor::PostgresLsn(raw.to_string()))
+    Ok(SourceCursor::PostgresLsn(raw))
 }
 
-fn outbox_envelope(row: &OutboxRow) -> Result<ChangeEnvelope, ForceSyncError> {
-    let payload: Value = serde_json::from_str(&row.payload_text)?;
-    let sync_key = SyncKey::new(
-        row.tenant.clone(),
-        row.object_name.clone(),
-        row.external_id.clone(),
-    )?;
-    let operation = outbox_operation(&row.op, row.tombstone)?;
+#[allow(clippy::result_large_err)]
+fn outbox_envelope(row: OutboxRow) -> Result<ChangeEnvelope, (ForceSyncError, OutboxRow)> {
+    let payload: Value = match serde_json::from_str(&row.payload_text) {
+        Ok(v) => v,
+        Err(e) => return Err((e.into(), row)),
+    };
+    let operation = match outbox_operation(&row.op, row.tombstone) {
+        Ok(op) => op,
+        Err(e) => return Err((e, row)),
+    };
+    if row.tenant.is_empty() {
+        return Err((ForceSyncError::EmptySyncKeyPart { part: "tenant" }, row));
+    }
+    if row.object_name.is_empty() {
+        return Err((
+            ForceSyncError::EmptySyncKeyPart {
+                part: "object_name",
+            },
+            row,
+        ));
+    }
+    if row.external_id.is_empty() {
+        return Err((
+            ForceSyncError::EmptySyncKeyPart {
+                part: "external_id",
+            },
+            row,
+        ));
+    }
+
+    if row.source_cursor.starts_with("postgres-lsn:")
+        || row.source_cursor.starts_with("salesforce-replay-id:")
+        || row.source_cursor.starts_with("snapshot:")
+    {
+        return Err((
+            ForceSyncError::InvalidOutboxCursor {
+                cursor: row.source_cursor.clone(),
+            },
+            row,
+        ));
+    }
+
+    let created_at = row.created_at;
+    let Ok(sync_key) = SyncKey::new(row.tenant, row.object_name, row.external_id) else {
+        unreachable!("validated empty checks above");
+    };
+
+    let Ok(cursor) = outbox_source_cursor(row.source_cursor) else {
+        unreachable!("validated cursor prefix above");
+    };
 
     Ok(ChangeEnvelope::new(
         sync_key,
         SourceSystem::Postgres,
         operation,
-        row.created_at,
+        created_at,
         payload,
     )
-    .with_cursor(outbox_source_cursor(&row.source_cursor)?))
+    .with_cursor(cursor))
 }
 
 const fn row_content_error(error: &ForceSyncError) -> bool {
@@ -148,7 +188,8 @@ where
             created_at: row.get("created_at"),
         };
 
-        match outbox_envelope(&outbox_row) {
+        let outbox_id = outbox_row.outbox_id;
+        match outbox_envelope(outbox_row) {
             Ok(envelope) => match PgStore::append_journal_if_new_in_tx(client, &envelope).await? {
                 AppendResult::Inserted { journal_id } => {
                     PgStore::enqueue_apply_task_in_tx(client, journal_id, priority).await?;
@@ -158,7 +199,7 @@ where
                              set processed_at = now()
                              where outbox_id = $1
                                and processed_at is null",
-                            &[&outbox_row.outbox_id],
+                            &[&outbox_id],
                         )
                         .await?;
                     processed = processed.saturating_add(1);
@@ -170,17 +211,17 @@ where
                              set processed_at = now()
                              where outbox_id = $1
                                and processed_at is null",
-                            &[&outbox_row.outbox_id],
+                            &[&outbox_id],
                         )
                         .await?;
                     processed = processed.saturating_add(1);
                 }
             },
-            Err(error) if row_content_error(&error) => {
-                let _ = quarantine_row(client, &outbox_row, &error).await;
+            Err((error, recovered_row)) if row_content_error(&error) => {
+                let _ = quarantine_row(client, &recovered_row, &error).await;
                 processed = processed.saturating_add(1);
             }
-            Err(error) => return Err(error),
+            Err((error, _)) => return Err(error),
         }
     }
 
@@ -259,7 +300,7 @@ mod tests {
 
     #[test]
     fn outbox_source_cursor_plain_lsn_succeeds() {
-        let Ok(cursor) = outbox_source_cursor("0/16B3740") else {
+        let Ok(cursor) = outbox_source_cursor("0/16B3740".to_string()) else {
             panic!("expected Ok for plain LSN");
         };
         assert!(matches!(cursor, SourceCursor::PostgresLsn(ref lsn) if lsn == "0/16B3740"));
@@ -268,7 +309,7 @@ mod tests {
     #[test]
     fn outbox_source_cursor_rejects_postgres_lsn_prefix() {
         assert!(matches!(
-            outbox_source_cursor("postgres-lsn:0/16B3740"),
+            outbox_source_cursor("postgres-lsn:0/16B3740".to_string()),
             Err(ForceSyncError::InvalidOutboxCursor { .. })
         ));
     }
@@ -276,7 +317,7 @@ mod tests {
     #[test]
     fn outbox_source_cursor_rejects_salesforce_replay_id_prefix() {
         assert!(matches!(
-            outbox_source_cursor("salesforce-replay-id:42"),
+            outbox_source_cursor("salesforce-replay-id:42".to_string()),
             Err(ForceSyncError::InvalidOutboxCursor { .. })
         ));
     }
@@ -284,7 +325,7 @@ mod tests {
     #[test]
     fn outbox_source_cursor_rejects_snapshot_prefix() {
         assert!(matches!(
-            outbox_source_cursor("snapshot:abc"),
+            outbox_source_cursor("snapshot:abc".to_string()),
             Err(ForceSyncError::InvalidOutboxCursor { .. })
         ));
     }
