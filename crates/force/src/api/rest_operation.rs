@@ -32,7 +32,7 @@ const UPSERT_ENCODE_SET: &AsciiSet = &NON_ALPHANUMERIC
     .remove(b'.')
     .remove(b'~');
 
-const MAX_QUERY_INPUT_BYTES: usize = 100_000;
+pub const MAX_QUERY_INPUT_BYTES: usize = 100_000;
 
 /// Trait providing default REST operation implementations for Salesforce API handlers.
 ///
@@ -571,7 +571,7 @@ pub trait RestOperation<A: Authenticator> {
 
 // ── Private helper methods ───────────────────────────────────────────
 
-fn validate_query_input_len(name: &str, value: &str) -> Result<()> {
+pub fn validate_query_input_len(name: &str, value: &str) -> Result<()> {
     if value.len() > MAX_QUERY_INPUT_BYTES {
         return Err(ForceError::InvalidInput(format!(
             "{name} exceeds maximum allowed length of 100,000 bytes"

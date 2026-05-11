@@ -191,6 +191,7 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
     /// }
     /// ```
     pub async fn search(&self, sosl: &str) -> Result<search::SearchResult> {
+        crate::api::rest_operation::validate_query_input_len("SOSL query", sosl)?;
         self.execute_get("search", Some(&[("q", sosl)]), "SOSL search request failed")
             .await
     }

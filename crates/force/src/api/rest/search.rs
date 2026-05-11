@@ -1425,4 +1425,24 @@ mod integration_tests {
 
         assert_eq!(results1.search_records.len(), results2.search_records.len());
     }
+
+    #[tokio::test]
+    async fn test_validation_search_rejects_oversized_sosl() {
+        let mock_server = MockServer::start().await;
+        let auth = MockAuthenticator::new("test_token", &mock_server.uri());
+
+        let client = builder()
+            .authenticate(auth)
+            .build()
+            .await
+            .must_msg("Failed to build client");
+
+        let sosl = "A".repeat(crate::api::rest_operation::MAX_QUERY_INPUT_BYTES + 1);
+        let result = client.rest().search(&sosl).await;
+
+        let Err(crate::error::ForceError::InvalidInput(msg)) = result else {
+            panic!("Expected InvalidInput error");
+        };
+        assert!(msg.contains("100,000 bytes"));
+    }
 }
