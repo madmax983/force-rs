@@ -26,9 +26,9 @@ pub(crate) mod schema_limits;
 pub(crate) mod schema_linter;
 pub(crate) mod schema_visualizer;
 pub(crate) mod sql_exporter;
+pub(crate) mod swift_generator;
 #[allow(missing_docs)]
 pub(crate) mod type_generator;
-pub(crate) mod swift_generator;
 pub(crate) mod typescript_generator;
 pub(crate) mod zod_generator;
 

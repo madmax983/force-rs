@@ -49,9 +49,7 @@ fn map_type(ft: &FieldType) -> &'static str {
 #[cfg(feature = "schema")]
 mod tests {
     use super::*;
-    use crate::test_utils::mock_describe::{
-        MockFieldDescribeBuilder, MockSObjectDescribeBuilder,
-    };
+    use crate::test_utils::mock_describe::{MockFieldDescribeBuilder, MockSObjectDescribeBuilder};
 
     #[test]
     fn test_swift_generator() {
