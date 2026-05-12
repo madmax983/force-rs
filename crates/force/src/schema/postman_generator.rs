@@ -17,9 +17,9 @@ use serde_json::{Value, json};
 pub fn generate_postman_collection(describe: &SObjectDescribe) -> Value {
     let name = &describe.name;
     let label = if describe.label.is_empty() {
-        name.clone()
+        name
     } else {
-        describe.label.clone()
+        &describe.label
     };
 
     // Build dummy json body for create/update using fields that are createable/updateable
