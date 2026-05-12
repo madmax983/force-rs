@@ -16,3 +16,7 @@
 **[Unify error handling]
 **Tangle:** Inconsistent error handling across modules where Result was used with explicit types.
 **Blueprint:** Standardized error types across all modules to enforce domain boundaries.
+
+**[Title] Unified Error Handling in force-sync**
+**Tangle:** The `force-sync` crate had ad-hoc error handling utilizing `Result<T, ForceSyncError>` or `std::result::Result<T, tokio_postgres::Error>` directly instead of a standardized Result type alias.
+**Blueprint:** Introduced `pub type Result<T> = std::result::Result<T, ForceSyncError>;` to `crates/force-sync/src/error.rs` and refactored usages to adhere to the standard error handling pattern.
