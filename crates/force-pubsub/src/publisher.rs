@@ -60,8 +60,19 @@ where
         .await?
         .into_inner();
 
-    let results = resp
-        .results
+    let results = map_publish_results(resp.results);
+
+    Ok(PublishResponse {
+        topic_name: resp.topic_name,
+        results,
+    })
+}
+
+/// Extracted mapping logic for unit testing. Maps the proto results to the domain results.
+pub fn map_publish_results(
+    proto_results: Vec<crate::proto::eventbus_v1::PublishResult>,
+) -> Vec<PublishResult> {
+    proto_results
         .into_iter()
         .map(|r| PublishResult {
             replay_id: if r.replay_id.is_empty() {
@@ -77,21 +88,70 @@ where
                 }
             }),
         })
-        .collect();
-
-    Ok(PublishResponse {
-        topic_name: resp.topic_name,
-        results,
-    })
+        .collect()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::proto::eventbus_v1::{
+        PubSubError as ProtoError, PublishResult as ProtoPublishResult,
+    };
 
     #[test]
     fn test_empty_events_vec_is_valid() {
         // No Avro encoding happens for empty events — just verify the type compiles
         let _: Vec<ProducerEvent> = Vec::new();
+    }
+
+    #[test]
+    fn test_publish_unary_error_mapping() {
+        let proto_results = vec![
+            // Success case: code 0 and empty msg
+            ProtoPublishResult {
+                replay_id: vec![1, 2, 3],
+                error: Some(ProtoError {
+                    code: 0,
+                    msg: String::new(),
+                    key: None,
+                }),
+            },
+            // Error case: code 1 and non-empty msg
+            ProtoPublishResult {
+                replay_id: vec![],
+                error: Some(ProtoError {
+                    code: 1,
+                    msg: "Some error".to_string(),
+                    key: None,
+                }),
+            },
+            // Edge case: no error object
+            ProtoPublishResult {
+                replay_id: vec![4, 5, 6],
+                error: None,
+            },
+        ];
+
+        let results = map_publish_results(proto_results);
+
+        assert_eq!(results.len(), 3);
+
+        // First is success
+        let Some(replay1) = results[0].replay_id.as_ref() else {
+            panic!("expected replay_id");
+        };
+        assert_eq!(replay1.as_bytes(), &[1, 2, 3]);
+        assert_eq!(results[0].error, None);
+
+        // Second is error
+        assert_eq!(results[1].replay_id, None);
+        assert_eq!(results[1].error.as_deref(), Some("Some error"));
+
+        // Third is success (no error object)
+        let Some(replay3) = results[2].replay_id.as_ref() else {
+            panic!("expected replay_id");
+        };
+        assert_eq!(replay3.as_bytes(), &[4, 5, 6]);
+        assert_eq!(results[2].error, None);
     }
 }
