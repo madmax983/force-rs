@@ -343,4 +343,47 @@ mod tests {
         let debug_str = format!("{:?}", handler);
         assert!(!debug_str.is_empty());
     }
+
+    #[tokio::test]
+    async fn test_explain_success_mock() {
+        use wiremock::matchers::{method, path, query_param};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let mock_server = MockServer::start().await;
+        let auth =
+            crate::test_utils::mock_auth::MockAuthenticator::new("test_token", &mock_server.uri());
+        let client = builder().authenticate(auth).build().await.must();
+
+        let explain_json: serde_json::Value = serde_json::from_str(
+            r#"{
+                "plans": [
+                    {
+                        "cardinality": 10,
+                        "fields": [],
+                        "leadingOperationType": "IndexScan",
+                        "notes": [],
+                        "relativeCost": 0.1,
+                        "sobjectCardinality": 10000,
+                        "sobjectType": "Account"
+                    }
+                ]
+            }"#,
+        )
+        .must();
+
+        Mock::given(method("GET"))
+            .and(path("/services/data/v60.0/query"))
+            .and(query_param("explain", "SELECT Id FROM Account"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(explain_json))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let rest = client.rest();
+        let response = rest.explain("SELECT Id FROM Account").await.must();
+
+        assert_eq!(response.plans.len(), 1);
+        assert_eq!(response.plans[0].leading_operation_type, "IndexScan");
+        assert_eq!(response.plans[0].sobject_type, "Account");
+    }
 }
