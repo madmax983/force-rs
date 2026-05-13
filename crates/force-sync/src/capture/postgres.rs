@@ -49,14 +49,18 @@ fn outbox_source_cursor(raw: &str) -> Result<SourceCursor, ForceSyncError> {
     Ok(SourceCursor::PostgresLsn(raw.to_string()))
 }
 
-fn outbox_envelope(row: &OutboxRow) -> Result<ChangeEnvelope, ForceSyncError> {
+/// ⚡ Bolt: Consuming `OutboxRow` by value allows us to move its inner `String` fields
+/// directly into `SyncKey`, eliminating 3 per-row `.clone()` heap allocations on the hot path.
+fn outbox_envelope(row: OutboxRow) -> Result<ChangeEnvelope, ForceSyncError> {
     let payload: Value = serde_json::from_str(&row.payload_text)?;
-    let sync_key = SyncKey::new(
-        row.tenant.clone(),
-        row.object_name.clone(),
-        row.external_id.clone(),
-    )?;
     let operation = outbox_operation(&row.op, row.tombstone)?;
+    let cursor = outbox_source_cursor(&row.source_cursor)?;
+
+    let sync_key = SyncKey::new(
+        row.tenant,
+        row.object_name,
+        row.external_id,
+    )?;
 
     Ok(ChangeEnvelope::new(
         sync_key,
@@ -65,7 +69,7 @@ fn outbox_envelope(row: &OutboxRow) -> Result<ChangeEnvelope, ForceSyncError> {
         row.created_at,
         payload,
     )
-    .with_cursor(outbox_source_cursor(&row.source_cursor)?))
+    .with_cursor(cursor))
 }
 
 const fn row_content_error(error: &ForceSyncError) -> bool {
@@ -80,7 +84,7 @@ const fn row_content_error(error: &ForceSyncError) -> bool {
 
 async fn quarantine_row<C>(
     client: &C,
-    row: &OutboxRow,
+    row: OutboxRow,
     error: &ForceSyncError,
 ) -> Result<(), ForceSyncError>
 where
@@ -89,9 +93,9 @@ where
     let payload = serde_json::from_str::<Value>(&row.payload_text).ok();
     let dead_letter = DeadLetter {
         task_id: None,
-        tenant: Some(row.tenant.clone()),
-        object_name: Some(row.object_name.clone()),
-        external_id: Some(row.external_id.clone()),
+        tenant: Some(row.tenant),
+        object_name: Some(row.object_name),
+        external_id: Some(row.external_id),
         error_message: error.to_string(),
         payload,
     };
@@ -148,7 +152,8 @@ where
             created_at: row.get("created_at"),
         };
 
-        match outbox_envelope(&outbox_row) {
+        let outbox_id = outbox_row.outbox_id;
+        match outbox_envelope(outbox_row) {
             Ok(envelope) => match PgStore::append_journal_if_new_in_tx(client, &envelope).await? {
                 AppendResult::Inserted { journal_id } => {
                     PgStore::enqueue_apply_task_in_tx(client, journal_id, priority).await?;
@@ -158,7 +163,7 @@ where
                              set processed_at = now()
                              where outbox_id = $1
                                and processed_at is null",
-                            &[&outbox_row.outbox_id],
+                            &[&outbox_id],
                         )
                         .await?;
                     processed = processed.saturating_add(1);
@@ -170,14 +175,25 @@ where
                              set processed_at = now()
                              where outbox_id = $1
                                and processed_at is null",
-                            &[&outbox_row.outbox_id],
+                            &[&outbox_id],
                         )
                         .await?;
                     processed = processed.saturating_add(1);
                 }
             },
             Err(error) if row_content_error(&error) => {
-                let _ = quarantine_row(client, &outbox_row, &error).await;
+                let outbox_row = OutboxRow {
+                    outbox_id,
+                    tenant: row.get("tenant"),
+                    object_name: row.get("object_name"),
+                    external_id: row.get("external_id"),
+                    source_cursor: row.get("source_cursor"),
+                    op: row.get("op"),
+                    tombstone: row.get("tombstone"),
+                    payload_text: row.get("payload_text"),
+                    created_at: row.get("created_at"),
+                };
+                let _ = quarantine_row(client, outbox_row, &error).await;
                 processed = processed.saturating_add(1);
             }
             Err(error) => return Err(error),
