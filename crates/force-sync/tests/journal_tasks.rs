@@ -33,7 +33,7 @@ fn test_envelope(cursor: i64) -> ChangeEnvelope {
 
 #[tokio::test]
 #[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
-async fn appending_a_journal_entry_creates_a_row() -> Result<(), force_sync::ForceSyncError> {
+async fn appending_a_journal_entry_creates_a_row() -> force_sync::error::Result<()> {
     let pool = support::postgres::test_pool();
     support::postgres::reset_schema(&pool).await?;
     force_sync::migrate(&pool).await?;
@@ -64,7 +64,7 @@ async fn appending_a_journal_entry_creates_a_row() -> Result<(), force_sync::For
 
 #[tokio::test]
 #[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
-async fn duplicate_source_cursor_is_deduped() -> Result<(), force_sync::ForceSyncError> {
+async fn duplicate_source_cursor_is_deduped() -> force_sync::error::Result<()> {
     let pool = support::postgres::test_pool();
     support::postgres::reset_schema(&pool).await?;
     force_sync::migrate(&pool).await?;
@@ -95,8 +95,7 @@ async fn duplicate_source_cursor_is_deduped() -> Result<(), force_sync::ForceSyn
 
 #[tokio::test]
 #[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
-async fn enqueuing_a_task_in_the_same_transaction_works() -> Result<(), force_sync::ForceSyncError>
-{
+async fn enqueuing_a_task_in_the_same_transaction_works() -> force_sync::error::Result<()> {
     let pool = support::postgres::test_pool();
     support::postgres::reset_schema(&pool).await?;
     force_sync::migrate(&pool).await?;
@@ -129,7 +128,7 @@ async fn enqueuing_a_task_in_the_same_transaction_works() -> Result<(), force_sy
 
 #[tokio::test]
 #[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
-async fn leasing_a_task_marks_owner_and_until() -> Result<(), force_sync::ForceSyncError> {
+async fn leasing_a_task_marks_owner_and_until() -> force_sync::error::Result<()> {
     let pool = support::postgres::test_pool();
     support::postgres::reset_schema(&pool).await?;
     force_sync::migrate(&pool).await?;
@@ -162,7 +161,7 @@ async fn leasing_a_task_marks_owner_and_until() -> Result<(), force_sync::ForceS
 #[tokio::test]
 #[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
 async fn worker_guarded_task_updates_require_the_current_lease_and_clear_retry_state()
--> Result<(), force_sync::ForceSyncError> {
+-> force_sync::error::Result<()> {
     let pool = support::postgres::test_pool();
     support::postgres::reset_schema(&pool).await?;
     force_sync::migrate(&pool).await?;
@@ -239,7 +238,7 @@ async fn worker_guarded_task_updates_require_the_current_lease_and_clear_retry_s
 
 #[tokio::test]
 #[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
-async fn wrong_worker_cannot_ack_task() -> Result<(), force_sync::ForceSyncError> {
+async fn wrong_worker_cannot_ack_task() -> force_sync::error::Result<()> {
     let pool = support::postgres::test_pool();
     support::postgres::reset_schema(&pool).await?;
     force_sync::migrate(&pool).await?;
@@ -270,7 +269,7 @@ async fn wrong_worker_cannot_ack_task() -> Result<(), force_sync::ForceSyncError
 
 #[tokio::test]
 #[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
-async fn wrong_worker_cannot_fail_task() -> Result<(), force_sync::ForceSyncError> {
+async fn wrong_worker_cannot_fail_task() -> force_sync::error::Result<()> {
     let pool = support::postgres::test_pool();
     support::postgres::reset_schema(&pool).await?;
     force_sync::migrate(&pool).await?;
@@ -316,7 +315,7 @@ async fn wrong_worker_cannot_fail_task() -> Result<(), force_sync::ForceSyncErro
 #[tokio::test]
 #[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
 async fn retry_task_with_future_next_attempt_at_is_not_leasable_until_due()
--> Result<(), force_sync::ForceSyncError> {
+-> force_sync::error::Result<()> {
     let pool = support::postgres::test_pool();
     support::postgres::reset_schema(&pool).await?;
     force_sync::migrate(&pool).await?;
@@ -360,7 +359,7 @@ async fn retry_task_with_future_next_attempt_at_is_not_leasable_until_due()
 
 #[tokio::test]
 #[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
-async fn done_task_cannot_be_re_leased() -> Result<(), force_sync::ForceSyncError> {
+async fn done_task_cannot_be_re_leased() -> force_sync::error::Result<()> {
     let pool = support::postgres::test_pool();
     support::postgres::reset_schema(&pool).await?;
     force_sync::migrate(&pool).await?;
@@ -388,7 +387,7 @@ async fn done_task_cannot_be_re_leased() -> Result<(), force_sync::ForceSyncErro
 
 #[tokio::test]
 #[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
-async fn in_tx_lease_and_ack_round_trip() -> Result<(), force_sync::ForceSyncError> {
+async fn in_tx_lease_and_ack_round_trip() -> force_sync::error::Result<()> {
     let pool = support::postgres::test_pool();
     support::postgres::reset_schema(&pool).await?;
     force_sync::migrate(&pool).await?;
@@ -451,7 +450,7 @@ async fn in_tx_lease_and_ack_round_trip() -> Result<(), force_sync::ForceSyncErr
 
 #[tokio::test]
 #[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
-async fn in_tx_retry_and_fail_round_trip() -> Result<(), force_sync::ForceSyncError> {
+async fn in_tx_retry_and_fail_round_trip() -> force_sync::error::Result<()> {
     let pool = support::postgres::test_pool();
     support::postgres::reset_schema(&pool).await?;
     force_sync::migrate(&pool).await?;
@@ -507,7 +506,7 @@ async fn in_tx_retry_and_fail_round_trip() -> Result<(), force_sync::ForceSyncEr
 
 #[tokio::test]
 #[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
-async fn failed_task_cannot_be_re_leased() -> Result<(), force_sync::ForceSyncError> {
+async fn failed_task_cannot_be_re_leased() -> force_sync::error::Result<()> {
     let pool = support::postgres::test_pool();
     support::postgres::reset_schema(&pool).await?;
     force_sync::migrate(&pool).await?;

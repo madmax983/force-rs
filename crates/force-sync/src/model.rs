@@ -230,7 +230,7 @@ mod tests {
 
     #[test]
     fn change_envelope_payload_hash_is_stable_for_identical_payloads() {
-        let sync_key = match SyncKey::new("tenant", "Account", "abc") {
+        let sync_key: crate::identity::SyncKey = match SyncKey::new("tenant", "Account", "abc") {
             Ok(sync_key) => sync_key,
             Err(error) => panic!("unexpected sync key construction error: {error}"),
         };
@@ -279,7 +279,7 @@ mod tests {
 
     #[test]
     fn change_envelope_with_cursor_attaches_cursor() {
-        let sync_key = match SyncKey::new("tenant", "Account", "abc") {
+        let sync_key: crate::identity::SyncKey = match SyncKey::new("tenant", "Account", "abc") {
             Ok(sync_key) => sync_key,
             Err(error) => panic!("unexpected sync key construction error: {error}"),
         };
@@ -301,7 +301,7 @@ mod tests {
 
     #[test]
     fn change_envelope_payload_hash_matches_semantically_equal_payloads() {
-        let sync_key = match SyncKey::new("tenant", "Account", "abc") {
+        let sync_key: crate::identity::SyncKey = match SyncKey::new("tenant", "Account", "abc") {
             Ok(sync_key) => sync_key,
             Err(error) => panic!("unexpected sync key construction error: {error}"),
         };

@@ -6,7 +6,7 @@ use futures::FutureExt;
 
 #[tokio::test]
 #[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
-async fn pg_store_can_open_transaction() -> Result<(), force_sync::ForceSyncError> {
+async fn pg_store_can_open_transaction() -> force_sync::error::Result<()> {
     let pool = support::postgres::test_pool();
     support::postgres::reset_schema(&pool).await?;
     force_sync::migrate(&pool).await?;

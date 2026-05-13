@@ -1,6 +1,10 @@
 //! Error types for force-sync.
 
 /// Database and migration errors.
+/// Result type alias for force-sync.
+pub type Result<T> = std::result::Result<T, ForceSyncError>;
+
+/// Errors that can occur within the force-sync crate.
 #[derive(Debug, thiserror::Error)]
 pub enum ForceSyncError {
     /// Postgres pool acquisition failure.

@@ -16,3 +16,7 @@
 **[Unify error handling]
 **Tangle:** Inconsistent error handling across modules where Result was used with explicit types.
 **Blueprint:** Standardized error types across all modules to enforce domain boundaries.
+
+**[Unify error handling in force-sync]
+**Tangle:** Inconsistent error handling across the `force-sync` modules where explicit `Result<T, ForceSyncError>` usages were scattered and error types were not standardized via a `Result<T>` alias as prescribed by ATLAS'S PHILOSOPHY.
+**Blueprint:** Standardized error types by creating `pub type Result<T> = std::result::Result<T, ForceSyncError>;` inside `crates/force-sync/src/error.rs`, replacing the explicit `Result<T, ForceSyncError>` and `std::result::Result<T, ForceSyncError>` references globally across the crate, and making the `error` module public in `lib.rs` (`pub mod error;`) to ensure external test integrations resolve the error boundary correctly.

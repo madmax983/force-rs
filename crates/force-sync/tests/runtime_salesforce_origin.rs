@@ -12,8 +12,8 @@ use serde_json::json;
 use wiremock::{Mock, MockServer, ResponseTemplate, matchers::method};
 
 use force_sync::{
-    ChangeEnvelope, ChangeOperation, ForceSyncError, ObjectSync, PgStore, SourceCursor,
-    SourceSystem, SyncEngine, SyncKey,
+    ChangeEnvelope, ChangeOperation, ObjectSync, PgStore, SourceCursor, SourceSystem, SyncEngine,
+    SyncKey,
 };
 
 #[derive(Debug, Clone)]
@@ -65,7 +65,7 @@ fn sync_key() -> SyncKey {
 
 async fn insert_salesforce_journal_row(
     pool: &deadpool_postgres::Pool,
-) -> Result<(), ForceSyncError> {
+) -> force_sync::error::Result<()> {
     let store = PgStore::new(pool.clone());
     let envelope = ChangeEnvelope::new(
         sync_key(),
@@ -86,7 +86,7 @@ async fn insert_salesforce_journal_row(
 #[tokio::test]
 #[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
 async fn salesforce_originated_task_is_projected_locally_without_salesforce_echo()
--> Result<(), ForceSyncError> {
+-> force_sync::error::Result<()> {
     let mock_server = MockServer::start().await;
     let client = test_client(&mock_server).await;
 
