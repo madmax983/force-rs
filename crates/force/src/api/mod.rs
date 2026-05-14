@@ -33,10 +33,12 @@ pub mod cpq;
 #[cfg(feature = "consent")]
 pub mod consent;
 
+pub mod query_analyzer;
 pub(crate) mod query_stream;
 pub(crate) mod rest_operation;
 pub(crate) mod soql;
 
+pub use query_analyzer::{QueryHealth, QueryHealthAnalyzer};
 pub use rest_operation::RestOperation;
 pub use soql::{SoqlQueryBuilder, escape_soql};
 
