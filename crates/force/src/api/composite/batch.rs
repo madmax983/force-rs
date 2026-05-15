@@ -165,7 +165,7 @@ impl<A: Authenticator> BatchRequest<A> {
     /// already has an owned `String` (e.g. from `format!`).
     pub fn add_request(
         mut self,
-        method: impl Into<String>,
+        method: impl Into<std::borrow::Cow<'static, str>>,
         url: impl Into<String>,
         body: Option<Value>,
     ) -> Result<Self> {
@@ -355,7 +355,7 @@ struct BatchRequestBody {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct BatchSubRequest {
-    method: String,
+    method: std::borrow::Cow<'static, str>,
     url: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     rich_input: Option<Value>,
@@ -396,12 +396,12 @@ mod tests {
             halt_on_error: true,
             batch_requests: vec![
                 BatchSubRequest {
-                    method: "GET".to_string(),
+                    method: "GET".into(),
                     url: "sobjects/Account/001".to_string(),
                     rich_input: None,
                 },
                 BatchSubRequest {
-                    method: "POST".to_string(),
+                    method: "POST".into(),
                     url: "sobjects/Contact".to_string(),
                     rich_input: Some(serde_json::json!({"LastName": "Doe"})),
                 },
