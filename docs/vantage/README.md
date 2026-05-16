@@ -4,6 +4,7 @@ Design backlog and product-spec notes for incubating `force-rs` capabilities. Th
 
 ## Streaming and Integration
 
+- [`backtesting.md`](backtesting.md): Backtesting engine for trading algorithms against historical data.
 - [`apex-rest-api.md`](apex-rest-api.md): native Apex REST handler for custom Salesforce endpoints.
 - [`bulk-pk-chunking.md`](bulk-pk-chunking.md): Bulk API PK Chunking Support.
 - [`consent-portability-api.md`](consent-portability-api.md): Consent and Portability API support.
