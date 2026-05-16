@@ -53,7 +53,11 @@ fn outbox_source_cursor(raw: &str) -> Result<SourceCursor, ForceSyncError> {
 /// on the `tenant`, `object_name`, and `external_id` fields when creating the `SyncKey`.
 fn outbox_envelope(row: OutboxRow) -> Result<ChangeEnvelope, ForceSyncError> {
     let payload: Value = serde_json::from_str(&row.payload_text)?;
-    let sync_key = SyncKey::new(row.tenant, row.object_name, row.external_id)?;
+    let sync_key = SyncKey::new(
+        row.tenant,
+        row.object_name,
+        row.external_id,
+    )?;
     let operation = outbox_operation(&row.op, row.tombstone)?;
 
     Ok(ChangeEnvelope::new(
@@ -336,5 +340,29 @@ mod tests {
     fn row_content_error_rejects_missing_source_cursor() {
         let err = ForceSyncError::MissingSourceCursor;
         assert!(!row_content_error(&err));
+    }
+
+    // ── outbox_envelope ───────────────────────────────────────────────
+
+    #[test]
+    fn test_outbox_envelope_consumes_row() {
+        let row = OutboxRow {
+            outbox_id: 1,
+            tenant: "acme".to_string(),
+            object_name: "Account".to_string(),
+            external_id: "ext123".to_string(),
+            source_cursor: "0/16B3740".to_string(),
+            op: "upsert".to_string(),
+            tombstone: false,
+            payload_text: r#"{"Name":"Acme Inc"}"#.to_string(),
+            created_at: chrono::Utc::now(),
+        };
+
+        let Ok(envelope) = outbox_envelope(row) else {
+            panic!("Failed to create envelope");
+        };
+        assert_eq!(envelope.sync_key().tenant(), "acme");
+        assert_eq!(envelope.sync_key().object_name(), "Account");
+        assert_eq!(envelope.sync_key().external_id(), "ext123");
     }
 }
