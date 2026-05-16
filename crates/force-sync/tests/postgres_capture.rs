@@ -327,3 +327,52 @@ async fn already_encoded_cursor_is_rejected_safely() -> Result<(), ForceSyncErro
 
     Ok(())
 }
+
+#[tokio::test]
+#[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
+async fn quarantine_row_stores_dead_letter_for_invalid_operation() -> Result<(), ForceSyncError> {
+    let pool = support::postgres::test_pool();
+    support::postgres::reset_schema(&pool).await?;
+    force_sync::migrate(&pool).await?;
+
+    let payload = json!({"Name": "Acme"});
+
+    // We insert a row directly using raw sql because OutboxSeed checks for validity in test helpers.
+    let outbox_id = insert_outbox_row(
+        &pool,
+        &OutboxSeed {
+            tenant: "tenant",
+            object_name: "Account",
+            external_id: "ext123",
+            source_cursor: "0/16B3740",
+            op: "bad_op", // This is an invalid operation that will trigger row_content_error and quarantine_row
+            tombstone: false,
+            payload: &payload,
+        },
+    )
+    .await?;
+
+    let store = PgStore::new(pool.clone());
+    let processed = capture_batch(&store, 10, 25).await?;
+    assert_eq!(processed, 1);
+
+    let client = pool.get().await?;
+
+    // Ensure dead letter exists
+    let dead_letter_count: i64 = client
+        .query_one("select count(*) from sync_dead_letter where external_id = 'ext123'", &[])
+        .await?
+        .get(0);
+    assert_eq!(dead_letter_count, 1);
+
+    // Ensure outbox row marked processed
+    let processed_row = client
+        .query_one(
+            "select processed_at is not null from force_sync_outbox where outbox_id = $1",
+            &[&outbox_id],
+        )
+        .await?;
+    assert!(processed_row.get::<_, bool>(0));
+
+    Ok(())
+}
