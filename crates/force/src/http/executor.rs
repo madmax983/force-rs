@@ -129,20 +129,22 @@ impl HttpExecutor {
         Fut: std::future::Future<Output = Result<AccessToken>>,
     {
         // Capture method/path once for both telemetry and tracing
-        let method_str = request.method().as_str().to_string();
-        let path_str = request.url().path().to_string();
+        // Performance optimization: avoid `.to_string()` allocations here.
+        // `TelemetryContext` handles conditional allocations if capture is enabled.
+        let method_str = request.method().as_str();
+        let path_str = request.url().path();
 
         let ctx = TelemetryContext::new(
-            &method_str,
-            &path_str,
+            method_str,
+            path_str,
             request_class,
             self.telemetry_hooks.has_hooks(),
         );
 
         let request_span = tracing::info_span!(
             "force_http_request",
-            http.method = method_str.as_str(),
-            http.path = path_str.as_str(),
+            http.method = method_str,
+            http.path = path_str,
             request.class = ctx.request_class
         );
         let _request_span_guard = request_span.enter();
