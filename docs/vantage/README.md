@@ -43,6 +43,10 @@ Design backlog and product-spec notes for incubating `force-rs` capabilities. Th
 
 - [`salesforce-files-api.md`](salesforce-files-api.md): streaming multipart file uploads and downloads.
 
+## Quantitative Trading (Thorp)
+
+- [`backtesting-engine.md`](backtesting-engine.md): Strategy backtesting against historical market data.
+
 ## Data Utilities
 
 - [`soql-query-builder.md`](soql-query-builder.md): SOQL query builder for type-safe query construction.
