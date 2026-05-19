@@ -5,6 +5,7 @@ Design backlog and product-spec notes for incubating `force-rs` capabilities. Th
 ## Streaming and Integration
 
 - [`apex-rest-api.md`](apex-rest-api.md): native Apex REST handler for custom Salesforce endpoints.
+- [`composite-graph-api.md`](composite-graph-api.md): Composite Graph API support for bulk transactional operations.
 - [`bulk-pk-chunking.md`](bulk-pk-chunking.md): Bulk API PK Chunking Support.
 - [`consent-portability-api.md`](consent-portability-api.md): Consent and Portability API support.
 - [`force-sync-engine.md`](force-sync-engine.md): Postgres-first bidirectional sync engine.
