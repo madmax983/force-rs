@@ -49,13 +49,10 @@ fn outbox_source_cursor(raw: &str) -> Result<SourceCursor, ForceSyncError> {
     Ok(SourceCursor::PostgresLsn(raw.to_string()))
 }
 
-fn outbox_envelope(row: &OutboxRow) -> Result<ChangeEnvelope, ForceSyncError> {
+/// Converts an `OutboxRow` to a `ChangeEnvelope`, consuming the row to eliminate allocations.
+fn outbox_envelope(row: OutboxRow) -> Result<ChangeEnvelope, ForceSyncError> {
     let payload: Value = serde_json::from_str(&row.payload_text)?;
-    let sync_key = SyncKey::new(
-        row.tenant.clone(),
-        row.object_name.clone(),
-        row.external_id.clone(),
-    )?;
+    let sync_key = SyncKey::new(row.tenant, row.object_name, row.external_id)?;
     let operation = outbox_operation(&row.op, row.tombstone)?;
 
     Ok(ChangeEnvelope::new(
@@ -136,8 +133,9 @@ where
     let mut processed = 0usize;
 
     for row in rows {
+        let outbox_id: i64 = row.get("outbox_id");
         let outbox_row = OutboxRow {
-            outbox_id: row.get("outbox_id"),
+            outbox_id,
             tenant: row.get("tenant"),
             object_name: row.get("object_name"),
             external_id: row.get("external_id"),
@@ -148,7 +146,7 @@ where
             created_at: row.get("created_at"),
         };
 
-        match outbox_envelope(&outbox_row) {
+        match outbox_envelope(outbox_row) {
             Ok(envelope) => match PgStore::append_journal_if_new_in_tx(client, &envelope).await? {
                 AppendResult::Inserted { journal_id } => {
                     PgStore::enqueue_apply_task_in_tx(client, journal_id, priority).await?;
@@ -158,7 +156,7 @@ where
                              set processed_at = now()
                              where outbox_id = $1
                                and processed_at is null",
-                            &[&outbox_row.outbox_id],
+                            &[&outbox_id],
                         )
                         .await?;
                     processed = processed.saturating_add(1);
@@ -170,14 +168,25 @@ where
                              set processed_at = now()
                              where outbox_id = $1
                                and processed_at is null",
-                            &[&outbox_row.outbox_id],
+                            &[&outbox_id],
                         )
                         .await?;
                     processed = processed.saturating_add(1);
                 }
             },
             Err(error) if row_content_error(&error) => {
-                let _ = quarantine_row(client, &outbox_row, &error).await;
+                let outbox_row_for_quarantine = OutboxRow {
+                    outbox_id,
+                    tenant: row.get("tenant"),
+                    object_name: row.get("object_name"),
+                    external_id: row.get("external_id"),
+                    source_cursor: row.get("source_cursor"),
+                    op: row.get("op"),
+                    tombstone: row.get("tombstone"),
+                    payload_text: row.get("payload_text"),
+                    created_at: row.get("created_at"),
+                };
+                let _ = quarantine_row(client, &outbox_row_for_quarantine, &error).await;
                 processed = processed.saturating_add(1);
             }
             Err(error) => return Err(error),
