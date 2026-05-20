@@ -27,51 +27,53 @@ struct SalesforceError {
 
 /// Parses Salesforce API error from response body or returns generic error.
 pub fn parse_api_error(status_code: u16, body: &str) -> HttpError {
-    // Try to parse as Salesforce error array
-    if let Ok(errors) = serde_json::from_str::<Vec<SalesforceError>>(body) {
-        if let Some(first_error) = errors.first() {
-            let code = first_error.error_code.as_deref().unwrap_or("UNKNOWN");
+    let fallback = || HttpError::StatusError {
+        status_code,
+        message: body.to_string(),
+    };
 
-            // ⚡ Bolt: Pre-allocate a single buffer to avoid multiple heap allocations
-            // from intermediate strings and `.join(", ")`.
-            let mut cap = code.len() + first_error.message.len() + 4; // "[{}] "
-            if !first_error.fields.is_empty() {
-                cap += 11 + first_error.fields.iter().map(|f| f.len()).sum::<usize>(); // " (fields: )" + field lengths
-                if first_error.fields.len() > 1 {
-                    cap += (first_error.fields.len() - 1) * 2; // ", " separators
-                }
-            }
+    let Ok(errors) = serde_json::from_str::<Vec<SalesforceError>>(body) else {
+        return fallback();
+    };
 
-            let mut message = String::with_capacity(cap);
-            message.push('[');
-            message.push_str(code);
-            message.push_str("] ");
-            message.push_str(&first_error.message);
+    let Some(first_error) = errors.first() else {
+        return fallback();
+    };
 
-            if !first_error.fields.is_empty() {
-                message.push_str(" (fields: ");
-                let mut first = true;
-                for field in &first_error.fields {
-                    if !first {
-                        message.push_str(", ");
-                    }
-                    first = false;
-                    message.push_str(field);
-                }
-                message.push(')');
-            }
+    let code = first_error.error_code.as_deref().unwrap_or("UNKNOWN");
 
-            return HttpError::StatusError {
-                status_code,
-                message,
-            };
+    // ⚡ Bolt: Pre-allocate a single buffer to avoid multiple heap allocations
+    // from intermediate strings and `.join(", ")`.
+    let mut cap = code.len() + first_error.message.len() + 4; // "[{}] "
+    if !first_error.fields.is_empty() {
+        cap += 11 + first_error.fields.iter().map(|f| f.len()).sum::<usize>(); // " (fields: )" + field lengths
+        if first_error.fields.len() > 1 {
+            cap += (first_error.fields.len() - 1) * 2; // ", " separators
         }
     }
 
-    // Fallback to generic status error
+    let mut message = String::with_capacity(cap);
+    message.push('[');
+    message.push_str(code);
+    message.push_str("] ");
+    message.push_str(&first_error.message);
+
+    if !first_error.fields.is_empty() {
+        message.push_str(" (fields: ");
+        let mut first = true;
+        for field in &first_error.fields {
+            if !first {
+                message.push_str(", ");
+            }
+            first = false;
+            message.push_str(field);
+        }
+        message.push(')');
+    }
+
     HttpError::StatusError {
         status_code,
-        message: body.to_string(),
+        message,
     }
 }
 
@@ -90,22 +92,15 @@ pub async fn read_capped_body_bytes(
     let init_cap = std::cmp::min(limit_bytes, 4096);
     let mut bytes = Vec::with_capacity(init_cap);
 
-    while let Some(chunk) = stream.next().await {
-        if let Ok(chunk_bytes) = chunk {
-            // Check remaining capacity before extending
-            let remaining = limit_bytes.saturating_sub(bytes.len());
+    while let Some(Ok(chunk_bytes)) = stream.next().await {
+        // Check remaining capacity before extending
+        let remaining = limit_bytes.saturating_sub(bytes.len());
 
-            if remaining == 0 {
-                return Err(HttpError::PayloadTooLarge { limit_bytes });
-            }
-
-            if chunk_bytes.len() > remaining {
-                return Err(HttpError::PayloadTooLarge { limit_bytes });
-            }
-            bytes.extend_from_slice(&chunk_bytes);
-        } else {
-            break;
+        if remaining == 0 || chunk_bytes.len() > remaining {
+            return Err(HttpError::PayloadTooLarge { limit_bytes });
         }
+
+        bytes.extend_from_slice(&chunk_bytes);
     }
 
     Ok(bytes)

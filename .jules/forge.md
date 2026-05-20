@@ -98,3 +98,7 @@
 **[Flatten Match With Original Error Context]**
 **Learning:** When flattening nested `match` statements handling `Result` outputs, rewriting them with `let Ok(...) = result else` guard clauses can lead to silently swallowing the underlying original error if not passed through explicitly, which breaks observability and changes runtime behavior. Using `.map_err(...)?` provides a flatter structure while preserving the exact error mappings natively.
 **Action:** When acting as 'Forge', never drop the original underlying error variable (e.g., `e`). To flatten `Result` mapping, use `.map_err(|e| { ... })?` with the `?` operator instead of verbose `match` statements or dropping context inside `else` guards, ensuring the error propagates cleanly without over-nesting.
+
+**Flatten Stream Nested Matches**
+**Learning:** Nested `if let Ok(val)` blocks inside `while let Some(chunk)` stream iterators create unnecessary cognitive load and Pyramids of Doom.
+**Action:** Combine the match directly into the while condition using `while let Some(Ok(val)) = stream.next().await`. This reduces nesting by an entire level and aligns perfectly with idiomatic Rust patterns.
