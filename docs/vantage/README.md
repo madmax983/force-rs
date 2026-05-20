@@ -49,6 +49,10 @@ Design backlog and product-spec notes for incubating `force-rs` capabilities. Th
 - [`data-faker.md`](data-faker.md): synthetic Salesforce-shaped data generation.
 - [`data-seeder.md`](data-seeder.md): repeatable fixture and seed workflows.
 
+## Analytics
+
+- [`reports-and-dashboards-api.md`](reports-and-dashboards-api.md): programmatic execution and extraction of Salesforce Reports.
+
 ## Authentication
 
 - [`saml-bearer-flow.md`](saml-bearer-flow.md): OAuth 2.0 SAML Bearer Assertion Flow for Salesforce authentication.
