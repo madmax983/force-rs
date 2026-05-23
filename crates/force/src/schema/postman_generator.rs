@@ -256,4 +256,15 @@ mod tests {
             "UpdateOnly should be updateable"
         );
     }
+
+    #[test]
+    fn test_generate_postman_collection_empty_label() {
+        let mut describe = MockSObjectDescribeBuilder::new("CustomObj__c").build();
+        describe.label = String::new(); // Empty label to cover the fallback branch
+
+        let collection = generate_postman_collection(&describe);
+
+        // Label should fallback to the name
+        assert_eq!(collection["info"]["name"], "Salesforce REST API - CustomObj__c");
+    }
 }
