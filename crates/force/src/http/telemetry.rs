@@ -132,16 +132,8 @@ impl<'a> TelemetryContext<'a> {
         capture: bool,
     ) -> Self {
         Self {
-            method: if capture {
-                Some(method)
-            } else {
-                None
-            },
-            path: if capture {
-                Some(path)
-            } else {
-                None
-            },
+            method: if capture { Some(method) } else { None },
+            path: if capture { Some(path) } else { None },
             request_class: request_class.as_str(),
             start_time: Instant::now(),
         }
