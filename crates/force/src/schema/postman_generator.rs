@@ -265,6 +265,9 @@ mod tests {
         let collection = generate_postman_collection(&describe);
 
         // Label should fallback to the name
-        assert_eq!(collection["info"]["name"], "Salesforce REST API - CustomObj__c");
+        assert_eq!(
+            collection["info"]["name"],
+            "Salesforce REST API - CustomObj__c"
+        );
     }
 }
