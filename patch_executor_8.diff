@@ -1,0 +1,24 @@
+--- crates/force/src/http/executor.rs
++++ crates/force/src/http/executor.rs
+@@ -143,12 +143,15 @@
+         // Inject Bearer token
+         Self::inject_auth_header(&mut request, token)?;
+
++        // We cannot borrow request here for TelemetryContext because we mutate it later
++        // in the loop (`Self::inject_auth_header(&mut request, &new_token)?`).
++        // We must clone the string slices to strings then pass as slices to ctx, OR
++        // actually, we can just borrow from the URL but since the URL might get mutated...
++        // No, mutating the headers doesn't mutate the method or URL!
++        // Wait, `reqwest::Request` doesn't let us borrow method/URL while mutably borrowing headers?
++        // Yes, `&mut request` borrows the entire request.
++        let method_string = request.method().as_str().to_string();
++        let path_string = request.url().path().to_string();
++
+         let ctx = TelemetryContext::new(
+-            request.method().as_str(),
+-            request.url().path(),
++            &method_string,
++            &path_string,
+             request_class,
+             self.telemetry_hooks.has_hooks(),
+         );

@@ -1,0 +1,13 @@
+--- crates/force/src/http/executor.rs
++++ crates/force/src/http/executor.rs
+@@ -144,8 +144,8 @@
+         Self::inject_auth_header(&mut request, token)?;
+
+         let ctx = TelemetryContext::new(
+-            request.method().as_str(),
+-            request.url().path(),
++            &method_str,
++            &path_str,
+             request_class,
+             self.telemetry_hooks.has_hooks(),
+         );

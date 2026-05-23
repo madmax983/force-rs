@@ -1,0 +1,13 @@
+--- telemetry.rs
++++ telemetry.rs
+@@ -171,8 +175,8 @@
+         backoff_ms: u128,
+     ) -> RetryEvent<'_> {
+         RetryEvent {
+-            method: self.method.as_deref().unwrap_or_default(),
+-            path: self.path.as_deref().unwrap_or_default(),
++            method: self.method.unwrap_or_default(),
++            path: self.path.unwrap_or_default(),
+             request_class: self.request_class,
+             attempt,
+             status_code,

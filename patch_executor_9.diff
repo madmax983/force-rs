@@ -1,0 +1,28 @@
+--- crates/force/src/http/executor.rs
++++ crates/force/src/http/executor.rs
+@@ -129,24 +129,23 @@
+         Fut: std::future::Future<Output = Result<AccessToken>>,
+     {
+         // Capture method/path once for both telemetry and tracing
+         let method_str = request.method().as_str().to_string();
+         let path_str = request.url().path().to_string();
+
+         let request_span = tracing::info_span!(
+             "force_http_request",
+             http.method = method_str.as_str(),
+             http.path = path_str.as_str(),
+             request.class = request_class.as_str()
+         );
+         let _request_span_guard = request_span.enter();
+
+         // Inject Bearer token
+         Self::inject_auth_header(&mut request, token)?;
+
+         let ctx = TelemetryContext::new(
+-            request.method().as_str(),
+-            request.url().path(),
++            &method_str,
++            &path_str,
+             request_class,
+             self.telemetry_hooks.has_hooks(),
+         );

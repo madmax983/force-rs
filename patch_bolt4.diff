@@ -1,0 +1,66 @@
+--- crates/force/src/http/telemetry.rs
++++ crates/force/src/http/telemetry.rs
+@@ -113,17 +113,21 @@
+     }
+ }
+
+-pub struct TelemetryContext {
+-    method: Option<String>,
+-    path: Option<String>,
++/// Context for telemetry collection during an HTTP request.
++///
++/// ⚡ Bolt: Uses borrowed string slices (`&'a str`) for `method` and `path`
++/// instead of owned `String`s to avoid per-request heap allocations on hot paths.
++pub struct TelemetryContext<'a> {
++    method: Option<&'a str>,
++    path: Option<&'a str>,
+     pub(crate) request_class: &'static str,
+     pub(crate) start_time: Instant,
+ }
+
+-impl TelemetryContext {
++impl<'a> TelemetryContext<'a> {
+     pub(crate) fn new(
+-        method: &str,
+-        path: &str,
++        method: &'a str,
++        path: &'a str,
+         request_class: RequestRetryClass,
+         capture: bool,
+     ) -> Self {
+@@ -131,11 +135,11 @@
+             method: if capture {
+-                Some(method.to_string())
++                Some(method)
+             } else {
+                 None
+             },
+             path: if capture {
+-                Some(path.to_string())
++                Some(path)
+             } else {
+                 None
+             },
+             request_class: request_class.as_str(),
+@@ -151,8 +155,8 @@
+         retries: u32,
+     ) -> RequestCompletion<'_> {
+         RequestCompletion {
+-            method: self.method.as_deref().unwrap_or_default(),
+-            path: self.path.as_deref().unwrap_or_default(),
++            method: self.method.unwrap_or_default(),
++            path: self.path.unwrap_or_default(),
+             request_class: self.request_class,
+             status_code,
+             error_kind,
+@@ -167,8 +171,8 @@
+         backoff_ms: u128,
+     ) -> RetryEvent<'_> {
+         RetryEvent {
+-            method: self.method.as_deref().unwrap_or_default(),
+-            path: self.path.as_deref().unwrap_or_default(),
++            method: self.method.unwrap_or_default(),
++            path: self.path.unwrap_or_default(),
+             request_class: self.request_class,
+             attempt,
+             status_code,
