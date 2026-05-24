@@ -4,6 +4,8 @@
 pub(crate) mod avro_generator;
 #[cfg(feature = "schema")]
 pub(crate) mod bigquery_generator;
+#[cfg(all(feature = "schema", feature = "bulk"))]
+pub(crate) mod csv_generator;
 pub(crate) mod data_dictionary;
 #[cfg(feature = "schema")]
 pub(crate) mod dbml_generator;
@@ -44,6 +46,8 @@ pub(crate) fn cmp_field_names(a: &str, b: &str) -> std::cmp::Ordering {
 pub use avro_generator::{generate_avro_schema, write_avro_schema};
 #[cfg(feature = "schema")]
 pub use bigquery_generator::generate_bigquery_schema;
+#[cfg(all(feature = "schema", feature = "bulk"))]
+pub use csv_generator::generate_csv_template;
 pub use data_dictionary::DataDictionary;
 #[cfg(feature = "schema")]
 pub use dbml_generator::{generate_dbml, write_dbml};
