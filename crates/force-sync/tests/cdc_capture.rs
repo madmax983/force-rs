@@ -6,7 +6,7 @@ use force_pubsub::{EventMessage, PubSubEvent, ReplayId};
 use futures::stream;
 use serde_json::{Value, json};
 
-use force_sync::{ForceSyncError, ObjectSync, PgStore, capture_stream, load_replay_id};
+use force_sync::{ObjectSync, PgStore, capture_stream, load_replay_id};
 
 fn event(payload: Value, replay_id: &[u8], event_id: &str) -> PubSubEvent<Value> {
     PubSubEvent::Event(EventMessage {
@@ -19,7 +19,7 @@ fn event(payload: Value, replay_id: &[u8], event_id: &str) -> PubSubEvent<Value>
 
 #[tokio::test]
 #[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
-async fn cdc_event_creates_journal_task_and_checkpoint() -> Result<(), ForceSyncError> {
+async fn cdc_event_creates_journal_task_and_checkpoint() -> Result<(), force_sync::ForceSyncError> {
     let pool = support::postgres::test_pool();
     support::postgres::reset_schema(&pool).await?;
     force_sync::migrate(&pool).await?;
@@ -80,7 +80,7 @@ async fn cdc_event_creates_journal_task_and_checkpoint() -> Result<(), ForceSync
 
 #[tokio::test]
 #[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
-async fn duplicate_cdc_event_is_deduped_by_replay_id() -> Result<(), ForceSyncError> {
+async fn duplicate_cdc_event_is_deduped_by_replay_id() -> Result<(), force_sync::ForceSyncError> {
     let pool = support::postgres::test_pool();
     support::postgres::reset_schema(&pool).await?;
     force_sync::migrate(&pool).await?;
@@ -125,7 +125,7 @@ async fn duplicate_cdc_event_is_deduped_by_replay_id() -> Result<(), ForceSyncEr
 
 #[tokio::test]
 #[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
-async fn restart_uses_the_stored_replay_cursor() -> Result<(), ForceSyncError> {
+async fn restart_uses_the_stored_replay_cursor() -> Result<(), force_sync::ForceSyncError> {
     let pool = support::postgres::test_pool();
     support::postgres::reset_schema(&pool).await?;
     force_sync::migrate(&pool).await?;

@@ -15,7 +15,7 @@ use wiremock::{
 };
 
 use force_sync::{
-    ApplyLane, ChangeEnvelope, ChangeOperation, ForceSyncError, ObjectSync, PgStore,
+    ApplyLane, ChangeEnvelope, ChangeOperation, ObjectSync, PgStore,
     PlannerContext, SalesforceApplier, SourceCursor, SourceSystem, SyncKey, SyncLink, detect_drift,
     enqueue_repair, plan_change, run_reconcile_once,
 };
@@ -210,7 +210,7 @@ async fn bulk_upsert_uses_the_external_id_field() {
 
 #[tokio::test]
 #[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
-async fn detect_drift_finds_hash_mismatches() -> Result<(), ForceSyncError> {
+async fn detect_drift_finds_hash_mismatches() -> Result<(), force_sync::ForceSyncError> {
     let pool = support::postgres::test_pool();
     support::postgres::reset_schema(&pool).await?;
     force_sync::migrate(&pool).await?;
@@ -247,7 +247,7 @@ async fn detect_drift_finds_hash_mismatches() -> Result<(), ForceSyncError> {
 
 #[tokio::test]
 #[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
-async fn reconcile_repair_enqueues_a_new_apply_task() -> Result<(), ForceSyncError> {
+async fn reconcile_repair_enqueues_a_new_apply_task() -> Result<(), force_sync::ForceSyncError> {
     let pool = support::postgres::test_pool();
     support::postgres::reset_schema(&pool).await?;
     force_sync::migrate(&pool).await?;
@@ -281,7 +281,7 @@ async fn reconcile_repair_enqueues_a_new_apply_task() -> Result<(), ForceSyncErr
 
 #[tokio::test]
 #[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
-async fn run_reconcile_once_queues_repairs_for_drift() -> Result<(), ForceSyncError> {
+async fn run_reconcile_once_queues_repairs_for_drift() -> Result<(), force_sync::ForceSyncError> {
     let pool = support::postgres::test_pool();
     support::postgres::reset_schema(&pool).await?;
     force_sync::migrate(&pool).await?;
@@ -324,7 +324,7 @@ async fn run_reconcile_once_queues_repairs_for_drift() -> Result<(), ForceSyncEr
 
 #[tokio::test]
 #[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
-async fn repeated_reconcile_passes_do_not_duplicate_repair_work() -> Result<(), ForceSyncError> {
+async fn repeated_reconcile_passes_do_not_duplicate_repair_work() -> Result<(), force_sync::ForceSyncError> {
     let pool = support::postgres::test_pool();
     support::postgres::reset_schema(&pool).await?;
     force_sync::migrate(&pool).await?;
