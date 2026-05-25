@@ -90,22 +90,18 @@ pub async fn read_capped_body_bytes(
     let init_cap = std::cmp::min(limit_bytes, 4096);
     let mut bytes = Vec::with_capacity(init_cap);
 
-    while let Some(chunk) = stream.next().await {
-        if let Ok(chunk_bytes) = chunk {
-            // Check remaining capacity before extending
-            let remaining = limit_bytes.saturating_sub(bytes.len());
+    while let Some(Ok(chunk_bytes)) = stream.next().await {
+        // Check remaining capacity before extending
+        let remaining = limit_bytes.saturating_sub(bytes.len());
 
-            if remaining == 0 {
-                return Err(HttpError::PayloadTooLarge { limit_bytes });
-            }
-
-            if chunk_bytes.len() > remaining {
-                return Err(HttpError::PayloadTooLarge { limit_bytes });
-            }
-            bytes.extend_from_slice(&chunk_bytes);
-        } else {
-            break;
+        if remaining == 0 {
+            return Err(HttpError::PayloadTooLarge { limit_bytes });
         }
+
+        if chunk_bytes.len() > remaining {
+            return Err(HttpError::PayloadTooLarge { limit_bytes });
+        }
+        bytes.extend_from_slice(&chunk_bytes);
     }
 
     Ok(bytes)
