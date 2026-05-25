@@ -113,28 +113,28 @@ impl TelemetryHooks {
     }
 }
 
-pub struct TelemetryContext {
-    method: Option<String>,
-    path: Option<String>,
+pub struct TelemetryContext<'a> {
+    method: Option<&'a str>,
+    path: Option<&'a str>,
     pub(crate) request_class: &'static str,
     pub(crate) start_time: Instant,
 }
 
-impl TelemetryContext {
+impl<'a> TelemetryContext<'a> {
     pub(crate) fn new(
-        method: &str,
-        path: &str,
+        method: &'a str,
+        path: &'a str,
         request_class: RequestRetryClass,
         capture: bool,
     ) -> Self {
         Self {
             method: if capture {
-                Some(method.to_string())
+                Some(method)
             } else {
                 None
             },
             path: if capture {
-                Some(path.to_string())
+                Some(path)
             } else {
                 None
             },
@@ -150,8 +150,8 @@ impl TelemetryContext {
         retries: u32,
     ) -> RequestCompletion<'_> {
         RequestCompletion {
-            method: self.method.as_deref().unwrap_or_default(),
-            path: self.path.as_deref().unwrap_or_default(),
+            method: self.method.unwrap_or_default(),
+            path: self.path.unwrap_or_default(),
             request_class: self.request_class,
             status_code,
             error_kind,
@@ -167,8 +167,8 @@ impl TelemetryContext {
         backoff_ms: u128,
     ) -> RetryEvent<'_> {
         RetryEvent {
-            method: self.method.as_deref().unwrap_or_default(),
-            path: self.path.as_deref().unwrap_or_default(),
+            method: self.method.unwrap_or_default(),
+            path: self.path.unwrap_or_default(),
             request_class: self.request_class,
             attempt,
             status_code,
