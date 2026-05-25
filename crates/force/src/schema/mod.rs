@@ -75,6 +75,9 @@ pub use zod_generator::{generate_zod_schema, write_zod_schema};
 pub(crate) mod llm_context_generator;
 pub use llm_context_generator::{LlmContextOptions, generate_llm_context};
 
+pub(crate) mod salesforce_prompt_generator;
+pub use salesforce_prompt_generator::{PromptTemplateOptions, generate_data_generation_prompt};
+
 #[cfg(feature = "schema")]
 pub(crate) mod dbt_generator;
 #[cfg(feature = "schema")]
