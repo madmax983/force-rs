@@ -41,6 +41,11 @@ pub(crate) fn cmp_field_names(a: &str, b: &str) -> std::cmp::Ordering {
 }
 
 #[cfg(feature = "schema")]
+pub(crate) mod apex_generator;
+
+#[cfg(feature = "schema")]
+pub use apex_generator::{generate_apex_class, write_apex_class};
+#[cfg(feature = "schema")]
 pub use avro_generator::{generate_avro_schema, write_avro_schema};
 #[cfg(feature = "schema")]
 pub use bigquery_generator::generate_bigquery_schema;
