@@ -1,0 +1,93 @@
+--- crates/force/src/http/telemetry.rs
++++ crates/force/src/http/telemetry.rs
+@@ -115,18 +115,19 @@
+     }
+ }
+
+-pub struct TelemetryContext {
+-    method: Option<String>,
+-    path: Option<String>,
++/// Context for telemetry events, parameterized with a lifetime to avoid string allocations.
++pub struct TelemetryContext<'a> {
++    method: Option<&'a str>,
++    path: Option<&'a str>,
+     pub(crate) request_class: &'static str,
+     pub(crate) start_time: Instant,
+ }
+
+-impl TelemetryContext {
++impl<'a> TelemetryContext<'a> {
+     pub(crate) fn new(
+-        method: &str,
+-        path: &str,
++        method: &'a str,
++        path: &'a str,
+         request_class: RequestRetryClass,
+         capture: bool,
+     ) -> Self {
+         Self {
+             method: if capture {
+-                Some(method.to_string())
++                Some(method)
+             } else {
+                 None
+             },
+             path: if capture {
+-                Some(path.to_string())
++                Some(path)
+             } else {
+                 None
+             },
+             request_class: request_class.as_str(),
+             start_time: Instant::now(),
+         }
+     }
+
+     pub(crate) fn create_completion(
+         &self,
+         status_code: Option<u16>,
+         error_kind: Option<RequestErrorKind>,
+         retries: u32,
+     ) -> RequestCompletion<'_> {
+         RequestCompletion {
+-            method: self.method.as_deref().unwrap_or_default(),
+-            path: self.path.as_deref().unwrap_or_default(),
++            method: self.method.unwrap_or_default(),
++            path: self.path.unwrap_or_default(),
+             request_class: self.request_class,
+             status_code,
+             error_kind,
+             retries,
+             elapsed_ms: self.start_time.elapsed().as_millis(),
+         }
+     }
+
+     pub(crate) fn create_retry_event(
+         &self,
+         attempt: u32,
+         status_code: u16,
+         backoff_ms: u128,
+     ) -> RetryEvent<'_> {
+         RetryEvent {
+-            method: self.method.as_deref().unwrap_or_default(),
+-            path: self.path.as_deref().unwrap_or_default(),
++            method: self.method.unwrap_or_default(),
++            path: self.path.unwrap_or_default(),
+             request_class: self.request_class,
+             attempt,
+             status_code,
+             backoff_ms,
+         }
+     }
+ }
+@@ -216,9 +217,9 @@
+     #[test]
+     fn test_telemetry_context_creation() {
+         let ctx = TelemetryContext::new("GET", "/test", RequestRetryClass::Read, true);
+-        assert_eq!(ctx.method.as_deref(), Some("GET"));
+-        assert_eq!(ctx.path.as_deref(), Some("/test"));
++        assert_eq!(ctx.method, Some("GET"));
++        assert_eq!(ctx.path, Some("/test"));
+         assert_eq!(ctx.request_class, "read");
+
+         let ctx_no_capture =

@@ -1,0 +1,17 @@
+--- crates/force/src/http/telemetry.rs
++++ crates/force/src/http/telemetry.rs
+@@ -131,12 +131,12 @@
+     ) -> Self {
+         Self {
+             method: if capture {
+-                Some(method.to_string())
++                Some(method)
+             } else {
+                 None
+             },
+             path: if capture {
+-                Some(path.to_string())
++                Some(path)
+             } else {
+                 None
+             },

@@ -1,0 +1,63 @@
+--- crates/force/src/http/executor.rs
++++ crates/force/src/http/executor.rs
+@@ -134,18 +134,18 @@
+         Fut: std::future::Future<Output = Result<AccessToken>>,
+     {
+         // Capture method/path once for both telemetry and tracing
+-        let method_str = request.method().as_str().to_string();
+-        let path_str = request.url().path().to_string();
++        let method_str = request.method().as_str();
++        let path_str = request.url().path();
+
+         let ctx = TelemetryContext::new(
+-            &method_str,
+-            &path_str,
++            method_str,
++            path_str,
+             request_class,
+             self.telemetry_hooks.has_hooks(),
+         );
+
+         let request_span = tracing::info_span!(
+             "force_http_request",
+-            http.method = method_str.as_str(),
+-            http.path = path_str.as_str(),
++            http.method = method_str,
++            http.path = path_str,
+             request.class = ctx.request_class
+         );
+@@ -218,5 +218,5 @@
+         request: Request,
+         retry_attempt: u32,
+-        ctx: &TelemetryContext,
++        ctx: &TelemetryContext<'_>,
+     ) -> Result<Response> {
+         let result = tokio::time::timeout(self.timeout, self.client.execute(request)).await;
+@@ -253,5 +253,5 @@
+         response: &Response,
+         retry_attempt: u32,
+-        ctx: &TelemetryContext,
++        ctx: &TelemetryContext<'_>,
+     ) -> crate::error::ForceError {
+         let retry_after = parse_retry_after(response.headers()).unwrap_or(60);
+@@ -271,5 +271,5 @@
+         &self,
+         retry_attempt: u32,
+-        ctx: &TelemetryContext,
++        ctx: &TelemetryContext<'_>,
+         status_code: Option<u16>,
+     ) {
+@@ -302,5 +302,5 @@
+     fn record_retry(
+         &self,
+-        ctx: &TelemetryContext,
++        ctx: &TelemetryContext<'_>,
+         attempt: u32,
+         status_code: u16,
+@@ -314,5 +314,5 @@
+     fn record_completion(
+         &self,
+-        ctx: &TelemetryContext,
++        ctx: &TelemetryContext<'_>,
+         status_code: Option<u16>,
+         error_kind: Option<RequestErrorKind>,
