@@ -148,8 +148,8 @@ impl<A: Authenticator> QueryBatch<A> {
 
 #[cfg(test)]
 mod tests {
-    use crate::client::ForceClient;
     use super::*;
+    use crate::client::ForceClient;
     use crate::client::builder;
     use crate::test_utils::mock_auth::MockAuthenticator;
     use crate::test_utils::must::Must;

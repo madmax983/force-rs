@@ -98,7 +98,8 @@ impl<A: Authenticator> SoqlMassOp<A> {
     pub async fn delete_all(self) -> Result<BatchStats> {
         let qstr = self.query.try_build()?;
 
-        let batch_op = QueryBatch::new(Arc::clone(&self.session), qstr).halt_on_error(self.halt_on_error);
+        let batch_op =
+            QueryBatch::new(Arc::clone(&self.session), qstr).halt_on_error(self.halt_on_error);
 
         batch_op
             .run::<DynamicSObject, _>(|record| {
@@ -140,7 +141,8 @@ impl<A: Authenticator> SoqlMassOp<A> {
 
         let qstr = self.query.try_build()?;
 
-        let batch_op = QueryBatch::new(Arc::clone(&self.session), qstr).halt_on_error(self.halt_on_error);
+        let batch_op =
+            QueryBatch::new(Arc::clone(&self.session), qstr).halt_on_error(self.halt_on_error);
 
         batch_op
             .run::<DynamicSObject, _>(|record| {
@@ -166,8 +168,8 @@ impl<A: Authenticator> SoqlMassOp<A> {
 
 #[cfg(test)]
 mod tests {
-    use crate::client::ForceClient;
     use super::*;
+    use crate::client::ForceClient;
     use crate::client::builder;
     use crate::test_utils::mock_auth::MockAuthenticator;
     use crate::test_utils::must::Must;

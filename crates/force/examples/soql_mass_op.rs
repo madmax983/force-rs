@@ -5,7 +5,6 @@
 //!
 //! Run with: `cargo run --example soql_mass_op --features composite`
 
-use force::api::composite::SoqlMassOp;
 use force::api::rest::SoqlQueryBuilder;
 use force::auth::ClientCredentials;
 use force::client::ForceClientBuilder;
