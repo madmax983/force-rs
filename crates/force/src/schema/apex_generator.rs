@@ -27,7 +27,11 @@ pub fn write_apex_class(out: &mut String, describe: &SObjectDescribe) {
     for field in fields {
         let apex_type = map_type(&field.type_);
         out.push_str("    @AuraEnabled\n");
-        let _ = writeln!(out, "    public {} {} {{ get; set; }}", apex_type, field.name);
+        let _ = writeln!(
+            out,
+            "    public {} {} {{ get; set; }}",
+            apex_type, field.name
+        );
     }
 
     out.push_str("}\n");
@@ -73,6 +77,8 @@ mod tests {
         })
     }
 
+    use crate::test_utils::must::Must;
+
     #[test]
     fn test_apex_generator() {
         let describe_json = json!({
@@ -95,7 +101,7 @@ mod tests {
             ]
         });
 
-        let describe: SObjectDescribe = serde_json::from_value(describe_json).unwrap();
+        let describe: SObjectDescribe = serde_json::from_value(describe_json).must();
 
         let apex_code = generate_apex_class(&describe);
 
