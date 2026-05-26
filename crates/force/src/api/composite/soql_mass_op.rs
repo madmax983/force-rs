@@ -29,7 +29,7 @@
 //!     .where_like("Name", "Test %");
 //!
 //! // 2. Mass delete all matching records!
-//! let mass_op = SoqlMassOp::new(&client, query);
+//! let mass_op = client.composite().soql_mass_op(query);
 //! let stats = mass_op.delete_all().await?;
 //!
 //! println!("Processed: {}, Succeeded: {}, Failed: {}",
@@ -40,7 +40,6 @@
 
 use crate::api::SoqlQueryBuilder;
 use crate::auth::Authenticator;
-use crate::client::ForceClient;
 use crate::error::{ForceError, Result};
 use crate::types::DynamicSObject;
 use serde_json::Value;
@@ -49,13 +48,13 @@ use super::query_batch::{BatchOp, BatchStats, QueryBatch};
 
 /// Mass operations processor using SOQL and Composite Batch API.
 #[derive(Debug)]
-pub struct SoqlMassOp<'a, A: Authenticator> {
-    client: &'a ForceClient<A>,
+pub struct SoqlMassOp<A: Authenticator> {
+    session: std::sync::Arc<crate::session::Session<A>>,
     query: SoqlQueryBuilder,
     halt_on_error: bool,
 }
 
-impl<'a, A: Authenticator> SoqlMassOp<'a, A> {
+impl<A: Authenticator> SoqlMassOp<A> {
     /// Creates a new mass operations processor.
     ///
     /// # Arguments
@@ -65,9 +64,12 @@ impl<'a, A: Authenticator> SoqlMassOp<'a, A> {
     ///
     /// Note: The query MUST select the `Id` field, as it is required for update/delete operations.
     #[must_use]
-    pub fn new(client: &'a ForceClient<A>, query: SoqlQueryBuilder) -> Self {
+    pub fn new(
+        session: std::sync::Arc<crate::session::Session<A>>,
+        query: SoqlQueryBuilder,
+    ) -> Self {
         Self {
-            client,
+            session,
             query,
             halt_on_error: false,
         }
@@ -97,7 +99,8 @@ impl<'a, A: Authenticator> SoqlMassOp<'a, A> {
     pub async fn delete_all(self) -> Result<BatchStats> {
         let qstr = self.query.try_build()?;
 
-        let batch_op = QueryBatch::new(self.client, qstr).halt_on_error(self.halt_on_error);
+        let batch_op = QueryBatch::new(std::sync::Arc::clone(&self.session), qstr)
+            .halt_on_error(self.halt_on_error);
 
         batch_op
             .run::<DynamicSObject, _>(|record| {
@@ -139,7 +142,8 @@ impl<'a, A: Authenticator> SoqlMassOp<'a, A> {
 
         let qstr = self.query.try_build()?;
 
-        let batch_op = QueryBatch::new(self.client, qstr).halt_on_error(self.halt_on_error);
+        let batch_op = QueryBatch::new(std::sync::Arc::clone(&self.session), qstr)
+            .halt_on_error(self.halt_on_error);
 
         batch_op
             .run::<DynamicSObject, _>(|record| {
@@ -165,6 +169,7 @@ impl<'a, A: Authenticator> SoqlMassOp<'a, A> {
 
 #[cfg(test)]
 mod tests {
+    use crate::client::ForceClient;
     use super::*;
     use crate::client::builder;
     use crate::test_utils::mock_auth::MockAuthenticator;
@@ -220,7 +225,7 @@ mod tests {
             .from("Account")
             .where_like("Name", "Test %");
 
-        let op = SoqlMassOp::new(&client, query);
+        let op = client.composite().soql_mass_op(query);
         let stats = op.delete_all().await.must();
 
         assert_eq!(stats.records_processed, 2);
@@ -264,7 +269,7 @@ mod tests {
             .from("Contact")
             .where_eq("Status", "New");
 
-        let op = SoqlMassOp::new(&client, query);
+        let op = client.composite().soql_mass_op(query);
 
         let updates = json!({
             "Status": "Processed"
@@ -295,7 +300,7 @@ mod tests {
             .await;
 
         let query = SoqlQueryBuilder::new().select(&["Name"]).from("Account");
-        let op = SoqlMassOp::new(&client, query);
+        let op = client.composite().soql_mass_op(query);
         let stats = op.delete_all().await.must();
         assert_eq!(stats.ops_succeeded, 0);
         assert_eq!(stats.ops_failed, 0);
@@ -319,7 +324,7 @@ mod tests {
             .await;
 
         let query = SoqlQueryBuilder::new().select(&["Name"]).from("Account");
-        let op = SoqlMassOp::new(&client, query);
+        let op = client.composite().soql_mass_op(query);
         let stats = op.update_all(json!({"Name": "Updated"})).await.must();
         assert_eq!(stats.ops_succeeded, 0);
         assert_eq!(stats.ops_failed, 0);
@@ -330,7 +335,7 @@ mod tests {
         let mock_server = create_mock_server().await;
         let client = create_test_client(&mock_server).await;
         let query = SoqlQueryBuilder::new().select(&["Id"]).from("Account");
-        let op = SoqlMassOp::new(&client, query);
+        let op = client.composite().soql_mass_op(query);
         let result = op.update_all(json!("not an object")).await;
         assert!(matches!(result, Err(ForceError::InvalidInput(_))));
     }
@@ -340,7 +345,7 @@ mod tests {
         let mock_server = create_mock_server().await;
         let client = create_test_client(&mock_server).await;
         let query = SoqlQueryBuilder::new().select(&["Id"]); // missing FROM
-        let op = SoqlMassOp::new(&client, query);
+        let op = client.composite().soql_mass_op(query);
         let result = op.delete_all().await;
         assert!(matches!(result, Err(ForceError::InvalidInput(_))));
     }
@@ -350,7 +355,7 @@ mod tests {
         let mock_server = create_mock_server().await;
         let client = create_test_client(&mock_server).await;
         let query = SoqlQueryBuilder::new().select(&["Id"]); // missing FROM
-        let op = SoqlMassOp::new(&client, query);
+        let op = client.composite().soql_mass_op(query);
         let result = op.update_all(json!({"Name": "Updated"})).await;
         assert!(matches!(result, Err(ForceError::InvalidInput(_))));
     }

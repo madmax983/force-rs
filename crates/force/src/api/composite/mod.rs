@@ -70,6 +70,20 @@ impl<A: Authenticator> CompositeHandler<A> {
         batch::BatchRequest::new(self.clone())
     }
 
+    /// Creates a new QueryBatch processor.
+    #[cfg(feature = "composite")]
+    #[must_use]
+    pub fn query_batch(&self, query: impl Into<String>) -> QueryBatch<A> {
+        QueryBatch::new(std::sync::Arc::clone(&self.inner), query)
+    }
+
+    /// Creates a new SoqlMassOp processor.
+    #[cfg(feature = "composite")]
+    #[must_use]
+    pub fn soql_mass_op(&self, query: crate::api::SoqlQueryBuilder) -> SoqlMassOp<A> {
+        SoqlMassOp::new(std::sync::Arc::clone(&self.inner), query)
+    }
+
     /// Creates a new graph request.
     ///
     /// The Composite Graph API allows you to execute complex, dependent requests

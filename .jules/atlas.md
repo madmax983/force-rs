@@ -16,3 +16,6 @@
 **[Unify error handling]
 **Tangle:** Inconsistent error handling across modules where Result was used with explicit types.
 **Blueprint:** Standardized error types across all modules to enforce domain boundaries.
+**Circular Dependency Avoidance in Composite API Utilities**
+**Tangle:** QueryBatch and SoqlMassOp held references to ForceClient, forcing internal utilities to depend on the top-level client facade.
+**Blueprint:** Refactored QueryBatch and SoqlMassOp to take Arc<Session<A>> instead, breaking the dependency cycle, and exposed them via CompositeHandler.
