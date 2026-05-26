@@ -47,7 +47,7 @@ async fn main() -> anyhow::Result<()> {
     // 3. Execute the mass update!
     // This will query the records and send Composite Batch requests
     // in chunks of 25 to perform the updates.
-    let mass_op = SoqlMassOp::new(&client, query).halt_on_error(false);
+    let mass_op = client.composite().soql_mass_op(query).halt_on_error(false);
 
     let stats = mass_op.update_all(updates).await?;
 

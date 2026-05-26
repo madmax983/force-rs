@@ -16,3 +16,6 @@
 **[Unify error handling]
 **Tangle:** Inconsistent error handling across modules where Result was used with explicit types.
 **Blueprint:** Standardized error types across all modules to enforce domain boundaries.
+**[Broke Circular Dependency Between Client and API Modules]
+**Tangle:** [The `client` module depended on `api` to instantiate handlers (`RestHandler`, `CompositeHandler`), while the `api` module depended on `client` because the `api::composite::query_batch::QueryBatch` and `api::composite::soql_mass_op::SoqlMassOp` types took `ForceClient` directly as a dependency to execute mixed REST and Composite operations.]
+**Blueprint:** [Refactored `QueryBatch` and `SoqlMassOp` to take `Arc<Session<A>>` instead of `&ForceClient<A>`. Moved their construction into `CompositeHandler` (e.g., `client.composite().soql_mass_op(query)`). Inside these structs, `RestHandler::new(self.session.clone())` and `CompositeHandler::new(self.session.clone())` are now constructed dynamically directly from the session, completely decoupling `api` from `client`.]
