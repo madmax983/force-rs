@@ -82,8 +82,10 @@ pub fn compare_schemas<'a>(
 
     // ⚡ Bolt: Sort fields and use an O(N) linear merge to avoid allocating a `HashMap`.
     // This removes the hashing overhead and map allocations entirely.
-    let mut old_fields: Vec<&'a FieldDescribe> = old_schema.fields.iter().collect();
-    let mut new_fields: Vec<&'a FieldDescribe> = new_schema.fields.iter().collect();
+    let mut old_fields: Vec<&'a FieldDescribe> = Vec::with_capacity(old_schema.fields.len());
+    old_fields.extend(old_schema.fields.iter());
+    let mut new_fields: Vec<&'a FieldDescribe> = Vec::with_capacity(new_schema.fields.len());
+    new_fields.extend(new_schema.fields.iter());
 
     old_fields.sort_by(|a, b| crate::schema::cmp_field_names(&a.name, &b.name));
     new_fields.sort_by(|a, b| crate::schema::cmp_field_names(&a.name, &b.name));
