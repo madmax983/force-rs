@@ -38,8 +38,8 @@ impl TokenManagerLoomModel {
         {
             let state = self.state.read().unwrap();
             if let Some(token) = state.token {
-                let is_newer = current_token.is_some_and(|current| token > current);
-                if is_newer {
+                let is_newer_or_equal = current_token.is_none_or(|current| token >= current);
+                if is_newer_or_equal {
                     return;
                 }
             }

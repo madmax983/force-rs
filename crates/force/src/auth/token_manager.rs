@@ -259,7 +259,11 @@ impl<A: Authenticator> TokenManager<A> {
                     Some(arc) => Arc::ptr_eq(token, arc),
                     None => false,
                 };
-                if !is_same {
+                let is_newer = match &current_arc {
+                    Some(arc) => token.issued_at() >= arc.issued_at(),
+                    None => true,
+                };
+                if !is_same && is_newer {
                     return Ok((*token.clone()).clone());
                 }
             }
