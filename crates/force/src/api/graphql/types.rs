@@ -238,6 +238,16 @@ mod tests {
     }
 
     #[test]
+    fn test_response_errors_present_but_empty() {
+        let json_str = r#"{"errors": []}"#;
+        let resp: GraphqlResponse = serde_json::from_str(json_str).must();
+
+        assert!(resp.data.is_none());
+        // An explicitly empty array shouldn't trigger `has_errors() -> true`
+        assert!(!resp.has_errors());
+    }
+
+    #[test]
     fn test_response_with_extensions() {
         let json_str = r#"{
             "data": {"value": 1},

@@ -41,3 +41,10 @@
 **Finding:** Missing mutation test coverage in `upsert_with_retry_class` and `validate_query_input_len`. The `MAX_QUERY_INPUT_BYTES` threshold tests were weak, and the response limit calculation in `upsert` lacked explicit bound verification.
 **Evidence:** 5+ surviving mutants around `100 * 1024 * 1024` limit calculation in `upsert` paths. Surviving `>=` mutant on `validate_query_input_len`.
 **Recommendation:** Ensure exact boundary coverage in threshold validation methods (like EXACT max allowed size), and explicitly cover payload too large errors (`HttpError::PayloadTooLarge`) by setting up mocks with very large mock response data.
+
+**[Elenchus: force::api::graphql Test Quality Audit]**
+**Module:** `crates/force/src/api/graphql`
+**Severity:** 🔴 Critical
+**Finding:** A pattern of unverified boundaries and early returns in GraphQL modules. `cargo mutants` exposed multiple missing tests: missing explicit payload limit tests (`100 * 1024 * 1024` calculation surviving mutants) and missing early exit validation for empty errors array (`!errors.is_empty()`).
+**Evidence:** `100 * 1024 * 1024` mutants survived in `query` and `query_with_errors`. `!errors.is_empty()` mutation to `true` survived.
+**Recommendation:** Added `test_query_payload_too_large` and `test_query_with_errors_payload_too_large` using a mock returning > 100MB of data equivalent. Added `test_response_errors_present_but_empty` to verify an empty `errors: []` array gracefully handles `!is_empty()` and falls down to data.

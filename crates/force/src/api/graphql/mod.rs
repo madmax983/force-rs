@@ -345,6 +345,71 @@ mod integration_tests {
     }
 
     #[tokio::test]
+    async fn test_query_payload_too_large() {
+        let (mock_server, handler) = setup().await;
+
+        // Create a payload larger than 100MB (100 * 1024 * 1024 bytes)
+        // Note: generating a massive string in memory is slow and takes RAM.
+        // Since `read_capped_body_bytes` reads up to limit + 1 bytes and fails,
+        // we just need the server to return slightly more than 104,857,600 bytes.
+        // Actually, to avoid slow tests and OOM in CI, we can't easily send 100MB here directly unless we use chunking,
+        // but we can just override the limit or use a smaller string if the limit was configurable.
+        // Because `100 * 1024 * 1024` is hardcoded, we will just send a very large 100MB+1 string
+        // via `set_body_string`.
+        let limit = 100 * 1024 * 1024;
+        let large_body = "x".repeat(limit + 10);
+
+        Mock::given(method("POST"))
+            .and(path("/services/data/v60.0/graphql"))
+            .respond_with(ResponseTemplate::new(200).set_body_string(large_body))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let req = GraphqlRequest::new("{ query }");
+        let result: crate::error::Result<Value> = handler.query(&req).await;
+
+        let Err(err) = result else {
+            panic!("Expected an error for payload too large");
+        };
+
+        let err_msg = err.to_string();
+        assert!(
+            err_msg.contains("exceeded the safety limit"),
+            "Error should indicate payload is too large, got: {err_msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_query_with_errors_payload_too_large() {
+        let (mock_server, handler) = setup().await;
+
+        let limit = 100 * 1024 * 1024;
+        let large_body = "x".repeat(limit + 10);
+
+        Mock::given(method("POST"))
+            .and(path("/services/data/v60.0/graphql"))
+            .respond_with(ResponseTemplate::new(200).set_body_string(large_body))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let req = GraphqlRequest::new("{ query }");
+        let result: crate::error::Result<GraphqlResponse<Value>> =
+            handler.query_with_errors(&req).await;
+
+        let Err(err) = result else {
+            panic!("Expected an error for payload too large");
+        };
+
+        let err_msg = err.to_string();
+        assert!(
+            err_msg.contains("exceeded the safety limit"),
+            "Error should indicate payload is too large, got: {err_msg}"
+        );
+    }
+
+    #[tokio::test]
     async fn test_query_errors_empty() {
         let (mock_server, handler) = setup().await;
 
