@@ -83,15 +83,19 @@ impl<'a, A: Authenticator> SchemaGraph<'a, A> {
     /// Adds a node from an already-fetched describe result.
     ///
     /// Use this to avoid redundant API calls when you already have the describe data.
+    /// ⚡ Bolt: By checking if the name exists first, we avoid unnecessary clones when re-visiting schema nodes.
     pub fn add_describe(&mut self, describe: SObjectDescribe) {
-        self.scanned.insert(describe.name.clone());
-        self.add_node(describe);
+        if !self.scanned.contains(&describe.name) {
+            self.scanned.insert(describe.name.clone());
+            self.add_node(describe);
+        }
     }
 
     /// Adds a node from a describe result (internal helper).
     fn add_node(&mut self, describe: SObjectDescribe) {
+        let name = describe.name;
         let node = SchemaNode {
-            name: describe.name.clone(),
+            name: name.clone(),
             label: describe.label,
             fields: describe
                 .fields
@@ -103,7 +107,7 @@ impl<'a, A: Authenticator> SchemaGraph<'a, A> {
                 })
                 .collect(),
         };
-        self.nodes.insert(describe.name, node);
+        self.nodes.insert(name, node);
     }
 
     /// Generates a Mermaid.js ER diagram from the scanned objects.
