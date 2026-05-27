@@ -83,12 +83,22 @@ impl<A: Authenticator> TokenManager<A> {
     }
 
     /// Returns the currently stored token when it is at least as new as `fallback`.
-    async fn latest_token_or(&self, fallback: Arc<AccessToken>) -> Arc<AccessToken> {
+    async fn latest_token_or(
+        &self,
+        fallback: Arc<AccessToken>,
+        clear_count_at_start: u64,
+    ) -> Result<Arc<AccessToken>> {
         let state = self.state.read().await;
 
+        if state.clear_count != clear_count_at_start {
+            return Err(crate::error::ForceError::Authentication(
+                crate::error::AuthenticationError::InvalidToken,
+            ));
+        }
+
         match &state.token {
-            Some(current) if current.issued_at() >= fallback.issued_at() => current.clone(),
-            _ => fallback,
+            Some(current) if current.issued_at() >= fallback.issued_at() => Ok(current.clone()),
+            _ => Ok(fallback),
         }
     }
 
@@ -96,7 +106,7 @@ impl<A: Authenticator> TokenManager<A> {
     ///
     /// This is an internal method to avoid cloning the token for internal use.
     pub(crate) async fn get_token_arc(&self) -> Result<Arc<AccessToken>> {
-        let (is_soft_expired, is_hard_expired_actual, current_token) =
+        let (is_soft_expired, is_hard_expired_actual, current_token, clear_count) =
             self.evaluate_token_state().await;
 
         if let Some(token) = current_token.as_ref() {
@@ -108,7 +118,7 @@ impl<A: Authenticator> TokenManager<A> {
         if is_hard_expired_actual {
             self.handle_hard_refresh().await
         } else if let Some(valid_token) = current_token {
-            self.handle_soft_refresh(valid_token).await
+            self.handle_soft_refresh(valid_token, clear_count).await
         } else {
             Err(crate::error::ForceError::Authentication(
                 crate::error::AuthenticationError::InvalidToken,
@@ -116,16 +126,17 @@ impl<A: Authenticator> TokenManager<A> {
         }
     }
 
-    async fn evaluate_token_state(&self) -> (bool, bool, Option<Arc<AccessToken>>) {
+    async fn evaluate_token_state(&self) -> (bool, bool, Option<Arc<AccessToken>>, u64) {
         let state = self.state.read().await;
         if let Some(token) = &state.token {
             (
                 token.is_soft_expired(),
                 token.is_hard_expired(),
                 Some(token.clone()),
+                state.clear_count,
             )
         } else {
-            (false, true, None)
+            (false, true, None, state.clear_count)
         }
     }
 
@@ -174,9 +185,13 @@ impl<A: Authenticator> TokenManager<A> {
         self.update_token_state(arc_token, clear_count).await
     }
 
-    async fn handle_soft_refresh(&self, valid_token: Arc<AccessToken>) -> Result<Arc<AccessToken>> {
+    async fn handle_soft_refresh(
+        &self,
+        valid_token: Arc<AccessToken>,
+        clear_count: u64,
+    ) -> Result<Arc<AccessToken>> {
         let Ok(_lock) = self.refresh_lock.try_lock() else {
-            return Ok(self.latest_token_or(valid_token).await);
+            return self.latest_token_or(valid_token, clear_count).await;
         };
 
         let clear_count = {
@@ -198,7 +213,7 @@ impl<A: Authenticator> TokenManager<A> {
                 let arc_token = Arc::new(new_token);
                 self.update_token_state(arc_token, clear_count).await
             }
-            Err(_) => Ok(self.latest_token_or(valid_token).await),
+            Err(_) => self.latest_token_or(valid_token, clear_count).await,
         }
     }
 
