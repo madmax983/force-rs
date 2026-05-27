@@ -49,12 +49,18 @@ fn outbox_source_cursor(raw: &str) -> Result<SourceCursor, ForceSyncError> {
     Ok(SourceCursor::PostgresLsn(raw.to_string()))
 }
 
-/// ⚡ Bolt: Consume `OutboxRow` by value to eliminate 3x `String` allocations
-/// per row on the hot path when capturing `PostgreSQL` changes.
-fn outbox_envelope(row: OutboxRow) -> Result<ChangeEnvelope, ForceSyncError> {
+/// ⚡ Bolt: Take `OutboxRow` by mutable reference to `std::mem::take` its `String`
+/// fields into `SyncKey`, eliminating `.clone()` heap allocations on the hot path.
+fn outbox_envelope(row: &mut OutboxRow) -> Result<ChangeEnvelope, ForceSyncError> {
     let payload: Value = serde_json::from_str(&row.payload_text)?;
-    let sync_key = SyncKey::new(row.tenant, row.object_name, row.external_id)?;
     let operation = outbox_operation(&row.op, row.tombstone)?;
+    let cursor = outbox_source_cursor(&row.source_cursor)?;
+
+    let sync_key = SyncKey::new(
+        std::mem::take(&mut row.tenant),
+        std::mem::take(&mut row.object_name),
+        std::mem::take(&mut row.external_id),
+    )?;
 
     Ok(ChangeEnvelope::new(
         sync_key,
@@ -63,7 +69,7 @@ fn outbox_envelope(row: OutboxRow) -> Result<ChangeEnvelope, ForceSyncError> {
         row.created_at,
         payload,
     )
-    .with_cursor(outbox_source_cursor(&row.source_cursor)?))
+    .with_cursor(cursor))
 }
 
 const fn row_content_error(error: &ForceSyncError) -> bool {
@@ -78,7 +84,7 @@ const fn row_content_error(error: &ForceSyncError) -> bool {
 
 async fn quarantine_row<C>(
     client: &C,
-    row: OutboxRow,
+    row: &OutboxRow,
     error: &ForceSyncError,
 ) -> Result<(), ForceSyncError>
 where
@@ -87,9 +93,9 @@ where
     let payload = serde_json::from_str::<Value>(&row.payload_text).ok();
     let dead_letter = DeadLetter {
         task_id: None,
-        tenant: Some(row.tenant),
-        object_name: Some(row.object_name),
-        external_id: Some(row.external_id),
+        tenant: Some(row.tenant.clone()),
+        object_name: Some(row.object_name.clone()),
+        external_id: Some(row.external_id.clone()),
         error_message: error.to_string(),
         payload,
     };
@@ -134,9 +140,8 @@ where
     let mut processed = 0usize;
 
     for row in rows {
-        let outbox_id: i64 = row.get("outbox_id");
-        let outbox_row = OutboxRow {
-            outbox_id,
+        let mut outbox_row = OutboxRow {
+            outbox_id: row.get("outbox_id"),
             tenant: row.get("tenant"),
             object_name: row.get("object_name"),
             external_id: row.get("external_id"),
@@ -147,7 +152,7 @@ where
             created_at: row.get("created_at"),
         };
 
-        match outbox_envelope(outbox_row) {
+        match outbox_envelope(&mut outbox_row) {
             Ok(envelope) => match PgStore::append_journal_if_new_in_tx(client, &envelope).await? {
                 AppendResult::Inserted { journal_id } => {
                     PgStore::enqueue_apply_task_in_tx(client, journal_id, priority).await?;
@@ -157,7 +162,7 @@ where
                              set processed_at = now()
                              where outbox_id = $1
                                and processed_at is null",
-                            &[&outbox_id],
+                            &[&outbox_row.outbox_id],
                         )
                         .await?;
                     processed = processed.saturating_add(1);
@@ -169,25 +174,14 @@ where
                              set processed_at = now()
                              where outbox_id = $1
                                and processed_at is null",
-                            &[&outbox_id],
+                            &[&outbox_row.outbox_id],
                         )
                         .await?;
                     processed = processed.saturating_add(1);
                 }
             },
             Err(error) if row_content_error(&error) => {
-                let outbox_row = OutboxRow {
-                    outbox_id,
-                    tenant: row.get("tenant"),
-                    object_name: row.get("object_name"),
-                    external_id: row.get("external_id"),
-                    source_cursor: row.get("source_cursor"),
-                    op: row.get("op"),
-                    tombstone: row.get("tombstone"),
-                    payload_text: row.get("payload_text"),
-                    created_at: row.get("created_at"),
-                };
-                let _ = quarantine_row(client, outbox_row, &error).await;
+                let _ = quarantine_row(client, &outbox_row, &error).await;
                 processed = processed.saturating_add(1);
             }
             Err(error) => return Err(error),
@@ -336,5 +330,52 @@ mod tests {
     fn row_content_error_rejects_missing_source_cursor() {
         let err = ForceSyncError::MissingSourceCursor;
         assert!(!row_content_error(&err));
+    }
+
+    // ── outbox_envelope ───────────────────────────────────────────────
+
+    #[test]
+    fn outbox_envelope_success_takes_strings() {
+        let mut row = OutboxRow {
+            outbox_id: 1,
+            tenant: "t1".to_string(),
+            object_name: "Account".to_string(),
+            external_id: "ext1".to_string(),
+            source_cursor: "0/16B3740".to_string(),
+            op: "upsert".to_string(),
+            tombstone: false,
+            payload_text: r#"{"Name": "Acme"}"#.to_string(),
+            created_at: chrono::Utc::now(),
+        };
+
+        let Ok(env) = outbox_envelope(&mut row) else {
+            panic!("expected Ok");
+        };
+        assert_eq!(env.operation(), ChangeOperation::Upsert);
+        assert_eq!(env.sync_key().tenant(), "t1");
+        assert_eq!(env.sync_key().object_name(), "Account");
+        assert_eq!(env.sync_key().external_id(), "ext1");
+        assert_eq!(row.tenant, ""); // Verify it was taken
+    }
+
+    #[test]
+    fn outbox_envelope_invalid_json_leaves_row_intact() {
+        let mut row = OutboxRow {
+            outbox_id: 1,
+            tenant: "t1".to_string(),
+            object_name: "Account".to_string(),
+            external_id: "ext1".to_string(),
+            source_cursor: "0/16B3740".to_string(),
+            op: "upsert".to_string(),
+            tombstone: false,
+            payload_text: "{invalid}".to_string(),
+            created_at: chrono::Utc::now(),
+        };
+
+        let Err(err) = outbox_envelope(&mut row) else {
+            panic!("expected Err");
+        };
+        assert!(matches!(err, ForceSyncError::Json(_)));
+        assert_eq!(row.tenant, "t1"); // Verify it wasn't taken
     }
 }
