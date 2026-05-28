@@ -258,6 +258,13 @@ mod tests {
     }
 
     #[test]
+    fn test_client_credentials_new_production() {
+        let auth = ClientCredentials::new_production("test_client_id", "test_client_secret");
+        assert_eq!(auth.client_id, "test_client_id");
+        assert_eq!(auth.token_url, crate::auth::PRODUCTION_TOKEN_URL);
+    }
+
+    #[test]
     fn test_client_secret_is_secret() {
         let auth = ClientCredentials::new(
             "client_id",
