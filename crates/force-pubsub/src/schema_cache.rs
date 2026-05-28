@@ -20,7 +20,7 @@ pub struct SchemaCache {
 
 #[derive(Debug)]
 struct SchemaCacheInner {
-    cache: DashMap<String, Schema>,
+    cache: DashMap<String, Arc<Schema>>,
 }
 
 impl SchemaCache {
@@ -36,7 +36,7 @@ impl SchemaCache {
 
     /// Insert a pre-parsed schema directly.
     pub fn insert(&self, schema_id: String, schema: Schema) {
-        self.inner.cache.insert(schema_id, schema);
+        self.inner.cache.insert(schema_id, Arc::new(schema));
     }
 
     /// Returns the number of cached schemas.
@@ -52,19 +52,26 @@ impl SchemaCache {
     }
 
     /// Get a schema by ID if it is already in cache.
+    ///
+    /// ⚡ Bolt: Wrapped returned `Schema` in an `Arc` to eliminate an expensive deep `.clone()`
+    /// allocation on the hot concurrent read path.
     #[must_use]
-    pub fn get(&self, schema_id: &str) -> Option<Schema> {
-        self.inner.cache.get(schema_id).map(|r| r.value().clone())
+    pub fn get(&self, schema_id: &str) -> Option<Arc<Schema>> {
+        self.inner
+            .cache
+            .get(schema_id)
+            .map(|r| Arc::clone(r.value()))
     }
 
     /// Parse Avro schema JSON and store it in the cache.
     ///
     /// Returns the parsed schema. Called after receiving `schema_json` from `GetSchema`.
-    pub fn parse_and_insert(&self, schema_id: String, schema_json: &str) -> Result<Schema> {
+    pub fn parse_and_insert(&self, schema_id: String, schema_json: &str) -> Result<Arc<Schema>> {
         let schema = Schema::parse_str(schema_json)
             .map_err(|e| PubSubError::Avro(format!("failed to parse schema {schema_id}: {e}")))?;
-        self.inner.cache.insert(schema_id, schema.clone());
-        Ok(schema)
+        let schema_arc = Arc::new(schema);
+        self.inner.cache.insert(schema_id, Arc::clone(&schema_arc));
+        Ok(schema_arc)
     }
 
     /// Return the schema for `schema_id` from cache, or fetch it via the `GetSchema` RPC.
@@ -82,7 +89,7 @@ impl SchemaCache {
         schema_id: &str,
         channel: &Channel,
         metadata: tonic::metadata::MetadataMap,
-    ) -> Result<Schema> {
+    ) -> Result<Arc<Schema>> {
         // Fast path: lock-free cache hit.
         if let Some(schema) = self.get(schema_id) {
             return Ok(schema);
