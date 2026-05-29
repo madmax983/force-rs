@@ -26,7 +26,6 @@ pub(crate) mod schema_limits;
 pub(crate) mod schema_linter;
 pub(crate) mod schema_visualizer;
 pub(crate) mod sql_exporter;
-pub(crate) mod sql_migration_generator;
 #[allow(missing_docs)]
 pub(crate) mod type_generator;
 pub(crate) mod typescript_generator;
@@ -69,7 +68,6 @@ pub use schema_linter::{
 };
 pub use schema_visualizer::generate_visualizer_report;
 pub use sql_exporter::{generate_ddl, write_ddl};
-pub use sql_migration_generator::generate_sql_migration;
 pub use type_generator::generate_rust_struct;
 pub use typescript_generator::{generate_typescript_interface, write_typescript_interface};
 pub use zod_generator::{generate_zod_schema, write_zod_schema};
