@@ -52,28 +52,18 @@ pub struct SchemaInsights {
 #[must_use]
 pub fn analyze_schema(describe: &SObjectDescribe) -> SchemaInsights {
     let total_fields = describe.fields.len();
-    let mut custom_field_count = 0;
-    let mut required_field_count = 0;
-    let mut formula_field_count = 0;
-    let mut relationship_field_count = 0;
-
-    for field in &describe.fields {
-        if field.custom {
-            custom_field_count += 1;
-        }
-
-        if !field.nillable && !field.defaulted_on_create && field.name != "Id" {
-            required_field_count += 1;
-        }
-
-        if field.calculated {
-            formula_field_count += 1;
-        }
-
-        if matches!(field.type_, FieldType::Reference) {
-            relationship_field_count += 1;
-        }
-    }
+    let custom_field_count = describe.fields.iter().filter(|f| f.custom).count();
+    let required_field_count = describe
+        .fields
+        .iter()
+        .filter(|f| !f.nillable && !f.defaulted_on_create && f.name != "Id")
+        .count();
+    let formula_field_count = describe.fields.iter().filter(|f| f.calculated).count();
+    let relationship_field_count = describe
+        .fields
+        .iter()
+        .filter(|f| matches!(f.type_, FieldType::Reference))
+        .count();
 
     let standard_field_count = total_fields - custom_field_count;
 
