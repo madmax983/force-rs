@@ -157,4 +157,70 @@ mod tests {
         let expected = "ALTER TABLE Account ADD COLUMN NewField INTEGER;\nALTER TABLE Account DROP COLUMN OldField;\nALTER TABLE Account ALTER COLUMN Name TYPE TEXT;\n";
         assert_eq!(sql, expected);
     }
+
+    #[test]
+    fn test_generate_sql_migration_empty() {
+        let old_schema = create_mock_describe(&json!([
+            mock_field("Id", "id", 18, false, true),
+            mock_field("Name", "string", 255, false, false),
+            mock_field("OldField", "string", 255, true, false)
+        ]));
+
+        let new_schema = create_mock_describe(&json!([
+            mock_field("Id", "id", 18, false, true),
+            mock_field("Name", "string", 255, false, false),
+            mock_field("OldField", "string", 255, true, false)
+        ]));
+
+        let diff = compare_schemas(&old_schema, &new_schema);
+        let sql = generate_sql_migration("Account", &diff);
+
+        let expected = "";
+        assert_eq!(sql, expected);
+    }
+
+    #[test]
+    fn test_generate_sql_migration_data_types() {
+        let old_schema = create_mock_describe(&json!([
+            mock_field("Id", "id", 18, false, true)
+        ]));
+
+        let new_schema = create_mock_describe(&json!([
+            mock_field("Id", "id", 18, false, true),
+            mock_field("F1", "reference", 18, true, false),
+            mock_field("F2", "email", 80, true, false),
+            mock_field("F3", "phone", 0, true, false), // should default to 255
+            mock_field("F4", "url", 255, true, false),
+            mock_field("F5", "picklist", 255, true, false),
+            mock_field("F6", "multipicklist", 255, true, false),
+            mock_field("F7", "combobox", 255, true, false),
+            mock_field("F8", "boolean", 0, true, false),
+            mock_field("F9", "double", 0, true, false),
+            mock_field("F10", "currency", 0, true, false),
+            mock_field("F11", "percent", 0, true, false),
+            mock_field("F12", "date", 0, true, false),
+            mock_field("F13", "datetime", 0, true, false),
+            mock_field("F14", "time", 0, true, false),
+            mock_field("F15", "base64", 0, true, false)
+        ]));
+
+        let diff = compare_schemas(&old_schema, &new_schema);
+        let sql = generate_sql_migration("Account", &diff);
+
+        assert!(sql.contains("ADD COLUMN F1 VARCHAR(18)"));
+        assert!(sql.contains("ADD COLUMN F2 VARCHAR(80)"));
+        assert!(sql.contains("ADD COLUMN F3 VARCHAR(255)"));
+        assert!(sql.contains("ADD COLUMN F4 VARCHAR(255)"));
+        assert!(sql.contains("ADD COLUMN F5 VARCHAR(255)"));
+        assert!(sql.contains("ADD COLUMN F6 VARCHAR(255)"));
+        assert!(sql.contains("ADD COLUMN F7 VARCHAR(255)"));
+        assert!(sql.contains("ADD COLUMN F8 BOOLEAN"));
+        assert!(sql.contains("ADD COLUMN F9 DOUBLE PRECISION"));
+        assert!(sql.contains("ADD COLUMN F10 DOUBLE PRECISION"));
+        assert!(sql.contains("ADD COLUMN F11 DOUBLE PRECISION"));
+        assert!(sql.contains("ADD COLUMN F12 DATE"));
+        assert!(sql.contains("ADD COLUMN F13 TIMESTAMP"));
+        assert!(sql.contains("ADD COLUMN F14 TIME"));
+        assert!(sql.contains("ADD COLUMN F15 TEXT"));
+    }
 }
