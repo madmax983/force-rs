@@ -107,7 +107,7 @@ impl<A: Authenticator> FilesHandler<A> {
             .map_err(|e| ForceError::Http(crate::error::HttpError::RequestFailed(e)))?;
 
         let status = response.status();
-        let body = Self::read_capped_body(response, 100 * 1024 * 1024)
+        let bytes = Self::read_capped_body_bytes(response, 100 * 1024 * 1024)
             .await
             .map_err(|e| ForceError::Http(crate::error::HttpError::RequestFailed(e)))?;
 
@@ -115,11 +115,18 @@ impl<A: Authenticator> FilesHandler<A> {
             return Err(ForceError::InvalidInput("Failed to upload ContentVersion".into()));
         }
 
-        let result: serde_json::Value = serde_json::from_str(&body)
+        // 🔒 Warden: Avoid unbounded `serde_json::Value` DOM allocations on large responses by decoding strictly into a strongly-typed struct.
+        #[derive(serde::Deserialize)]
+        struct FilesUploadResponse {
+            id: Option<String>,
+            success: Option<bool>,
+        }
+
+        let result: FilesUploadResponse = serde_json::from_slice(&bytes)
             .map_err(|e| ForceError::Serialization(crate::error::SerializationError::Json(e)))?;
 
-        if result["success"].as_bool().unwrap_or(false) {
-            Ok(result["id"].as_str().unwrap_or_default().to_string())
+        if result.success.unwrap_or(false) {
+            Ok(result.id.unwrap_or_default())
         } else {
             Err(ForceError::InvalidInput(
                 "Failed to upload ContentVersion".into(),
@@ -205,7 +212,7 @@ impl<A: Authenticator> FilesHandler<A> {
             .map_err(|e| ForceError::Http(crate::error::HttpError::RequestFailed(e)))?;
 
         let status = response.status();
-        let body = Self::read_capped_body(response, 10 * 1024 * 1024)
+        let bytes = Self::read_capped_body_bytes(response, 10 * 1024 * 1024)
             .await
             .map_err(|e| ForceError::Http(crate::error::HttpError::RequestFailed(e)))?;
 
@@ -213,11 +220,18 @@ impl<A: Authenticator> FilesHandler<A> {
             return Err(ForceError::InvalidInput("Failed to insert ContentDocumentLink".into()));
         }
 
-        let result: serde_json::Value = serde_json::from_str(&body)
+        // 🔒 Warden: Avoid unbounded `serde_json::Value` DOM allocations on large responses by decoding strictly into a strongly-typed struct.
+        #[derive(serde::Deserialize)]
+        struct FilesLinkResponse {
+            id: Option<String>,
+            success: Option<bool>,
+        }
+
+        let result: FilesLinkResponse = serde_json::from_slice(&bytes)
             .map_err(|e| ForceError::Serialization(crate::error::SerializationError::Json(e)))?;
 
-        if result["success"].as_bool().unwrap_or(false) {
-            Ok(result["id"].as_str().unwrap_or_default().to_string())
+        if result.success.unwrap_or(false) {
+            Ok(result.id.unwrap_or_default())
         } else {
             Err(ForceError::InvalidInput(
                 "Failed to insert ContentDocumentLink".into(),
@@ -232,7 +246,6 @@ mod tests {
     use crate::client::builder;
     use crate::test_utils::mock_auth::MockAuthenticator;
 use crate::test_utils::must::{Must, MustMsg};
-    use crate::test_utils::mock_auth::MockAuthenticator;
     use serde_json::json;
     use wiremock::matchers::{method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};

@@ -70,3 +70,26 @@ async fn test_error_parsing_integer_overflow() {
         .await;
     assert!(result.is_err());
 }
+
+#[tokio::test]
+async fn test_error_parsing_deserialization_bomb() {
+    use force::http::parse_api_error;
+
+    let depth = 10000;
+    let mut bomb = String::with_capacity(depth * 2);
+    for _ in 0..depth {
+        bomb.push('[');
+    }
+    for _ in 0..depth {
+        bomb.push(']');
+    }
+
+    let error = parse_api_error(400, &bomb);
+
+    // The goal is to see if it gracefully errors without panic
+    let err_msg = error.to_string();
+    assert!(
+        err_msg.contains("HTTP 400:") && err_msg.contains("[[["),
+        "Expected HTTP 400 generic error fallback for unparsable nested payload, got: {err_msg}"
+    );
+}

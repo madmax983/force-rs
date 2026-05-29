@@ -60,3 +60,6 @@
 **2026-04-09 - [Capped Responses for CSV Parsing]
 **Threat:** [Unbounded memory allocation during CSV and bytes fetching causing DoS attacks]
 **Defense:** [Replaced unbounded .bytes().await with read_capped_body_bytes(response, 100 * 1024 * 1024) inside bulk query and ingest functions]
+**2026-04-10 - [DoS / Deserialization Bomb in Files API Upload and Link]
+**Threat:** The `upload` and `link_to_record` methods in the Files API used `read_capped_body` to read the response into memory and then parsed it using `serde_json::from_str`. By directly allocating a full string, it was exposing the `serde_json` parser to the string rather than parsing bytes directly. The response could be up to 100MB, leaving it vulnerable to CPU or memory exhaustion.
+**Defense:** Replaced the intermediate `String` allocation from `read_capped_body` with `read_capped_body_bytes` to stream bytes directly into a vector, and changed `serde_json::from_str` to `serde_json::from_slice`. This provides zero-copy benefits from bytes parsing and cuts down redundant allocations on large error payloads.
