@@ -138,6 +138,40 @@ where
     }
 }
 
+#[cfg(feature = "bulk")]
+impl<T, A, O> QueryStream<T, A, O>
+where
+    T: DeserializeOwned + serde::Serialize + Unpin,
+    O: RestOperation<A> + Clone,
+    A: Authenticator,
+{
+    /// Exports the entire stream of records to a CSV writer.
+    ///
+    /// This method consumes the stream, fetching all pages and writing each record
+    /// directly to the provided writer in CSV format. This is extremely memory
+    /// efficient for large datasets as it only holds one page of results in memory
+    /// at a time.
+    ///
+    /// # Arguments
+    ///
+    /// * `writer` - The destination to write CSV data to (e.g., a file, stdout, or a byte buffer)
+    pub async fn export_to_csv<W: std::io::Write>(mut self, writer: W) -> Result<()> {
+        let mut csv_writer = csv::WriterBuilder::new()
+            .has_headers(true)
+            .from_writer(writer);
+
+        while let Some(record) = self.next().await? {
+            csv_writer
+                .serialize(&record)
+                .map_err(crate::error::SerializationError::from)?;
+        }
+
+        csv_writer.flush().map_err(crate::error::ForceError::Io)?;
+
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::client::builder;
@@ -432,6 +466,41 @@ mod tests {
         assert_eq!(r1.name, "A");
 
         assert!(stream.next().await.must().is_none());
+    }
+
+    #[tokio::test]
+    #[cfg(feature = "bulk")]
+    async fn test_query_stream_export_to_csv() {
+        let mock_server = MockServer::start().await;
+        let auth = MockAuthenticator::new("test_token", &mock_server.uri());
+
+        Mock::given(method("GET"))
+            .and(path("/services/data/v60.0/query"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "totalSize": 2,
+                "done": true,
+                "records": [
+                    {"Id": "001", "Name": "Record 1"},
+                    {"Id": "002", "Name": "Record 2"}
+                ]
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = builder().authenticate(auth).build().await.must();
+        let stream = client
+            .rest()
+            .query_stream::<TestAccount>("SELECT Id, Name FROM Account");
+
+        let mut output = Vec::new();
+        stream.export_to_csv(&mut output).await.must();
+
+        let csv_str = String::from_utf8(output).must();
+        let lines: Vec<&str> = csv_str.lines().collect();
+        assert_eq!(lines.len(), 3);
+        assert_eq!(lines[0], "Id,Name");
+        assert_eq!(lines[1], "001,Record 1");
+        assert_eq!(lines[2], "002,Record 2");
     }
 
     #[tokio::test]
