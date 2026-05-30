@@ -96,7 +96,7 @@ struct BulkAccountRow {
 fn planner_sends_large_homogeneous_batches_to_bulk_lane() {
     let object = ObjectSync::new("Account").external_id("External_Id__c");
     let context = PlannerContext {
-        object,
+        object: &object,
         current_payload: None,
         batch_size: 500,
         urgent: false,

@@ -22,11 +22,12 @@ pub enum ApplyLane {
 
 /// The pure inputs required to plan a change.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PlannerContext {
+pub struct PlannerContext<'a> {
+    /// ⚡ Bolt: Uses references to avoid deep cloning `ObjectSync` and JSON payloads on hot paths.
     /// Object-level sync configuration.
-    pub object: ObjectSync,
+    pub object: &'a ObjectSync,
     /// The current canonical payload, if one is already known.
-    pub current_payload: Option<Value>,
+    pub current_payload: Option<&'a Value>,
     /// The number of records being planned together.
     pub batch_size: usize,
     /// Whether the record should favor the fast path over batch economics.
@@ -92,10 +93,9 @@ pub fn merge_payload(
 
 /// Plans how a change should be applied after merge resolution.
 #[must_use]
-pub fn plan_change(context: &PlannerContext, envelope: &ChangeEnvelope) -> PlanDecision {
+pub fn plan_change(context: &PlannerContext<'_>, envelope: &ChangeEnvelope) -> PlanDecision {
     if context
         .current_payload
-        .as_ref()
         .is_some_and(|current| envelope.payload_hash_matches(current))
     {
         return PlanDecision {
@@ -106,8 +106,8 @@ pub fn plan_change(context: &PlannerContext, envelope: &ChangeEnvelope) -> PlanD
     }
 
     match merge_payload(
-        &context.object,
-        context.current_payload.as_ref(),
+        context.object,
+        context.current_payload,
         envelope.source(),
         envelope.payload(),
     ) {
@@ -124,7 +124,6 @@ pub fn plan_change(context: &PlannerContext, envelope: &ChangeEnvelope) -> PlanD
         MergeOutcome::Merged(payload) => PlanDecision {
             lane: if context
                 .current_payload
-                .as_ref()
                 .is_some_and(|current| current == &payload)
             {
                 ApplyLane::Noop
@@ -133,7 +132,6 @@ pub fn plan_change(context: &PlannerContext, envelope: &ChangeEnvelope) -> PlanD
             },
             payload: if context
                 .current_payload
-                .as_ref()
                 .is_some_and(|current| current == &payload)
             {
                 None
@@ -145,7 +143,7 @@ pub fn plan_change(context: &PlannerContext, envelope: &ChangeEnvelope) -> PlanD
     }
 }
 
-const fn choose_lane(context: &PlannerContext) -> ApplyLane {
+const fn choose_lane(context: &PlannerContext<'_>) -> ApplyLane {
     if context.has_dependencies {
         return ApplyLane::CompositeGraph;
     }
@@ -250,9 +248,12 @@ mod tests {
         ChangeEnvelope::new(sync_key, source, operation, Utc::now(), payload)
     }
 
-    fn test_context(object: &ObjectSync, current_payload: Option<Value>) -> PlannerContext {
+    fn test_context<'a>(
+        object: &'a ObjectSync,
+        current_payload: Option<&'a Value>,
+    ) -> PlannerContext<'a> {
         PlannerContext {
-            object: object.clone(),
+            object,
             current_payload,
             batch_size: 1,
             urgent: false,
@@ -482,7 +483,7 @@ mod tests {
             ChangeOperation::Upsert,
             payload.clone(),
         );
-        let ctx = test_context(&object, Some(payload));
+        let ctx = test_context(&object, Some(&payload));
 
         let decision = plan_change(&ctx, &envelope);
         assert_eq!(decision.lane, ApplyLane::Noop);
@@ -513,7 +514,8 @@ mod tests {
             ChangeOperation::Upsert,
             json!({"Name": "Updated"}),
         );
-        let mut ctx = test_context(&object, Some(json!({"Name": "Old"})));
+        let payload_515 = json!({"Name": "Old"});
+        let mut ctx = test_context(&object, Some(&payload_515));
         ctx.urgent = true;
 
         let decision = plan_change(&ctx, &envelope);
@@ -528,7 +530,8 @@ mod tests {
             ChangeOperation::Upsert,
             json!({"Name": "Updated"}),
         );
-        let mut ctx = test_context(&object, Some(json!({"Name": "Old"})));
+        let payload_530 = json!({"Name": "Old"});
+        let mut ctx = test_context(&object, Some(&payload_530));
         ctx.has_dependencies = true;
 
         let decision = plan_change(&ctx, &envelope);
@@ -543,7 +546,8 @@ mod tests {
             ChangeOperation::Upsert,
             json!({"Name": "Updated"}),
         );
-        let mut ctx = test_context(&object, Some(json!({"Name": "Old"})));
+        let payload_545 = json!({"Name": "Old"});
+        let mut ctx = test_context(&object, Some(&payload_545));
         ctx.batch_size = 1000;
 
         let decision = plan_change(&ctx, &envelope);
@@ -558,7 +562,8 @@ mod tests {
             ChangeOperation::Upsert,
             json!({"Phone": "new-value"}),
         );
-        let ctx = test_context(&object, Some(json!({"Phone": "old-value"})));
+        let payload_560 = json!({"Phone": "old-value"});
+        let ctx = test_context(&object, Some(&payload_560));
 
         let decision = plan_change(&ctx, &envelope);
         assert_eq!(decision.lane, ApplyLane::Conflict);
@@ -572,7 +577,7 @@ mod tests {
         let current = json!({"Name": "Acme", "Billing": "123 Main"});
         let incoming = json!({"Name": "Changed"});
         let envelope = test_envelope(SourceSystem::Postgres, ChangeOperation::Upsert, incoming);
-        let ctx = test_context(&object, Some(current));
+        let ctx = test_context(&object, Some(&current));
 
         let decision = plan_change(&ctx, &envelope);
         assert_eq!(decision.lane, ApplyLane::Noop);
@@ -587,7 +592,8 @@ mod tests {
             ChangeOperation::Upsert,
             json!({"Name": "Updated"}),
         );
-        let mut ctx = test_context(&object, Some(json!({"Name": "Old"})));
+        let payload_589 = json!({"Name": "Old"});
+        let mut ctx = test_context(&object, Some(&payload_589));
         ctx.batch_size = 499;
 
         let decision = plan_change(&ctx, &envelope);
@@ -602,7 +608,8 @@ mod tests {
             ChangeOperation::Upsert,
             json!({"Name": "Updated"}),
         );
-        let mut ctx = test_context(&object, Some(json!({"Name": "Old"})));
+        let payload_604 = json!({"Name": "Old"});
+        let mut ctx = test_context(&object, Some(&payload_604));
         ctx.batch_size = 500;
 
         let decision = plan_change(&ctx, &envelope);
@@ -617,7 +624,8 @@ mod tests {
             ChangeOperation::Upsert,
             json!({"Name": "Updated"}),
         );
-        let mut ctx = test_context(&object, Some(json!({"Name": "Old"})));
+        let payload_619 = json!({"Name": "Old"});
+        let mut ctx = test_context(&object, Some(&payload_619));
         ctx.batch_size = 1000;
         ctx.has_dependencies = true;
 
@@ -633,7 +641,8 @@ mod tests {
             ChangeOperation::Upsert,
             json!({"Name": "Updated"}),
         );
-        let mut ctx = test_context(&object, Some(json!({"Name": "Old"})));
+        let payload_635 = json!({"Name": "Old"});
+        let mut ctx = test_context(&object, Some(&payload_635));
         ctx.urgent = true;
         ctx.has_dependencies = true;
 
@@ -649,7 +658,8 @@ mod tests {
             ChangeOperation::Upsert,
             json!({"Name": "Updated"}),
         );
-        let mut ctx = test_context(&object, Some(json!({"Name": "Old"})));
+        let payload_651 = json!({"Name": "Old"});
+        let mut ctx = test_context(&object, Some(&payload_651));
         ctx.batch_size = 1000;
         ctx.urgent = true;
 
@@ -663,7 +673,7 @@ mod tests {
         let current = json!({"A": 1, "B": 2});
         let incoming = json!({"B": 2, "A": 1});
         let envelope = test_envelope(SourceSystem::Postgres, ChangeOperation::Upsert, incoming);
-        let ctx = test_context(&object, Some(current));
+        let ctx = test_context(&object, Some(&current));
 
         let decision = plan_change(&ctx, &envelope);
         assert_eq!(decision.lane, ApplyLane::Noop);
