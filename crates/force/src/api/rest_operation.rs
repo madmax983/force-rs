@@ -833,6 +833,26 @@ mod tests {
         );
     }
 
+    #[test]
+    fn test_validate_query_input_len_boundaries() {
+        let exact = "A".repeat(MAX_QUERY_INPUT_BYTES);
+        let one_less = "A".repeat(MAX_QUERY_INPUT_BYTES - 1);
+        let one_more = "A".repeat(MAX_QUERY_INPUT_BYTES + 1);
+
+        assert!(matches!(
+            super::validate_query_input_len("test", &one_less),
+            Ok(())
+        ));
+        assert!(matches!(
+            super::validate_query_input_len("test", &exact),
+            Ok(())
+        ));
+        assert!(matches!(
+            super::validate_query_input_len("test", &one_more),
+            Err(crate::error::ForceError::InvalidInput(_))
+        ));
+    }
+
     #[tokio::test]
     async fn test_validation_query_rejects_oversized_soql_before_session() {
         let op = TestRestOp;
