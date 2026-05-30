@@ -78,6 +78,22 @@ const fn row_content_error(error: &ForceSyncError) -> bool {
     )
 }
 
+async fn mark_outbox_processed<C>(client: &C, outbox_id: i64) -> Result<(), ForceSyncError>
+where
+    C: GenericClient + Sync + ?Sized,
+{
+    client
+        .execute(
+            "update force_sync_outbox
+             set processed_at = now()
+             where outbox_id = $1
+               and processed_at is null",
+            &[&outbox_id],
+        )
+        .await?;
+    Ok(())
+}
+
 async fn quarantine_row<C>(
     client: &C,
     row: &OutboxRow,
@@ -97,15 +113,7 @@ where
     };
 
     crate::store::pg::dead_letter::insert_dead_letter_in_tx(client, &dead_letter).await?;
-    client
-        .execute(
-            "update force_sync_outbox
-             set processed_at = now()
-             where outbox_id = $1
-               and processed_at is null",
-            &[&row.outbox_id],
-        )
-        .await?;
+    mark_outbox_processed(client, row.outbox_id).await?;
     Ok(())
 }
 
@@ -152,27 +160,11 @@ where
             Ok(envelope) => match PgStore::append_journal_if_new_in_tx(client, &envelope).await? {
                 AppendResult::Inserted { journal_id } => {
                     PgStore::enqueue_apply_task_in_tx(client, journal_id, priority).await?;
-                    client
-                        .execute(
-                            "update force_sync_outbox
-                             set processed_at = now()
-                             where outbox_id = $1
-                               and processed_at is null",
-                            &[&outbox_row.outbox_id],
-                        )
-                        .await?;
+                    mark_outbox_processed(client, outbox_row.outbox_id).await?;
                     processed += 1;
                 }
                 AppendResult::Duplicate => {
-                    client
-                        .execute(
-                            "update force_sync_outbox
-                             set processed_at = now()
-                             where outbox_id = $1
-                               and processed_at is null",
-                            &[&outbox_row.outbox_id],
-                        )
-                        .await?;
+                    mark_outbox_processed(client, outbox_row.outbox_id).await?;
                     processed += 1;
                 }
             },
