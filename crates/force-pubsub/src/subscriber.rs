@@ -188,7 +188,7 @@ impl<A: Authenticator> SubscribeState<A> {
                     return false;
                 }
 
-                let delay = backoff.delay_for(*reconnect_count - 1);
+                let delay = backoff.delay_for(reconnect_count.saturating_sub(1));
                 tokio::time::sleep(delay).await;
 
                 let replay_id = match current_preset {

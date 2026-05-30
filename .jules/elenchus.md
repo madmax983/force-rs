@@ -41,3 +41,17 @@
 **Finding:** Missing mutation test coverage in `upsert_with_retry_class` and `validate_query_input_len`. The `MAX_QUERY_INPUT_BYTES` threshold tests were weak, and the response limit calculation in `upsert` lacked explicit bound verification.
 **Evidence:** 5+ surviving mutants around `100 * 1024 * 1024` limit calculation in `upsert` paths. Surviving `>=` mutant on `validate_query_input_len`.
 **Recommendation:** Ensure exact boundary coverage in threshold validation methods (like EXACT max allowed size), and explicitly cover payload too large errors (`HttpError::PayloadTooLarge`) by setting up mocks with very large mock response data.
+
+**The Missing Timeout Oracle**
+**Module:** `force::auth::mod`
+**Severity:** 🔴 Critical
+**Finding:** The HTTP client builder for `default_auth_http_client` lacked explicit test coverage, meaning `cargo mutants` could remove the timeout configuration without failing any tests.
+**Evidence:** 1 surviving mutant on `default_auth_http_client` replacing the client with `Default::default()`.
+**Recommendation:** I discovered Sentry actually added `test_client_credentials_timeout` in `crates/force/tests/auth_timeout.rs` to enforce a timeout error occurs when the server is too slow, proving the timeout is applied, so this was technically fixed on the current branch during exploration.
+
+**The Underflow Mutant**
+**Module:** `force-pubsub::subscriber`
+**Severity:** 🟡 Suspect
+**Finding:** The backoff delay math `delay_for(*reconnect_count - 1)` in `handle_reconnect` was susceptible to mutation (`+ 1` or `/ 1`) without test failures, indicating fragile math coverage around retry bounds.
+**Evidence:** 2 surviving mutants mutating the `-` operator.
+**Recommendation:** Refactored the math to use `reconnect_count.saturating_sub(1)` to explicitly define and protect the bounded behavior, and verified existing tests cover the backoff timing bounds.
