@@ -71,10 +71,13 @@ impl<'a, A: Authenticator> SchemaGraph<'a, A> {
     ///
     /// Fetches metadata using the Describe API and records fields and relationships.
     /// Use this method multiple times to build a graph of related objects.
+    /// ⚡ Bolt: Check for existence by reference first to avoid allocating a `String`
+    /// if the sobject has already been scanned.
     pub async fn scan(&mut self, sobject: &str) -> Result<()> {
-        if !self.scanned.insert(sobject.to_string()) {
+        if self.scanned.contains(sobject) {
             return Ok(()); // Already scanned — skip redundant API call
         }
+        self.scanned.insert(sobject.to_string());
         let describe = self.client.rest().describe(sobject).await?;
         self.add_node(describe);
         Ok(())
