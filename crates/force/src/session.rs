@@ -226,3 +226,134 @@ impl<A: crate::auth::authenticator::Authenticator> Session<A> {
         self.http_client.request(method, url)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_utils::mock_auth::MockAuthenticator;
+    use crate::test_utils::must::Must;
+    use std::sync::Arc;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    #[tokio::test]
+    async fn test_send_request_and_decode_deserialization_error() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/bad_json"))
+            .respond_with(ResponseTemplate::new(200).set_body_string("{ invalid_json }"))
+            .mount(&mock_server)
+            .await;
+
+        let auth = MockAuthenticator::new("token", &mock_server.uri());
+        let token_manager = Arc::new(TokenManager::new(auth));
+
+        let session = Session {
+            config: ClientConfig::default(),
+            http_client: reqwest::Client::new(),
+            http_executor: HttpExecutor::new(),
+            token_manager,
+        };
+
+        let request = session
+            .get(&format!("{}/bad_json", mock_server.uri()))
+            .build()
+            .must();
+
+        let result: crate::error::Result<serde_json::Value> =
+            session.send_request_and_decode(request, "Failed").await;
+
+        assert!(matches!(
+            result,
+            Err(crate::error::ForceError::Serialization(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn test_execute_and_check_success_failure() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/bad_status"))
+            .respond_with(
+                ResponseTemplate::new(400).set_body_json(serde_json::json!([{
+                    "errorCode": "INVALID_FIELD",
+                    "message": "test error",
+                }])),
+            )
+            .mount(&mock_server)
+            .await;
+
+        let auth = MockAuthenticator::new("token", &mock_server.uri());
+        let token_manager = Arc::new(TokenManager::new(auth));
+
+        let session = Session {
+            config: ClientConfig::default(),
+            http_client: reqwest::Client::new(),
+            http_executor: HttpExecutor::new(),
+            token_manager,
+        };
+
+        let request = session
+            .get(&format!("{}/bad_status", mock_server.uri()))
+            .build()
+            .must();
+
+        let result = session
+            .execute_and_check_success(request, "Failed API")
+            .await;
+
+        if let Err(crate::error::ForceError::Http(crate::error::HttpError::StatusError {
+            status_code,
+            message,
+        })) = result
+        {
+            assert_eq!(status_code, 400);
+            assert!(message.contains("test error"));
+        } else {
+            panic!("Expected StatusError");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_execute_and_check_success_failure_parse_error() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/bad_status"))
+            .respond_with(ResponseTemplate::new(400).set_body_string("Invalid JSON"))
+            .mount(&mock_server)
+            .await;
+
+        let auth = MockAuthenticator::new("token", &mock_server.uri());
+        let token_manager = Arc::new(TokenManager::new(auth));
+
+        let session = Session {
+            config: ClientConfig::default(),
+            http_client: reqwest::Client::new(),
+            http_executor: HttpExecutor::new(),
+            token_manager,
+        };
+
+        let request = session
+            .get(&format!("{}/bad_status", mock_server.uri()))
+            .build()
+            .must();
+
+        let result = session
+            .execute_and_check_success(request, "Failed API")
+            .await;
+
+        if let Err(crate::error::ForceError::Http(crate::error::HttpError::StatusError {
+            status_code,
+            message,
+        })) = result
+        {
+            assert_eq!(status_code, 400);
+            assert!(message.contains("Invalid JSON"));
+        } else {
+            panic!("Expected StatusError");
+        }
+    }
+}
