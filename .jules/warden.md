@@ -60,3 +60,6 @@
 **2026-04-09 - [Capped Responses for CSV Parsing]
 **Threat:** [Unbounded memory allocation during CSV and bytes fetching causing DoS attacks]
 **Defense:** [Replaced unbounded .bytes().await with read_capped_body_bytes(response, 100 * 1024 * 1024) inside bulk query and ingest functions]
+**2026-05-30 - [DoS via Deserialization Bomb in Files API]**
+**Threat:** The `FilesHandler::upload` and `FilesHandler::link_to_record` methods in `crates/force/src/api/files.rs` deserialized capped JSON payload strings directly into the unbounded `serde_json::Value` DOM structure. Because `serde_json::Value` parses arbitrarily nested objects without type-bound limits, an attacker could supply deeply nested, complex JSON within the 100MB or 10MB limit. This could act as a deserialization bomb, drastically increasing memory and CPU consumption and causing an Out-Of-Memory (OOM) panic or CPU DoS.
+**Defense:** Replaced the unbounded parsing into `serde_json::Value` with strict deserialization into the strongly-typed `crate::types::CreateResponse` struct. This mitigates the deserialization bomb vulnerability because `serde_json` allocates memory predictably based on the struct's bounded fields, dropping unmapped data early without holding it in an unbounded DOM.

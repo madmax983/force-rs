@@ -115,11 +115,11 @@ impl<A: Authenticator> FilesHandler<A> {
             return Err(ForceError::InvalidInput("Failed to upload ContentVersion".into()));
         }
 
-        let result: serde_json::Value = serde_json::from_str(&body)
+        let result: crate::types::CreateResponse = serde_json::from_str(&body)
             .map_err(|e| ForceError::Serialization(crate::error::SerializationError::Json(e)))?;
 
-        if result["success"].as_bool().unwrap_or(false) {
-            Ok(result["id"].as_str().unwrap_or_default().to_string())
+        if result.success {
+            Ok(result.id.map(|id| id.to_string()).unwrap_or_default())
         } else {
             Err(ForceError::InvalidInput(
                 "Failed to upload ContentVersion".into(),
@@ -213,11 +213,11 @@ impl<A: Authenticator> FilesHandler<A> {
             return Err(ForceError::InvalidInput("Failed to insert ContentDocumentLink".into()));
         }
 
-        let result: serde_json::Value = serde_json::from_str(&body)
+        let result: crate::types::CreateResponse = serde_json::from_str(&body)
             .map_err(|e| ForceError::Serialization(crate::error::SerializationError::Json(e)))?;
 
-        if result["success"].as_bool().unwrap_or(false) {
-            Ok(result["id"].as_str().unwrap_or_default().to_string())
+        if result.success {
+            Ok(result.id.map(|id| id.to_string()).unwrap_or_default())
         } else {
             Err(ForceError::InvalidInput(
                 "Failed to insert ContentDocumentLink".into(),
