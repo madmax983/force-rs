@@ -369,6 +369,50 @@ mod tests {
     }
 
     #[test]
+    fn test_is_hard_expired_returns_true_when_past_expiration() {
+        let expires_at = Utc::now() - Duration::seconds(10);
+        let token = AccessToken::new(
+            "expired".to_string(),
+            "https://test.salesforce.com".to_string(),
+            Some(expires_at),
+        );
+        assert!(token.is_hard_expired());
+    }
+
+    #[test]
+    fn test_is_hard_expired_returns_false_when_before_expiration() {
+        let expires_at = Utc::now() + Duration::seconds(10);
+        let token = AccessToken::new(
+            "valid".to_string(),
+            "https://test.salesforce.com".to_string(),
+            Some(expires_at),
+        );
+        assert!(!token.is_hard_expired());
+    }
+
+    #[test]
+    fn test_is_soft_expired_returns_true_when_within_buffer() {
+        let expires_at = Utc::now() + Duration::seconds(30);
+        let token = AccessToken::new(
+            "soft_expired".to_string(),
+            "https://test.salesforce.com".to_string(),
+            Some(expires_at),
+        );
+        assert!(token.is_soft_expired());
+    }
+
+    #[test]
+    fn test_is_soft_expired_returns_false_when_outside_buffer() {
+        let expires_at = Utc::now() + Duration::seconds(120);
+        let token = AccessToken::new(
+            "valid".to_string(),
+            "https://test.salesforce.com".to_string(),
+            Some(expires_at),
+        );
+        assert!(!token.is_soft_expired());
+    }
+
+    #[test]
     fn test_access_token_custom_buffer() {
         // Token expires in 5 minutes
         let expires_at = Utc::now() + Duration::minutes(5);

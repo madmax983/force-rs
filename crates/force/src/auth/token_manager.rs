@@ -783,6 +783,31 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_token_manager_soft_refresh_lock_failure_returns_fallback() {
+        let auth = MockAuthenticator::new();
+        let manager = StdArc::new(TokenManager::new(auth));
+
+        let valid_token = AccessToken::new(
+            "valid_token".to_string(),
+            "https://test.salesforce.com".to_string(),
+            Some(Utc::now() + Duration::hours(1)),
+        );
+
+        {
+            let mut state = manager.state.write().await;
+            state.token = Some(StdArc::new(valid_token.clone()));
+        }
+
+        // We acquire the lock directly to simulate contention
+        let _lock = manager.refresh_lock.lock().await;
+
+        let valid_token_arc = StdArc::new(valid_token);
+        let result = manager.handle_soft_refresh(valid_token_arc).await.must();
+
+        assert_eq!(result.as_str(), "valid_token");
+    }
+
+    #[tokio::test]
     async fn test_token_manager_soft_expired_concurrent_returns_latest_token() {
         // Tests the branch at line 176-179: someone else is refreshing, return latest token
         let auth = MockAuthenticator::new().with_delay(std::time::Duration::from_millis(200));
