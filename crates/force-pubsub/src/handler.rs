@@ -243,7 +243,8 @@ impl<A: Authenticator + Send + Sync + 'static> PubSubHandler<A> {
         let meta = interceptor::build_metadata(&token, token.instance_url(), &tenant_id)?;
         self.schema_cache
             .get_or_fetch(schema_id, &self.channel, meta)
-            .await?;
+            .await
+            .map(|_| ())?;
 
         publish_unary(
             &self.session,

@@ -77,7 +77,7 @@ impl<A: Authenticator> SubscribeState<A> {
     }
 
     /// Fetch a schema by ID from the cache or from the GetSchema RPC on miss.
-    async fn fetch_schema(&self, schema_id: &str) -> Result<apache_avro::Schema> {
+    async fn fetch_schema(&self, schema_id: &str) -> Result<Arc<apache_avro::Schema>> {
         let token = self.get_token().await?;
         let meta = interceptor::build_metadata(&token, token.instance_url(), &self.tenant_id)?;
         self.schema_cache
