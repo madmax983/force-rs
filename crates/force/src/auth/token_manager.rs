@@ -83,13 +83,23 @@ impl<A: Authenticator> TokenManager<A> {
     }
 
     /// Returns the currently stored token when it is at least as new as `fallback`.
-    async fn latest_token_or(&self, fallback: Arc<AccessToken>) -> Arc<AccessToken> {
+    async fn latest_token_or(
+        &self,
+        fallback: Arc<AccessToken>,
+        clear_count_at_start: u64,
+    ) -> Result<Arc<AccessToken>> {
         let state = self.state.read().await;
 
-        match &state.token {
+        if state.clear_count != clear_count_at_start {
+            return Err(crate::error::ForceError::Authentication(
+                crate::error::AuthenticationError::InvalidToken,
+            ));
+        }
+
+        Ok(match &state.token {
             Some(current) if current.issued_at() >= fallback.issued_at() => current.clone(),
             _ => fallback,
-        }
+        })
     }
 
     /// Returns the current access token as an Arc reference, refreshing if necessary.
@@ -175,8 +185,12 @@ impl<A: Authenticator> TokenManager<A> {
     }
 
     async fn handle_soft_refresh(&self, valid_token: Arc<AccessToken>) -> Result<Arc<AccessToken>> {
+        let clear_count_at_start = self.state.read().await.clear_count;
+
         let Ok(_lock) = self.refresh_lock.try_lock() else {
-            return Ok(self.latest_token_or(valid_token).await);
+            return self
+                .latest_token_or(valid_token, clear_count_at_start)
+                .await;
         };
 
         let clear_count = {
@@ -189,6 +203,12 @@ impl<A: Authenticator> TokenManager<A> {
             state.clear_count
         };
 
+        if clear_count != clear_count_at_start {
+            return Err(crate::error::ForceError::Authentication(
+                crate::error::AuthenticationError::InvalidToken,
+            ));
+        }
+
         let refresh_result = self.authenticator.refresh().await;
 
         match refresh_result {
@@ -198,7 +218,10 @@ impl<A: Authenticator> TokenManager<A> {
                 let arc_token = Arc::new(new_token);
                 self.update_token_state(arc_token, clear_count).await
             }
-            Err(_) => Ok(self.latest_token_or(valid_token).await),
+            Err(_) => {
+                self.latest_token_or(valid_token, clear_count_at_start)
+                    .await
+            }
         }
     }
 
