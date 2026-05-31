@@ -6,10 +6,11 @@
 use crate::api::rest_operation::RestOperation;
 use crate::auth::Authenticator;
 #[cfg(feature = "composite")]
-use crate::client::ForceClient;
+use crate::session::Session;
 use crate::error::Result;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
+use std::sync::Arc;
 
 /// Operations supported by the batch processor.
 #[derive(Debug, Clone)]
@@ -35,23 +36,23 @@ pub struct BatchStats {
 
 /// A processor that queries records and executes batch operations.
 #[cfg(feature = "composite")]
-pub struct QueryBatch<'a, A: Authenticator> {
-    client: &'a ForceClient<A>,
+pub struct QueryBatch<A: Authenticator> {
+    session: Arc<Session<A>>,
     query: String,
     halt_on_error: bool,
 }
 
 #[cfg(feature = "composite")]
-impl<'a, A: Authenticator> QueryBatch<'a, A> {
+impl<A: Authenticator> QueryBatch<A> {
     /// Creates a new query batch processor.
     ///
     /// # Arguments
     ///
-    /// * `client` - The Force client.
+    /// * `session` - The Force client session.
     /// * `query` - The SOQL query to execute.
-    pub fn new(client: &'a ForceClient<A>, query: impl Into<String>) -> Self {
+    pub fn new(session: Arc<Session<A>>, query: impl Into<String>) -> Self {
         Self {
-            client,
+            session,
             query: query.into(),
             halt_on_error: false,
         }
@@ -80,8 +81,9 @@ impl<'a, A: Authenticator> QueryBatch<'a, A> {
     {
         let mut stats = BatchStats::default();
         let mut buffer = Vec::with_capacity(25);
+        let rest = crate::api::rest::RestHandler::new(Arc::clone(&self.session));
 
-        let mut result = self.client.rest().query::<T>(&self.query).await?;
+        let mut result = rest.query::<T>(&self.query).await?;
 
         loop {
             let records = std::mem::take(&mut result.records);
@@ -100,7 +102,7 @@ impl<'a, A: Authenticator> QueryBatch<'a, A> {
             }
 
             if let Some(next_url) = result.next_records_url {
-                result = self.client.rest().query_more(&next_url).await?;
+                result = rest.query_more(&next_url).await?;
             } else {
                 break;
             }
@@ -119,9 +121,7 @@ impl<'a, A: Authenticator> QueryBatch<'a, A> {
             return Ok(());
         }
 
-        let mut batch = self
-            .client
-            .composite()
+        let mut batch = crate::api::composite::CompositeHandler::new(Arc::clone(&self.session))
             .batch()
             .halt_on_error(self.halt_on_error);
 
@@ -152,6 +152,7 @@ mod tests {
     use super::*;
     use crate::client::builder;
     use crate::test_utils::mock_auth::MockAuthenticator;
+    use crate::client::ForceClient;
     use crate::test_utils::must::Must;
     use serde_json::json;
     use wiremock::matchers::{method, path, query_param};
@@ -169,7 +170,7 @@ mod tests {
     #[tokio::test]
     async fn test_query_batch_pagination() {
         let mock_server = create_mock_server().await;
-        let client = create_test_client(&mock_server).await;
+        let client: ForceClient<MockAuthenticator> = create_test_client(&mock_server).await;
 
         let mut page1_records = Vec::new();
         for i in 0..20 {
@@ -242,7 +243,7 @@ mod tests {
             .await;
 
         let query = "SELECT Id FROM Account";
-        let query_batch = QueryBatch::new(&client, query);
+        let query_batch = QueryBatch::new(client.session(), query);
 
         let stats = query_batch
             .run::<crate::types::DynamicSObject, _>(|record| {
@@ -262,7 +263,7 @@ mod tests {
     #[tokio::test]
     async fn test_query_batch_partial_failures() {
         let mock_server = create_mock_server().await;
-        let client = create_test_client(&mock_server).await;
+        let client: ForceClient<MockAuthenticator> = create_test_client(&mock_server).await;
 
         let mut records = Vec::new();
         for i in 0..10 {
@@ -304,7 +305,7 @@ mod tests {
             .await;
 
         let query = "SELECT Id FROM Contact";
-        let query_batch = QueryBatch::new(&client, query);
+        let query_batch = QueryBatch::new(client.session(), query);
 
         let stats = query_batch
             .run::<crate::types::DynamicSObject, _>(|record| {

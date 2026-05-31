@@ -16,3 +16,6 @@
 **[Unify error handling]
 **Tangle:** Inconsistent error handling across modules where Result was used with explicit types.
 **Blueprint:** Standardized error types across all modules to enforce domain boundaries.
+**Decouple API utilities from ForceClient**
+**Tangle:** Internal composite utilities (QueryBatch and SoqlMassOp) depended on the top-level ForceClient wrapper, creating circular dependencies between the client and api modules and preventing clean instantiation within api handlers.
+**Blueprint:** Refactored internal utilities to depend on Arc<Session<A>> instead of ForceClient. This allowed dropping lifetime parameters and enabled them to instantiate RestHandler or CompositeHandler dynamically using the session without depending directly on the client module, keeping dependencies unidirectional.
