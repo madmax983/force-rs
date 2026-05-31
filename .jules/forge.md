@@ -98,3 +98,7 @@
 **[Flatten Match With Original Error Context]**
 **Learning:** When flattening nested `match` statements handling `Result` outputs, rewriting them with `let Ok(...) = result else` guard clauses can lead to silently swallowing the underlying original error if not passed through explicitly, which breaks observability and changes runtime behavior. Using `.map_err(...)?` provides a flatter structure while preserving the exact error mappings natively.
 **Action:** When acting as 'Forge', never drop the original underlying error variable (e.g., `e`). To flatten `Result` mapping, use `.map_err(|e| { ... })?` with the `?` operator instead of verbose `match` statements or dropping context inside `else` guards, ensuring the error propagates cleanly without over-nesting.
+
+**Extract God Function in postman_generator**
+**Learning:** `generate_postman_collection` was a 143-line God Function full of deeply nested `json!` macros constructing Create, Read, Update, and Delete Postman requests inline, which makes it hard to read and maintain.
+**Action:** Extract the creation of each specific request type into pure, private helper functions (`build_create_request`, `build_read_request`, `build_update_request`, `build_delete_request`) to drastically flatten the nesting, improve readability, and isolate specific structural details.
