@@ -8,8 +8,16 @@ use crate::error::{ForceError, Result};
 use crate::session::Session;
 use futures::StreamExt;
 use reqwest::multipart::{Form, Part};
+use serde::Deserialize;
 use serde_json::json;
 use std::sync::Arc;
+
+#[derive(Deserialize)]
+struct FileOperationResponse {
+    #[serde(default)]
+    id: String,
+    success: bool,
+}
 
 /// A handler for interacting with Salesforce Files.
 #[derive(Debug, Clone)]
@@ -107,7 +115,7 @@ impl<A: Authenticator> FilesHandler<A> {
             .map_err(|e| ForceError::Http(crate::error::HttpError::RequestFailed(e)))?;
 
         let status = response.status();
-        let body = Self::read_capped_body(response, 100 * 1024 * 1024)
+        let body_bytes = Self::read_capped_body_bytes(response, 100 * 1024 * 1024)
             .await
             .map_err(|e| ForceError::Http(crate::error::HttpError::RequestFailed(e)))?;
 
@@ -115,11 +123,11 @@ impl<A: Authenticator> FilesHandler<A> {
             return Err(ForceError::InvalidInput("Failed to upload ContentVersion".into()));
         }
 
-        let result: serde_json::Value = serde_json::from_str(&body)
+        let result: FileOperationResponse = serde_json::from_slice(&body_bytes)
             .map_err(|e| ForceError::Serialization(crate::error::SerializationError::Json(e)))?;
 
-        if result["success"].as_bool().unwrap_or(false) {
-            Ok(result["id"].as_str().unwrap_or_default().to_string())
+        if result.success {
+            Ok(result.id)
         } else {
             Err(ForceError::InvalidInput(
                 "Failed to upload ContentVersion".into(),
@@ -205,7 +213,7 @@ impl<A: Authenticator> FilesHandler<A> {
             .map_err(|e| ForceError::Http(crate::error::HttpError::RequestFailed(e)))?;
 
         let status = response.status();
-        let body = Self::read_capped_body(response, 10 * 1024 * 1024)
+        let body_bytes = Self::read_capped_body_bytes(response, 10 * 1024 * 1024)
             .await
             .map_err(|e| ForceError::Http(crate::error::HttpError::RequestFailed(e)))?;
 
@@ -213,11 +221,11 @@ impl<A: Authenticator> FilesHandler<A> {
             return Err(ForceError::InvalidInput("Failed to insert ContentDocumentLink".into()));
         }
 
-        let result: serde_json::Value = serde_json::from_str(&body)
+        let result: FileOperationResponse = serde_json::from_slice(&body_bytes)
             .map_err(|e| ForceError::Serialization(crate::error::SerializationError::Json(e)))?;
 
-        if result["success"].as_bool().unwrap_or(false) {
-            Ok(result["id"].as_str().unwrap_or_default().to_string())
+        if result.success {
+            Ok(result.id)
         } else {
             Err(ForceError::InvalidInput(
                 "Failed to insert ContentDocumentLink".into(),
@@ -310,5 +318,25 @@ use crate::test_utils::must::{Must, MustMsg};
             .must_msg("Failed to link file to record");
 
         assert_eq!(link_id, "06A000000000001AAA");
+    }
+
+    #[tokio::test]
+    async fn test_upload_deserialization_bomb_prevention() {
+        let mock_server = MockServer::start().await;
+        let auth = MockAuthenticator::new("test_token", &mock_server.uri());
+        let client = builder().authenticate(auth).build().await.must();
+
+        let large_invalid_json = "[".to_string() + &"1,".repeat(1024 * 1024) + "1]";
+
+        Mock::given(method("POST"))
+            .and(path("/services/data/v60.0/sobjects/ContentVersion"))
+            .respond_with(ResponseTemplate::new(201).set_body_string(large_invalid_json))
+            .mount(&mock_server)
+            .await;
+
+        let files = FilesHandler::new(client.session());
+        let result = files.upload("Bomb", "bomb.txt", vec![1, 2, 3]).await;
+
+        assert!(result.is_err());
     }
 }
