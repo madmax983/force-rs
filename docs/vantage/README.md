@@ -46,6 +46,7 @@ Design backlog and product-spec notes for incubating `force-rs` capabilities. Th
 ## Data Utilities
 
 - [`soql-query-builder.md`](soql-query-builder.md): SOQL query builder for type-safe query construction.
+- [`volatile-market-backtesting.md`](volatile-market-backtesting.md): Volatile market backtesting specification.
 - [`data-faker.md`](data-faker.md): synthetic Salesforce-shaped data generation.
 - [`data-seeder.md`](data-seeder.md): repeatable fixture and seed workflows.
 
