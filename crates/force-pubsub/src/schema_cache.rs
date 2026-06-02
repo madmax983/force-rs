@@ -20,7 +20,7 @@ pub struct SchemaCache {
 
 #[derive(Debug)]
 struct SchemaCacheInner {
-    cache: DashMap<String, Schema>,
+    cache: DashMap<String, Arc<Schema>>,
 }
 
 impl SchemaCache {
@@ -35,7 +35,7 @@ impl SchemaCache {
     }
 
     /// Insert a pre-parsed schema directly.
-    pub fn insert(&self, schema_id: String, schema: Schema) {
+    pub fn insert(&self, schema_id: String, schema: Arc<Schema>) {
         self.inner.cache.insert(schema_id, schema);
     }
 
@@ -52,17 +52,23 @@ impl SchemaCache {
     }
 
     /// Get a schema by ID if it is already in cache.
+    ///
+    /// By returning `Arc<Schema>`, we avoid deep, expensive O(N) clones of the
+    /// `apache_avro::Schema` AST on cache hits. Instead, we merely increment an
+    /// atomic reference count (O(1)), heavily reducing heap allocations and CPU
+    /// cycles during the hot path of schema retrieval.
     #[must_use]
-    pub fn get(&self, schema_id: &str) -> Option<Schema> {
+    pub fn get(&self, schema_id: &str) -> Option<Arc<Schema>> {
         self.inner.cache.get(schema_id).map(|r| r.value().clone())
     }
 
     /// Parse Avro schema JSON and store it in the cache.
     ///
     /// Returns the parsed schema. Called after receiving `schema_json` from `GetSchema`.
-    pub fn parse_and_insert(&self, schema_id: String, schema_json: &str) -> Result<Schema> {
+    pub fn parse_and_insert(&self, schema_id: String, schema_json: &str) -> Result<Arc<Schema>> {
         let schema = Schema::parse_str(schema_json)
             .map_err(|e| PubSubError::Avro(format!("failed to parse schema {schema_id}: {e}")))?;
+        let schema = Arc::new(schema);
         self.inner.cache.insert(schema_id, schema.clone());
         Ok(schema)
     }
@@ -82,7 +88,7 @@ impl SchemaCache {
         schema_id: &str,
         channel: &Channel,
         metadata: tonic::metadata::MetadataMap,
-    ) -> Result<Schema> {
+    ) -> Result<Arc<Schema>> {
         // Fast path: lock-free cache hit.
         if let Some(schema) = self.get(schema_id) {
             return Ok(schema);
