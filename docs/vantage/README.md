@@ -15,6 +15,7 @@ Design backlog and product-spec notes for incubating `force-rs` capabilities. Th
 ## Schema and Codegen
 
 - [`avro-schema-generator.md`](avro-schema-generator.md): Apache Avro schema generation.
+- [`dbt-model-generator.md`](dbt-model-generator.md): dbt (data build tool) staging model and source generation.
 - [`data-dictionary-generator.md`](data-dictionary-generator.md): metadata-to-documentation generation.
 - [`field-usage-scanner.md`](field-usage-scanner.md): schema usage analysis for low-value fields.
 - [`graphql-schema-generator.md`](graphql-schema-generator.md): GraphQL Schema Definition Language (SDL) generation.
