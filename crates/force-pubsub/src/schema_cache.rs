@@ -3,6 +3,7 @@
 use apache_avro::Schema;
 use dashmap::DashMap;
 use std::sync::Arc;
+use tokio::sync::OnceCell;
 use tonic::transport::Channel;
 
 use crate::error::{PubSubError, Result};
@@ -20,7 +21,7 @@ pub struct SchemaCache {
 
 #[derive(Debug)]
 struct SchemaCacheInner {
-    cache: DashMap<String, Schema>,
+    cache: DashMap<String, Arc<OnceCell<Schema>>>,
 }
 
 impl SchemaCache {
@@ -36,7 +37,9 @@ impl SchemaCache {
 
     /// Insert a pre-parsed schema directly.
     pub fn insert(&self, schema_id: String, schema: Schema) {
-        self.inner.cache.insert(schema_id, schema);
+        let cell = Arc::new(OnceCell::new());
+        let _ = cell.set(schema);
+        self.inner.cache.insert(schema_id, cell);
     }
 
     /// Returns the number of cached schemas.
@@ -54,7 +57,10 @@ impl SchemaCache {
     /// Get a schema by ID if it is already in cache.
     #[must_use]
     pub fn get(&self, schema_id: &str) -> Option<Schema> {
-        self.inner.cache.get(schema_id).map(|r| r.value().clone())
+        self.inner
+            .cache
+            .get(schema_id)
+            .and_then(|r| r.value().get().cloned())
     }
 
     /// Parse Avro schema JSON and store it in the cache.
@@ -63,7 +69,9 @@ impl SchemaCache {
     pub fn parse_and_insert(&self, schema_id: String, schema_json: &str) -> Result<Schema> {
         let schema = Schema::parse_str(schema_json)
             .map_err(|e| PubSubError::Avro(format!("failed to parse schema {schema_id}: {e}")))?;
-        self.inner.cache.insert(schema_id, schema.clone());
+        let cell = Arc::new(OnceCell::new());
+        let _ = cell.set(schema.clone());
+        self.inner.cache.insert(schema_id, cell);
         Ok(schema)
     }
 
@@ -88,18 +96,32 @@ impl SchemaCache {
             return Ok(schema);
         }
 
-        // Cache miss — call GetSchema RPC.
-        let mut req = tonic::Request::new(SchemaRequest {
-            schema_id: schema_id.to_string(),
-        });
-        *req.metadata_mut() = metadata;
+        let cell = self
+            .inner
+            .cache
+            .entry(schema_id.to_string())
+            .or_insert_with(|| Arc::new(OnceCell::new()))
+            .clone();
 
-        let resp = PubSubClient::new(channel.clone())
-            .get_schema(req)
-            .await?
-            .into_inner();
+        let schema = cell
+            .get_or_try_init(|| async {
+                let mut req = tonic::Request::new(SchemaRequest {
+                    schema_id: schema_id.to_string(),
+                });
+                *req.metadata_mut() = metadata;
 
-        self.parse_and_insert(resp.schema_id, &resp.schema_json)
+                let resp = PubSubClient::new(channel.clone())
+                    .get_schema(req)
+                    .await?
+                    .into_inner();
+
+                Schema::parse_str(&resp.schema_json).map_err(|e| {
+                    PubSubError::Avro(format!("failed to parse schema {schema_id}: {e}"))
+                })
+            })
+            .await?;
+
+        Ok(schema.clone())
     }
 }
 
