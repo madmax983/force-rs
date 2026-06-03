@@ -72,9 +72,11 @@ impl<'a, A: Authenticator> SchemaGraph<'a, A> {
     /// Fetches metadata using the Describe API and records fields and relationships.
     /// Use this method multiple times to build a graph of related objects.
     pub async fn scan(&mut self, sobject: &str) -> Result<()> {
-        if !self.scanned.insert(sobject.to_string()) {
+        // ⚡ Bolt: Check existence by reference first to avoid heap-allocating `sobject.to_string()` on already scanned objects
+        if self.scanned.contains(sobject) {
             return Ok(()); // Already scanned — skip redundant API call
         }
+        self.scanned.insert(sobject.to_string());
         let describe = self.client.rest().describe(sobject).await?;
         self.add_node(describe);
         Ok(())
@@ -84,8 +86,11 @@ impl<'a, A: Authenticator> SchemaGraph<'a, A> {
     ///
     /// Use this to avoid redundant API calls when you already have the describe data.
     pub fn add_describe(&mut self, describe: SObjectDescribe) {
-        self.scanned.insert(describe.name.clone());
-        self.add_node(describe);
+        // ⚡ Bolt: Check existence by reference first to avoid heap-allocating `.clone()` and redundant graph insertion
+        if !self.scanned.contains(&describe.name) {
+            self.scanned.insert(describe.name.clone());
+            self.add_node(describe);
+        }
     }
 
     /// Adds a node from a describe result (internal helper).
