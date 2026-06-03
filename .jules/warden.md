@@ -60,3 +60,6 @@
 **2026-04-09 - [Capped Responses for CSV Parsing]
 **Threat:** [Unbounded memory allocation during CSV and bytes fetching causing DoS attacks]
 **Defense:** [Replaced unbounded .bytes().await with read_capped_body_bytes(response, 100 * 1024 * 1024) inside bulk query and ingest functions]
+**2024-06-03 - Prevent Deserialization Bomb in Salesforce Files API**
+**Threat:** Unbounded JSON responses in `FilesHandler::upload` and `FilesHandler::link_to_record` APIs were parsed directly into a `serde_json::Value` DOM, enabling a memory allocation DoS (Deserialization Bomb).
+**Defense:** Replaced `serde_json::Value` parsing with a strongly typed `FileOperationResponse` struct using `#[serde(default)]` to safely discard unneeded keys during deserialization.
