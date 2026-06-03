@@ -115,11 +115,11 @@ impl<A: Authenticator> FilesHandler<A> {
             return Err(ForceError::InvalidInput("Failed to upload ContentVersion".into()));
         }
 
-        let result: serde_json::Value = serde_json::from_str(&body)
+        let result: crate::types::common::CreateResponse = serde_json::from_str(&body)
             .map_err(|e| ForceError::Serialization(crate::error::SerializationError::Json(e)))?;
 
-        if result["success"].as_bool().unwrap_or(false) {
-            Ok(result["id"].as_str().unwrap_or_default().to_string())
+        if result.success {
+            Ok(result.id.map(|id| id.to_string()).unwrap_or_default())
         } else {
             Err(ForceError::InvalidInput(
                 "Failed to upload ContentVersion".into(),
@@ -213,11 +213,11 @@ impl<A: Authenticator> FilesHandler<A> {
             return Err(ForceError::InvalidInput("Failed to insert ContentDocumentLink".into()));
         }
 
-        let result: serde_json::Value = serde_json::from_str(&body)
+        let result: crate::types::common::CreateResponse = serde_json::from_str(&body)
             .map_err(|e| ForceError::Serialization(crate::error::SerializationError::Json(e)))?;
 
-        if result["success"].as_bool().unwrap_or(false) {
-            Ok(result["id"].as_str().unwrap_or_default().to_string())
+        if result.success {
+            Ok(result.id.map(|id| id.to_string()).unwrap_or_default())
         } else {
             Err(ForceError::InvalidInput(
                 "Failed to insert ContentDocumentLink".into(),
@@ -231,11 +231,35 @@ mod tests {
     use super::*;
     use crate::client::builder;
     use crate::test_utils::mock_auth::MockAuthenticator;
-use crate::test_utils::must::{Must, MustMsg};
-    use crate::test_utils::mock_auth::MockAuthenticator;
+    use crate::test_utils::must::{Must, MustMsg};
     use serde_json::json;
     use wiremock::matchers::{method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    #[tokio::test]
+    async fn test_upload_file_deserialization_bomb_defense() {
+        let mock_server = MockServer::start().await;
+        let auth = MockAuthenticator::new("test_token", &mock_server.uri());
+        let client = builder().authenticate(auth).build().await.must();
+
+        Mock::given(method("POST"))
+            .and(path("/services/data/v60.0/sobjects/ContentVersion"))
+            .respond_with(ResponseTemplate::new(201).set_body_json(json!({
+                "id": "068000000000001AAA",
+                "success": true,
+                "errors": []
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let files = FilesHandler::new(client.session());
+        let id = files
+            .upload("Test Title", "test.pdf", vec![1, 2, 3])
+            .await
+            .must_msg("Failed to upload file");
+
+        assert_eq!(id, "068000000000001AAA");
+    }
 
     #[tokio::test]
     async fn test_upload_file() {

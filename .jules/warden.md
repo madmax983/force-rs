@@ -60,3 +60,6 @@
 **2026-04-09 - [Capped Responses for CSV Parsing]
 **Threat:** [Unbounded memory allocation during CSV and bytes fetching causing DoS attacks]
 **Defense:** [Replaced unbounded .bytes().await with read_capped_body_bytes(response, 100 * 1024 * 1024) inside bulk query and ingest functions]
+**2024-05-19 - Fix Deserialization Bomb in files.rs**
+**Threat:** The files.rs API handler parsed up to 100MB of JSON response payload directly into the unbounded `serde_json::Value` DOM structure, which allocates extensively for nested JSON objects and strings, introducing a memory-exhaustion vector (DoS).
+**Defense:** Refactored the `upload` and `link_to_record` functions to deserialize strictly into `crate::types::common::CreateResponse`, which avoids unbounded allocation during parsing.
