@@ -1,5 +1,6 @@
 //! Postgres-first reconcile helpers for force-sync.
 
+use crate::error::Result;
 use futures::FutureExt;
 use tokio_postgres::GenericClient;
 
@@ -71,7 +72,7 @@ where
         .collect())
 }
 
-async fn enqueue_repair_in_tx<C>(client: &C, journal_id: i64) -> Result<i64, ForceSyncError>
+async fn enqueue_repair_in_tx<C>(client: &C, journal_id: i64) -> Result<i64>
 where
     C: GenericClient + Sync + ?Sized,
 {
@@ -121,7 +122,7 @@ pub async fn detect_drift(store: &PgStore, limit: i64) -> Result<Vec<DriftItem>,
 /// # Errors
 ///
 /// Returns an error if the task cannot be written.
-pub async fn enqueue_repair(store: &PgStore, journal_id: i64) -> Result<i64, ForceSyncError> {
+pub async fn enqueue_repair(store: &PgStore, journal_id: i64) -> Result<i64> {
     store
         .with_transaction(|tx| async move { enqueue_repair_in_tx(tx, journal_id).await }.boxed())
         .await
@@ -132,7 +133,7 @@ pub async fn enqueue_repair(store: &PgStore, journal_id: i64) -> Result<i64, For
 /// # Errors
 ///
 /// Returns an error if the detection or enqueue steps fail.
-pub async fn run_reconcile_once(store: &PgStore, limit: i64) -> Result<usize, ForceSyncError> {
+pub async fn run_reconcile_once(store: &PgStore, limit: i64) -> Result<usize> {
     store
         .with_transaction(|tx| {
             async move {

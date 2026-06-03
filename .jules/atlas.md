@@ -16,3 +16,6 @@
 **[Unify error handling]
 **Tangle:** Inconsistent error handling across modules where Result was used with explicit types.
 **Blueprint:** Standardized error types across all modules to enforce domain boundaries.
+**[Unify error handling in force-sync]**
+**Tangle:** Inconsistent error handling in `force-sync` where `Result<T, ForceSyncError>` was used explicitly with `std::result::Result` in over 70 places instead of an aliased `Result` type, violating domain boundaries.
+**Blueprint:** Standardized error types by introducing `pub type Result<T, E = ForceSyncError> = std::result::Result<T, E>;` in `force-sync/src/error.rs` and refactored the entire crate to use this unified alias.

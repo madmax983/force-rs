@@ -1,5 +1,6 @@
 //! Journal write helpers for the `PostgreSQL` sync store.
 
+use crate::error::Result;
 use chrono::{DateTime, Utc};
 use serde_json::Value;
 use tokio_postgres::GenericClient;
@@ -57,7 +58,7 @@ fn journal_values(envelope: &ChangeEnvelope) -> Result<JournalValues<'_>, ForceS
     })
 }
 
-async fn insert_journal<C>(client: &C, values: &JournalValues<'_>) -> Result<i64, ForceSyncError>
+async fn insert_journal<C>(client: &C, values: &JournalValues<'_>) -> Result<i64>
 where
     C: GenericClient + Sync + ?Sized,
 {
@@ -167,7 +168,7 @@ impl PgStore {
     /// # Errors
     ///
     /// Returns an error if the cursor is missing or the database write fails.
-    pub async fn append_journal(&self, envelope: &ChangeEnvelope) -> Result<i64, ForceSyncError> {
+    pub async fn append_journal(&self, envelope: &ChangeEnvelope) -> Result<i64> {
         let values = journal_values(envelope)?;
         let client = self.pool().get().await?;
         insert_journal(&**client, &values).await
@@ -178,10 +179,7 @@ impl PgStore {
     /// # Errors
     ///
     /// Returns an error if the cursor is missing or the database write fails.
-    pub async fn append_journal_if_new(
-        &self,
-        envelope: &ChangeEnvelope,
-    ) -> Result<AppendResult, ForceSyncError> {
+    pub async fn append_journal_if_new(&self, envelope: &ChangeEnvelope) -> Result<AppendResult> {
         let values = journal_values(envelope)?;
         let client = self.pool().get().await?;
         insert_journal_if_new(&**client, &values)
@@ -200,10 +198,7 @@ impl PgStore {
     /// # Errors
     ///
     /// Returns an error if the cursor is missing or the database write fails.
-    pub async fn append_journal_in_tx<C>(
-        client: &C,
-        envelope: &ChangeEnvelope,
-    ) -> Result<i64, ForceSyncError>
+    pub async fn append_journal_in_tx<C>(client: &C, envelope: &ChangeEnvelope) -> Result<i64>
     where
         C: GenericClient + Sync + ?Sized,
     {
@@ -219,7 +214,7 @@ impl PgStore {
     pub async fn append_journal_if_new_in_tx<C>(
         client: &C,
         envelope: &ChangeEnvelope,
-    ) -> Result<AppendResult, ForceSyncError>
+    ) -> Result<AppendResult>
     where
         C: GenericClient + Sync + ?Sized,
     {

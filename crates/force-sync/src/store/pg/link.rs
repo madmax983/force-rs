@@ -1,5 +1,6 @@
 //! Link repository helpers for the `PostgreSQL` sync store.
 
+use crate::error::Result;
 use tokio_postgres::GenericClient;
 
 use crate::error::ForceSyncError;
@@ -43,7 +44,7 @@ fn link_from_row(row: &tokio_postgres::Row) -> SyncLink {
     }
 }
 
-async fn put_link_query<C>(client: &C, link: &SyncLink) -> Result<i64, ForceSyncError>
+async fn put_link_query<C>(client: &C, link: &SyncLink) -> Result<i64>
 where
     C: GenericClient + Sync + ?Sized,
 {
@@ -126,7 +127,7 @@ impl PgStore {
     /// # Errors
     ///
     /// Returns an error if the database write fails.
-    pub async fn put_link(&self, link: &SyncLink) -> Result<i64, ForceSyncError> {
+    pub async fn put_link(&self, link: &SyncLink) -> Result<i64> {
         let client = self.pool().get().await?;
         put_link_query(&**client, link).await
     }

@@ -93,6 +93,9 @@ impl From<force_pubsub::PubSubError> for ForceSyncError {
     }
 }
 
+/// Convenience Result alias for force-sync operations.
+pub type Result<T, E = ForceSyncError> = std::result::Result<T, E>;
+
 #[cfg(test)]
 mod tests {
     use super::*;

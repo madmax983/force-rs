@@ -1,5 +1,6 @@
 //! PostgreSQL-backed sync store helpers.
 
+use crate::error::Result;
 use std::future::Future;
 
 use deadpool_postgres::{Client, Pool};
@@ -32,7 +33,7 @@ impl PgStore {
     ///
     /// Returns a pool or query error if the client cannot be acquired or the
     /// callback fails.
-    pub async fn with_client<T, F, Fut>(&self, f: F) -> Result<T, ForceSyncError>
+    pub async fn with_client<T, F, Fut>(&self, f: F) -> Result<T>
     where
         F: FnOnce(Client) -> Fut,
         Fut: Future<Output = Result<T, tokio_postgres::Error>>,
@@ -47,11 +48,9 @@ impl PgStore {
     ///
     /// Returns a pool or query error if the transaction cannot be opened or
     /// the callback fails.
-    pub async fn with_transaction<T, F>(&self, f: F) -> Result<T, ForceSyncError>
+    pub async fn with_transaction<T, F>(&self, f: F) -> Result<T>
     where
-        F: for<'a> FnOnce(
-            &'a tokio_postgres::Transaction<'a>,
-        ) -> BoxFuture<'a, Result<T, ForceSyncError>>,
+        F: for<'a> FnOnce(&'a tokio_postgres::Transaction<'a>) -> BoxFuture<'a, Result<T>>,
     {
         let mut client = self.pool.get().await?;
         let transaction = client.transaction().await?;

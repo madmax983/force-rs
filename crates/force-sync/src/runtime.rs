@@ -1,5 +1,6 @@
 //! Narrow runtime orchestration for the v0.1 vertical slice.
 
+use crate::error::Result;
 use std::{collections::HashMap, time::Duration};
 
 use chrono::{DateTime, Utc};
@@ -66,7 +67,7 @@ impl<A: Authenticator> SyncEngine<A> {
     /// # Errors
     ///
     /// Returns an error if the outbox capture fails.
-    pub async fn run_capture_postgres_once(&self) -> Result<usize, ForceSyncError> {
+    pub async fn run_capture_postgres_once(&self) -> Result<usize> {
         capture::postgres::capture_batch(
             &self.store,
             self.capture_batch_size,
@@ -80,7 +81,7 @@ impl<A: Authenticator> SyncEngine<A> {
     /// # Errors
     ///
     /// Returns an error if task loading or control-plane updates fail.
-    pub async fn run_apply_once(&self) -> Result<usize, ForceSyncError> {
+    pub async fn run_apply_once(&self) -> Result<usize> {
         let leased = self
             .store
             .lease_ready_tasks(&self.worker_id, self.apply_batch_size, self.lease_for)
@@ -102,15 +103,11 @@ impl<A: Authenticator> SyncEngine<A> {
     /// # Errors
     ///
     /// Returns an error if drift detection or task insertion fails.
-    pub async fn run_reconcile_once(&self) -> Result<usize, ForceSyncError> {
+    pub async fn run_reconcile_once(&self) -> Result<usize> {
         reconcile::run_reconcile_once(&self.store, self.reconcile_batch_size.max(1)).await
     }
 
-    async fn process_leased_task(
-        &self,
-        task: &LeasedTask,
-        batch_size: usize,
-    ) -> Result<bool, ForceSyncError> {
+    async fn process_leased_task(&self, task: &LeasedTask, batch_size: usize) -> Result<bool> {
         let context = self.load_apply_task_context(task.task_id).await?;
         let Some(context) = context else {
             let _ = self
@@ -168,7 +165,7 @@ impl<A: Authenticator> SyncEngine<A> {
         existing_link: Option<&crate::store::pg::SyncLink>,
         object: &ObjectSync,
         decision: crate::plan::PlanDecision,
-    ) -> Result<bool, ForceSyncError> {
+    ) -> Result<bool> {
         if decision.lane == ApplyLane::Conflict {
             for field_name in &decision.conflicts {
                 let conflict = SyncConflict {
@@ -245,7 +242,7 @@ impl<A: Authenticator> SyncEngine<A> {
         task: &LeasedTask,
         envelope: &ChangeEnvelope,
         existing_link: Option<&crate::store::pg::SyncLink>,
-    ) -> Result<bool, ForceSyncError> {
+    ) -> Result<bool> {
         let salesforce_id = local_projection_salesforce_id(existing_link, envelope)?;
         let link = project_sync_link(
             existing_link,
@@ -267,7 +264,7 @@ impl<A: Authenticator> SyncEngine<A> {
         payload: &Value,
         existing_link: Option<&crate::store::pg::SyncLink>,
         object: &ObjectSync,
-    ) -> Result<bool, ForceSyncError> {
+    ) -> Result<bool> {
         match envelope.operation() {
             ChangeOperation::Upsert => {
                 let Some(existing_salesforce_id) =
@@ -324,7 +321,7 @@ impl<A: Authenticator> SyncEngine<A> {
         payload: &Value,
         existing_link: Option<&crate::store::pg::SyncLink>,
         object: &ObjectSync,
-    ) -> Result<bool, ForceSyncError> {
+    ) -> Result<bool> {
         match envelope.operation() {
             ChangeOperation::Upsert => {
                 let result = self
@@ -411,11 +408,7 @@ impl<A: Authenticator> SyncEngine<A> {
         }
     }
 
-    async fn handle_apply_error(
-        &self,
-        task: &LeasedTask,
-        error: ApplyError,
-    ) -> Result<bool, ForceSyncError> {
+    async fn handle_apply_error(&self, task: &LeasedTask, error: ApplyError) -> Result<bool> {
         let error_message = error.to_string();
         match error {
             ApplyError::Retryable(_) => {
@@ -559,7 +552,7 @@ impl<A: Authenticator> SyncEngineBuilder<A> {
     }
 }
 
-fn build_apply_task_context(row: &tokio_postgres::Row) -> Result<ApplyTaskContext, ForceSyncError> {
+fn build_apply_task_context(row: &tokio_postgres::Row) -> Result<ApplyTaskContext> {
     let journal_id: i64 = row.get("journal_id");
     let tenant: String = row.get("tenant");
     let object_name: String = row.get("object_name");
@@ -624,7 +617,7 @@ fn local_projection_salesforce_id(
         })
 }
 
-fn parse_source_system(value: &str) -> Result<SourceSystem, ForceSyncError> {
+fn parse_source_system(value: &str) -> Result<SourceSystem> {
     match value {
         "salesforce" => Ok(SourceSystem::Salesforce),
         "postgres" => Ok(SourceSystem::Postgres),
@@ -635,7 +628,7 @@ fn parse_source_system(value: &str) -> Result<SourceSystem, ForceSyncError> {
     }
 }
 
-fn parse_change_operation(value: &str) -> Result<ChangeOperation, ForceSyncError> {
+fn parse_change_operation(value: &str) -> Result<ChangeOperation> {
     match value {
         "upsert" => Ok(ChangeOperation::Upsert),
         "delete" => Ok(ChangeOperation::Delete),
@@ -646,7 +639,7 @@ fn parse_change_operation(value: &str) -> Result<ChangeOperation, ForceSyncError
     }
 }
 
-fn parse_source_cursor(value: &str) -> Result<SourceCursor, ForceSyncError> {
+fn parse_source_cursor(value: &str) -> Result<SourceCursor> {
     if let Some(replay_id) = value.strip_prefix("salesforce-replay-id:") {
         let replay_id =
             replay_id

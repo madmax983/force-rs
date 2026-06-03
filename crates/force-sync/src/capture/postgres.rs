@@ -1,5 +1,6 @@
 //! `PostgreSQL` outbox capture for force-sync.
 
+use crate::error::Result;
 use futures::FutureExt;
 use serde_json::Value;
 use tokio_postgres::GenericClient;
@@ -23,7 +24,7 @@ struct OutboxRow {
     created_at: chrono::DateTime<chrono::Utc>,
 }
 
-fn outbox_operation(op: &str, tombstone: bool) -> Result<ChangeOperation, ForceSyncError> {
+fn outbox_operation(op: &str, tombstone: bool) -> Result<ChangeOperation> {
     match (op, tombstone) {
         ("upsert", false) => Ok(ChangeOperation::Upsert),
         ("delete", true) => Ok(ChangeOperation::Delete),
@@ -36,7 +37,7 @@ fn outbox_operation(op: &str, tombstone: bool) -> Result<ChangeOperation, ForceS
     }
 }
 
-fn outbox_source_cursor(raw: &str) -> Result<SourceCursor, ForceSyncError> {
+fn outbox_source_cursor(raw: &str) -> Result<SourceCursor> {
     if raw.starts_with("postgres-lsn:")
         || raw.starts_with("salesforce-replay-id:")
         || raw.starts_with("snapshot:")
@@ -49,7 +50,7 @@ fn outbox_source_cursor(raw: &str) -> Result<SourceCursor, ForceSyncError> {
     Ok(SourceCursor::PostgresLsn(raw.to_string()))
 }
 
-fn outbox_envelope(row: &OutboxRow) -> Result<ChangeEnvelope, ForceSyncError> {
+fn outbox_envelope(row: &OutboxRow) -> Result<ChangeEnvelope> {
     let payload: Value = serde_json::from_str(&row.payload_text)?;
     let sync_key = SyncKey::new(
         row.tenant.clone(),
@@ -78,11 +79,7 @@ const fn row_content_error(error: &ForceSyncError) -> bool {
     )
 }
 
-async fn quarantine_row<C>(
-    client: &C,
-    row: &OutboxRow,
-    error: &ForceSyncError,
-) -> Result<(), ForceSyncError>
+async fn quarantine_row<C>(client: &C, row: &OutboxRow, error: &ForceSyncError) -> Result<()>
 where
     C: GenericClient + Sync + ?Sized,
 {
@@ -109,11 +106,7 @@ where
     Ok(())
 }
 
-async fn capture_batch_in_tx<C>(
-    client: &C,
-    limit: i64,
-    priority: i32,
-) -> Result<usize, ForceSyncError>
+async fn capture_batch_in_tx<C>(client: &C, limit: i64, priority: i32) -> Result<usize>
 where
     C: GenericClient + Sync + ?Sized,
 {
@@ -193,11 +186,7 @@ where
 ///
 /// Returns a database error if the transaction cannot be opened or a row
 /// cannot be converted into a sync envelope.
-pub async fn capture_batch(
-    store: &PgStore,
-    limit: i64,
-    priority: i32,
-) -> Result<usize, ForceSyncError> {
+pub async fn capture_batch(store: &PgStore, limit: i64, priority: i32) -> Result<usize> {
     if limit <= 0 {
         return Ok(0);
     }

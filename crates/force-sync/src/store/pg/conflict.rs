@@ -1,9 +1,8 @@
 //! Conflict repository helpers for the `PostgreSQL` sync store.
 
+use crate::error::Result;
 use serde_json::Value;
 use tokio_postgres::GenericClient;
-
-use crate::error::ForceSyncError;
 
 use super::PgStore;
 
@@ -27,10 +26,7 @@ pub struct SyncConflict {
     pub resolution: Option<String>,
 }
 
-async fn insert_conflict_query<C>(
-    client: &C,
-    conflict: &SyncConflict,
-) -> Result<i64, ForceSyncError>
+async fn insert_conflict_query<C>(client: &C, conflict: &SyncConflict) -> Result<i64>
 where
     C: GenericClient + Sync + ?Sized,
 {
@@ -67,7 +63,7 @@ impl PgStore {
     /// # Errors
     ///
     /// Returns an error if the database write fails.
-    pub async fn insert_conflict(&self, conflict: &SyncConflict) -> Result<i64, ForceSyncError> {
+    pub async fn insert_conflict(&self, conflict: &SyncConflict) -> Result<i64> {
         let client = self.pool().get().await?;
         insert_conflict_query(&**client, conflict).await
     }
