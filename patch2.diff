@@ -1,0 +1,19 @@
+<<<<<<< SEARCH
+    // wait slightly so server error comes down
+    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+
+    let result = sink.close().await;
+    assert!(result.is_err(), "close() should return error if the stream has an error");
+}
+=======
+    // send a message to trigger the stream
+    let result = sink.send(SCHEMA_ID, vec![]).await;
+    assert!(result.is_ok(), "send shouldn't error yet");
+
+    // wait slightly so server error comes down
+    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+
+    let result = sink.close().await;
+    assert!(result.is_err(), "close() should return error if the stream has an error");
+}
+>>>>>>> REPLACE

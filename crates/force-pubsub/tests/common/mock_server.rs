@@ -95,7 +95,11 @@ impl PubSub for MockPubSubService {
         _req: Request<tonic::Streaming<PublishRequest>>,
     ) -> Result<Response<Self::PublishStreamStream>, Status> {
         let (tx, rx) = tokio::sync::mpsc::channel(1);
-        drop(tx);
+        tokio::spawn(async move {
+            let _ = tx
+                .send(Err(Status::unavailable("always unavailable")))
+                .await;
+        });
         Ok(Response::new(ReceiverStream::new(rx)))
     }
 }
@@ -367,7 +371,11 @@ impl PubSub for EventStreamService {
         _req: Request<tonic::Streaming<PublishRequest>>,
     ) -> Result<Response<Self::PublishStreamStream>, Status> {
         let (tx, rx) = tokio::sync::mpsc::channel(1);
-        drop(tx);
+        tokio::spawn(async move {
+            let _ = tx
+                .send(Err(Status::unavailable("always unavailable")))
+                .await;
+        });
         Ok(Response::new(ReceiverStream::new(rx)))
     }
 }
@@ -496,7 +504,11 @@ impl PubSub for ReconnectingStreamService {
         _req: Request<tonic::Streaming<PublishRequest>>,
     ) -> Result<Response<Self::PublishStreamStream>, Status> {
         let (tx, rx) = tokio::sync::mpsc::channel(1);
-        drop(tx);
+        tokio::spawn(async move {
+            let _ = tx
+                .send(Err(Status::unavailable("always unavailable")))
+                .await;
+        });
         Ok(Response::new(ReceiverStream::new(rx)))
     }
 }
@@ -602,7 +614,11 @@ impl PubSub for AlwaysErrorService {
         _req: Request<tonic::Streaming<PublishRequest>>,
     ) -> Result<Response<Self::PublishStreamStream>, Status> {
         let (tx, rx) = tokio::sync::mpsc::channel(1);
-        drop(tx);
+        tokio::spawn(async move {
+            let _ = tx
+                .send(Err(Status::unavailable("always unavailable")))
+                .await;
+        });
         Ok(Response::new(ReceiverStream::new(rx)))
     }
 }

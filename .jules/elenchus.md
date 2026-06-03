@@ -41,3 +41,9 @@
 **Finding:** Missing mutation test coverage in `upsert_with_retry_class` and `validate_query_input_len`. The `MAX_QUERY_INPUT_BYTES` threshold tests were weak, and the response limit calculation in `upsert` lacked explicit bound verification.
 **Evidence:** 5+ surviving mutants around `100 * 1024 * 1024` limit calculation in `upsert` paths. Surviving `>=` mutant on `validate_query_input_len`.
 **Recommendation:** Ensure exact boundary coverage in threshold validation methods (like EXACT max allowed size), and explicitly cover payload too large errors (`HttpError::PayloadTooLarge`) by setting up mocks with very large mock response data.
+**[Elenchus: force-pubsub::publish_sink::close Test Quality Audit]**
+**Module:** `crates/force-pubsub/src/publish_sink.rs`
+**Severity:** 🔴 Critical
+**Finding:** The `PublishSink::close` and `PublishSink::send` paths were vulnerable to failing without propagating the stream's error context to the user.
+**Evidence:** 3 surviving mutants masking errors being properly bubbled up.
+**Recommendation:** Refactored `PublishSink::close` to capture and return the first error it encounters while draining the stream, and added timeout tests for `responses().next().await` to catch missing payloads.

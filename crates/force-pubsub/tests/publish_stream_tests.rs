@@ -7,7 +7,8 @@ mod common;
 
 use async_trait::async_trait;
 use common::mock_server::{
-    EchoPublishStreamService, start_echo_stream_server, start_userinfo_mock,
+    EchoPublishStreamService, start_always_error_server, start_echo_stream_server,
+    start_userinfo_mock,
 };
 use force::auth::{AccessToken, Authenticator, TokenResponse};
 use force::client::builder;
@@ -146,6 +147,32 @@ async fn test_publish_stream_close_drains_responses() {
     );
 }
 
+// ── Test: close() on closed server returns error ──────────────────────
+
+#[tokio::test]
+async fn test_publish_stream_close_returns_error_on_server_disconnect() {
+    // Start server that returns error during stream
+    let url = start_always_error_server(common::mock_server::AlwaysErrorService::default()).await;
+    let (handler, _userinfo) = make_handler(url).await;
+
+    let mut sink = handler
+        .publish_stream::<TestEvent>("/event/Test__e")
+        .await
+        .unwrap();
+
+    // send a message to trigger the stream
+    let _ = sink.send(SCHEMA_ID, vec![]).await; // Might error if stream already closed by server
+
+    // wait slightly so server error comes down
+    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+
+    let result = sink.close().await;
+    assert!(
+        result.is_err(),
+        "close() should return error if the stream has an error"
+    );
+}
+
 // ── Test 3: response payload contains per-event results ─────────────────────
 
 #[tokio::test]
@@ -174,10 +201,9 @@ async fn test_publish_stream_response_has_results() {
     .unwrap();
 
     // Collect exactly one response (one batch → one response from the echo server).
-    let first = sink
-        .responses()
-        .next()
+    let first = tokio::time::timeout(std::time::Duration::from_secs(5), sink.responses().next())
         .await
+        .expect("timeout waiting for stream response")
         .expect("should have at least one response");
 
     let resp = first.expect("response should be Ok");

@@ -185,8 +185,15 @@ impl<T: Serialize + Send + 'static> PublishSink<T> {
         drop(self.sender);
 
         // Drain remaining responses.
+        let mut first_error = None;
         while let Some(item) = self.resp_stream.next().await {
-            item?;
+            if let Err(e) = item {
+                first_error.get_or_insert(e);
+            }
+        }
+
+        if let Some(err) = first_error {
+            return Err(err);
         }
 
         Ok(())
@@ -312,6 +319,50 @@ mod tests {
         let resp = map_proto_response(proto);
         assert!(!resp.results[0].is_success());
         assert_eq!(resp.results[0].error.as_deref(), Some("INVALID_PAYLOAD"));
+    }
+
+    #[test]
+    fn test_map_proto_response_error_code_zero_msg_non_empty() {
+        use crate::proto::eventbus_v1::{
+            PubSubError as ProtoErr, PublishResponse as ProtoResp, PublishResult as ProtoResult,
+        };
+        let proto = ProtoResp {
+            topic_name: "/event/Test__e".to_string(),
+            results: vec![ProtoResult {
+                replay_id: vec![],
+                error: Some(ProtoErr {
+                    code: 0,
+                    msg: "NON_EMPTY_MSG".to_string(),
+                    key: None,
+                }),
+            }],
+            rpc_id: None,
+        };
+        let resp = map_proto_response(proto);
+        assert!(!resp.results[0].is_success());
+        assert_eq!(resp.results[0].error.as_deref(), Some("NON_EMPTY_MSG"));
+    }
+
+    #[test]
+    fn test_map_proto_response_error_code_non_zero_msg_empty() {
+        use crate::proto::eventbus_v1::{
+            PubSubError as ProtoErr, PublishResponse as ProtoResp, PublishResult as ProtoResult,
+        };
+        let proto = ProtoResp {
+            topic_name: "/event/Test__e".to_string(),
+            results: vec![ProtoResult {
+                replay_id: vec![],
+                error: Some(ProtoErr {
+                    code: 1,
+                    msg: String::new(),
+                    key: None,
+                }),
+            }],
+            rpc_id: None,
+        };
+        let resp = map_proto_response(proto);
+        assert!(!resp.results[0].is_success());
+        assert_eq!(resp.results[0].error.as_deref(), Some(""));
     }
 
     #[test]
