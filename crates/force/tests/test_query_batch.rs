@@ -1,10 +1,10 @@
-//! Integration tests for `QueryBatch`.
+//! Integration tests for
 #![cfg(feature = "composite")]
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::expect_used)]
 
 use async_trait::async_trait;
-use force::api::composite::{BatchOp, QueryBatch};
+use force::api::composite::{BatchOp};
 use force::auth::{AccessToken, Authenticator, TokenResponse};
 use force::client::builder;
 use force::error::Result;
@@ -109,7 +109,9 @@ async fn test_query_batch_pagination_and_update() {
         .mount(&mock_server)
         .await;
 
-    let processor = QueryBatch::new(&client, "SELECT Id, Name FROM Account");
+    let processor = client
+        .composite()
+        .query_batch("SELECT Id, Name FROM Account");
 
     let stats = processor
         .run(|record: Account| match record.name.as_str() {
@@ -195,7 +197,9 @@ async fn test_query_batch_multiple_batches() {
         .mount(&mock_server)
         .await;
 
-    let processor = QueryBatch::new(&client, "SELECT Id, Name FROM Account");
+    let processor = client
+        .composite()
+        .query_batch("SELECT Id, Name FROM Account");
 
     let stats = processor
         .run(|record: Account| Some(BatchOp::Delete("Account".to_string(), record.id)))
@@ -241,7 +245,10 @@ async fn test_query_batch_halt_on_error() {
         .mount(&mock_server)
         .await;
 
-    let processor = QueryBatch::new(&client, "SELECT Id, Name FROM Account").halt_on_error(true);
+    let processor = client
+        .composite()
+        .query_batch("SELECT Id, Name FROM Account")
+        .halt_on_error(true);
 
     let stats = processor
         .run(|record: Account| Some(BatchOp::Delete("Account".to_string(), record.id)))
@@ -275,7 +282,9 @@ async fn test_query_batch_empty_results() {
         .mount(&mock_server)
         .await;
 
-    let processor = QueryBatch::new(&client, "SELECT Id, Name FROM Account");
+    let processor = client
+        .composite()
+        .query_batch("SELECT Id, Name FROM Account");
 
     let stats = processor
         .run(|record: Account| Some(BatchOp::Delete("Account".to_string(), record.id)))
@@ -327,7 +336,9 @@ async fn test_query_batch_mixed_results() {
         .mount(&mock_server)
         .await;
 
-    let processor = QueryBatch::new(&client, "SELECT Id, Name FROM Account");
+    let processor = client
+        .composite()
+        .query_batch("SELECT Id, Name FROM Account");
 
     let stats = processor
         .run(|record: Account| Some(BatchOp::Delete("Account".to_string(), record.id)))
@@ -374,7 +385,10 @@ async fn test_query_batch_halt_on_error_false() {
         .mount(&mock_server)
         .await;
 
-    let processor = QueryBatch::new(&client, "SELECT Id, Name FROM Account").halt_on_error(false);
+    let processor = client
+        .composite()
+        .query_batch("SELECT Id, Name FROM Account")
+        .halt_on_error(false);
 
     let stats = processor
         .run(|record: Account| Some(BatchOp::Delete("Account".to_string(), record.id)))
@@ -408,7 +422,9 @@ async fn test_query_batch_returns_default_stats_if_empty() {
         .mount(&mock_server)
         .await;
 
-    let processor = QueryBatch::new(&client, "SELECT Id, Name FROM Account");
+    let processor = client
+        .composite()
+        .query_batch("SELECT Id, Name FROM Account");
 
     let stats = processor
         .run(|_record: Account| None)
@@ -460,7 +476,9 @@ async fn test_query_batch_ops_counts() {
         .mount(&mock_server)
         .await;
 
-    let processor = QueryBatch::new(&client, "SELECT Id, Name FROM Account");
+    let processor = client
+        .composite()
+        .query_batch("SELECT Id, Name FROM Account");
 
     let stats = processor
         .run(|record: Account| {

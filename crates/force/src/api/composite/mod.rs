@@ -79,4 +79,18 @@ impl<A: Authenticator> CompositeHandler<A> {
     pub fn graph(&self) -> graph::CompositeGraphRequest<A> {
         graph::CompositeGraphRequest::new(self.clone())
     }
+
+    /// Creates a new query batch processor.
+    #[cfg(feature = "composite")]
+    #[must_use]
+    pub fn query_batch(&self, query: impl Into<String>) -> QueryBatch<A> {
+        QueryBatch::new(self.inner.clone(), query)
+    }
+
+    /// Creates a new SOQL mass operations processor.
+    #[cfg(feature = "composite")]
+    #[must_use]
+    pub fn soql_mass_op(&self, query: crate::api::soql::SoqlQueryBuilder) -> SoqlMassOp<A> {
+        SoqlMassOp::new(self.inner.clone(), query)
+    }
 }

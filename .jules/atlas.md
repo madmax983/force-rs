@@ -16,3 +16,7 @@
 **[Unify error handling]
 **Tangle:** Inconsistent error handling across modules where Result was used with explicit types.
 **Blueprint:** Standardized error types across all modules to enforce domain boundaries.
+
+**Remove circular dependency in QueryBatch and SoqlMassOp**
+**Tangle:** Internal API utilities `QueryBatch` and `SoqlMassOp` depended on `ForceClient`, creating a circular dependency risk because `ForceClient` is the top-level wrapper that instantiates API handlers.
+**Blueprint:** Updated `QueryBatch` and `SoqlMassOp` to depend on `Arc<Session<A>>` instead of `ForceClient`, and instantiated `RestHandler` and `CompositeHandler` dynamically.
