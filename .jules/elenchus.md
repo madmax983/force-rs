@@ -41,3 +41,23 @@
 **Finding:** Missing mutation test coverage in `upsert_with_retry_class` and `validate_query_input_len`. The `MAX_QUERY_INPUT_BYTES` threshold tests were weak, and the response limit calculation in `upsert` lacked explicit bound verification.
 **Evidence:** 5+ surviving mutants around `100 * 1024 * 1024` limit calculation in `upsert` paths. Surviving `>=` mutant on `validate_query_input_len`.
 **Recommendation:** Ensure exact boundary coverage in threshold validation methods (like EXACT max allowed size), and explicitly cover payload too large errors (`HttpError::PayloadTooLarge`) by setting up mocks with very large mock response data.
+**[Elenchus: SchemaCache::insert missing direct test]**
+**Module:** `crates/force-pubsub/src/schema_cache.rs`
+**Severity:** 🟡 Suspect
+**Finding:** The `insert` method survived mutation testing because it lacks direct testing, being implicitly tested via `parse_and_insert`.
+**Evidence:** `SchemaCache::insert` mutation replacing with `()` survived.
+**Recommendation:** Add a direct `test_insert` test to `SchemaCache`.
+
+**[Elenchus: publish error mapping missing edge cases]**
+**Module:** `crates/force-pubsub/src/publish_sink.rs` and `crates/force-pubsub/src/publisher.rs`
+**Severity:** 🔴 Critical
+**Finding:** The error condition `e.code == 0 && e.msg.is_empty()` survived mutations replacing `&&` with `||` and `==` with `!=`, indicating missing test coverage for edge cases where code is 0 but msg is non-empty, or msg is empty but code is non-zero.
+**Evidence:** `&&` to `||` and `==` to `!=` mutations survived in `map_proto_response` and `publish_unary`.
+**Recommendation:** Add explicit tests simulating `e.code == 0` with `e.msg != ""` and `e.code != 0` with `e.msg == ""`.
+
+**[Elenchus: handle_reconnect backoff iteration mutation survival]**
+**Module:** `crates/force-pubsub/src/subscriber.rs`
+**Severity:** 🔴 Critical
+**Finding:** The backoff delay calculation `delay_for(*reconnect_count - 1)` survived mutations changing `-` to `+` and `/`, showing the exact backoff times are not verified.
+**Evidence:** `reconnect_count - 1` mutation survived.
+**Recommendation:** Assert the exact backoff elapsed times or intervals in the `SubscribeState` tests.

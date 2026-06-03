@@ -162,7 +162,16 @@ impl<A: Authenticator> SubscribeState<A> {
         current_preset: &ReplayPreset,
         tx: &mpsc::Sender<Result<PubSubEvent<Value>>>,
     ) -> bool {
-        match &self.config.reconnect_policy {
+        Self::do_handle_reconnect(&self.config, reconnect_count, current_preset, tx).await
+    }
+
+    async fn do_handle_reconnect(
+        config: &crate::PubSubConfig,
+        reconnect_count: &mut u32,
+        current_preset: &ReplayPreset,
+        tx: &mpsc::Sender<Result<PubSubEvent<Value>>>,
+    ) -> bool {
+        match &config.reconnect_policy {
             ReconnectPolicy::None => {
                 let _ = tx
                     .send(Err(PubSubError::Transport(tonic::Status::unavailable(
@@ -406,5 +415,72 @@ mod tests {
         let req = build_fetch_request("/event/Test__e", &ReplayPreset::Custom(id), 10);
         assert_eq!(req.replay_preset, 2);
         assert_eq!(req.replay_id, vec![9, 8, 7]);
+    }
+
+    // Dummy authenticator for tests
+    #[derive(Debug)]
+    struct DummyAuth;
+
+    #[async_trait::async_trait]
+    impl force::auth::Authenticator for DummyAuth {
+        async fn authenticate(
+            &self,
+        ) -> std::result::Result<force::auth::AccessToken, force::error::ForceError> {
+            Err(force::error::ForceError::Authentication(
+                force::error::AuthenticationError::TokenRequestFailed("dummy".to_string()),
+            ))
+        }
+
+        async fn refresh(
+            &self,
+        ) -> std::result::Result<force::auth::AccessToken, force::error::ForceError> {
+            Err(force::error::ForceError::Authentication(
+                force::error::AuthenticationError::TokenRequestFailed("dummy".to_string()),
+            ))
+        }
+    }
+
+    #[tokio::test]
+    async fn test_subscriber_handle_reconnect_backoff() {
+        use crate::ReplayPreset;
+        use crate::config::{BackoffConfig, PubSubConfig, ReconnectPolicy};
+        use crate::types::PubSubEvent;
+        use std::time::{Duration, Instant};
+
+        let config = PubSubConfig {
+            endpoint: "test".to_string(),
+            batch_size: 10,
+            reconnect_policy: ReconnectPolicy::Auto {
+                max_retries: 2,
+                backoff: BackoffConfig {
+                    initial_delay: Duration::from_millis(100),
+                    max_delay: Duration::from_millis(500),
+                    multiplier: 2.0,
+                },
+            },
+        };
+
+        let (tx, _rx) =
+            tokio::sync::mpsc::channel::<crate::error::Result<PubSubEvent<serde_json::Value>>>(10);
+        let mut reconnect_count = 1;
+        let current_preset = ReplayPreset::Latest;
+
+        let start = Instant::now();
+        // second attempt (reconnect_count = 1 -> becomes 2)
+        // delay should be delay_for(1) = 100 * 2.0^1 = 200ms
+        // We test the logic directly using `do_handle_reconnect` to bypass the uninstantiable Session
+        let result = SubscribeState::<DummyAuth>::do_handle_reconnect(
+            &config,
+            &mut reconnect_count,
+            &current_preset,
+            &tx,
+        )
+        .await;
+        let elapsed = start.elapsed();
+
+        assert!(result);
+        assert_eq!(reconnect_count, 2);
+        assert!(elapsed >= Duration::from_millis(200));
+        assert!(elapsed < Duration::from_millis(600));
     }
 }

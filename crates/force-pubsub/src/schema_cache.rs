@@ -132,6 +132,17 @@ mod tests {
     }
 
     #[test]
+    fn test_insert() {
+        let cache = SchemaCache::new();
+        let schema = Schema::parse_str(SIMPLE_SCHEMA_JSON)
+            .unwrap_or_else(|_| panic!("schema must parse in test"));
+        cache.insert("schema-001".to_string(), schema);
+        assert_eq!(cache.len(), 1);
+        assert!(!cache.is_empty());
+        assert!(cache.get("schema-001").is_some());
+    }
+
+    #[test]
     fn test_parse_and_insert() {
         let cache = SchemaCache::new();
         let Ok(_) = cache.parse_and_insert("schema-001".to_string(), SIMPLE_SCHEMA_JSON) else {

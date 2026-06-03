@@ -315,6 +315,50 @@ mod tests {
     }
 
     #[test]
+    fn test_map_proto_response_error_result_code_0_msg_not_empty() {
+        use crate::proto::eventbus_v1::{
+            PubSubError as ProtoErr, PublishResponse as ProtoResp, PublishResult as ProtoResult,
+        };
+        let proto = ProtoResp {
+            topic_name: "/event/Test__e".to_string(),
+            results: vec![ProtoResult {
+                replay_id: vec![],
+                error: Some(ProtoErr {
+                    code: 0,
+                    msg: "INVALID_PAYLOAD".to_string(),
+                    key: None,
+                }),
+            }],
+            rpc_id: None,
+        };
+        let resp = map_proto_response(proto);
+        assert!(!resp.results[0].is_success());
+        assert_eq!(resp.results[0].error.as_deref(), Some("INVALID_PAYLOAD"));
+    }
+
+    #[test]
+    fn test_map_proto_response_error_result_code_not_0_msg_empty() {
+        use crate::proto::eventbus_v1::{
+            PubSubError as ProtoErr, PublishResponse as ProtoResp, PublishResult as ProtoResult,
+        };
+        let proto = ProtoResp {
+            topic_name: "/event/Test__e".to_string(),
+            results: vec![ProtoResult {
+                replay_id: vec![],
+                error: Some(ProtoErr {
+                    code: 1,
+                    msg: String::new(),
+                    key: None,
+                }),
+            }],
+            rpc_id: None,
+        };
+        let resp = map_proto_response(proto);
+        assert!(!resp.results[0].is_success());
+        assert_eq!(resp.results[0].error.as_deref(), Some(""));
+    }
+
+    #[test]
     fn test_publish_result_success_is_success() {
         let r = PublishResult {
             replay_id: Some(ReplayId::from_bytes(vec![1, 2, 3])),
