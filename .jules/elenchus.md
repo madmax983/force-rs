@@ -41,3 +41,10 @@
 **Finding:** Missing mutation test coverage in `upsert_with_retry_class` and `validate_query_input_len`. The `MAX_QUERY_INPUT_BYTES` threshold tests were weak, and the response limit calculation in `upsert` lacked explicit bound verification.
 **Evidence:** 5+ surviving mutants around `100 * 1024 * 1024` limit calculation in `upsert` paths. Surviving `>=` mutant on `validate_query_input_len`.
 **Recommendation:** Ensure exact boundary coverage in threshold validation methods (like EXACT max allowed size), and explicitly cover payload too large errors (`HttpError::PayloadTooLarge`) by setting up mocks with very large mock response data.
+
+**[Elenchus: force::api::rest_operation Test Quality Audit - FIXED]**
+**Module:** `crates/force/src/api/rest_operation.rs`
+**Severity:** 🟢 Acquitted
+**Finding:** Added exact boundary tests to cover missing mutation test coverage in `upsert_with_retry_class`.
+**Evidence:** The `test_upsert_payload_exact_max_allowed_size` test specifically tests a payload size of exactly `100 * 1024 * 1024` bytes. Furthermore, the `>=` mutant on `validate_query_input_len` was checked and verified to be properly failing against existing `test_validation_query_rejects_oversized_soql_before_session` and `test_validation_query_more_rejects_oversized_url_before_session` tests which cover the exact bound limit size of `MAX_QUERY_INPUT_BYTES`.
+**Recommendation:** None. The module has been strengthened and handles exact boundary thresholds correctly.

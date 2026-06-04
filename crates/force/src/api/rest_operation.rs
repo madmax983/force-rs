@@ -990,6 +990,45 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_upsert_payload_exact_max_allowed_size() {
+        use crate::client::builder;
+        use serde_json::json;
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let mock_server = MockServer::start().await;
+        let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
+        let client = builder().authenticate(auth).build().await.must();
+
+        // Construct a response exactly 100MB in size
+        // Base response: {"id":"001xx000003DHP0AAO","success":true,"created":true,"errors":[],"padding":""}
+        let base_len = r#"{"id":"001xx000003DHP0AAO","success":true,"created":true,"errors":[],"padding":""}"#.len();
+        let big_str = " ".repeat(100 * 1024 * 1024 - base_len);
+        let body = format!(r#"{{"id":"001xx000003DHP0AAO","success":true,"created":true,"errors":[],"padding":"{big_str}"}}"#);
+
+        Mock::given(method("PATCH"))
+            .and(path(
+                "/services/data/v60.0/sobjects/Account/ExternalId__c/ACME-EXACT",
+            ))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(body.into_bytes()))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let rest = client.rest();
+        let response = rest
+            .upsert(
+                "Account",
+                "ExternalId__c",
+                "ACME-EXACT",
+                &json!({"Name": "Acme Corp"}),
+            )
+            .await
+            .must();
+        assert!(response.is_success());
+    }
+
+    #[tokio::test]
     async fn test_upsert_payload_too_large() {
         use crate::client::builder;
         use serde_json::json;
