@@ -247,6 +247,17 @@ mod tests {
     }
 
     #[test]
+    fn test_with_client_configures_custom_client() {
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(42))
+            .build()
+            .unwrap_or_else(|_| panic!("msg"));
+        let auth =
+            ClientCredentials::new_production("client_id", "client_secret").with_client(client);
+        assert_eq!(auth.client_id, "client_id");
+    }
+
+    #[test]
     fn test_grant_type() {
         let auth = ClientCredentials::new(
             "client_id",

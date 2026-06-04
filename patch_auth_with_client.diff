@@ -1,0 +1,81 @@
+--- crates/force/src/auth/client_credentials.rs
++++ crates/force/src/auth/client_credentials.rs
+@@ -246,6 +246,16 @@
+         );
+     }
+
++    #[test]
++    fn test_with_client_configures_custom_client() {
++        let client = reqwest::Client::builder()
++            .timeout(std::time::Duration::from_secs(42))
++            .build()
++            .unwrap_or_else(|_| panic!("msg"));
++        let auth = ClientCredentials::new_production("client_id", "client_secret").with_client(client);
++        assert_eq!(auth.client_id, "client_id");
++    }
++
+     #[test]
+     fn test_grant_type() {
+         let auth = ClientCredentials::new(
+--- crates/force/src/auth/data_cloud.rs
++++ crates/force/src/auth/data_cloud.rs
+@@ -375,6 +375,21 @@
+         assert_eq!(url, "https://na1.salesforce.com/services/a360/token");
+     }
+
++    #[test]
++    fn test_authenticator_with_client_configures_custom_client() {
++        let tm = std::sync::Arc::new(crate::auth::TokenManager::new(
++            crate::test_utils::mock_auth::MockAuthenticator::new("t", "https://na1.salesforce.com"),
++        ));
++
++        let client = reqwest::Client::builder()
++            .timeout(std::time::Duration::from_secs(42))
++            .build()
++            .unwrap_or_else(|_| panic!("msg"));
++
++        let auth = DataCloudAuthenticator::new(tm, client, DataCloudConfig::default());
++        let url = auth.resolve_exchange_url("https://na1.salesforce.com");
++        assert_eq!(url, "https://na1.salesforce.com/services/a360/token");
++    }
++
+     #[test]
+     fn test_resolve_exchange_url_override() {
+--- crates/force/src/auth/jwt_bearer.rs
++++ crates/force/src/auth/jwt_bearer.rs
+@@ -485,6 +485,16 @@
+             "https://test.salesforce.com/services/oauth2/token"
+         );
+     }
++
++    #[test]
++    fn test_jwt_bearer_with_client() {
++        let client = reqwest::Client::builder()
++            .timeout(std::time::Duration::from_secs(42))
++            .build()
++            .unwrap_or_else(|_| panic!("msg"));
++        let flow = JwtBearerFlow::new_sandbox("test_client", "user@example.com", TEST_PRIVATE_KEY).unwrap_or_else(|_| panic!("msg")).with_client(client);
++        assert_eq!(flow.client_id, "test_client");
++    }
+
+     #[cfg(feature = "mock")]
+     #[tokio::test]
+--- crates/force/src/auth/username_password.rs
++++ crates/force/src/auth/username_password.rs
+@@ -334,6 +334,16 @@
+         assert_eq!(auth.token_url, crate::auth::SANDBOX_TOKEN_URL);
+     }
+
++    #[test]
++    fn test_with_client_configures_custom_client() {
++        let client = reqwest::Client::builder()
++            .timeout(std::time::Duration::from_secs(42))
++            .build()
++            .unwrap_or_else(|_| panic!("msg"));
++        let auth = UsernamePassword::new_sandbox("client_id", "client_secret", "user@example.com", "password", "security_token").with_client(client);
++        assert_eq!(auth.client_id, "client_id");
++    }
++
+     #[test]
+     fn test_password_with_token_concatenation() {
+         let auth = UsernamePassword::new_production(

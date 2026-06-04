@@ -1,0 +1,26 @@
+--- crates/force/src/client/builder.rs
++++ crates/force/src/client/builder.rs
+@@ -107,6 +107,24 @@
+         let builder = ForceClientBuilder::new().config(config);
+         assert!(builder.config.is_some());
+     }
++
++    #[test]
++    fn test_builder_with_data_cloud() {
++        use crate::auth::DataCloudConfig;
++        let builder = ForceClientBuilder::new()
++            .authenticate(MockAuthenticator::new("token", "https://platform.salesforce.com"))
++            .with_data_cloud(DataCloudConfig::default());
++        assert!(builder.dc_config.is_some());
++    }
++
++    #[tokio::test]
++    async fn test_builder_build_success() {
++        let client = ForceClientBuilder::new()
++            .authenticate(MockAuthenticator::new("token", "https://platform.salesforce.com"))
++            .build()
++            .await
++            .unwrap_or_else(|_| panic!("msg"));
++        assert_eq!(client.config().timeout, std::time::Duration::from_secs(30));
++    }
+ }

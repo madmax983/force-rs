@@ -1,0 +1,25 @@
+--- crates/force/src/auth/data_cloud.rs
++++ crates/force/src/auth/data_cloud.rs
+@@ -375,6 +375,21 @@
+         assert_eq!(url, "https://na1.salesforce.com/services/a360/token");
+     }
+
++    #[test]
++    fn test_authenticator_with_client_configures_custom_client() {
++        let tm = std::sync::Arc::new(crate::auth::TokenManager::new(
++            crate::test_utils::mock_auth::MockAuthenticator::new("t", "https://na1.salesforce.com"),
++        ));
++
++        let client = reqwest::Client::builder()
++            .timeout(std::time::Duration::from_secs(42))
++            .build()
++            .unwrap_or_else(|_| panic!("msg"));
++
++        let auth = DataCloudAuthenticator::new(tm, client, DataCloudConfig::default());
++        let url = auth.resolve_exchange_url("https://na1.salesforce.com");
++        assert_eq!(url, "https://na1.salesforce.com/services/a360/token");
++    }
++
+     #[test]
+     fn test_resolve_exchange_url_override() {
+--- crates/force/src/auth/jwt_bearer.rs

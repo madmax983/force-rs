@@ -476,18 +476,6 @@ QcWLHR6ul3bFRWNhXoThNBQ=
     }
 
     #[test]
-    fn test_jwt_bearer_with_client() {
-        let client = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(42))
-            .build()
-            .unwrap_or_else(|_| panic!("msg"));
-        let flow = JwtBearerFlow::new_sandbox("test_client", "user@example.com", TEST_PRIVATE_KEY)
-            .unwrap_or_else(|_| panic!("msg"))
-            .with_client(client);
-        assert_eq!(flow.client_id, "test_client");
-    }
-
-    #[test]
     fn test_jwt_bearer_new_sandbox() {
         let flow =
             JwtBearerFlow::new_sandbox("test_client", "user@example.com", TEST_PRIVATE_KEY).must();

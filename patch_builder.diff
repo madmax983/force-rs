@@ -1,0 +1,20 @@
+--- crates/force/src/client/builder.rs
++++ crates/force/src/client/builder.rs
+@@ -235,7 +235,7 @@
+             .authenticate(MockAuthenticator::new("token", "https://platform.salesforce.com"))
+             .build()
+             .await
+-            .expect("msg");
++            .unwrap_or_else(|_| panic!("msg"));
+         assert_eq!(client.config().timeout, std::time::Duration::from_secs(30));
+     }
+
+@@ -248,7 +248,7 @@
+             ))
+             .build()
+             .await
+-            .expect("build failed");
++            .unwrap_or_else(|_| panic!("build failed"));
+
+         // Verify client is configured with defaults
+         let config = client.config();

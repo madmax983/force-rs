@@ -223,10 +223,7 @@ mod tests {
     fn test_builder_with_data_cloud() {
         use crate::auth::DataCloudConfig;
         let builder = ForceClientBuilder::new()
-            .authenticate(MockAuthenticator::new(
-                "token",
-                "https://platform.salesforce.com",
-            ))
+            .authenticate(MockAuthenticator::new("token", "https://platform.salesforce.com"))
             .with_data_cloud(DataCloudConfig::default());
         assert!(builder.dc_config.is_some());
     }
@@ -234,13 +231,10 @@ mod tests {
     #[tokio::test]
     async fn test_builder_build_success() {
         let client = ForceClientBuilder::new()
-            .authenticate(MockAuthenticator::new(
-                "token",
-                "https://platform.salesforce.com",
-            ))
+            .authenticate(MockAuthenticator::new("token", "https://platform.salesforce.com"))
             .build()
             .await
-            .unwrap_or_else(|_| panic!("msg"));
+            .expect("msg");
         assert_eq!(client.config().timeout, std::time::Duration::from_secs(30));
     }
 
@@ -253,7 +247,7 @@ mod tests {
             ))
             .build()
             .await
-            .unwrap_or_else(|_| panic!("build failed"));
+            .expect("build failed");
 
         // Verify client is configured with defaults
         let config = client.config();

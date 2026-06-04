@@ -1,0 +1,15 @@
+--- crates/force/src/client/builder.rs
++++ crates/force/src/client/builder.rs
+@@ -213,6 +213,12 @@
+         let builder: ForceClientBuilder<NoAuth> = ForceClientBuilder::new();
+         assert!(builder.config.is_none());
+     }
++
++    #[test]
++    fn test_builder_default_creates_noauth() {
++        let builder: ForceClientBuilder<NoAuth> = ForceClientBuilder::default();
++        assert!(builder.config.is_none());
++    }
+
+     #[test]
+     fn test_builder_with_data_cloud() {
