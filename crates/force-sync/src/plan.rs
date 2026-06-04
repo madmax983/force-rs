@@ -153,6 +153,28 @@ const fn choose_lane(context: &PlannerContext) -> ApplyLane {
     }
 }
 
+fn should_update_field(
+    owner: Option<Owner>,
+    source: SourceSystem,
+    has_existing: bool,
+    conflicts: &mut Vec<String>,
+    field: &str,
+) -> bool {
+    match owner {
+        Some(Owner::Salesforce) if source == SourceSystem::Salesforce => true,
+        Some(Owner::Postgres) if source == SourceSystem::Postgres => true,
+        Some(Owner::Salesforce | Owner::Postgres) => false,
+        Some(Owner::Shared) | None => {
+            if has_existing {
+                conflicts.push(field.to_owned());
+                false
+            } else {
+                true
+            }
+        }
+    }
+}
+
 fn merge_object_payload(
     object: &ObjectSync,
     current: &Map<String, Value>,
@@ -171,19 +193,13 @@ fn merge_object_payload(
             }
         }
 
-        let should_update = match object.field_owner_for(field) {
-            Some(Owner::Salesforce) if source == SourceSystem::Salesforce => true,
-            Some(Owner::Postgres) if source == SourceSystem::Postgres => true,
-            Some(Owner::Salesforce | Owner::Postgres) => false,
-            Some(Owner::Shared) | None => {
-                if current.contains_key(field) {
-                    conflicts.push(field.clone());
-                    false
-                } else {
-                    true
-                }
-            }
-        };
+        let should_update = should_update_field(
+            object.field_owner_for(field),
+            source,
+            current.contains_key(field),
+            &mut conflicts,
+            field,
+        );
 
         if should_update {
             merged

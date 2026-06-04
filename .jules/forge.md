@@ -98,3 +98,11 @@
 **[Flatten Match With Original Error Context]**
 **Learning:** When flattening nested `match` statements handling `Result` outputs, rewriting them with `let Ok(...) = result else` guard clauses can lead to silently swallowing the underlying original error if not passed through explicitly, which breaks observability and changes runtime behavior. Using `.map_err(...)?` provides a flatter structure while preserving the exact error mappings natively.
 **Action:** When acting as 'Forge', never drop the original underlying error variable (e.g., `e`). To flatten `Result` mapping, use `.map_err(|e| { ... })?` with the `?` operator instead of verbose `match` statements or dropping context inside `else` guards, ensuring the error propagates cleanly without over-nesting.
+
+**[Extract should_update_field in force-sync/plan.rs]**
+**Learning:** Complex `match` expressions with deep nesting (like checking field ownership, source system, and existing keys all at once) inside core loops create a "Pyramid of Doom" that makes conflict resolution logic hard to read.
+**Action:** Extract the complex `match` expression into a standalone, well-named helper function (e.g., `should_update_field`) to flatten the loop and clarify the specific business rules for merging.
+
+**[Flatten is_retryable_error in force/http/executor.rs]**
+**Learning:** Double `match` statements ("Pyramid of Doom") on `Result/Error` enum variants (like checking `ForceError::Http` then `HttpError::Timeout`) obscure simple boolean checks.
+**Action:** Use an `if let` guard clause to extract the inner enum variant early, then use a single, flat `match` on the inner error to dramatically reduce nesting and improve readability.
