@@ -242,7 +242,7 @@ pub enum SerializationError {
     Json(#[from] serde_json::Error),
 
     /// CSV serialization/deserialization error (feature-gated).
-    #[cfg(feature = "bulk")]
+    #[cfg(any(feature = "bulk", feature = "data_utility"))]
     #[error("CSV error: {0}")]
     Csv(#[from] csv::Error),
 

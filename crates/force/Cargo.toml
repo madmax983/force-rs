@@ -58,7 +58,7 @@ composite_graph = ["composite"]
 
 # Capability surfaces
 schema = ["rest"]
-data_utility = ["composite"]
+data_utility = ["composite", "dep:csv"]
 
 # Auth flows
 jwt = ["dep:jsonwebtoken"]
