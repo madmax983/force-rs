@@ -838,7 +838,10 @@ mod tests {
         let op = TestRestOp;
 
         let exact = "A".repeat(MAX_QUERY_INPUT_BYTES);
-        assert!(super::validate_query_input_len("test", &exact).is_ok());
+        assert!(matches!(
+            super::validate_query_input_len("test", &exact),
+            Ok(())
+        ));
 
         let soql = "A".repeat(MAX_QUERY_INPUT_BYTES + 1);
         let result = op.query::<serde_json::Value>(&soql).await;
@@ -851,7 +854,10 @@ mod tests {
         let op = TestRestOp;
 
         let exact = "A".repeat(MAX_QUERY_INPUT_BYTES);
-        assert!(super::validate_query_input_len("test", &exact).is_ok());
+        assert!(matches!(
+            super::validate_query_input_len("test", &exact),
+            Ok(())
+        ));
 
         let next_records_url = "A".repeat(MAX_QUERY_INPUT_BYTES + 1);
         let result = op.query_more::<serde_json::Value>(&next_records_url).await;
@@ -1024,6 +1030,43 @@ mod tests {
             Err(crate::error::ForceError::Http(
                 crate::error::HttpError::PayloadTooLarge { .. }
             ))
+        ));
+    }
+
+    #[tokio::test]
+    async fn test_upsert_payload_exactly_at_limit() {
+        use crate::client::builder;
+        use serde_json::json;
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let mock_server = MockServer::start().await;
+        let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
+        let client = builder().authenticate(auth).build().await.must();
+
+        let exact_str = "A".repeat(100 * 1024 * 1024);
+        Mock::given(method("PATCH"))
+            .and(path(
+                "/services/data/v60.0/sobjects/Account/ExternalId__c/ACME-EXACT",
+            ))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(exact_str.into_bytes()))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let rest = client.rest();
+        let response = rest
+            .upsert(
+                "Account",
+                "ExternalId__c",
+                "ACME-EXACT",
+                &json!({"Name": "Acme Corp Exact"}),
+            )
+            .await;
+
+        assert!(matches!(
+            response,
+            Err(crate::error::ForceError::Serialization(_))
         ));
     }
 
