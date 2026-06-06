@@ -108,7 +108,6 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
 
 #[cfg(test)]
 mod tests {
-    #![allow(clippy::unwrap_used)]
 
     use super::*;
     use crate::client::builder;
@@ -306,10 +305,11 @@ mod tests {
             .lookup("Account; DROP TABLE", "AccountId", "test")
             .await;
         assert!(result.is_err());
+        let Err(e) = result else {
+            panic!("Expected error");
+        };
         assert!(
-            result
-                .unwrap_err()
-                .to_string()
+            e.to_string()
                 .contains("SObject name contains invalid characters")
         );
     }
@@ -324,10 +324,11 @@ mod tests {
             .lookup("Account", "AccountId; DROP TABLE", "test")
             .await;
         assert!(result.is_err());
+        let Err(e) = result else {
+            panic!("Expected error");
+        };
         assert!(
-            result
-                .unwrap_err()
-                .to_string()
+            e.to_string()
                 .contains("Field name contains invalid character")
         );
     }
@@ -342,10 +343,11 @@ mod tests {
             .filtered_lookup("Account; DROP TABLE", "AccountId", "Contact", "test")
             .await;
         assert!(result.is_err());
+        let Err(e) = result else {
+            panic!("Expected error");
+        };
         assert!(
-            result
-                .unwrap_err()
-                .to_string()
+            e.to_string()
                 .contains("SObject name contains invalid characters")
         );
     }
@@ -360,10 +362,11 @@ mod tests {
             .filtered_lookup("Account", "AccountId; DROP TABLE", "Contact", "test")
             .await;
         assert!(result.is_err());
+        let Err(e) = result else {
+            panic!("Expected error");
+        };
         assert!(
-            result
-                .unwrap_err()
-                .to_string()
+            e.to_string()
                 .contains("Field name contains invalid character")
         );
     }

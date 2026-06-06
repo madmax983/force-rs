@@ -11,21 +11,21 @@ impl std::fmt::Write for UrlEncodedWriter<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::Must;
     use std::fmt::Write;
 
     #[test]
-    #[allow(clippy::unwrap_used)]
     fn test_url_encoded_writer() {
         let mut out = String::new();
         {
             let mut writer = UrlEncodedWriter(&mut out);
-            write!(writer, "hello world&foo=bar").unwrap();
+            write!(writer, "hello world&foo=bar").must();
         }
         assert_eq!(out, "hello+world%26foo%3Dbar");
 
         {
             let mut writer = UrlEncodedWriter(&mut out);
-            write!(writer, " test").unwrap();
+            write!(writer, " test").must();
         }
         assert_eq!(out, "hello+world%26foo%3Dbar+test");
     }

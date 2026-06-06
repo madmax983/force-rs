@@ -216,7 +216,6 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
 
 #[cfg(test)]
 mod tests {
-    #![allow(clippy::unwrap_used)]
 
     use super::*;
     use crate::client::builder;
@@ -679,12 +678,10 @@ mod tests {
 
         let result = client.ui().list_ui("00B000000000001AAA; DROP TABLE").await;
         assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .to_string()
-                .contains("contains invalid characters")
-        );
+        let Err(e) = result else {
+            panic!("Expected error");
+        };
+        assert!(e.to_string().contains("contains invalid characters"));
     }
 
     #[tokio::test]
@@ -694,12 +691,10 @@ mod tests {
 
         let result = client.ui().list_views("Account; DROP TABLE").await;
         assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .to_string()
-                .contains("contains invalid characters")
-        );
+        let Err(e) = result else {
+            panic!("Expected error");
+        };
+        assert!(e.to_string().contains("contains invalid characters"));
     }
 
     #[tokio::test]
@@ -712,12 +707,10 @@ mod tests {
             .list_records("00B000000000001AAA; DROP TABLE", None, None)
             .await;
         assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .to_string()
-                .contains("contains invalid characters")
-        );
+        let Err(e) = result else {
+            panic!("Expected error");
+        };
+        assert!(e.to_string().contains("contains invalid characters"));
     }
 
     #[tokio::test]
@@ -730,11 +723,9 @@ mod tests {
             .list_info("00B000000000001AAA; DROP TABLE")
             .await;
         assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .to_string()
-                .contains("contains invalid characters")
-        );
+        let Err(e) = result else {
+            panic!("Expected error");
+        };
+        assert!(e.to_string().contains("contains invalid characters"));
     }
 }
