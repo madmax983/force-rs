@@ -9,9 +9,17 @@ use crate::error::ForceError;
 ///
 /// Shared logic for SObject names, external ID fields, and any other identifier
 /// that must be a strict `[a-zA-Z0-9_]+` pattern.
+/// The maximum allowed length for Salesforce identifiers (e.g., SObject names, Field names).
+const MAX_IDENTIFIER_LEN: usize = 255;
+
 pub fn validate_identifier(name: &str, label: &str) -> crate::error::Result<()> {
     if name.is_empty() {
         return Err(ForceError::InvalidInput(format!("{label} cannot be empty")));
+    }
+    if name.len() > MAX_IDENTIFIER_LEN {
+        return Err(ForceError::InvalidInput(format!(
+            "{label} exceeds maximum allowed length of {MAX_IDENTIFIER_LEN} bytes"
+        )));
     }
     if !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
         return Err(ForceError::InvalidInput(format!(
@@ -180,6 +188,7 @@ mod tests {
     #[test]
     fn test_validate_sobject_name_invalid() {
         assert!(validate_sobject_name("").is_err());
+        assert!(validate_sobject_name(&"A".repeat(256)).is_err());
         assert!(validate_sobject_name("Account; DROP TABLE").is_err());
         assert!(validate_sobject_name("Account/Test").is_err());
         assert!(validate_sobject_name("Account.Field").is_err()); // Dots not allowed in SObject name
