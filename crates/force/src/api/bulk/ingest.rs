@@ -1625,7 +1625,7 @@ mod tests {
         };
         assert_eq!(status_code, 500);
         assert!(
-            message.contains("Job failed during processing"),
+            message.contains("Job failed"),
             "Actual message: {}",
             message
         );

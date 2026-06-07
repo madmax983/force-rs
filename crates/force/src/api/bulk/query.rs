@@ -766,7 +766,7 @@ mod tests {
         let Err(err) = result else {
             panic!("Expected an error");
         };
-        assert!(err.to_string().contains(""));
+        assert!(err.to_string().contains("Query job failed"));
     }
 
     #[tokio::test]
@@ -841,7 +841,7 @@ mod tests {
         let Err(err) = result else {
             panic!("Expected an error");
         };
-        assert!(err.to_string().contains(""));
+        assert!(err.to_string().contains("Query job failed"));
     }
 
     #[tokio::test]
@@ -891,7 +891,7 @@ mod tests {
         let Err(err) = result else {
             panic!("Expected an error");
         };
-        assert!(err.to_string().contains(""));
+        assert!(err.to_string().contains("Query job failed"));
     }
 
     #[tokio::test]
@@ -929,7 +929,7 @@ mod tests {
         let Err(err) = result else {
             panic!("Expected an error");
         };
-        assert!(err.to_string().contains(""));
+        assert!(err.to_string().contains("Query job failed"));
     }
 
     #[tokio::test]
@@ -1426,7 +1426,7 @@ mod tests {
         let Err(err) = result else {
             panic!("Expected an error");
         };
-        assert!(err.to_string().contains(""));
+        assert!(err.to_string().contains("Query job failed"));
     }
 
     #[cfg(feature = "bulk")]
@@ -1551,6 +1551,6 @@ mod tests {
         let Err(err) = result else {
             panic!("Expected an error");
         };
-        assert!(err.to_string().contains(""));
+        assert!(err.to_string().contains("Query job failed"));
     }
 }
