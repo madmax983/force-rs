@@ -26,7 +26,7 @@ fn envelope(payload: Value) -> ChangeEnvelope {
     )
 }
 
-const fn base_context(object: ObjectSync) -> PlannerContext {
+const fn base_context(object: &ObjectSync) -> PlannerContext<'_> {
     PlannerContext {
         object,
         current_payload: None,
@@ -43,12 +43,13 @@ fn identical_hashes_become_noop() {
         "Description": "Keep",
         "Name": "Acme"
     });
+    let current = json!({
+        "Name": "Acme",
+        "Description": "Keep"
+    });
     let context = PlannerContext {
-        current_payload: Some(json!({
-            "Name": "Acme",
-            "Description": "Keep"
-        })),
-        ..base_context(object)
+        current_payload: Some(&current),
+        ..base_context(&object)
     };
 
     let decision = plan_change(&context, &envelope(payload));
@@ -67,12 +68,13 @@ fn postgres_owned_field_wins_when_salesforce_changes_it() {
         "Description": "Keep",
         "Name": "Old"
     });
+    let current = json!({
+        "Description": "Keep",
+        "Name": "Old"
+    });
     let context = PlannerContext {
-        current_payload: Some(json!({
-            "Description": "Keep",
-            "Name": "Old"
-        })),
-        ..base_context(object)
+        current_payload: Some(&current),
+        ..base_context(&object)
     };
 
     let decision = plan_change(
@@ -85,8 +87,8 @@ fn postgres_owned_field_wins_when_salesforce_changes_it() {
 
     assert_eq!(
         merge_payload(
-            &context.object,
-            context.current_payload.as_ref(),
+            context.object,
+            context.current_payload,
             SourceSystem::Salesforce,
             &json!({
                 "Description": "Keep",
@@ -105,12 +107,13 @@ fn conflict_required_field_opens_a_conflict() {
     let object = ObjectSync::new("Account")
         .external_id("External_Id__c")
         .field_owner("Name", Owner::Shared);
+    let current = json!({
+        "Description": "Keep",
+        "Name": "Old"
+    });
     let context = PlannerContext {
-        current_payload: Some(json!({
-            "Description": "Keep",
-            "Name": "Old"
-        })),
-        ..base_context(object)
+        current_payload: Some(&current),
+        ..base_context(&object)
     };
 
     let decision = plan_change(
@@ -132,7 +135,7 @@ fn large_batches_choose_bulk() {
     let context = PlannerContext {
         batch_size: 500,
         urgent: false,
-        ..base_context(object)
+        ..base_context(&object)
     };
 
     let decision = plan_change(&context, &envelope(json!({"Name": "Acme"})));
@@ -146,7 +149,7 @@ fn dependent_records_choose_composite_graph() {
     let context = PlannerContext {
         urgent: true,
         has_dependencies: true,
-        ..base_context(object)
+        ..base_context(&object)
     };
 
     let decision = plan_change(&context, &envelope(json!({"Name": "Acme"})));
@@ -160,7 +163,7 @@ fn urgent_singleton_changes_choose_rest() {
     let context = PlannerContext {
         urgent: true,
         batch_size: 1,
-        ..base_context(object)
+        ..base_context(&object)
     };
 
     let decision = plan_change(&context, &envelope(json!({"Name": "Acme"})));
@@ -181,11 +184,11 @@ proptest! {
             Err(error) => panic!("unexpected json conversion error: {error}"),
         };
         let context = PlannerContext {
-            current_payload: Some(payload.clone()),
-            ..base_context(object)
+            current_payload: Some(&payload),
+            ..base_context(&object)
         };
 
-        let decision = plan_change(&context, &envelope(payload));
+        let decision = plan_change(&context, &envelope(payload.clone()));
 
         prop_assert_eq!(decision.lane, ApplyLane::Noop);
         prop_assert!(decision.payload.is_none());

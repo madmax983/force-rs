@@ -142,8 +142,8 @@ impl<A: Authenticator> SyncEngine<A> {
 
         let decision = plan_change(
             &PlannerContext {
-                object: object.clone(),
-                current_payload: context.current_payload.clone(),
+                object,
+                current_payload: context.current_payload.as_ref(),
                 batch_size,
                 urgent: batch_size <= object.lane_thresholds().rest_max_batch_size(),
                 has_dependencies: false,
