@@ -253,23 +253,7 @@ impl<A: Authenticator> IngestJob<InProgress, A> {
     /// Returns an error if polling fails or job has failed/aborted.
     pub async fn poll(self) -> Result<Self> {
         let job_info = self.get_job_info().await?;
-
-        if matches!(job_info.state, JobState::Failed) {
-            return Err(crate::error::HttpError::StatusError {
-                status_code: 500,
-                message: "Job failed during processing".to_string(),
-            }
-            .into());
-        }
-
-        if matches!(job_info.state, JobState::Aborted) {
-            return Err(crate::error::HttpError::StatusError {
-                status_code: 400,
-                message: "Job was aborted".to_string(),
-            }
-            .into());
-        }
-
+        job_info.check_terminal("Job")?;
         Ok(self)
     }
 
@@ -296,41 +280,26 @@ impl<A: Authenticator> IngestJob<InProgress, A> {
         loop {
             let job_info = self.get_job_info().await?;
 
-            match job_info.state {
-                JobState::JobComplete => {
-                    return Ok(IngestJob {
-                        job_id: self.job_id,
-                        inner: self.inner,
-                        _state: PhantomData,
-                    });
-                }
-                JobState::Failed => {
-                    return Err(crate::error::HttpError::StatusError {
-                        status_code: 500,
-                        message: "Job failed during processing".to_string(),
-                    }
-                    .into());
-                }
-                JobState::Aborted => {
-                    return Err(crate::error::HttpError::StatusError {
-                        status_code: 400,
-                        message: "Job was aborted".to_string(),
-                    }
-                    .into());
-                }
-                _ => {
-                    // Job still in progress, wait with exponential backoff
-                    if attempt >= poll_policy.max_attempts {
-                        return Err(crate::error::HttpError::Timeout {
-                            timeout_seconds: poll_policy.timeout_seconds(),
-                        }
-                        .into());
-                    }
+            job_info.check_terminal("Job")?;
 
-                    tokio::time::sleep(poll_policy.backoff_for_attempt(attempt)).await;
-                    attempt += 1;
-                }
+            if job_info.state == JobState::JobComplete {
+                return Ok(IngestJob {
+                    job_id: self.job_id,
+                    inner: self.inner,
+                    _state: PhantomData,
+                });
             }
+
+            // Job still in progress, wait with exponential backoff
+            if attempt >= poll_policy.max_attempts {
+                return Err(crate::error::HttpError::Timeout {
+                    timeout_seconds: poll_policy.timeout_seconds(),
+                }
+                .into());
+            }
+
+            tokio::time::sleep(poll_policy.backoff_for_attempt(attempt)).await;
+            attempt += 1;
         }
     }
 

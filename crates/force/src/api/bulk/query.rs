@@ -102,6 +102,26 @@ pub struct BulkQueryJobInfo {
     pub api_version: Option<String>,
 }
 
+impl BulkQueryJobInfo {
+    /// Checks if the job is in a terminal failure state (Failed or Aborted).
+    /// Returns an error if it is, otherwise returns `Ok(())`.
+    pub fn check_terminal(&self, job_type: &str) -> crate::error::Result<()> {
+        match self.state {
+            super::types::JobState::Failed => Err(crate::error::HttpError::StatusError {
+                status_code: 500,
+                message: format!("{} failed during processing", job_type),
+            }
+            .into()),
+            super::types::JobState::Aborted => Err(crate::error::HttpError::StatusError {
+                status_code: 400,
+                message: format!("{} was aborted", job_type),
+            }
+            .into()),
+            _ => Ok(()),
+        }
+    }
+}
+
 /// Stream for iterating over bulk query results.
 ///
 /// This stream lazily fetches and deserializes CSV results from a completed
@@ -596,34 +616,21 @@ impl<A: crate::auth::Authenticator> super::BulkHandler<A> {
         loop {
             let job_info = self.get_query_job(job_id).await?;
 
-            match job_info.state {
-                JobState::JobComplete => return Ok(()),
-                JobState::Failed => {
-                    return Err(crate::error::HttpError::StatusError {
-                        status_code: 500,
-                        message: "Query job failed during processing".to_string(),
-                    }
-                    .into());
-                }
-                JobState::Aborted => {
-                    return Err(crate::error::HttpError::StatusError {
-                        status_code: 400,
-                        message: "Query job was aborted".to_string(),
-                    }
-                    .into());
-                }
-                _ => {
-                    if attempt >= poll_policy.max_attempts {
-                        return Err(crate::error::HttpError::Timeout {
-                            timeout_seconds: poll_policy.timeout_seconds(),
-                        }
-                        .into());
-                    }
+            job_info.check_terminal("Query job")?;
 
-                    tokio::time::sleep(poll_policy.backoff_for_attempt(attempt)).await;
-                    attempt += 1;
-                }
+            if job_info.state == JobState::JobComplete {
+                return Ok(());
             }
+
+            if attempt >= poll_policy.max_attempts {
+                return Err(crate::error::HttpError::Timeout {
+                    timeout_seconds: poll_policy.timeout_seconds(),
+                }
+                .into());
+            }
+
+            tokio::time::sleep(poll_policy.backoff_for_attempt(attempt)).await;
+            attempt += 1;
         }
     }
 }

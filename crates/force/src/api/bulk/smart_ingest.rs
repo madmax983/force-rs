@@ -287,36 +287,20 @@ impl<'a, A: crate::auth::Authenticator> SmartIngest<'a, A> {
         loop {
             let job_info = self.handler.get_job(job_id).await?;
 
-            match job_info.state {
-                JobState::JobComplete => return Ok(job_info),
-                JobState::Failed => {
-                    return Err(crate::error::HttpError::StatusError {
-                        status_code: 500,
-                        message: format!(
-                            "Job failed: {}",
-                            job_info.error_message.unwrap_or_default()
-                        ),
-                    }
-                    .into());
-                }
-                JobState::Aborted => {
-                    return Err(crate::error::HttpError::StatusError {
-                        status_code: 400,
-                        message: "Job was aborted".to_string(),
-                    }
-                    .into());
-                }
-                _ => {
-                    if attempt >= poll_policy.max_attempts {
-                        return Err(crate::error::HttpError::Timeout {
-                            timeout_seconds: poll_policy.timeout_seconds(),
-                        }
-                        .into());
-                    }
-                    tokio::time::sleep(poll_policy.backoff_for_attempt(attempt)).await;
-                    attempt += 1;
-                }
+            job_info.check_terminal("Job")?;
+
+            if job_info.state == JobState::JobComplete {
+                return Ok(job_info);
             }
+
+            if attempt >= poll_policy.max_attempts {
+                return Err(crate::error::HttpError::Timeout {
+                    timeout_seconds: poll_policy.timeout_seconds(),
+                }
+                .into());
+            }
+            tokio::time::sleep(poll_policy.backoff_for_attempt(attempt)).await;
+            attempt += 1;
         }
     }
 

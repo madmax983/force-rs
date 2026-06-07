@@ -154,6 +154,30 @@ pub struct JobInfo {
     pub error_message: Option<String>,
 }
 
+impl JobInfo {
+    /// Checks if the job is in a terminal failure state (Failed or Aborted).
+    /// Returns an error if it is, otherwise returns `Ok(())`.
+    pub fn check_terminal(&self, job_type: &str) -> Result<(), crate::error::ForceError> {
+        match self.state {
+            JobState::Failed => Err(crate::error::HttpError::StatusError {
+                status_code: 500,
+                message: format!(
+                    "{} failed: {}",
+                    job_type,
+                    self.error_message.as_deref().unwrap_or("during processing")
+                ),
+            }
+            .into()),
+            JobState::Aborted => Err(crate::error::HttpError::StatusError {
+                status_code: 400,
+                message: format!("{} was aborted", job_type),
+            }
+            .into()),
+            _ => Ok(()),
+        }
+    }
+}
+
 /// Request to update a job state.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
