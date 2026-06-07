@@ -497,7 +497,11 @@ impl SoqlQueryBuilder {
     /// ```
     pub fn try_order_by_desc(mut self, field: &str) -> crate::error::Result<Self> {
         validate_field_name(field).map_err(|e| ForceError::InvalidInput(e.to_string()))?;
-        self.order_by = Some(format!("{} DESC", field));
+        // ⚡ Bolt: Avoid intermediate `format!` allocation
+        let mut order = String::with_capacity(field.len() + 5);
+        order.push_str(field);
+        order.push_str(" DESC");
+        self.order_by = Some(order);
         Ok(self)
     }
 
