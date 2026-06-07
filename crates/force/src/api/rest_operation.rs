@@ -834,6 +834,31 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_query_exact_soql_limit_success() {
+        use crate::client::builder;
+        use wiremock::MockServer;
+
+        let mock_server = MockServer::start().await;
+        let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
+        let client = builder().authenticate(auth).build().await.must();
+
+        let exact = "A".repeat(MAX_QUERY_INPUT_BYTES);
+
+        let result = super::validate_query_input_len("test", &exact);
+        assert!(result.is_ok());
+
+        let rest = client.rest();
+        let result = rest.query::<serde_json::Value>(&exact).await;
+
+        // Similar to the query_more test, the hyper URI limits might reject this downstream.
+        // We just ensure it doesn't fail with our InvalidInput error.
+        assert!(!matches!(
+            result,
+            Err(crate::error::ForceError::InvalidInput(_))
+        ));
+    }
+
+    #[tokio::test]
     async fn test_validation_query_rejects_oversized_soql_before_session() {
         let op = TestRestOp;
 
@@ -844,6 +869,36 @@ mod tests {
         let result = op.query::<serde_json::Value>(&soql).await;
 
         assert_invalid_input_contains(result, "100,000 bytes");
+    }
+
+    #[tokio::test]
+    async fn test_query_more_exact_url_limit_success() {
+        use crate::client::builder;
+        use wiremock::MockServer;
+
+        let mock_server = MockServer::start().await;
+        let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
+        let client = builder().authenticate(auth).build().await.must();
+
+        // 100_000 byte path length causes reqwest/hyper URI parsing to fail with "Parsed Url is not a valid Uri"
+        // even if it's technically allowed by our own length validator. Instead of trying to make a valid 100KB URI,
+        // we can just check our length validation directly or verify that it passes our validation before failing.
+        // `resolve_next_records_url` performs validation before HTTP request.
+        let query_part = "a".repeat(MAX_QUERY_INPUT_BYTES - 44);
+        let exact_url = format!("/services/data/v60.0/query/01gD000000Xyz?q={query_part}");
+        let result = super::validate_query_input_len("test", &exact_url);
+        assert!(result.is_ok());
+
+        // And since `op.query_more` applies this, we can just ensure it doesn't fail with InvalidInput
+        // even if the subsequent HTTP call fails (which it will because of hyper URI limits).
+        let rest = client.rest();
+        let result = rest.query_more::<serde_json::Value>(&exact_url).await;
+
+        assert!(
+            !matches!(result, Err(crate::error::ForceError::InvalidInput(_))),
+            "Expected it NOT to be InvalidInput, got {:?}",
+            result
+        );
     }
 
     #[tokio::test]
@@ -987,6 +1042,46 @@ mod tests {
         assert!(response.is_success());
         assert!(!response.is_created());
         assert_eq!(response.id.as_str(), "001xx000003DHP0AAO");
+    }
+
+    #[tokio::test]
+    async fn test_upsert_exact_payload_limit_success() {
+        use crate::client::builder;
+        use serde_json::json;
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let mock_server = MockServer::start().await;
+        let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
+        let client = builder().authenticate(auth).build().await.must();
+
+        // The exact payload limit
+        let exact_limit = 100 * 1024 * 1024;
+        let exact_str = "A".repeat(exact_limit);
+        Mock::given(method("PATCH"))
+            .and(path(
+                "/services/data/v60.0/sobjects/Account/ExternalId__c/ACME-002",
+            ))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(exact_str.into_bytes()))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let rest = client.rest();
+        let response = rest
+            .upsert(
+                "Account",
+                "ExternalId__c",
+                "ACME-002",
+                &json!({"Name": "Acme Corp"}),
+            )
+            .await;
+
+        // Expect serialization error since "A".. is not valid JSON, but NOT PayloadTooLarge
+        assert!(matches!(
+            response,
+            Err(crate::error::ForceError::Serialization(_))
+        ));
     }
 
     #[tokio::test]
