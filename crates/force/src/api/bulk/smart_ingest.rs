@@ -4,7 +4,7 @@
 //! Salesforce Bulk API 2.0 from async streams.
 
 use super::BulkHandler;
-use crate::api::bulk::csv;
+
 use crate::api::bulk::types::{
     CreateJobRequest, JobInfo, JobOperation, JobState, UpdateJobRequest,
 };
@@ -237,9 +237,30 @@ impl<'a, A: crate::auth::Authenticator> SmartIngest<'a, A> {
     where
         T: Serialize + Sync,
     {
+        // ⚡ Bolt: Reusing a single buffer avoids allocating two `Vec<u8>`s per record,
+        // drastically reducing heap memory allocations during large bulk ingests.
+        let mut record_buffer = Vec::with_capacity(1024);
+
         for record in records {
-            let (header, row) = Self::serialize_record_parts(record)?;
-            let minimum_payload_size = header.len() + row.len();
+            record_buffer.clear();
+            crate::api::bulk::csv::serialize_to_csv_with_options(
+                std::slice::from_ref(record),
+                &mut record_buffer,
+                true,
+            )?;
+
+            let header_end = record_buffer
+                .iter()
+                .position(|byte| *byte == b'\n')
+                .ok_or_else(|| {
+                    crate::error::ForceError::InvalidInput(
+                        "Serialized CSV record did not include a header row".to_string(),
+                    )
+                })?
+                + 1;
+
+            let minimum_payload_size = record_buffer.len();
+            let row_len = minimum_payload_size - header_end;
 
             if minimum_payload_size > self.max_upload_bytes {
                 return Err(crate::error::ForceError::InvalidInput(format!(
@@ -250,10 +271,10 @@ impl<'a, A: crate::auth::Authenticator> SmartIngest<'a, A> {
 
             if current_job_id.is_none() {
                 *current_job_id = Some(self.create_job_internal().await?);
-                csv_data.extend_from_slice(&header);
+                csv_data.extend_from_slice(&record_buffer[..header_end]);
             }
 
-            if csv_data.len() + row.len() > self.max_upload_bytes {
+            if csv_data.len() + row_len > self.max_upload_bytes {
                 let Some(job_id) = current_job_id.take() else {
                     return Err(crate::error::ForceError::InvalidInput(
                         "Cannot finish SmartIngest job because no active job exists".to_string(),
@@ -263,10 +284,10 @@ impl<'a, A: crate::auth::Authenticator> SmartIngest<'a, A> {
                 jobs.push(self.finish_job(job_id, payload).await?);
 
                 *current_job_id = Some(self.create_job_internal().await?);
-                csv_data.extend_from_slice(&header);
+                csv_data.extend_from_slice(&record_buffer[..header_end]);
             }
 
-            csv_data.extend_from_slice(&row);
+            csv_data.extend_from_slice(&record_buffer[header_end..]);
         }
 
         Ok(())
@@ -318,27 +339,6 @@ impl<'a, A: crate::auth::Authenticator> SmartIngest<'a, A> {
                 }
             }
         }
-    }
-
-    fn serialize_record_parts<T>(record: &T) -> Result<(Vec<u8>, Vec<u8>)>
-    where
-        T: Serialize + Sync,
-    {
-        let mut bytes = Vec::new();
-        csv::serialize_to_csv_with_options(std::slice::from_ref(record), &mut bytes, true)?;
-
-        let header_end = bytes
-            .iter()
-            .position(|byte| *byte == b'\n')
-            .ok_or_else(|| {
-                crate::error::ForceError::InvalidInput(
-                    "Serialized CSV record did not include a header row".to_string(),
-                )
-            })?
-            + 1;
-
-        let row = bytes.split_off(header_end);
-        Ok((bytes, row))
     }
 
     async fn finish_job(&self, job_id: String, csv_data: Vec<u8>) -> Result<JobInfo> {
