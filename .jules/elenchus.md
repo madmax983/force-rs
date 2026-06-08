@@ -41,3 +41,16 @@
 **Finding:** Missing mutation test coverage in `upsert_with_retry_class` and `validate_query_input_len`. The `MAX_QUERY_INPUT_BYTES` threshold tests were weak, and the response limit calculation in `upsert` lacked explicit bound verification.
 **Evidence:** 5+ surviving mutants around `100 * 1024 * 1024` limit calculation in `upsert` paths. Surviving `>=` mutant on `validate_query_input_len`.
 **Recommendation:** Ensure exact boundary coverage in threshold validation methods (like EXACT max allowed size), and explicitly cover payload too large errors (`HttpError::PayloadTooLarge`) by setting up mocks with very large mock response data.
+**[Elenchus: force-pubsub::subscriber handle_reconnect backoff math]**
+**Module:** `crates/force-pubsub/src/subscriber.rs`
+**Severity:** 🔴 Critical
+**Finding:** The exponential backoff calculation `delay_for(*reconnect_count - 1)` had missing upper bound assertions in `test_subscribe_exhausts_retries_returns_error`. Mutants that replaced `-` with `+` or `/` survived because the test only asserted `elapsed >= 30ms`.
+**Evidence:** 2 surviving mutants in `handle_reconnect` backoff index math.
+**Recommendation:** Added an upper bound assertion (`elapsed < 50ms`) to properly verify that the correct delay values (10ms + 20ms = 30ms) were generated, catching the 60ms mutation.
+
+**[Elenchus: force::api::rest_operation Exact Limit Boundary Tests]**
+**Module:** `crates/force/src/api/rest_operation.rs`
+**Severity:** 🔴 Critical
+**Finding:** The `100 * 1024 * 1024` limit check in `read_capped_body_bytes` within `upsert` lacked an exact boundary test. `cargo mutants` exposed that mutating this boundary went un-caught.
+**Evidence:** Surviving mutant on the limit calculation.
+**Recommendation:** Added `test_upsert_payload_exactly_at_limit` to explicitly verify that exactly 100MB payloads are accepted.

@@ -353,10 +353,16 @@ async fn test_subscribe_exhausts_retries_returns_error() {
                         "should have seen exactly 2 reconnect events"
                     );
                     let elapsed = start_time.elapsed();
-                    // We expect total delay to be at least 30ms (10ms + 20ms).
+                    // We expect total delay to be around 30ms (10ms + 20ms).
+                    // If the mutation delay_for(*reconnect_count + 1) happens,
+                    // delays would be 20ms + 40ms = 60ms. So we assert < 50ms.
                     assert!(
                         elapsed >= Duration::from_millis(30),
                         "backoff delay too short, elapsed: {elapsed:?}"
+                    );
+                    assert!(
+                        elapsed < Duration::from_millis(50),
+                        "backoff delay too long, catching mutation, elapsed: {elapsed:?}"
                     );
                     reconnect_failed_seen = true;
                     break;

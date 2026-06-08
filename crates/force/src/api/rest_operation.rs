@@ -990,6 +990,55 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_upsert_payload_exactly_at_limit() {
+        use crate::client::builder;
+        use serde_json::json;
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let mock_server = MockServer::start().await;
+        let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
+        let client = builder().authenticate(auth).build().await.must();
+
+        let exact_limit = 100 * 1024 * 1024;
+        let mut big_str = "A".repeat(exact_limit);
+        // Valid JSON
+        big_str.replace_range(0..1, "\"");
+        big_str.replace_range(exact_limit - 1..exact_limit, "\"");
+
+        Mock::given(method("PATCH"))
+            .and(path(
+                "/services/data/v60.0/sobjects/Account/ExternalId__c/ACME-002",
+            ))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(big_str.into_bytes()))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let rest = client.rest();
+        let response = rest
+            .upsert(
+                "Account",
+                "ExternalId__c",
+                "ACME-002",
+                &json!({"Name": "Acme Corp"}),
+            )
+            .await;
+        // Should parse correctly
+        assert!(
+            response.is_err(),
+            "JSON deserialization will fail but payload size should be accepted"
+        );
+        let Err(err) = response else {
+            panic!("expected Err");
+        };
+        match err {
+            crate::error::ForceError::Serialization(_) => {}
+            _ => panic!("Expected Serialization error, got {:?}", err),
+        }
+    }
+
+    #[tokio::test]
     async fn test_upsert_payload_too_large() {
         use crate::client::builder;
         use serde_json::json;
