@@ -197,7 +197,10 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
     ) -> crate::error::Result<RecordRepresentation> {
         crate::types::validator::validate_identifier(id, "record id")?;
 
-        let path = format!("records/{id}");
+        // ⚡ Bolt: Replace `format!` with `String::with_capacity` and `push_str` to avoid formatting overhead.
+        let mut path = String::with_capacity(8 + id.len());
+        path.push_str("records/");
+        path.push_str(id);
 
         let mut fields_str = String::new();
 
@@ -313,7 +316,10 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
     ) -> crate::error::Result<RecordRepresentation> {
         crate::types::validator::validate_identifier(id, "record id")?;
 
-        let path = format!("records/{id}");
+        // ⚡ Bolt: Replace `format!` with `String::with_capacity` and `push_str` to avoid formatting overhead.
+        let mut path = String::with_capacity(8 + id.len());
+        path.push_str("records/");
+        path.push_str(id);
         self.patch(&path, input, "Failed to update record").await
     }
 
@@ -327,7 +333,10 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
     pub async fn delete_record(&self, id: &str) -> crate::error::Result<()> {
         crate::types::validator::validate_identifier(id, "record id")?;
 
-        let path = format!("records/{id}");
+        // ⚡ Bolt: Replace `format!` with `String::with_capacity` and `push_str` to avoid formatting overhead.
+        let mut path = String::with_capacity(8 + id.len());
+        path.push_str("records/");
+        path.push_str(id);
         self.delete_empty(&path, "Failed to delete record").await
     }
 
@@ -344,7 +353,10 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
     ) -> crate::error::Result<RecordDefaultsRepresentation> {
         crate::types::validator::validate_sobject_name(object)?;
 
-        let path = format!("record-defaults/create/{object}");
+        // ⚡ Bolt: Replace `format!` with `String::with_capacity` and `push_str` to avoid formatting overhead.
+        let mut path = String::with_capacity(23 + object.len());
+        path.push_str("record-defaults/create/");
+        path.push_str(object);
         self.get(&path, None, "Failed to fetch create defaults")
             .await
     }
@@ -362,7 +374,10 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
     ) -> crate::error::Result<RecordDefaultsRepresentation> {
         crate::types::validator::validate_identifier(id, "record id")?;
 
-        let path = format!("record-defaults/clone/{id}");
+        // ⚡ Bolt: Replace `format!` with `String::with_capacity` and `push_str` to avoid formatting overhead.
+        let mut path = String::with_capacity(22 + id.len());
+        path.push_str("record-defaults/clone/");
+        path.push_str(id);
         self.get(&path, None, "Failed to fetch clone defaults")
             .await
     }

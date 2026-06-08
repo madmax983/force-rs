@@ -102,7 +102,10 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
     ) -> crate::error::Result<ObjectInfoRepresentation> {
         crate::types::validator::validate_sobject_name(object)?;
 
-        let path = format!("object-info/{object}");
+        // ⚡ Bolt: Replace `format!` with `String::with_capacity` and `push_str` to avoid formatting overhead.
+        let mut path = String::with_capacity(12 + object.len());
+        path.push_str("object-info/");
+        path.push_str(object);
         self.get(&path, None, "Failed to fetch object info").await
     }
 
