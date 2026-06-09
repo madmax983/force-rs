@@ -210,3 +210,51 @@ impl MockSObjectDescribeBuilder {
         self.describe
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_mock_field_describe_builder() {
+        let field = MockFieldDescribeBuilder::new("TestField", FieldType::Id)
+            .length(100)
+            .byte_length(300)
+            .nillable(false)
+            .createable(false)
+            .updateable(false)
+            .permissionable(false)
+            .picklist_values(vec![])
+            .precision(18)
+            .digits(2)
+            .label("Test Label")
+            .soap_type("xsd:custom")
+            .build();
+
+        assert_eq!(field.length, 100);
+        assert_eq!(field.byte_length, 300);
+        assert!(!field.nillable);
+        assert!(!field.createable);
+        assert!(!field.updateable);
+        assert!(!field.permissionable);
+        assert!(field.picklist_values.is_some());
+        assert_eq!(field.precision, 18);
+        assert_eq!(field.digits, 2);
+        assert_eq!(field.label, "Test Label");
+        assert_eq!(field.soap_type, "xsd:custom");
+    }
+
+    #[test]
+    fn test_mock_sobject_describe_builder() {
+        let field = MockFieldDescribeBuilder::new("Id", FieldType::Id).build();
+        let describe = MockSObjectDescribeBuilder::new("Account")
+            .feed_enabled(true)
+            .field(field)
+            .build();
+
+        assert_eq!(describe.label, "Account");
+        assert_eq!(describe.label_plural, "Accounts");
+        assert!(describe.feed_enabled);
+        assert_eq!(describe.fields.len(), 1);
+    }
+}
