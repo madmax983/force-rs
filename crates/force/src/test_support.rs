@@ -189,6 +189,11 @@ impl MockFieldDescribeBuilder {
         self
     }
 
+    pub fn unique(mut self, value: bool) -> Self {
+        self.field.unique = value;
+        self
+    }
+
     pub fn updateable(mut self, updateable: bool) -> Self {
         self.field.updateable = updateable;
         self
