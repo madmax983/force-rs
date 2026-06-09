@@ -6,8 +6,7 @@ mod tests {
     use force::auth::{AccessToken, Authenticator, TokenResponse};
     use force::client::builder;
     use serde::Deserialize;
-    use wiremock::matchers::{method, path};
-    use wiremock::{Mock, MockServer, ResponseTemplate};
+    use wiremock::MockServer;
 
     #[derive(Debug, Clone)]
     struct MockAuthenticator {
@@ -45,18 +44,8 @@ mod tests {
     struct Dummy {}
 
     #[tokio::test]
-    async fn test_havoc_url_bypass() {
+    async fn test_ssrf_backslash_bypass() {
         let mock_server = MockServer::start().await;
-
-        Mock::given(method("GET"))
-            .and(path("/@evil.com/services/data/v60.0/query/01g"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-                "totalSize": 0,
-                "done": true,
-                "records": []
-            })))
-            .mount(&mock_server)
-            .await;
 
         let instance_url = mock_server.uri();
         let auth = MockAuthenticator::new(&instance_url);
@@ -67,21 +56,21 @@ mod tests {
             .unwrap_or_else(|e| panic!("Failed to build client: {e}"));
         let handler = client.rest();
 
-        // This is the SSRF payload.
-        let next_records_url = "@evil.com/services/data/v60.0/query/01g";
+        // This is the new backslash SSRF payload.
+        let next_records_url = r"\\evil.com/services/data/v60.0/query/01g";
 
-        // Before the fix, this would create `http://127.0.0.1:port@evil.com/...`
-        // which sends the request to `evil.com`.
-        // After the fix, it creates `http://127.0.0.1:port/@evil.com/...`
-        // which is a relative path sent to the mock server!
         let result: force::error::Result<force::types::QueryResult<Dummy>> =
             handler.query_more::<Dummy>(next_records_url).await;
 
-        // Because the mock server is configured to handle the relative path `/@evil.com/...`,
-        // it should return Ok!
+        // Ensure that the security blocks it (either the new validate_url_path check or the request sender's security check for origin mismatch)
+        let Err(force::error::ForceError::InvalidInput(msg)) = result else {
+            panic!("Expected InvalidInput error blocking the backslash SSRF attack!");
+        };
+        // The error could be the new validate_url_path error or the existing strict origin check if it's evaluated later.
         assert!(
-            result.is_ok(),
-            "The request failed! Expected the relative path to hit the mock server successfully. Result: {result:?}"
+            msg.contains("URL path contains invalid path traversal characters")
+                || msg.contains("URL path resolves to a different host")
+                || msg.contains("Security Error: nextRecordsUrl origin")
         );
     }
 }
