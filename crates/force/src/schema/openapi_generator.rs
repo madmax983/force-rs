@@ -63,6 +63,10 @@ fn write_field_schema(out: &mut String, field: &FieldDescribe) {
         out.push_str("          readOnly: true\n");
     }
 
+    apply_field_type_schema(out, field);
+}
+
+fn apply_field_type_schema(out: &mut String, field: &FieldDescribe) {
     match field.type_ {
         FieldType::String
         | FieldType::Email

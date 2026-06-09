@@ -69,6 +69,12 @@ fn generate_field_schema(field: &FieldDescribe) -> Value {
         schema.insert("readOnly".to_string(), Value::Bool(true));
     }
 
+    apply_field_type_schema(&mut schema, field);
+
+    Value::Object(schema)
+}
+
+fn apply_field_type_schema(schema: &mut serde_json::Map<String, Value>, field: &FieldDescribe) {
     match field.type_ {
         FieldType::String
         | FieldType::Email
@@ -126,8 +132,6 @@ fn generate_field_schema(field: &FieldDescribe) -> Value {
             schema.insert("type".to_string(), Value::String("string".to_string()));
         }
     }
-
-    Value::Object(schema)
 }
 
 #[cfg(test)]

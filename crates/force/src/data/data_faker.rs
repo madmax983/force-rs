@@ -28,7 +28,7 @@
 //! # }
 //! ```
 
-use crate::types::describe::{FieldType, SObjectDescribe};
+use crate::types::describe::{FieldDescribe, FieldType, SObjectDescribe};
 use crate::types::{Attributes, DynamicSObject, SalesforceId};
 
 /// Utility for generating mock data based on Salesforce schema metadata.
@@ -64,68 +64,70 @@ pub fn generate_mock_record(describe: &SObjectDescribe) -> DynamicSObject {
         }
 
         // Generate a sensible default mock value based on the field type
-        match field.type_ {
-            FieldType::String | FieldType::Id | FieldType::Reference | FieldType::AnyType => {
-                record.set_field(&field.name, format!("Mock {}", field.label));
-            }
-            FieldType::Textarea | FieldType::Encryptedstring => {
-                record.set_field(
-                    &field.name,
-                    format!("Detailed mock description for {}", field.label),
-                );
-            }
-            FieldType::Int => {
-                record.set_field(&field.name, 42);
-            }
-            FieldType::Double | FieldType::Currency | FieldType::Percent => {
-                record.set_field(&field.name, 42.42);
-            }
-            FieldType::Boolean => {
-                record.set_field(&field.name, true);
-            }
-            FieldType::Date => {
-                record.set_field(&field.name, "2024-01-01");
-            }
-            FieldType::Datetime => {
-                record.set_field(&field.name, "2024-01-01T12:00:00.000+0000");
-            }
-            FieldType::Time => {
-                record.set_field(&field.name, "12:00:00.000Z");
-            }
-            FieldType::Email => {
-                record.set_field(&field.name, "mock@example.com");
-            }
-            FieldType::Phone => {
-                record.set_field(&field.name, "555-0100");
-            }
-            FieldType::Url => {
-                record.set_field(&field.name, "https://example.com");
-            }
-            FieldType::Picklist | FieldType::Multipicklist | FieldType::Combobox => {
-                // Try to use the first available picklist value if it exists
-                if let Some(ref values) = field.picklist_values {
-                    if let Some(first_active) = values.iter().find(|v| v.active) {
-                        record.set_field(&field.name, &first_active.value);
-                    } else if let Some(first) = values.first() {
-                        record.set_field(&field.name, &first.value);
-                    } else {
-                        record.set_field(&field.name, "Mock Selection");
-                    }
-                } else {
-                    record.set_field(&field.name, "Mock Selection");
-                }
-            }
-            // Handle unsupported or complex types gracefully by ignoring them
-            FieldType::Base64
-            | FieldType::Datacategorygroupreference
-            | FieldType::Location
-            | FieldType::Address => {
-                continue;
-            }
-        }
+        apply_mock_field_value(&mut record, field);
     }
 
     record
+}
+
+fn apply_mock_field_value(record: &mut DynamicSObject, field: &FieldDescribe) {
+    match field.type_ {
+        FieldType::String | FieldType::Id | FieldType::Reference | FieldType::AnyType => {
+            record.set_field(&field.name, format!("Mock {}", field.label));
+        }
+        FieldType::Textarea | FieldType::Encryptedstring => {
+            record.set_field(
+                &field.name,
+                format!("Detailed mock description for {}", field.label),
+            );
+        }
+        FieldType::Int => {
+            record.set_field(&field.name, 42);
+        }
+        FieldType::Double | FieldType::Currency | FieldType::Percent => {
+            record.set_field(&field.name, 42.42);
+        }
+        FieldType::Boolean => {
+            record.set_field(&field.name, true);
+        }
+        FieldType::Date => {
+            record.set_field(&field.name, "2024-01-01");
+        }
+        FieldType::Datetime => {
+            record.set_field(&field.name, "2024-01-01T12:00:00.000+0000");
+        }
+        FieldType::Time => {
+            record.set_field(&field.name, "12:00:00.000Z");
+        }
+        FieldType::Email => {
+            record.set_field(&field.name, "mock@example.com");
+        }
+        FieldType::Phone => {
+            record.set_field(&field.name, "555-0100");
+        }
+        FieldType::Url => {
+            record.set_field(&field.name, "https://example.com");
+        }
+        FieldType::Picklist | FieldType::Multipicklist | FieldType::Combobox => {
+            // Try to use the first available picklist value if it exists
+            if let Some(ref values) = field.picklist_values {
+                if let Some(first_active) = values.iter().find(|v| v.active) {
+                    record.set_field(&field.name, &first_active.value);
+                } else if let Some(first) = values.first() {
+                    record.set_field(&field.name, &first.value);
+                } else {
+                    record.set_field(&field.name, "Mock Selection");
+                }
+            } else {
+                record.set_field(&field.name, "Mock Selection");
+            }
+        }
+        // Handle unsupported or complex types gracefully by ignoring them
+        FieldType::Base64
+        | FieldType::Datacategorygroupreference
+        | FieldType::Location
+        | FieldType::Address => {}
+    }
 }
 
 #[cfg(test)]
