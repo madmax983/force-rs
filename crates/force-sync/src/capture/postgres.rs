@@ -23,7 +23,7 @@ struct OutboxRow {
     created_at: chrono::DateTime<chrono::Utc>,
 }
 
-fn outbox_operation(op: &str, tombstone: bool) -> crate::error::Result<ChangeOperation> {
+fn outbox_operation(op: &str, tombstone: bool) -> Result<ChangeOperation, ForceSyncError> {
     match (op, tombstone) {
         ("upsert", false) => Ok(ChangeOperation::Upsert),
         ("delete", true) => Ok(ChangeOperation::Delete),
@@ -36,7 +36,7 @@ fn outbox_operation(op: &str, tombstone: bool) -> crate::error::Result<ChangeOpe
     }
 }
 
-fn outbox_source_cursor(raw: &str) -> crate::error::Result<SourceCursor> {
+fn outbox_source_cursor(raw: &str) -> Result<SourceCursor, ForceSyncError> {
     if raw.starts_with("postgres-lsn:")
         || raw.starts_with("salesforce-replay-id:")
         || raw.starts_with("snapshot:")
@@ -49,7 +49,7 @@ fn outbox_source_cursor(raw: &str) -> crate::error::Result<SourceCursor> {
     Ok(SourceCursor::PostgresLsn(raw.to_string()))
 }
 
-fn outbox_envelope(row: &OutboxRow) -> crate::error::Result<ChangeEnvelope> {
+fn outbox_envelope(row: &OutboxRow) -> Result<ChangeEnvelope, ForceSyncError> {
     let payload: Value = serde_json::from_str(&row.payload_text)?;
     let sync_key = SyncKey::new(
         row.tenant.clone(),
@@ -82,7 +82,7 @@ async fn quarantine_row<C>(
     client: &C,
     row: &OutboxRow,
     error: &ForceSyncError,
-) -> crate::error::Result<()>
+) -> Result<(), ForceSyncError>
 where
     C: GenericClient + Sync + ?Sized,
 {
@@ -113,7 +113,7 @@ async fn capture_batch_in_tx<C>(
     client: &C,
     limit: i64,
     priority: i32,
-) -> crate::error::Result<usize>
+) -> Result<usize, ForceSyncError>
 where
     C: GenericClient + Sync + ?Sized,
 {
@@ -197,7 +197,7 @@ pub async fn capture_batch(
     store: &PgStore,
     limit: i64,
     priority: i32,
-) -> crate::error::Result<usize> {
+) -> Result<usize, ForceSyncError> {
     if limit <= 0 {
         return Ok(0);
     }

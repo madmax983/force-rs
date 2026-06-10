@@ -38,7 +38,7 @@ struct JournalValues<'a> {
     payload_hash: [u8; 32],
 }
 
-fn journal_values(envelope: &ChangeEnvelope) -> crate::error::Result<JournalValues<'_>> {
+fn journal_values(envelope: &ChangeEnvelope) -> Result<JournalValues<'_>, ForceSyncError> {
     let cursor = envelope
         .cursor()
         .ok_or(ForceSyncError::MissingSourceCursor)?;
@@ -57,7 +57,7 @@ fn journal_values(envelope: &ChangeEnvelope) -> crate::error::Result<JournalValu
     })
 }
 
-async fn insert_journal<C>(client: &C, values: &JournalValues<'_>) -> crate::error::Result<i64>
+async fn insert_journal<C>(client: &C, values: &JournalValues<'_>) -> Result<i64, ForceSyncError>
 where
     C: GenericClient + Sync + ?Sized,
 {
@@ -110,7 +110,7 @@ where
 async fn insert_journal_if_new<C>(
     client: &C,
     values: &JournalValues<'_>,
-) -> crate::error::Result<Option<i64>>
+) -> Result<Option<i64>, ForceSyncError>
 where
     C: GenericClient + Sync + ?Sized,
 {
@@ -167,7 +167,7 @@ impl PgStore {
     /// # Errors
     ///
     /// Returns an error if the cursor is missing or the database write fails.
-    pub async fn append_journal(&self, envelope: &ChangeEnvelope) -> crate::error::Result<i64> {
+    pub async fn append_journal(&self, envelope: &ChangeEnvelope) -> Result<i64, ForceSyncError> {
         let values = journal_values(envelope)?;
         let client = self.pool().get().await?;
         insert_journal(&**client, &values).await
@@ -181,7 +181,7 @@ impl PgStore {
     pub async fn append_journal_if_new(
         &self,
         envelope: &ChangeEnvelope,
-    ) -> crate::error::Result<AppendResult> {
+    ) -> Result<AppendResult, ForceSyncError> {
         let values = journal_values(envelope)?;
         let client = self.pool().get().await?;
         insert_journal_if_new(&**client, &values)
@@ -203,7 +203,7 @@ impl PgStore {
     pub async fn append_journal_in_tx<C>(
         client: &C,
         envelope: &ChangeEnvelope,
-    ) -> crate::error::Result<i64>
+    ) -> Result<i64, ForceSyncError>
     where
         C: GenericClient + Sync + ?Sized,
     {
@@ -219,7 +219,7 @@ impl PgStore {
     pub async fn append_journal_if_new_in_tx<C>(
         client: &C,
         envelope: &ChangeEnvelope,
-    ) -> crate::error::Result<AppendResult>
+    ) -> Result<AppendResult, ForceSyncError>
     where
         C: GenericClient + Sync + ?Sized,
     {

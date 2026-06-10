@@ -2,6 +2,8 @@
 
 use tokio_postgres::GenericClient;
 
+use crate::error::ForceSyncError;
+
 use super::PgStore;
 
 /// Canonical sync link row.
@@ -41,7 +43,7 @@ fn link_from_row(row: &tokio_postgres::Row) -> SyncLink {
     }
 }
 
-async fn put_link_query<C>(client: &C, link: &SyncLink) -> crate::error::Result<i64>
+async fn put_link_query<C>(client: &C, link: &SyncLink) -> Result<i64, ForceSyncError>
 where
     C: GenericClient + Sync + ?Sized,
 {
@@ -101,7 +103,7 @@ async fn get_link_query<C>(
     tenant: &str,
     object_name: &str,
     external_id: &str,
-) -> crate::error::Result<Option<SyncLink>>
+) -> Result<Option<SyncLink>, ForceSyncError>
 where
     C: GenericClient + Sync + ?Sized,
 {
@@ -124,7 +126,7 @@ impl PgStore {
     /// # Errors
     ///
     /// Returns an error if the database write fails.
-    pub async fn put_link(&self, link: &SyncLink) -> crate::error::Result<i64> {
+    pub async fn put_link(&self, link: &SyncLink) -> Result<i64, ForceSyncError> {
         let client = self.pool().get().await?;
         put_link_query(&**client, link).await
     }
@@ -139,7 +141,7 @@ impl PgStore {
         tenant: &str,
         object_name: &str,
         external_id: &str,
-    ) -> crate::error::Result<Option<SyncLink>> {
+    ) -> Result<Option<SyncLink>, ForceSyncError> {
         let client = self.pool().get().await?;
         get_link_query(&**client, tenant, object_name, external_id).await
     }

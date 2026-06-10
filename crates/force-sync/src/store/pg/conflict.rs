@@ -3,6 +3,8 @@
 use serde_json::Value;
 use tokio_postgres::GenericClient;
 
+use crate::error::ForceSyncError;
+
 use super::PgStore;
 
 /// Conflict record stored for later review.
@@ -25,7 +27,10 @@ pub struct SyncConflict {
     pub resolution: Option<String>,
 }
 
-async fn insert_conflict_query<C>(client: &C, conflict: &SyncConflict) -> crate::error::Result<i64>
+async fn insert_conflict_query<C>(
+    client: &C,
+    conflict: &SyncConflict,
+) -> Result<i64, ForceSyncError>
 where
     C: GenericClient + Sync + ?Sized,
 {
@@ -62,7 +67,7 @@ impl PgStore {
     /// # Errors
     ///
     /// Returns an error if the database write fails.
-    pub async fn insert_conflict(&self, conflict: &SyncConflict) -> crate::error::Result<i64> {
+    pub async fn insert_conflict(&self, conflict: &SyncConflict) -> Result<i64, ForceSyncError> {
         let client = self.pool().get().await?;
         insert_conflict_query(&**client, conflict).await
     }

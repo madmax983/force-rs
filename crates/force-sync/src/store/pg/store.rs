@@ -32,7 +32,7 @@ impl PgStore {
     ///
     /// Returns a pool or query error if the client cannot be acquired or the
     /// callback fails.
-    pub async fn with_client<T, F, Fut>(&self, f: F) -> crate::error::Result<T>
+    pub async fn with_client<T, F, Fut>(&self, f: F) -> Result<T, ForceSyncError>
     where
         F: FnOnce(Client) -> Fut,
         Fut: Future<Output = Result<T, tokio_postgres::Error>>,
@@ -47,11 +47,11 @@ impl PgStore {
     ///
     /// Returns a pool or query error if the transaction cannot be opened or
     /// the callback fails.
-    pub async fn with_transaction<T, F>(&self, f: F) -> crate::error::Result<T>
+    pub async fn with_transaction<T, F>(&self, f: F) -> Result<T, ForceSyncError>
     where
         F: for<'a> FnOnce(
             &'a tokio_postgres::Transaction<'a>,
-        ) -> BoxFuture<'a, crate::error::Result<T>>,
+        ) -> BoxFuture<'a, Result<T, ForceSyncError>>,
     {
         let mut client = self.pool.get().await?;
         let transaction = client.transaction().await?;

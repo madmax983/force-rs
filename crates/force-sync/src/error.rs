@@ -87,8 +87,6 @@ pub enum ForceSyncError {
     NotImplemented,
 }
 
-pub type Result<T, E = crate::error::ForceSyncError> = std::result::Result<T, E>;
-
 impl From<force_pubsub::PubSubError> for ForceSyncError {
     fn from(error: force_pubsub::PubSubError) -> Self {
         Self::PubSub(Box::new(error))
@@ -153,13 +151,13 @@ mod result_tests {
 
     #[test]
     fn test_result_alias() {
-        let ok: Result<i32> = std::result::Result::Ok(42);
+        let ok: Result<i32, ForceSyncError> = std::result::Result::Ok(42);
         let std::result::Result::Ok(val) = ok else {
             panic!("expected ok");
         };
         assert_eq!(val, 42);
 
-        let err: Result<i32> = Err(ForceSyncError::NotImplemented);
+        let err: Result<i32, ForceSyncError> = Err(ForceSyncError::NotImplemented);
         assert!(matches!(err, Err(ForceSyncError::NotImplemented)));
     }
 }

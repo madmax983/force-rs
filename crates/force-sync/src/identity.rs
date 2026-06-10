@@ -20,7 +20,7 @@ impl SyncKey {
         tenant: impl Into<String>,
         object_name: impl Into<String>,
         external_id: impl Into<String>,
-    ) -> crate::error::Result<Self> {
+    ) -> Result<Self, ForceSyncError> {
         let tenant = tenant.into();
         let object_name = object_name.into();
         let external_id = external_id.into();
