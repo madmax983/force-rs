@@ -260,7 +260,9 @@ impl<A: Authenticator> TokenManager<A> {
                     None => false,
                 };
                 if !is_same {
-                    return Ok((*token.clone()).clone());
+                    // ⚡ Bolt: Dereferencing `token` (which is an `&Arc<AccessToken>`) directly to the inner `AccessToken`
+                    // avoids an unnecessary temporary `.clone()` of the `Arc` wrapper and its atomic refcount overhead.
+                    return Ok((**token).clone());
                 }
             }
         }
