@@ -260,7 +260,7 @@ impl<A: Authenticator> TokenManager<A> {
                     None => false,
                 };
                 if !is_same {
-                    return Ok((*token.clone()).clone());
+                    return Ok((**token).clone());
                 }
             }
         }
