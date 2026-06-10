@@ -216,31 +216,46 @@ impl<A: Authenticator> TokenManager<A> {
     /// let new_token = manager.force_refresh().await?;
     /// ```
     pub async fn force_refresh(&self) -> Result<AccessToken> {
-        // Capture the current token's Arc pointer (if any)
-        let current_arc = {
-            let state = self.state.read().await;
-            state.token.clone()
-        };
-
-        // Acquire refresh lock to serialize force_refresh calls
+        let current_arc = self.capture_current_token().await;
         let _lock = self.refresh_lock.lock().await;
 
-        // Double check: Did another thread already refresh the token while we were waiting?
+        if let Some(newer_token) = self
+            .check_for_concurrent_refresh(current_arc.as_ref())
+            .await
         {
-            let state = self.state.read().await;
-            if let Some(token) = &state.token {
-                // If the token in state is a different allocation (Arc::ptr_eq is false) than what we captured,
-                // another thread just refreshed it. Return that one!
-                let is_same = match &current_arc {
-                    Some(arc) => Arc::ptr_eq(token, arc),
-                    None => false,
-                };
-                if !is_same {
-                    return Ok((*token.clone()).clone());
-                }
-            }
+            return Ok(newer_token);
         }
 
+        self.perform_force_refresh().await
+    }
+
+    async fn capture_current_token(&self) -> Option<Arc<AccessToken>> {
+        let state = self.state.read().await;
+        state.token.clone()
+    }
+
+    async fn check_for_concurrent_refresh(
+        &self,
+        current_arc: Option<&Arc<AccessToken>>,
+    ) -> Option<AccessToken> {
+        let state = self.state.read().await;
+        let Some(token) = &state.token else {
+            return None;
+        };
+
+        let is_same = match current_arc {
+            Some(arc) => Arc::ptr_eq(token, arc),
+            None => false,
+        };
+
+        if is_same {
+            None
+        } else {
+            Some((*token.clone()).clone())
+        }
+    }
+
+    async fn perform_force_refresh(&self) -> Result<AccessToken> {
         let has_token = {
             let state = self.state.read().await;
             state.token.is_some()

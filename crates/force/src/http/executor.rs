@@ -176,32 +176,24 @@ impl HttpExecutor {
 
             let response = match response_result {
                 Ok(resp) => resp,
-                Err(e) if retry_attempt < max_retries && Self::is_retryable_error(&e) => {
-                    self.handle_transient_failure(retry_attempt, ctx, None)
-                        .await;
-                    retry_attempt += 1;
-                    continue;
+                Err(e) => {
+                    if retry_attempt < max_retries && Self::is_retryable_error(&e) {
+                        self.handle_transient_failure(retry_attempt, ctx, None)
+                            .await;
+                        retry_attempt += 1;
+                        continue;
+                    }
+                    return Err(e);
                 }
-                Err(e) => return Err(e),
             };
 
             let status = response.status();
 
-            if status == StatusCode::UNAUTHORIZED {
-                if !refreshed {
-                    let new_token = refresh_token().await?;
-                    Self::inject_auth_header(&mut request, &new_token)?;
-                    refreshed = true;
-                    continue;
-                }
-
-                self.record_completion(
-                    ctx,
-                    Some(StatusCode::UNAUTHORIZED.as_u16()),
-                    None,
-                    retry_attempt,
-                );
-                return Ok(response);
+            if status == StatusCode::UNAUTHORIZED && !refreshed {
+                let new_token = refresh_token().await?;
+                Self::inject_auth_header(&mut request, &new_token)?;
+                refreshed = true;
+                continue;
             }
 
             if status == StatusCode::TOO_MANY_REQUESTS {
