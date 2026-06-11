@@ -98,3 +98,7 @@
 **[Flatten Match With Original Error Context]**
 **Learning:** When flattening nested `match` statements handling `Result` outputs, rewriting them with `let Ok(...) = result else` guard clauses can lead to silently swallowing the underlying original error if not passed through explicitly, which breaks observability and changes runtime behavior. Using `.map_err(...)?` provides a flatter structure while preserving the exact error mappings natively.
 **Action:** When acting as 'Forge', never drop the original underlying error variable (e.g., `e`). To flatten `Result` mapping, use `.map_err(|e| { ... })?` with the `?` operator instead of verbose `match` statements or dropping context inside `else` guards, ensuring the error propagates cleanly without over-nesting.
+
+**[Extract God Function apply_rest_task]**
+**Learning:** `apply_rest_task` in `crates/force-sync/src/runtime.rs` grew into a nearly 100-line "God Function" by implementing the complex execution and error-handling logic for both `Upsert` and `Delete` operations directly within the `match envelope.operation()` arms, causing unnecessary nesting.
+**Action:** Extract large operational branches into explicitly named helper methods (`apply_rest_upsert_task`, `apply_rest_delete_task`) to flatten the main function and better isolate the business logic of each specific task.

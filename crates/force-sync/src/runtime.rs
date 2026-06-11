@@ -327,87 +327,107 @@ impl<A: Authenticator> SyncEngine<A> {
     ) -> Result<bool, ForceSyncError> {
         match envelope.operation() {
             ChangeOperation::Upsert => {
-                let result = self
-                    .salesforce
-                    .apply_rest_upsert(
-                        envelope.sync_key().object_name(),
-                        object
-                            .external_id_field()
-                            .ok_or(ForceSyncError::MissingConfiguration {
-                                field: "external_id_field",
-                            })?,
-                        envelope.sync_key().external_id(),
-                        payload,
-                    )
-                    .await;
-
-                match result {
-                    Ok(result) => {
-                        let link = project_sync_link(
-                            existing_link,
-                            envelope,
-                            result.salesforce_id.as_ref(),
-                            false,
-                        );
-                        self.store.put_link(&link).await?;
-                        self.store
-                            .ack_task_for_worker(&self.worker_id, task.task_id)
-                            .await?;
-                        Ok(true)
-                    }
-                    Err(error) => self.handle_apply_error(task, error).await,
-                }
+                self.apply_rest_upsert_task(task, envelope, payload, existing_link, object)
+                    .await
             }
             ChangeOperation::Delete => {
-                let Some(existing_link) = existing_link else {
-                    let _ = self
-                        .store
-                        .fail_task_for_worker(
-                            &self.worker_id,
-                            task.task_id,
-                            "missing Salesforce ID for delete",
-                        )
-                        .await?;
-                    return Ok(false);
-                };
-                let Some(salesforce_id) = existing_link.salesforce_id.as_deref() else {
-                    let _ = self
-                        .store
-                        .fail_task_for_worker(
-                            &self.worker_id,
-                            task.task_id,
-                            "missing Salesforce ID for delete",
-                        )
-                        .await?;
-                    return Ok(false);
-                };
-                let salesforce_id = force::types::SalesforceId::new(salesforce_id.to_owned())
-                    .map_err(|error| ForceSyncError::InvalidStoredValue {
-                        field: "salesforce_id",
-                        value: error.to_string(),
-                    })?;
-
-                match self
-                    .salesforce
-                    .apply_rest_delete(envelope.sync_key().object_name(), &salesforce_id)
+                self.apply_rest_delete_task(task, envelope, existing_link)
                     .await
-                {
-                    Ok(()) => {
-                        let link = project_sync_link(
-                            existing_link.into(),
-                            envelope,
-                            Some(&salesforce_id),
-                            true,
-                        );
-                        self.store.put_link(&link).await?;
-                        self.store
-                            .ack_task_for_worker(&self.worker_id, task.task_id)
-                            .await?;
-                        Ok(true)
-                    }
-                    Err(error) => self.handle_apply_error(task, error).await,
-                }
             }
+        }
+    }
+
+    async fn apply_rest_upsert_task(
+        &self,
+        task: &LeasedTask,
+        envelope: &ChangeEnvelope,
+        payload: &Value,
+        existing_link: Option<&crate::store::pg::SyncLink>,
+        object: &ObjectSync,
+    ) -> Result<bool, ForceSyncError> {
+        let result = self
+            .salesforce
+            .apply_rest_upsert(
+                envelope.sync_key().object_name(),
+                object
+                    .external_id_field()
+                    .ok_or(ForceSyncError::MissingConfiguration {
+                        field: "external_id_field",
+                    })?,
+                envelope.sync_key().external_id(),
+                payload,
+            )
+            .await;
+
+        match result {
+            Ok(result) => {
+                let link = project_sync_link(
+                    existing_link,
+                    envelope,
+                    result.salesforce_id.as_ref(),
+                    false,
+                );
+                self.store.put_link(&link).await?;
+                self.store
+                    .ack_task_for_worker(&self.worker_id, task.task_id)
+                    .await?;
+                Ok(true)
+            }
+            Err(error) => self.handle_apply_error(task, error).await,
+        }
+    }
+
+    async fn apply_rest_delete_task(
+        &self,
+        task: &LeasedTask,
+        envelope: &ChangeEnvelope,
+        existing_link: Option<&crate::store::pg::SyncLink>,
+    ) -> Result<bool, ForceSyncError> {
+        let Some(existing_link) = existing_link else {
+            let _ = self
+                .store
+                .fail_task_for_worker(
+                    &self.worker_id,
+                    task.task_id,
+                    "missing Salesforce ID for delete",
+                )
+                .await?;
+            return Ok(false);
+        };
+        let Some(salesforce_id) = existing_link.salesforce_id.as_deref() else {
+            let _ = self
+                .store
+                .fail_task_for_worker(
+                    &self.worker_id,
+                    task.task_id,
+                    "missing Salesforce ID for delete",
+                )
+                .await?;
+            return Ok(false);
+        };
+        let salesforce_id =
+            force::types::SalesforceId::new(salesforce_id.to_owned()).map_err(|error| {
+                ForceSyncError::InvalidStoredValue {
+                    field: "salesforce_id",
+                    value: error.to_string(),
+                }
+            })?;
+
+        match self
+            .salesforce
+            .apply_rest_delete(envelope.sync_key().object_name(), &salesforce_id)
+            .await
+        {
+            Ok(()) => {
+                let link =
+                    project_sync_link(existing_link.into(), envelope, Some(&salesforce_id), true);
+                self.store.put_link(&link).await?;
+                self.store
+                    .ack_task_for_worker(&self.worker_id, task.task_id)
+                    .await?;
+                Ok(true)
+            }
+            Err(error) => self.handle_apply_error(task, error).await,
         }
     }
 
