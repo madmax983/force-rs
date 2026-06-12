@@ -87,6 +87,9 @@ pub enum ForceSyncError {
     NotImplemented,
 }
 
+/// Convenience Result alias for force-sync operations.
+pub type Result<T, E = ForceSyncError> = std::result::Result<T, E>;
+
 impl From<force_pubsub::PubSubError> for ForceSyncError {
     fn from(error: force_pubsub::PubSubError) -> Self {
         Self::PubSub(Box::new(error))
