@@ -260,7 +260,8 @@ impl<A: Authenticator> TokenManager<A> {
                     None => false,
                 };
                 if !is_same {
-                    return Ok((*token.clone()).clone());
+                    // ⚡ Bolt: Avoid unnecessarily cloning the outer Arc just to clone the inner value
+                    return Ok((**token).clone());
                 }
             }
         }
