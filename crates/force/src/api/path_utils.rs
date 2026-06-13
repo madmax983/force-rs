@@ -23,6 +23,38 @@ pub fn format_sobject_path(sobject: &str, id: Option<&str>) -> String {
     path
 }
 
+/// Formats a relative bulk ingest job path.
+///
+/// Returns `jobs/ingest/{job_id}`.
+pub fn format_ingest_job_path(job_id: &str) -> String {
+    let mut path = String::with_capacity(12 + job_id.len());
+    path.push_str("jobs/ingest/");
+    path.push_str(job_id);
+    path
+}
+
+/// Formats a relative bulk query job path, optionally including a suffix.
+///
+/// If `suffix` is provided, returns `jobs/query/{job_id}/{suffix}`.
+/// If `suffix` is not provided, returns `jobs/query/{job_id}`.
+pub fn format_query_job_path(job_id: &str, suffix: Option<&str>) -> String {
+    let mut capacity = 11 + job_id.len();
+    if let Some(s) = suffix {
+        capacity += 1 + s.len();
+    }
+
+    let mut path = String::with_capacity(capacity);
+    path.push_str("jobs/query/");
+    path.push_str(job_id);
+
+    if let Some(s) = suffix {
+        path.push('/');
+        path.push_str(s);
+    }
+
+    path
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

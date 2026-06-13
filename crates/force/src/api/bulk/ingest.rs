@@ -118,7 +118,9 @@ impl<S: Send + Sync, A: Authenticator> IngestJob<S, A> {
     ) -> Result<reqwest::Response> {
         let mut url = self
             .inner
-            .resolve_url(&format!("/jobs/ingest/{}", self.job_id))
+            .resolve_url(&crate::api::path_utils::format_ingest_job_path(
+                &self.job_id,
+            ))
             .await?;
 
         if let Some(suffix) = path_suffix {
@@ -505,7 +507,7 @@ impl<A: Authenticator> BulkHandler<A> {
     pub async fn get_job(&self, job_id: &str) -> Result<JobInfo> {
         let url = self
             .inner
-            .resolve_url(&format!("jobs/ingest/{}", job_id))
+            .resolve_url(&crate::api::path_utils::format_ingest_job_path(job_id))
             .await?;
         let request = self
             .inner
@@ -554,7 +556,7 @@ impl<A: Authenticator> BulkHandler<A> {
     pub async fn update_job(&self, job_id: &str, request: UpdateJobRequest) -> Result<JobInfo> {
         let url = self
             .inner
-            .resolve_url(&format!("jobs/ingest/{}", job_id))
+            .resolve_url(&crate::api::path_utils::format_ingest_job_path(job_id))
             .await?;
         let request = self
             .inner
@@ -595,7 +597,7 @@ impl<A: Authenticator> BulkHandler<A> {
     pub async fn delete_job(&self, job_id: &str) -> Result<()> {
         let url = self
             .inner
-            .resolve_url(&format!("jobs/ingest/{}", job_id))
+            .resolve_url(&crate::api::path_utils::format_ingest_job_path(job_id))
             .await?;
         let request = self
             .inner

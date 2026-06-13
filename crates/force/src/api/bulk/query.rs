@@ -209,7 +209,10 @@ impl<T, A: crate::auth::Authenticator> BulkQueryStream<T, A> {
     async fn execute_fetch_request(&self) -> Result<reqwest::Response> {
         let base_url = self
             .inner
-            .resolve_url(&format!("jobs/query/{}/results", self.job_id))
+            .resolve_url(&crate::api::path_utils::format_query_job_path(
+                &self.job_id,
+                Some("results"),
+            ))
             .await?;
         let mut request_builder = self.inner.get(&base_url);
         if let Some(locator) = &self.next_locator {
@@ -369,7 +372,7 @@ impl<A: crate::auth::Authenticator> super::BulkHandler<A> {
     pub async fn get_query_job(&self, job_id: &str) -> Result<BulkQueryJobInfo> {
         let url = self
             .inner
-            .resolve_url(&format!("jobs/query/{}", job_id))
+            .resolve_url(&crate::api::path_utils::format_query_job_path(job_id, None))
             .await?;
         let inner = &*self.inner;
         let request = inner
@@ -410,7 +413,7 @@ impl<A: crate::auth::Authenticator> super::BulkHandler<A> {
     pub async fn abort_query_job(&self, job_id: &str) -> Result<BulkQueryJobInfo> {
         let url = self
             .inner
-            .resolve_url(&format!("jobs/query/{}", job_id))
+            .resolve_url(&crate::api::path_utils::format_query_job_path(job_id, None))
             .await?;
         let inner = &*self.inner;
 
@@ -455,7 +458,7 @@ impl<A: crate::auth::Authenticator> super::BulkHandler<A> {
     pub async fn delete_query_job(&self, job_id: &str) -> Result<()> {
         let url = self
             .inner
-            .resolve_url(&format!("jobs/query/{}", job_id))
+            .resolve_url(&crate::api::path_utils::format_query_job_path(job_id, None))
             .await?;
         let inner = &*self.inner;
         let request = inner

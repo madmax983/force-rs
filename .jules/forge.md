@@ -98,3 +98,7 @@
 **[Flatten Match With Original Error Context]**
 **Learning:** When flattening nested `match` statements handling `Result` outputs, rewriting them with `let Ok(...) = result else` guard clauses can lead to silently swallowing the underlying original error if not passed through explicitly, which breaks observability and changes runtime behavior. Using `.map_err(...)?` provides a flatter structure while preserving the exact error mappings natively.
 **Action:** When acting as 'Forge', never drop the original underlying error variable (e.g., `e`). To flatten `Result` mapping, use `.map_err(|e| { ... })?` with the `?` operator instead of verbose `match` statements or dropping context inside `else` guards, ensuring the error propagates cleanly without over-nesting.
+
+**[Centralize URL Path Construction]**
+**Learning:** Re-implementing URL construction via intermediate base URLs and `format!` macros (e.g., `format!("jobs/ingest/{}", job_id)`) across bulk modules introduces duplicate logic and causes unnecessary heap allocations.
+**Action:** Extract these into helper functions `format_ingest_job_path` and `format_query_job_path` inside `crates/force/src/api/path_utils.rs` that use `String::with_capacity()` and `.push_str()` instead of `format!()` to avoid intermediate allocations, following the `format_sobject_path` pattern.
