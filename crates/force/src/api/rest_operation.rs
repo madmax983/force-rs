@@ -595,23 +595,31 @@ async fn upsert_with_retry_class_impl<A: Authenticator>(
     data: &serde_json::Value,
     retry_class: crate::http::RequestRetryClass,
 ) -> Result<UpsertResponse> {
+    use std::fmt::Write;
+
     validate_sobject_name(sobject)?;
     validate_external_id_field(external_id_field)?;
 
-    // ⚡ Bolt: Pass `utf8_percent_encode` directly to `format!` to avoid an intermediate `String` allocation.
+    // ⚡ Bolt: Pass `utf8_percent_encode` directly to `write!` on a pre-allocated String
+    // to avoid intermediate `format!` heap allocations.
     let encoded_value = utf8_percent_encode(external_id_value, UPSERT_ENCODE_SET);
 
-    let api_path = if api_path_prefix.is_empty() {
-        format!(
-            "sobjects/{}/{}/{}",
-            sobject, external_id_field, encoded_value
-        )
-    } else {
-        format!(
-            "{}/sobjects/{}/{}/{}",
-            api_path_prefix, sobject, external_id_field, encoded_value
-        )
-    };
+    // Base capacity for "sobjects/{sobject}/{field}/{value}"
+    let mut capacity = 11 + sobject.len() + external_id_field.len() + external_id_value.len() * 3;
+    if !api_path_prefix.is_empty() {
+        capacity += api_path_prefix.len() + 1; // prefix + "/"
+    }
+
+    let mut api_path = String::with_capacity(capacity);
+    if !api_path_prefix.is_empty() {
+        let _ = write!(&mut api_path, "{}/", api_path_prefix);
+    }
+
+    let _ = write!(
+        &mut api_path,
+        "sobjects/{}/{}/{}",
+        sobject, external_id_field, encoded_value
+    );
     let url = session.resolve_url(&api_path).await?;
 
     let request = session
