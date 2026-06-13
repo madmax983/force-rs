@@ -1,12 +1,126 @@
---- crates/force/src/schema/llm_context_generator.rs
-+++ crates/force/src/schema/llm_context_generator.rs
-@@ -48,7 +48,8 @@
-     );
-     let _ = writeln!(context, "Fields:");
+<<<<<<< SEARCH
+        file.flush().await?;
+        Ok(count)
+    }
+}
 
--    let mut sorted_fields = describe.fields.clone();
-+    // ⚡ Bolt: Collecting references to fields into a Vec avoids the costly `describe.fields.clone()` heap allocation since we just need to sort them before iterating.
-+    let mut sorted_fields: Vec<&crate::types::describe::FieldDescribe> = describe.fields.iter().collect();
-     sorted_fields.sort_by(|a, b| crate::schema::cmp_field_names(&a.name, &b.name));
+#[cfg(test)]
+=======
+        file.flush().await?;
+        Ok(count)
+    }
 
-     for field in sorted_fields {
+    /// Exports a SOQL query to a CSV file.
+    ///
+    /// # Arguments
+    ///
+    /// * `soql` - The SOQL query string.
+    /// * `path` - The file path to write the CSV output.
+    ///
+    /// # Returns
+    ///
+    /// Returns the number of records written.
+    #[cfg(feature = "csv")]
+    pub async fn export_to_csv(&self, soql: &str, path: impl AsRef<Path>) -> Result<usize> {
+        let mut stream = self
+            .client
+            .rest()
+            .query_stream::<crate::types::DynamicSObject>(soql);
+
+        let mut count = 0;
+        let mut writer = csv::Writer::from_path(path)
+            .map_err(|e| ForceError::from(SerializationError::from(e)))?;
+        let mut headers_written = false;
+
+        while let Some(record) = stream.next().await? {
+            if !headers_written {
+                let keys: Vec<&str> = record.fields.keys().map(String::as_str).collect();
+                writer.write_record(&keys)
+                    .map_err(|e| ForceError::from(SerializationError::from(e)))?;
+                headers_written = true;
+            }
+
+            let mut row = Vec::with_capacity(record.fields.len());
+            for value in record.fields.values() {
+                if value.is_null() {
+                    row.push(String::new());
+                } else if let serde_json::Value::String(s) = value {
+                    row.push(s.clone());
+                } else {
+                    row.push(value.to_string());
+                }
+            }
+            writer.write_record(&row)
+                .map_err(|e| ForceError::from(SerializationError::from(e)))?;
+
+            count += 1;
+        }
+
+        writer.flush().map_err(|e| ForceError::from(SerializationError::from(e)))?;
+        Ok(count)
+    }
+
+    /// Exports a SOQL query to a CSV file, masking sensitive fields.
+    ///
+    /// # Arguments
+    ///
+    /// * `sobject_name` - The API name of the SObject being queried (e.g., "Contact").
+    /// * `soql` - The SOQL query string.
+    /// * `path` - The file path to write the CSV output.
+    ///
+    /// # Returns
+    ///
+    /// Returns the number of records written.
+    #[cfg(feature = "csv")]
+    pub async fn export_masked_to_csv(
+        &self,
+        sobject_name: &str,
+        soql: &str,
+        path: impl AsRef<Path>,
+    ) -> Result<usize> {
+        let describe = self.client.rest().describe(sobject_name).await?;
+        let masker = DataMasker::new(&describe);
+
+        let mut stream = self
+            .client
+            .rest()
+            .query_stream::<crate::types::DynamicSObject>(soql);
+
+        let mut count = 0;
+        let mut writer = csv::Writer::from_path(path)
+            .map_err(|e| ForceError::from(SerializationError::from(e)))?;
+        let mut headers_written = false;
+
+        while let Some(mut record) = stream.next().await? {
+            masker.mask_record(&mut record);
+
+            if !headers_written {
+                let keys: Vec<&str> = record.fields.keys().map(String::as_str).collect();
+                writer.write_record(&keys)
+                    .map_err(|e| ForceError::from(SerializationError::from(e)))?;
+                headers_written = true;
+            }
+
+            let mut row = Vec::with_capacity(record.fields.len());
+            for value in record.fields.values() {
+                if value.is_null() {
+                    row.push(String::new());
+                } else if let serde_json::Value::String(s) = value {
+                    row.push(s.clone());
+                } else {
+                    row.push(value.to_string());
+                }
+            }
+            writer.write_record(&row)
+                .map_err(|e| ForceError::from(SerializationError::from(e)))?;
+
+            count += 1;
+        }
+
+        writer.flush().map_err(|e| ForceError::from(SerializationError::from(e)))?;
+        Ok(count)
+    }
+}
+
+#[cfg(test)]
+>>>>>>> REPLACE

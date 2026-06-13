@@ -112,6 +112,125 @@ impl<'a, A: Authenticator> DataArchiver<'a, A> {
         file.flush().await?;
         Ok(count)
     }
+
+    /// Exports a SOQL query to a CSV file.
+    ///
+    /// # Arguments
+    ///
+    /// * `soql` - The SOQL query string.
+    /// * `path` - The file path to write the CSV output.
+    ///
+    /// # Returns
+    ///
+    /// Returns the number of records written.
+    #[cfg(feature = "bulk")]
+    pub async fn export_to_csv(&self, soql: &str, path: impl AsRef<Path>) -> Result<usize> {
+        let mut stream = self
+            .client
+            .rest()
+            .query_stream::<crate::types::DynamicSObject>(soql);
+
+        let mut count = 0;
+        let mut writer = csv::Writer::from_path(path)
+            .map_err(|e| ForceError::from(SerializationError::from(e)))?;
+        let mut headers_written = false;
+
+        while let Some(record) = stream.next().await? {
+            if !headers_written {
+                let keys: Vec<&str> = record.fields.keys().map(String::as_str).collect();
+                writer
+                    .write_record(&keys)
+                    .map_err(|e| ForceError::from(SerializationError::from(e)))?;
+                headers_written = true;
+            }
+
+            let mut row = Vec::with_capacity(record.fields.len());
+            for value in record.fields.values() {
+                if value.is_null() {
+                    row.push(String::new());
+                } else if let serde_json::Value::String(s) = value {
+                    row.push(s.clone());
+                } else {
+                    row.push(value.to_string());
+                }
+            }
+            writer
+                .write_record(&row)
+                .map_err(|e| ForceError::from(SerializationError::from(e)))?;
+
+            count += 1;
+        }
+
+        writer
+            .flush()
+            .map_err(|e| ForceError::from(SerializationError::Csv(csv::Error::from(e))))?;
+        Ok(count)
+    }
+
+    /// Exports a SOQL query to a CSV file, masking sensitive fields.
+    ///
+    /// # Arguments
+    ///
+    /// * `sobject_name` - The API name of the SObject being queried (e.g., "Contact").
+    /// * `soql` - The SOQL query string.
+    /// * `path` - The file path to write the CSV output.
+    ///
+    /// # Returns
+    ///
+    /// Returns the number of records written.
+    #[cfg(feature = "bulk")]
+    pub async fn export_masked_to_csv(
+        &self,
+        sobject_name: &str,
+        soql: &str,
+        path: impl AsRef<Path>,
+    ) -> Result<usize> {
+        let describe = self.client.rest().describe(sobject_name).await?;
+        let masker = DataMasker::new(&describe);
+
+        let mut stream = self
+            .client
+            .rest()
+            .query_stream::<crate::types::DynamicSObject>(soql);
+
+        let mut count = 0;
+        let mut writer = csv::Writer::from_path(path)
+            .map_err(|e| ForceError::from(SerializationError::from(e)))?;
+        let mut headers_written = false;
+
+        while let Some(mut record) = stream.next().await? {
+            masker.mask_record(&mut record);
+
+            if !headers_written {
+                let keys: Vec<&str> = record.fields.keys().map(String::as_str).collect();
+                writer
+                    .write_record(&keys)
+                    .map_err(|e| ForceError::from(SerializationError::from(e)))?;
+                headers_written = true;
+            }
+
+            let mut row = Vec::with_capacity(record.fields.len());
+            for value in record.fields.values() {
+                if value.is_null() {
+                    row.push(String::new());
+                } else if let serde_json::Value::String(s) = value {
+                    row.push(s.clone());
+                } else {
+                    row.push(value.to_string());
+                }
+            }
+            writer
+                .write_record(&row)
+                .map_err(|e| ForceError::from(SerializationError::from(e)))?;
+
+            count += 1;
+        }
+
+        writer
+            .flush()
+            .map_err(|e| ForceError::from(SerializationError::Csv(csv::Error::from(e))))?;
+        Ok(count)
+    }
 }
 
 #[cfg(test)]
@@ -284,6 +403,166 @@ mod tests {
         let record: serde_json::Value = serde_json::from_str(lines[0]).must();
         assert_eq!(record["Name"], "Jane Doe");
         assert_eq!(record["Email"], "***@***.***"); // Should be masked!
+
+        let _ = std::fs::remove_file(file_path);
+    }
+
+    #[tokio::test]
+    #[cfg(feature = "bulk")]
+    async fn test_export_to_csv() {
+        let mock_server = MockServer::start().await;
+
+        let query_response = json!({
+            "totalSize": 2,
+            "done": true,
+            "records": [
+                {
+                    "attributes": {"type": "Account", "url": "/services/data/v60.0/sobjects/Account/001xx000000001AAA"},
+                    "Id": "001xx000000001AAA",
+                    "Name": "Acme",
+                    "Description": null
+                },
+                {
+                    "attributes": {"type": "Account", "url": "/services/data/v60.0/sobjects/Account/001xx000000002AAA"},
+                    "Id": "001xx000000002AAA",
+                    "Name": "Globex",
+                    "Description": "Test"
+                }
+            ]
+        });
+
+        Mock::given(method("GET"))
+            .and(path("/services/data/v60.0/query"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(query_response))
+            .mount(&mock_server)
+            .await;
+
+        let auth = MockAuthenticator::new("token", &mock_server.uri());
+        let client = ForceClientBuilder::new()
+            .authenticate(auth)
+            .build()
+            .await
+            .must();
+        let archiver = DataArchiver::new(&client);
+
+        let file_path = std::env::temp_dir().join(format!("export_{}.csv", std::process::id()));
+
+        let soql = "SELECT Id, Name, Description FROM Account";
+        let count = archiver.export_to_csv(soql, &file_path).await.must();
+
+        assert_eq!(count, 2);
+
+        let mut rdr = csv::Reader::from_path(&file_path).must();
+        let headers = rdr.headers().must();
+        assert!(headers.iter().any(|h| h == "Name"));
+
+        let records: Vec<csv::StringRecord> = rdr.records().map(|r| r.must()).collect();
+        assert_eq!(records.len(), 2);
+
+        let _ = std::fs::remove_file(file_path);
+    }
+
+    #[tokio::test]
+    #[cfg(feature = "bulk")]
+    async fn test_export_masked_to_csv() {
+        let mock_server = MockServer::start().await;
+
+        let describe_json: serde_json::Value = serde_json::from_str(r#"{
+            "name": "Contact",
+            "label": "Contact",
+            "custom": false,
+            "queryable": true,
+            "activateable": false, "createable": true, "customSetting": false, "deletable": true,
+            "deprecatedAndHidden": false, "feedEnabled": true, "hasSubtypes": false,
+            "isSubtype": false, "keyPrefix": "003", "labelPlural": "Contacts", "layoutable": true,
+            "mergeable": true, "mruEnabled": true, "replicateable": true, "retrieveable": true,
+            "searchable": true, "triggerable": true, "undeletable": true, "updateable": true,
+            "urls": {}, "childRelationships": [], "recordTypeInfos": [],
+            "fields": [
+                {
+                    "name": "Name", "type": "string", "label": "Name", "createable": true,
+                    "autoNumber": false, "calculated": false,
+                    "aggregatable": true, "byteLength": 18,
+                    "cascadeDelete": false, "caseSensitive": false, "custom": false,
+                    "defaultedOnCreate": true, "dependentPicklist": false, "deprecatedAndHidden": false,
+                    "digits": 0, "displayLocationInDecimal": false, "encrypted": false, "externalId": false,
+                    "filterable": true, "groupable": true, "highScaleNumber": false, "htmlFormatted": false,
+                    "idLookup": true, "length": 18, "nameField": false, "namePointing": false, "nillable": false,
+                    "permissionable": false, "polymorphicForeignKey": false, "precision": 0, "queryByDistance": false,
+                    "restrictedDelete": false, "restrictedPicklist": false, "scale": 0, "soapType": "xsd:string",
+                    "sortable": true, "unique": false, "updateable": false, "writeRequiresMasterRead": false,
+                    "referenceTo": []
+                },
+                {
+                    "name": "Email", "type": "email", "label": "Email", "createable": true,
+                    "autoNumber": false, "calculated": false,
+                    "aggregatable": true, "byteLength": 18,
+                    "cascadeDelete": false, "caseSensitive": false, "custom": false,
+                    "defaultedOnCreate": true, "dependentPicklist": false, "deprecatedAndHidden": false,
+                    "digits": 0, "displayLocationInDecimal": false, "encrypted": false, "externalId": false,
+                    "filterable": true, "groupable": true, "highScaleNumber": false, "htmlFormatted": false,
+                    "idLookup": true, "length": 18, "nameField": false, "namePointing": false, "nillable": false,
+                    "permissionable": false, "polymorphicForeignKey": false, "precision": 0, "queryByDistance": false,
+                    "restrictedDelete": false, "restrictedPicklist": false, "scale": 0, "soapType": "xsd:string",
+                    "sortable": true, "unique": false, "updateable": false, "writeRequiresMasterRead": false,
+                    "referenceTo": []
+                }
+            ]
+        }"#).must();
+
+        Mock::given(method("GET"))
+            .and(path("/services/data/v60.0/sobjects/Contact/describe"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(describe_json))
+            .mount(&mock_server)
+            .await;
+
+        let query_response = json!({
+            "totalSize": 1,
+            "done": true,
+            "records": [
+                {
+                    "attributes": {"type": "Contact", "url": "/services/data/v60.0/sobjects/Contact/003xx000000001AAA"},
+                    "Id": "003xx000000001AAA",
+                    "Name": "Jane Doe",
+                    "Email": "jane.doe@example.com"
+                }
+            ]
+        });
+
+        Mock::given(method("GET"))
+            .and(path("/services/data/v60.0/query"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(query_response))
+            .mount(&mock_server)
+            .await;
+
+        let auth = MockAuthenticator::new("token", &mock_server.uri());
+        let client = ForceClientBuilder::new()
+            .authenticate(auth)
+            .build()
+            .await
+            .must();
+        let archiver = DataArchiver::new(&client);
+
+        let file_path =
+            std::env::temp_dir().join(format!("export_masked_{}.csv", std::process::id()));
+
+        let soql = "SELECT Id, Name, Email FROM Contact";
+        let count = archiver
+            .export_masked_to_csv("Contact", soql, &file_path)
+            .await
+            .must();
+
+        assert_eq!(count, 1);
+
+        let mut rdr = csv::Reader::from_path(&file_path).must();
+
+        let headers = rdr.headers().must();
+        let email_idx = headers.iter().position(|h| h == "Email").must();
+
+        let records: Vec<csv::StringRecord> = rdr.records().map(|r| r.must()).collect();
+        assert_eq!(records.len(), 1);
+
+        assert_eq!(&records[0][email_idx], "***@***.***"); // Masked
 
         let _ = std::fs::remove_file(file_path);
     }

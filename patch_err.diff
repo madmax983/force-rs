@@ -1,0 +1,28 @@
+<<<<<<< SEARCH
+        writer.flush().map_err(|e| ForceError::from(SerializationError::from(e)))?;
+        Ok(count)
+    }
+
+    /// Exports a SOQL query to a CSV file, masking sensitive fields.
+=======
+        writer.flush().map_err(|e| ForceError::from(SerializationError::Csv(csv::Error::from(e))))?;
+        Ok(count)
+    }
+
+    /// Exports a SOQL query to a CSV file, masking sensitive fields.
+>>>>>>> REPLACE
+<<<<<<< SEARCH
+        writer.flush().map_err(|e| ForceError::from(SerializationError::from(e)))?;
+        Ok(count)
+    }
+}
+
+#[cfg(test)]
+=======
+        writer.flush().map_err(|e| ForceError::from(SerializationError::Csv(csv::Error::from(e))))?;
+        Ok(count)
+    }
+}
+
+#[cfg(test)]
+>>>>>>> REPLACE
