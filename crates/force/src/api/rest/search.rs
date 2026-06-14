@@ -3,7 +3,7 @@
 //! This module provides types and methods for executing SOSL searches across
 //! multiple objects and fields in Salesforce.
 
-use crate::api::builder_unwrap::BuilderUnwrapExt;
+
 use crate::types::validator::validate_sobject_name;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
@@ -98,6 +98,7 @@ pub struct SearchQueryBuilder {
     limit: Option<u32>,
     /// Offset for pagination.
     offset: Option<u32>,
+    error: Option<String>,
 }
 
 impl SearchQueryBuilder {
@@ -110,6 +111,7 @@ impl SearchQueryBuilder {
             returning: Vec::new(),
             limit: None,
             offset: None,
+            error: None,
         }
     }
 
@@ -177,6 +179,15 @@ impl SearchQueryBuilder {
         sobject: impl Into<String>,
         fields: &[impl AsRef<str>],
     ) -> crate::error::Result<Self> {
+        self.try_returning_internal(sobject, fields)?;
+        Ok(self)
+    }
+
+    fn try_returning_internal(
+        &mut self,
+        sobject: impl Into<String>,
+        fields: &[impl AsRef<str>],
+    ) -> crate::error::Result<()> {
         let sobject = sobject.into();
         validate_sobject_name(&sobject)?;
 
@@ -193,7 +204,7 @@ impl SearchQueryBuilder {
         }
 
         self.returning.push((sobject, fields_str));
-        Ok(self)
+        Ok(())
     }
 
     /// Adds an object type to return with specific fields.
@@ -208,9 +219,13 @@ impl SearchQueryBuilder {
     /// Panics if object names contain non-alphanumeric/underscore characters or
     /// if field names contain characters other than alphanumeric, underscores, or dots.
     #[must_use]
-    pub fn returning(self, sobject: impl Into<String>, fields: &[impl AsRef<str>]) -> Self {
-        self.try_returning(sobject, fields)
-            .unwrap_or_panic("returning")
+    pub fn returning(mut self, sobject: impl Into<String>, fields: &[impl AsRef<str>]) -> Self {
+        if let Err(e) = self.try_returning_internal(sobject, fields) {
+            if self.error.is_none() {
+                self.error = Some(e.to_string());
+            }
+        }
+        self
     }
 
     /// Sets the maximum number of records to return per object.
@@ -234,6 +249,10 @@ impl SearchQueryBuilder {
     /// Returns an error if search text is empty or no objects are specified in RETURNING.
     pub fn try_build(self) -> crate::error::Result<String> {
         use std::fmt::Write;
+
+        if let Some(err) = self.error {
+            return Err(crate::error::ForceError::InvalidInput(err));
+        }
 
         if self.search_text.is_empty() {
             return Err(crate::error::ForceError::InvalidInput(
@@ -294,7 +313,8 @@ impl SearchQueryBuilder {
     /// Panics if search text is empty or no objects are specified in RETURNING.
     #[must_use]
     pub fn build(self) -> String {
-        self.try_build().unwrap_or_panic("build")
+        self.try_build()
+            .unwrap_or_else(|e| panic!("Invalid input in build: {}", e))
     }
 }
 
@@ -450,7 +470,7 @@ mod tests {
 
     #[test]
     #[should_panic(
-        expected = "Invalid input in returning: invalid input: field name contains invalid character: '@' in \"Invalid@Field\""
+        expected = "Invalid input in build: invalid input: invalid input: field name contains invalid character: \'@\' in \"Invalid@Field\""
     )]
     fn test_returning_invalid_character_fallback() {
         let _ = SearchQueryBuilder::new()
@@ -697,40 +717,24 @@ mod tests {
 
     #[test]
     #[should_panic(
-        expected = "Invalid input in returning: invalid input: SObject name contains invalid characters: Invalid;DROP"
+        expected = "Invalid input in build: invalid input: invalid input: SObject name contains invalid characters: Invalid;DROP"
     )]
-    fn test_returning_panics_on_invalid_sobject() {
-        let _ = SearchQueryBuilder::new()
+    fn test_returning_panics_on_invalid_sobject_in_build() {
+        let builder = SearchQueryBuilder::new()
             .find("Test")
             .returning("Invalid;DROP", &["Id"]);
+        let _ = builder.build();
     }
 
     #[test]
     #[should_panic(
-        expected = "Invalid input in returning: invalid input: field name contains invalid character outside quotes: ';' in \"Invalid;Field\""
+        expected = "Invalid input in build: invalid input: invalid input: field name contains invalid character outside quotes: \';\' in \"Invalid;Field\""
     )]
-    fn test_returning_panics_on_invalid_field() {
-        let _ = SearchQueryBuilder::new()
+    fn test_returning_panics_on_invalid_field_in_build() {
+        let builder = SearchQueryBuilder::new()
             .find("Test")
             .returning("Account", &["Invalid;Field"]);
-    }
-
-    #[test]
-    #[should_panic(expected = "Invalid input in test_context: invalid input: test error")]
-    fn test_unwrap_or_panic_helper() {
-        let result: crate::error::Result<()> = Err(crate::error::ForceError::InvalidInput(
-            "test error".to_string(),
-        ));
-        result.unwrap_or_panic("test_context");
-    }
-
-    #[test]
-    #[should_panic(expected = "Invalid input in test_context: invalid input: test error")]
-    fn test_unwrap_or_panic_helper_err() {
-        let result: crate::error::Result<()> = Err(crate::error::ForceError::InvalidInput(
-            "test error".to_string(),
-        ));
-        result.unwrap_or_panic("test_context");
+        let _ = builder.build();
     }
 
     #[test]

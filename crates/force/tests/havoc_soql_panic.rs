@@ -3,7 +3,7 @@
 //! # 👺 Havoc: `SoqlQueryBuilder` Panic
 //!
 //! **The Trigger:** Passing arbitrary strings (e.g., from an untrusted client) into
-//! `where_eq`, `where_in`, `order_by`, etc.
+//! `try_where_eq`, `where_in`, `order_by`, etc.
 //! **The Stack Trace:** Panic at `validate_field` unwrapping inside the library instead
 //! of returning a recoverable `Result`.
 
