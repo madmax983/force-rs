@@ -11,15 +11,15 @@ use crate::{
     store::pg::{AppendResult, DeadLetter, PgStore},
 };
 
-struct OutboxRow {
+struct OutboxRow<'a> {
     outbox_id: i64,
-    tenant: String,
-    object_name: String,
-    external_id: String,
-    source_cursor: String,
-    op: String,
+    tenant: &'a str,
+    object_name: &'a str,
+    external_id: &'a str,
+    source_cursor: &'a str,
+    op: &'a str,
     tombstone: bool,
-    payload_text: String,
+    payload_text: &'a str,
     created_at: chrono::DateTime<chrono::Utc>,
 }
 
@@ -49,14 +49,15 @@ fn outbox_source_cursor(raw: &str) -> Result<SourceCursor, ForceSyncError> {
     Ok(SourceCursor::PostgresLsn(raw.to_string()))
 }
 
-fn outbox_envelope(row: &OutboxRow) -> Result<ChangeEnvelope, ForceSyncError> {
-    let payload: Value = serde_json::from_str(&row.payload_text)?;
+/// ⚡ Bolt: Uses zero-copy borrowing of strings from tokio-postgres `Row` instead of allocating strings per outbox entry.
+fn outbox_envelope(row: &OutboxRow<'_>) -> Result<ChangeEnvelope, ForceSyncError> {
+    let payload: Value = serde_json::from_str(row.payload_text)?;
     let sync_key = SyncKey::new(
-        row.tenant.clone(),
-        row.object_name.clone(),
-        row.external_id.clone(),
+        row.tenant.to_owned(),
+        row.object_name.to_owned(),
+        row.external_id.to_owned(),
     )?;
-    let operation = outbox_operation(&row.op, row.tombstone)?;
+    let operation = outbox_operation(row.op, row.tombstone)?;
 
     Ok(ChangeEnvelope::new(
         sync_key,
@@ -65,7 +66,7 @@ fn outbox_envelope(row: &OutboxRow) -> Result<ChangeEnvelope, ForceSyncError> {
         row.created_at,
         payload,
     )
-    .with_cursor(outbox_source_cursor(&row.source_cursor)?))
+    .with_cursor(outbox_source_cursor(row.source_cursor)?))
 }
 
 const fn row_content_error(error: &ForceSyncError) -> bool {
@@ -80,18 +81,18 @@ const fn row_content_error(error: &ForceSyncError) -> bool {
 
 async fn quarantine_row<C>(
     client: &C,
-    row: &OutboxRow,
+    row: &OutboxRow<'_>,
     error: &ForceSyncError,
 ) -> Result<(), ForceSyncError>
 where
     C: GenericClient + Sync + ?Sized,
 {
-    let payload = serde_json::from_str::<Value>(&row.payload_text).ok();
+    let payload = serde_json::from_str::<Value>(row.payload_text).ok();
     let dead_letter = DeadLetter {
         task_id: None,
-        tenant: Some(row.tenant.clone()),
-        object_name: Some(row.object_name.clone()),
-        external_id: Some(row.external_id.clone()),
+        tenant: Some(row.tenant.to_owned()),
+        object_name: Some(row.object_name.to_owned()),
+        external_id: Some(row.external_id.to_owned()),
         error_message: error.to_string(),
         payload,
     };
@@ -135,7 +136,7 @@ where
 
     let mut processed = 0usize;
 
-    for row in rows {
+    for row in &rows {
         let outbox_row = OutboxRow {
             outbox_id: row.get("outbox_id"),
             tenant: row.get("tenant"),
