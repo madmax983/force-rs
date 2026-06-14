@@ -3,7 +3,6 @@
 //! This module provides a builder and utilities for constructing SOQL queries
 //! safely, preventing injection vulnerabilities.
 
-
 use crate::error::ForceError;
 use crate::types::validator::{validate_field_name, validate_sobject_name};
 use std::borrow::Cow;

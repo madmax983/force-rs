@@ -3,7 +3,6 @@
 //! This module provides types and methods for executing SOSL searches across
 //! multiple objects and fields in Salesforce.
 
-
 use crate::types::validator::validate_sobject_name;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
