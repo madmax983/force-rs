@@ -343,4 +343,44 @@ mod tests {
         let debug_str = format!("{:?}", handler);
         assert!(!debug_str.is_empty());
     }
+
+    #[tokio::test]
+    async fn test_execute_post_resolves_url_and_sends_json() {
+        use serde_json::json;
+        use wiremock::matchers::{body_json, method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        use crate::config::ClientConfig;
+
+        let server = MockServer::start().await;
+        let auth = MockAuthenticator::new("token", &server.uri());
+        let config = ClientConfig {
+            api_version: "v59.0".to_string(),
+            ..Default::default()
+        };
+        let client = builder()
+            .authenticate(auth)
+            .config(config)
+            .build()
+            .await
+            .must();
+
+        let expected_request_body = json!({ "foo": "bar" });
+        let expected_response_body = json!({ "success": true });
+
+        Mock::given(method("POST"))
+            .and(path("/services/data/v59.0/some/path"))
+            .and(body_json(&expected_request_body))
+            .respond_with(ResponseTemplate::new(200).set_body_json(&expected_response_body))
+            .mount(&server)
+            .await;
+
+        let handler = client.rest();
+        let result: serde_json::Value = handler
+            .execute_post("some/path", &expected_request_body, "Error msg")
+            .await
+            .must();
+
+        assert_eq!(result, expected_response_body);
+    }
 }

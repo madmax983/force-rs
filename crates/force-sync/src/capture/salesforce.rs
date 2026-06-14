@@ -331,4 +331,61 @@ mod tests {
         };
         assert_eq!(recovered, original_position);
     }
+
+    // ── build_envelope ───────────────────────────────────────────────
+
+    #[test]
+    fn build_envelope_returns_error_if_external_id_field_missing() {
+        let tenant = "tenant-a";
+        let object = ObjectSync::new("Account"); // no external id set
+        let payload = json!({});
+
+        let result = build_envelope(tenant, &object, payload, 123);
+
+        assert!(matches!(
+            result,
+            Err(ForceSyncError::MissingConfiguration {
+                field: "external_id_field"
+            })
+        ));
+    }
+
+    #[test]
+    fn build_envelope_returns_error_if_payload_missing_external_id() {
+        let tenant = "tenant-a";
+        let object = ObjectSync::new("Account").external_id("ExtId__c");
+        let payload = json!({ "OtherField": "123" });
+
+        let result = build_envelope(tenant, &object, payload, 123);
+
+        assert!(matches!(
+            result,
+            Err(ForceSyncError::InvalidStoredValue {
+                field: "external_id",
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn build_envelope_success() {
+        let tenant = "tenant-a";
+        let object = ObjectSync::new("Account").external_id("ExtId__c");
+        let payload =
+            json!({ "ExtId__c": "ext123", "ChangeEventHeader": { "changeType": "CREATE" } });
+
+        let Ok(envelope) = build_envelope(tenant, &object, payload, 123) else {
+            panic!("Expected envelope to build successfully");
+        };
+
+        assert_eq!(envelope.sync_key().tenant(), "tenant-a");
+        assert_eq!(envelope.sync_key().object_name(), "Account");
+        assert_eq!(envelope.sync_key().external_id(), "ext123");
+        assert_eq!(envelope.source(), SourceSystem::Salesforce);
+        assert_eq!(envelope.operation(), ChangeOperation::Upsert);
+        assert_eq!(
+            envelope.cursor(),
+            Some(&SourceCursor::SalesforceReplayId(123))
+        );
+    }
 }
