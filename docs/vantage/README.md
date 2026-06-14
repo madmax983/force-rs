@@ -5,6 +5,7 @@ Design backlog and product-spec notes for incubating `force-rs` capabilities. Th
 ## Streaming and Integration
 
 - [`apex-rest-api.md`](apex-rest-api.md): native Apex REST handler for custom Salesforce endpoints.
+- [`webhook-listener.md`](webhook-listener.md): secure webhook listener for Outbound Messages and Platform Events.
 - [`bulk-pk-chunking.md`](bulk-pk-chunking.md): Bulk API PK Chunking Support.
 - [`consent-portability-api.md`](consent-portability-api.md): Consent and Portability API support.
 - [`force-sync-engine.md`](force-sync-engine.md): Postgres-first bidirectional sync engine.
