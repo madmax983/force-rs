@@ -21,7 +21,7 @@ use crate::error::{PubSubError, Result};
 use crate::interceptor;
 use crate::proto::eventbus_v1::{ProducerEvent, PublishRequest, pub_sub_client::PubSubClient};
 use crate::schema_cache::SchemaCache;
-use crate::types::{PublishResponse, PublishResult, ReplayId};
+use crate::types::PublishResponse;
 
 /// Internal trait to abstract token + instance_url retrieval without
 /// carrying the full generic `A: Authenticator` parameter on `PublishSink`.
@@ -198,20 +198,7 @@ fn map_proto_response(proto_resp: crate::proto::eventbus_v1::PublishResponse) ->
     let results = proto_resp
         .results
         .into_iter()
-        .map(|r| PublishResult {
-            replay_id: if r.replay_id.is_empty() {
-                None
-            } else {
-                Some(ReplayId::from_bytes(r.replay_id))
-            },
-            error: r.error.and_then(|e| {
-                if e.code == 0 && e.msg.is_empty() {
-                    None
-                } else {
-                    Some(e.msg)
-                }
-            }),
-        })
+        .map(crate::publisher::map_proto_publish_result)
         .collect();
     PublishResponse {
         topic_name: proto_resp.topic_name,
@@ -274,6 +261,7 @@ mod tests {
         use crate::proto::eventbus_v1::{
             PublishResponse as ProtoResp, PublishResult as ProtoResult,
         };
+
         let proto = ProtoResp {
             topic_name: "/event/Test__e".to_string(),
             results: vec![ProtoResult {
@@ -297,6 +285,7 @@ mod tests {
         use crate::proto::eventbus_v1::{
             PubSubError as ProtoErr, PublishResponse as ProtoResp, PublishResult as ProtoResult,
         };
+
         let proto = ProtoResp {
             topic_name: "/event/Test__e".to_string(),
             results: vec![ProtoResult {
@@ -316,6 +305,7 @@ mod tests {
 
     #[test]
     fn test_publish_result_success_is_success() {
+        use crate::types::{PublishResult, ReplayId};
         let r = PublishResult {
             replay_id: Some(ReplayId::from_bytes(vec![1, 2, 3])),
             error: None,
@@ -325,6 +315,7 @@ mod tests {
 
     #[test]
     fn test_publish_result_error_is_not_success() {
+        use crate::types::PublishResult;
         let r = PublishResult {
             replay_id: None,
             error: Some("PUBLISH_ERROR".to_string()),

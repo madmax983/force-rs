@@ -41,3 +41,10 @@
 **Finding:** Missing mutation test coverage in `upsert_with_retry_class` and `validate_query_input_len`. The `MAX_QUERY_INPUT_BYTES` threshold tests were weak, and the response limit calculation in `upsert` lacked explicit bound verification.
 **Evidence:** 5+ surviving mutants around `100 * 1024 * 1024` limit calculation in `upsert` paths. Surviving `>=` mutant on `validate_query_input_len`.
 **Recommendation:** Ensure exact boundary coverage in threshold validation methods (like EXACT max allowed size), and explicitly cover payload too large errors (`HttpError::PayloadTooLarge`) by setting up mocks with very large mock response data.
+
+**[PublishSink Close Error Handing]**
+**Module:** `crates/force-pubsub/src/publish_sink.rs`
+**Severity:** 🟡 Suspect
+**Finding:** `PublishSink<T>::close` returned `Ok(())` under mutation because `test_publish_stream_close_returns_err` did not actually catch it properly.
+**Evidence:** `cargo mutants` found `PublishSink<T>::close -> Result<()> with Ok(())` survives.
+**Recommendation:** Ensure `close()` is fully tested against network errors during shutdown.
