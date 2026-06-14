@@ -41,3 +41,10 @@
 **Finding:** Missing mutation test coverage in `upsert_with_retry_class` and `validate_query_input_len`. The `MAX_QUERY_INPUT_BYTES` threshold tests were weak, and the response limit calculation in `upsert` lacked explicit bound verification.
 **Evidence:** 5+ surviving mutants around `100 * 1024 * 1024` limit calculation in `upsert` paths. Surviving `>=` mutant on `validate_query_input_len`.
 **Recommendation:** Ensure exact boundary coverage in threshold validation methods (like EXACT max allowed size), and explicitly cover payload too large errors (`HttpError::PayloadTooLarge`) by setting up mocks with very large mock response data.
+
+**[Elenchus: force-pubsub::handler Test Quality Audit]**
+**Module:** crates/force-pubsub/src/handler.rs
+**Severity:** 🔴 Critical
+**Finding:** Missing mutation test coverage for fetch_tenant_id failure modes and connect boundary limits.
+**Evidence:** 7 surviving mutants around fetch_tenant_id replacing return values with empty strings, and boundary <= checks in connect.
+**Recommendation:** Add tests for HTTP 500 status on userinfo response, missing JSON fields in userinfo response, boundary batch_size (1 and 100) and http:// connection schema.

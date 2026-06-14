@@ -186,3 +186,131 @@ async fn test_get_topic_can_publish_is_true() {
     let info = handler.get_topic("/event/MyEvent__e").await.unwrap();
     assert!(info.can_publish);
 }
+
+#[tokio::test]
+async fn test_fetch_tenant_id_success() {
+    let url = start_mock_server(MockPubSubService::default()).await;
+    let (userinfo_mock, instance_url) = start_userinfo_mock("00Dxx0000001gEREAY").await;
+    let auth = TestAuth::new("test-token", &instance_url);
+    let client = builder().authenticate(auth).build().await.unwrap();
+    let config = PubSubConfig {
+        endpoint: url,
+        ..PubSubConfig::default()
+    };
+    let handler = PubSubHandler::connect(client.session(), config)
+        .await
+        .unwrap();
+
+    // Trigger get_tenant_id via get_topic
+    let info = handler.get_topic("/event/MyEvent__e").await.unwrap();
+    assert_eq!(info.topic_name, "/event/MyEvent__e");
+    drop(userinfo_mock);
+}
+
+#[tokio::test]
+async fn test_fetch_tenant_id_error_status() {
+    let grpc_url = start_mock_server(MockPubSubService::default()).await;
+    let server = MockServer::start().await;
+    wiremock::Mock::given(wiremock::matchers::method("GET"))
+        .and(wiremock::matchers::path("/services/oauth2/userinfo"))
+        .respond_with(wiremock::ResponseTemplate::new(500))
+        .mount(&server)
+        .await;
+    let instance_url = server.uri();
+
+    let auth = TestAuth::new("test-token", &instance_url);
+    let client = builder().authenticate(auth).build().await.unwrap();
+    let config = PubSubConfig {
+        endpoint: grpc_url,
+        ..PubSubConfig::default()
+    };
+    let handler = PubSubHandler::connect(client.session(), config)
+        .await
+        .unwrap();
+
+    let result = handler.get_topic("/event/MyEvent__e").await;
+    let Err(err) = result else {
+        panic!("expected error")
+    };
+    assert!(matches!(err, PubSubError::Config(_)));
+}
+
+#[tokio::test]
+async fn test_fetch_tenant_id_parse_error() {
+    let grpc_url = start_mock_server(MockPubSubService::default()).await;
+    let server = MockServer::start().await;
+    wiremock::Mock::given(wiremock::matchers::method("GET"))
+        .and(wiremock::matchers::path("/services/oauth2/userinfo"))
+        .respond_with(wiremock::ResponseTemplate::new(200).set_body_string("{}"))
+        .mount(&server)
+        .await;
+    let instance_url = server.uri();
+
+    let auth = TestAuth::new("test-token", &instance_url);
+    let client = builder().authenticate(auth).build().await.unwrap();
+    let config = PubSubConfig {
+        endpoint: grpc_url,
+        ..PubSubConfig::default()
+    };
+    let handler = PubSubHandler::connect(client.session(), config)
+        .await
+        .unwrap();
+
+    let result = handler.get_topic("/event/MyEvent__e").await;
+    let Err(err) = result else {
+        panic!("expected error")
+    };
+    assert!(matches!(err, PubSubError::Config(_)));
+}
+
+#[tokio::test]
+async fn test_connect_valid_batch_size_boundaries() {
+    let url = start_mock_server(MockPubSubService::default()).await;
+    let auth = TestAuth::new("test-token", "https://test.salesforce.com");
+    let client = builder().authenticate(auth.clone()).build().await.unwrap();
+    let config1 = PubSubConfig {
+        endpoint: url.clone(),
+        batch_size: 1,
+        ..PubSubConfig::default()
+    };
+    // Should not error on boundary batch sizes
+    let _handler1 = PubSubHandler::connect(client.session(), config1)
+        .await
+        .unwrap();
+
+    let client2 = builder().authenticate(auth.clone()).build().await.unwrap();
+    let config100 = PubSubConfig {
+        endpoint: url,
+        batch_size: 100,
+        ..PubSubConfig::default()
+    };
+    let _handler100 = PubSubHandler::connect(client2.session(), config100)
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn test_connect_http_endpoint_no_tls_error() {
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let addr = listener.local_addr().unwrap();
+    let auth = TestAuth::new("test-token", "https://test.salesforce.com");
+    let client = builder().authenticate(auth).build().await.unwrap();
+    let config = PubSubConfig {
+        endpoint: format!("http://{addr}"),
+        ..PubSubConfig::default()
+    };
+
+    let result = tokio::time::timeout(
+        Duration::from_secs(2),
+        PubSubHandler::connect(client.session(), config),
+    )
+    .await;
+
+    if let Ok(Err(err)) = result {
+        let error = format!("{err:?}");
+        assert!(
+            !error.contains("Connecting to HTTPS without TLS enabled"),
+            "HTTP endpoints must not be configured with tonic TLS support, got: {error}"
+        );
+    }
+}
