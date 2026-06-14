@@ -34,7 +34,7 @@ pub fn parse_api_error(status_code: u16, body: &str) -> HttpError {
 
             // ⚡ Bolt: Pre-allocate a single buffer to avoid multiple heap allocations
             // from intermediate strings and `.join(", ")`.
-            // 🔒 Warden: Use saturating math to prevent integer overflow DOS vectors on malformed payloads.
+            // 🔒 Warden: Use bounded math to prevent integer overflow DOS vectors on malformed payloads.
             let mut cap = code
                 .len()
                 .saturating_add(first_error.message.len())
@@ -47,12 +47,12 @@ pub fn parse_api_error(status_code: u16, body: &str) -> HttpError {
                     .fold(0, |acc, len| acc.saturating_add(len));
                 cap = cap.saturating_add(11).saturating_add(fields_len_sum); // " (fields: )" + field lengths
                 if first_error.fields.len() > 1 {
-                    cap = cap.saturating_add(
-                        first_error.fields.len().saturating_sub(1).saturating_mul(2),
-                    ); // ", " separators
+                    cap = cap.saturating_add((first_error.fields.len() - 1) * 2); // ", " separators
                 }
             }
 
+            // Limit pre-allocation to 64KB to avoid allocator panics on malicious inputs
+            cap = std::cmp::min(cap, 65536);
             let mut message = String::with_capacity(cap);
             message.push('[');
             message.push_str(code);

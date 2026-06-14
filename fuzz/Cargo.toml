@@ -23,3 +23,21 @@ name = "sosl_escape"
 path = "fuzz_targets/sosl_escape.rs"
 test = false
 doc = false
+
+[[bin]]
+name = "fuzz_http_error"
+path = "fuzz_targets/fuzz_http_error.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_salesforce_id"
+path = "fuzz_targets/fuzz_salesforce_id.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_soql_builder"
+path = "fuzz_targets/fuzz_soql_builder.rs"
+test = false
+doc = false

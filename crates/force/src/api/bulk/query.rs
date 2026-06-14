@@ -144,7 +144,7 @@ impl<T, A: crate::auth::Authenticator> BulkQueryStream<T, A> {
     /// # Errors
     ///
     /// This version always succeeds; errors occur during streaming.
-    #[allow(clippy::unused_async)]
+    #[allow(clippy::unused_async, clippy::unused_async_trait_impl)]
     pub(crate) async fn new_async(
         inner: Arc<crate::session::Session<A>>,
         job_id: &str,
@@ -499,7 +499,7 @@ impl<A: crate::auth::Authenticator> super::BulkHandler<A> {
     ///     println!("{:?}", record);
     /// }
     /// ```
-    #[allow(clippy::unused_async)]
+    #[allow(clippy::unused_async, clippy::unused_async_trait_impl)]
     pub async fn query_results<T>(&self, job_id: &str) -> Result<BulkQueryStream<T, A>>
     where
         T: for<'de> Deserialize<'de>,
