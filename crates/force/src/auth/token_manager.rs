@@ -260,7 +260,10 @@ impl<A: Authenticator> TokenManager<A> {
                     None => false,
                 };
                 if !is_same {
-                    return Ok((*token.clone()).clone());
+                    // ⚡ Bolt: Use `(**token).clone()` instead of `(*token.clone()).clone()`.
+                    // This avoids cloning the outer `Arc` wrapper just to dereference it,
+                    // saving one atomic reference count increment/decrement per race condition.
+                    return Ok((**token).clone());
                 }
             }
         }
