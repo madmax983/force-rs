@@ -67,6 +67,9 @@ pub use schema_linter::{
     LintResult, LintRule, LintSeverity, MissingCustomSuffixRule, SchemaLinter, TooManyFieldsRule,
 };
 pub use schema_visualizer::generate_visualizer_report;
+
+pub(crate) mod mermaid_query_plan_visualizer;
+pub use mermaid_query_plan_visualizer::generate_mermaid_query_plan;
 pub use sql_exporter::{generate_ddl, write_ddl};
 pub use type_generator::generate_rust_struct;
 pub use typescript_generator::{generate_typescript_interface, write_typescript_interface};
