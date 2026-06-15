@@ -150,7 +150,6 @@ mod tests {
         });
         serde_json::from_value(describe_json).must()
     }
-
     fn mock_field(
         name: &str,
         field_type: &str,
@@ -158,25 +157,18 @@ mod tests {
         auto_number: bool,
         calculated: bool,
     ) -> serde_json::Value {
-        json!({
-            "name": name,
-            "type": field_type,
-            "label": format!("{} Label", name),
-            "referenceTo": [],
-            "createable": createable,
-            "autoNumber": auto_number,
-            "calculated": calculated,
-            // Mandatory fields filler
-            "aggregatable": true, "byteLength": 18,
-            "cascadeDelete": false, "caseSensitive": false, "custom": false,
-            "defaultedOnCreate": true, "dependentPicklist": false, "deprecatedAndHidden": false,
-            "digits": 0, "displayLocationInDecimal": false, "encrypted": false, "externalId": false,
-            "filterable": true, "groupable": true, "highScaleNumber": false, "htmlFormatted": false,
-            "idLookup": true, "length": 18, "nameField": false, "namePointing": false, "nillable": false,
-            "permissionable": false, "polymorphicForeignKey": false, "precision": 0, "queryByDistance": false,
-            "restrictedDelete": false, "restrictedPicklist": false, "scale": 0, "soapType": "tns:ID",
-            "sortable": true, "unique": false, "updateable": false, "writeRequiresMasterRead": false
-        })
+        let ft = match field_type {
+            "id" => crate::types::describe::FieldType::Id,
+            _ => crate::types::describe::FieldType::String,
+        };
+        serde_json::to_value(
+            crate::test_support::MockFieldDescribeBuilder::new(name, ft)
+                .createable(createable)
+                .auto_number(auto_number)
+                .calculated(calculated)
+                .build(),
+        )
+        .must()
     }
 
     #[test]
@@ -392,7 +384,6 @@ mod additional_tests {
         });
         serde_json::from_value(describe_json).must()
     }
-
     fn mock_field(
         name: &str,
         field_type: &str,
@@ -400,24 +391,18 @@ mod additional_tests {
         auto_number: bool,
         calculated: bool,
     ) -> serde_json::Value {
-        json!({
-            "name": name,
-            "type": field_type,
-            "label": format!("{} Label", name),
-            "createable": createable,
-            "autoNumber": auto_number,
-            "calculated": calculated,
-            "aggregatable": true, "byteLength": 18,
-            "cascadeDelete": false, "caseSensitive": false, "custom": false,
-            "defaultedOnCreate": true, "dependentPicklist": false, "deprecatedAndHidden": false,
-            "digits": 0, "displayLocationInDecimal": false, "encrypted": false, "externalId": false,
-            "filterable": true, "groupable": true, "highScaleNumber": false, "htmlFormatted": false,
-            "idLookup": true, "length": 18, "nameField": false, "namePointing": false, "nillable": false,
-            "permissionable": false, "polymorphicForeignKey": false, "precision": 0, "queryByDistance": false,
-            "referenceTo": [], "restrictedDelete": false, "restrictedPicklist": false, "scale": 0,
-            "soapType": "tns:ID", "sortable": true, "unique": false, "updateable": false,
-            "writeRequiresMasterRead": false
-        })
+        let ft = match field_type {
+            "id" => crate::types::describe::FieldType::Id,
+            _ => crate::types::describe::FieldType::String,
+        };
+        serde_json::to_value(
+            crate::test_support::MockFieldDescribeBuilder::new(name, ft)
+                .createable(createable)
+                .auto_number(auto_number)
+                .calculated(calculated)
+                .build(),
+        )
+        .must()
     }
 
     #[test]

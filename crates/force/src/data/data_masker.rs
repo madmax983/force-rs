@@ -151,27 +151,19 @@ mod tests {
         });
         serde_json::from_value(describe_json).must()
     }
-
     fn mock_field(name: &str, field_type: &str, encrypted: bool) -> serde_json::Value {
-        json!({
-            "name": name,
-            "type": field_type,
-            "label": format!("{} Label", name),
-            "referenceTo": [],
-            "encrypted": encrypted,
-            "createable": true, "autoNumber": false, "calculated": false,
-            "aggregatable": true, "byteLength": 255, "cascadeDelete": false,
-            "caseSensitive": false, "custom": false, "defaultedOnCreate": false,
-            "dependentPicklist": false, "deprecatedAndHidden": false, "digits": 0,
-            "displayLocationInDecimal": false, "externalId": false, "filterable": true,
-            "groupable": true, "highScaleNumber": false, "htmlFormatted": false,
-            "idLookup": false, "length": 255, "nameField": false, "namePointing": false,
-            "nillable": true, "permissionable": false, "polymorphicForeignKey": false,
-            "precision": 0, "queryByDistance": false, "restrictedDelete": false,
-            "restrictedPicklist": false, "scale": 0, "soapType": "xsd:string",
-            "sortable": true, "unique": false, "updateable": true,
-            "writeRequiresMasterRead": false
-        })
+        let ft = match field_type {
+            "email" => crate::types::describe::FieldType::Email,
+            "phone" => crate::types::describe::FieldType::Phone,
+            "currency" => crate::types::describe::FieldType::Currency,
+            _ => crate::types::describe::FieldType::String,
+        };
+        serde_json::to_value(
+            crate::test_support::MockFieldDescribeBuilder::new(name, ft)
+                .encrypted(encrypted)
+                .build(),
+        )
+        .must()
     }
 
     fn create_mock_record(fields: serde_json::Map<String, Value>) -> DynamicSObject {

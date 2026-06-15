@@ -98,3 +98,7 @@
 **[Flatten Match With Original Error Context]**
 **Learning:** When flattening nested `match` statements handling `Result` outputs, rewriting them with `let Ok(...) = result else` guard clauses can lead to silently swallowing the underlying original error if not passed through explicitly, which breaks observability and changes runtime behavior. Using `.map_err(...)?` provides a flatter structure while preserving the exact error mappings natively.
 **Action:** When acting as 'Forge', never drop the original underlying error variable (e.g., `e`). To flatten `Result` mapping, use `.map_err(|e| { ... })?` with the `?` operator instead of verbose `match` statements or dropping context inside `else` guards, ensuring the error propagates cleanly without over-nesting.
+
+**[Extract Builder for Complex Mocks]**
+**Learning:** Large JSON string literals and manual struct definitions with 40+ fields in tests are hard to read and maintain. Previous `mock_field` functions created duplication across test modules.
+**Action:** Extract a central `MockFieldDescribeBuilder` in `test_support.rs` and use `.build()` or `serde_json::to_value(builder.build())` to standardize test fixtures and reduce boilerplate.

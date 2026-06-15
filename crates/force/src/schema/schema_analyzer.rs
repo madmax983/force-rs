@@ -221,26 +221,23 @@ mod tests {
         defaulted: bool,
         calculated: bool,
     ) -> serde_json::Value {
-        json!({
-            "name": name,
-            "type": field_type,
-            "label": format!("{} Label", name),
-            "referenceTo": if field_type == "reference" { vec!["Account"] } else { vec![] },
-            "custom": custom,
-            "nillable": nillable,
-            "defaultedOnCreate": defaulted,
-            "calculated": calculated,
-            // Mandatory fields filler
-            "createable": true, "autoNumber": false, "aggregatable": true, "byteLength": 18,
-            "cascadeDelete": false, "caseSensitive": false,
-            "dependentPicklist": false, "deprecatedAndHidden": false,
-            "digits": 0, "displayLocationInDecimal": false, "encrypted": false, "externalId": false,
-            "filterable": true, "groupable": true, "highScaleNumber": false, "htmlFormatted": false,
-            "idLookup": true, "length": 18, "nameField": false, "namePointing": false,
-            "permissionable": false, "polymorphicForeignKey": false, "precision": 0, "queryByDistance": false,
-            "restrictedDelete": false, "restrictedPicklist": false, "scale": 0, "soapType": "tns:ID",
-            "sortable": true, "unique": false, "updateable": false, "writeRequiresMasterRead": false
-        })
+        let ft = match field_type {
+            "id" => crate::types::describe::FieldType::Id,
+            "int" => crate::types::describe::FieldType::Int,
+            "double" => crate::types::describe::FieldType::Double,
+            "boolean" => crate::types::describe::FieldType::Boolean,
+            "reference" => crate::types::describe::FieldType::Reference,
+            _ => crate::types::describe::FieldType::String,
+        };
+        let mut builder = crate::test_support::MockFieldDescribeBuilder::new(name, ft)
+            .custom(custom)
+            .nillable(nillable)
+            .defaulted_on_create(defaulted)
+            .calculated(calculated);
+        if field_type == "reference" {
+            builder = builder.reference_to(vec!["Account".to_string()]);
+        }
+        serde_json::to_value(builder.build()).must()
     }
 
     #[test]

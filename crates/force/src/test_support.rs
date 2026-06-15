@@ -179,6 +179,46 @@ impl MockFieldDescribeBuilder {
         self
     }
 
+    pub fn custom(mut self, custom: bool) -> Self {
+        self.field.custom = custom;
+        self
+    }
+
+    pub fn calculated(mut self, calculated: bool) -> Self {
+        self.field.calculated = calculated;
+        self
+    }
+
+    pub fn reference_to(mut self, reference_to: Vec<String>) -> Self {
+        self.field.reference_to = reference_to;
+        self
+    }
+
+    pub fn encrypted(mut self, encrypted: bool) -> Self {
+        self.field.encrypted = encrypted;
+        self
+    }
+
+    pub fn unique(mut self, unique: bool) -> Self {
+        self.field.unique = unique;
+        self
+    }
+
+    pub fn mask_type(mut self, mask_type: Option<String>) -> Self {
+        self.field.mask_type = mask_type;
+        self
+    }
+
+    pub fn name_field(mut self, name_field: bool) -> Self {
+        self.field.name_field = name_field;
+        self
+    }
+
+    pub fn auto_number(mut self, auto_number: bool) -> Self {
+        self.field.auto_number = auto_number;
+        self
+    }
+
     pub fn nillable(mut self, nillable: bool) -> Self {
         self.field.nillable = nillable;
         self
