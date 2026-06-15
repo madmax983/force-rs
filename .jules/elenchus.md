@@ -41,3 +41,17 @@
 **Finding:** Missing mutation test coverage in `upsert_with_retry_class` and `validate_query_input_len`. The `MAX_QUERY_INPUT_BYTES` threshold tests were weak, and the response limit calculation in `upsert` lacked explicit bound verification.
 **Evidence:** 5+ surviving mutants around `100 * 1024 * 1024` limit calculation in `upsert` paths. Surviving `>=` mutant on `validate_query_input_len`.
 **Recommendation:** Ensure exact boundary coverage in threshold validation methods (like EXACT max allowed size), and explicitly cover payload too large errors (`HttpError::PayloadTooLarge`) by setting up mocks with very large mock response data.
+
+**[Elenchus: force-pubsub::subscriber handle_reconnect backoff math]**
+**Module:** `crates/force-pubsub/src/subscriber.rs`
+**Severity:** 🔴 Critical
+**Finding:** `cargo mutants` exposed that the backoff logic math operators (+, -) inside `handle_reconnect` were completely untested.
+**Evidence:** Surviving mutants on the subtraction `backoff.delay_for(*reconnect_count - 1)`
+**Recommendation:** Added `test_backoff_delay_for_reconnect_count` verifying that exactly the right accumulated timespan elapses to implicitly prove that `delay_for` receives the correct iteration numbers and uses the right mathematics.
+
+**[Elenchus: force::api::rest_operation validate_query_input_len]**
+**Module:** `crates/force/src/api/rest_operation.rs`
+**Severity:** 🔴 Critical
+**Finding:** `cargo mutants` exposed that `validate_query_input_len` boundaries were untested. `>=` or `<` boundary changes survived the test suite because it only tested EXACT threshold sizes, never testing `+ 1` or `- 1`.
+**Evidence:** 3 surviving mutants around `>=` condition on `MAX_QUERY_INPUT_BYTES`.
+**Recommendation:** Added `test_validate_query_input_len_boundary` explicit boundary test.
