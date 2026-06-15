@@ -16,3 +16,7 @@
 **[Unify error handling]
 **Tangle:** Inconsistent error handling across modules where Result was used with explicit types.
 **Blueprint:** Standardized error types across all modules to enforce domain boundaries.
+
+**[Unify error handling]**
+**Tangle:** Inconsistent error handling across modules where Result was used with explicit types.
+**Blueprint:** Standardized error types across all modules to enforce domain boundaries.

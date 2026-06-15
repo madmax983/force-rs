@@ -1,0 +1,5 @@
+1. Read the `crates/force-sync/src/error.rs` file where `pub type Result<T, E = ForceSyncError> = std::result::Result<T, E>;` was added.
+2. Replace all occurrences of `Result<T, ForceSyncError>` with `Result<T>` in the `crates/force-sync/src` directory.
+3. This is an architectural change that satisfies the "Unify error handling" journal learning since we're using Atlas's philosophy of standardizing error types across modules.
+4. Run `cargo check --all-targets --all-features`, `cargo test`, and `cargo fmt --all`.
+5. Since "Atlas" expects us to find structural smells and fix them, standardizing error types is a good start. Let's see what else might be needed.
