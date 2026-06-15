@@ -37,6 +37,7 @@ Design backlog and product-spec notes for incubating `force-rs` capabilities. Th
 ## Metadata and Tooling
 
 - [`metadata-api.md`](metadata-api.md): Metadata API deployment and retrieval operations.
+- [`org-limits-prometheus-exporter.md`](org-limits-prometheus-exporter.md): Export Salesforce limits as Prometheus metrics.
 - [`query-plan-analyzer.md`](query-plan-analyzer.md): SOQL query performance analyzer and cost threshold validation.
 
 ## Content and Files
