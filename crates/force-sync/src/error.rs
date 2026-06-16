@@ -82,6 +82,10 @@ pub enum ForceSyncError {
         value: String,
     },
 
+    /// Payload is too deeply nested for hashing.
+    #[error("payload depth exceeded limit")]
+    PayloadDepthExceeded,
+
     /// Placeholder variant while the crate surface is being implemented.
     #[error("not implemented")]
     NotImplemented,

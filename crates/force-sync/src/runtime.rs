@@ -252,7 +252,7 @@ impl<A: Authenticator> SyncEngine<A> {
             envelope,
             salesforce_id.as_ref(),
             matches!(envelope.operation(), ChangeOperation::Delete),
-        );
+        )?;
         self.store.put_link(&link).await?;
         self.store
             .ack_task_for_worker(&self.worker_id, task.task_id)
@@ -303,7 +303,7 @@ impl<A: Authenticator> SyncEngine<A> {
                         .await;
                 };
 
-                let link = project_sync_link(existing_link, envelope, Some(&salesforce_id), false);
+                let link = project_sync_link(existing_link, envelope, Some(&salesforce_id), false)?;
                 self.store.put_link(&link).await?;
                 self.store
                     .ack_task_for_worker(&self.worker_id, task.task_id)
@@ -348,7 +348,7 @@ impl<A: Authenticator> SyncEngine<A> {
                             envelope,
                             result.salesforce_id.as_ref(),
                             false,
-                        );
+                        )?;
                         self.store.put_link(&link).await?;
                         self.store
                             .ack_task_for_worker(&self.worker_id, task.task_id)
@@ -398,7 +398,7 @@ impl<A: Authenticator> SyncEngine<A> {
                             envelope,
                             Some(&salesforce_id),
                             true,
-                        );
+                        )?;
                         self.store.put_link(&link).await?;
                         self.store
                             .ack_task_for_worker(&self.worker_id, task.task_id)

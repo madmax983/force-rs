@@ -5,14 +5,14 @@ use force::types::SalesforceId;
 use crate::{model::ChangeEnvelope, store::pg::SyncLink};
 
 /// Projects the latest sync link row after a successful apply.
-#[must_use]
+#[allow(clippy::missing_errors_doc)]
 pub fn project_sync_link(
     existing: Option<&SyncLink>,
     envelope: &ChangeEnvelope,
     salesforce_id: Option<&SalesforceId>,
     tombstone: bool,
-) -> SyncLink {
-    SyncLink {
+) -> Result<SyncLink, crate::error::ForceSyncError> {
+    Ok(SyncLink {
         tenant: envelope.sync_key().tenant().to_owned(),
         object_name: envelope.sync_key().object_name().to_owned(),
         external_id: envelope.sync_key().external_id().to_owned(),
@@ -24,7 +24,7 @@ pub fn project_sync_link(
         last_source_cursor: envelope
             .cursor()
             .map(crate::model::SourceCursor::as_db_value),
-        last_payload_hash: Some(envelope.payload_hash().to_vec()),
+        last_payload_hash: Some(envelope.payload_hash()?.to_vec()),
         tombstone,
-    }
+    })
 }

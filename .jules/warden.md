@@ -60,3 +60,6 @@
 **2026-04-09 - [Capped Responses for CSV Parsing]
 **Threat:** [Unbounded memory allocation during CSV and bytes fetching causing DoS attacks]
 **Defense:** [Replaced unbounded .bytes().await with read_capped_body_bytes(response, 100 * 1024 * 1024) inside bulk query and ingest functions]
+**[Stack Overflow DoS in JSON hashing]**
+**Threat:** Recursive hashing of maliciously nested JSON structures could lead to a stack overflow and cause a Denial of Service.
+**Defense:** Implemented a depth limit of 128 in `hash_json_value`.

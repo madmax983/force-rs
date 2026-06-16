@@ -53,7 +53,7 @@ fn journal_values(envelope: &ChangeEnvelope) -> Result<JournalValues<'_>, ForceS
         operation: envelope.operation().as_db_value(),
         tombstone: matches!(envelope.operation(), ChangeOperation::Delete),
         payload: envelope.payload(),
-        payload_hash: envelope.payload_hash(),
+        payload_hash: envelope.payload_hash()?,
     })
 }
 

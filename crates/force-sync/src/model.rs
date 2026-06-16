@@ -158,30 +158,37 @@ impl ChangeEnvelope {
     }
 
     /// Returns a stable hash for the payload contents.
-    #[must_use]
-    pub fn payload_hash(&self) -> [u8; 32] {
+    #[allow(clippy::missing_errors_doc)]
+    pub fn payload_hash(&self) -> Result<[u8; 32], crate::error::ForceSyncError> {
         payload_hash(&self.payload)
     }
 
     /// Returns `true` when the provided payload hashes to the same value.
     #[must_use]
     pub fn payload_hash_matches(&self, other: &Value) -> bool {
-        self.payload_hash() == payload_hash(other)
+        self.payload_hash().is_ok_and(|h| payload_hash(other).is_ok_and(|oh| h == oh))
     }
 }
 
 /// Returns a stable BLAKE3 hash for a JSON payload.
-#[must_use]
-pub fn payload_hash(payload: &Value) -> [u8; 32] {
+#[allow(clippy::missing_errors_doc)]
+pub fn payload_hash(payload: &Value) -> Result<[u8; 32], crate::error::ForceSyncError> {
     let mut hasher = blake3::Hasher::new();
     // ⚡ Bolt: Write JSON directly into the hasher without an intermediate String allocation.
     // We avoid `payload.clone()` by manually sorting object keys dynamically during hashing.
-    hash_json_value(payload, &mut hasher);
-    *hasher.finalize().as_bytes()
+    hash_json_value(payload, &mut hasher, 0)?;
+    Ok(*hasher.finalize().as_bytes())
 }
 
-fn hash_json_value(value: &Value, hasher: &mut blake3::Hasher) {
-    use std::io::Write;
+use std::io::Write;
+fn hash_json_value(
+    value: &Value,
+    hasher: &mut blake3::Hasher,
+    depth: usize,
+) -> Result<(), crate::error::ForceSyncError> {
+    if depth > 128 {
+        return Err(crate::error::ForceSyncError::PayloadDepthExceeded);
+    }
     match value {
         Value::Object(map) => {
             let _ = Write::write_all(hasher, b"{");
@@ -197,7 +204,7 @@ fn hash_json_value(value: &Value, hasher: &mut blake3::Hasher) {
                 first = false;
                 let _ = serde_json::to_writer(&mut *hasher, k);
                 let _ = Write::write_all(hasher, b":");
-                hash_json_value(v, hasher);
+                hash_json_value(v, hasher, depth + 1)?;
             }
             let _ = Write::write_all(hasher, b"}");
         }
@@ -209,7 +216,7 @@ fn hash_json_value(value: &Value, hasher: &mut blake3::Hasher) {
                     let _ = Write::write_all(hasher, b",");
                 }
                 first = false;
-                hash_json_value(v, hasher);
+                hash_json_value(v, hasher, depth + 1)?;
             }
             let _ = Write::write_all(hasher, b"]");
         }
@@ -217,6 +224,7 @@ fn hash_json_value(value: &Value, hasher: &mut blake3::Hasher) {
             let _ = serde_json::to_writer(hasher, value);
         }
     }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -251,7 +259,14 @@ mod tests {
             payload,
         );
 
-        assert_eq!(first.payload_hash(), second.payload_hash());
+        assert_eq!(
+            first
+                .payload_hash()
+                .unwrap_or_else(|_| panic!("hash failed")),
+            second
+                .payload_hash()
+                .unwrap_or_else(|_| panic!("hash failed"))
+        );
     }
 
     #[test]
@@ -272,8 +287,8 @@ mod tests {
         sorted_payload.sort_all_objects();
 
         assert_eq!(
-            super::payload_hash(&payload),
-            super::payload_hash(&sorted_payload)
+            super::payload_hash(&payload).unwrap_or_else(|_| panic!("hash failed")),
+            super::payload_hash(&sorted_payload).unwrap_or_else(|_| panic!("hash failed"))
         );
     }
 

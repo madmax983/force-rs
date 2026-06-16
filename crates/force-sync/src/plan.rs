@@ -72,7 +72,9 @@ pub fn merge_payload(
         return MergeOutcome::Merged(incoming_payload.clone());
     };
 
-    if payload_hash(current_payload) == payload_hash(incoming_payload) {
+    if payload_hash(current_payload).ok() == payload_hash(incoming_payload).ok()
+        && payload_hash(current_payload).is_ok()
+    {
         return MergeOutcome::Noop;
     }
 
