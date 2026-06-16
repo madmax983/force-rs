@@ -98,3 +98,8 @@
 **[Flatten Match With Original Error Context]**
 **Learning:** When flattening nested `match` statements handling `Result` outputs, rewriting them with `let Ok(...) = result else` guard clauses can lead to silently swallowing the underlying original error if not passed through explicitly, which breaks observability and changes runtime behavior. Using `.map_err(...)?` provides a flatter structure while preserving the exact error mappings natively.
 **Action:** When acting as 'Forge', never drop the original underlying error variable (e.g., `e`). To flatten `Result` mapping, use `.map_err(|e| { ... })?` with the `?` operator instead of verbose `match` statements or dropping context inside `else` guards, ensuring the error propagates cleanly without over-nesting.
+**[Extract Postman Collection Generator]**\n**Learning:**  was a large 140-line 'God Function' full of repetitive string formatting () for URLs and dummy payload construction.\n**Action:** Extract the repetitive logic into , , and  helper functions to flatten the code, reduce visual noise, and adhere to DRY principles.
+
+**[Extract Postman Collection Generator]**
+**Learning:** `generate_postman_collection` was a large 140-line 'God Function' full of repetitive string formatting (`format!`) for URLs and dummy payload construction.
+**Action:** Extract the repetitive logic into `generate_dummy_body`, `create_url_object`, and `create_request_item` helper functions to flatten the code, reduce visual noise, and adhere to DRY principles.

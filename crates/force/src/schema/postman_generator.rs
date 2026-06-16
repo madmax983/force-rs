@@ -12,8 +12,105 @@ use serde_json::{Value, json};
 
 /// Generates a Postman v2.1.0 Collection for an SObject.
 #[cfg(feature = "schema")]
+fn generate_dummy_body(describe: &SObjectDescribe, is_update: bool) -> String {
+    let mut body = serde_json::Map::new();
+    for field in &describe.fields {
+        if field.name == "Id" {
+            continue;
+        }
+        let should_include = if is_update {
+            field.updateable
+        } else {
+            field.createable
+        };
+        if should_include {
+            body.insert(
+                field.name.clone(),
+                json!(format!("{{{{${}}}}}", field.name)),
+            );
+        }
+    }
+    serde_json::to_string_pretty(&body).unwrap_or_else(|_| "{}".to_string())
+}
+
+#[cfg(feature = "schema")]
+fn create_url_object(name: &str, with_id: bool) -> Value {
+    let raw = if with_id {
+        format!(
+            "{{{{_endpoint}}}}/services/data/v60.0/sobjects/{}/{{{{recordId}}}}",
+            name
+        )
+    } else {
+        format!("{{{{_endpoint}}}}/services/data/v60.0/sobjects/{}", name)
+    };
+
+    let mut path = vec![
+        json!("services"),
+        json!("data"),
+        json!("v60.0"),
+        json!("sobjects"),
+        json!(name),
+    ];
+    if with_id {
+        path.push(json!("{{recordId}}"));
+    }
+
+    json!({
+        "raw": raw,
+        "host": [
+            "{{_endpoint}}"
+        ],
+        "path": path
+    })
+}
+
+#[cfg(feature = "schema")]
+fn create_request_item(
+    name: &str,
+    method: &str,
+    label: &str,
+    body_str: Option<&str>,
+    with_id: bool,
+) -> Value {
+    let mut request = json!({
+        "method": method,
+        "header": [],
+        "url": create_url_object(name, with_id)
+    });
+
+    if let Some(body) = body_str {
+        request["header"] = json!([
+            {
+                "key": "Content-Type",
+                "value": "application/json"
+            }
+        ]);
+        request["body"] = json!({
+            "mode": "raw",
+            "raw": body
+        });
+    }
+
+    json!({
+        "name": format!("{} {}", method_to_action(method), label),
+        "request": request
+    })
+}
+
+#[cfg(feature = "schema")]
+fn method_to_action(method: &str) -> &'static str {
+    match method {
+        "POST" => "Create",
+        "GET" => "Read",
+        "PATCH" => "Update",
+        "DELETE" => "Delete",
+        _ => "Unknown",
+    }
+}
+
+/// Generates a Postman v2.1.0 Collection for an SObject.
+#[cfg(feature = "schema")]
 #[must_use]
-#[allow(clippy::too_many_lines)]
 pub fn generate_postman_collection(describe: &SObjectDescribe) -> Value {
     let name = &describe.name;
     let label = if describe.label.is_empty() {
@@ -22,29 +119,8 @@ pub fn generate_postman_collection(describe: &SObjectDescribe) -> Value {
         describe.label.clone()
     };
 
-    // Build dummy json body for create/update using fields that are createable/updateable
-    let mut create_body = serde_json::Map::new();
-    let mut update_body = serde_json::Map::new();
-
-    for field in &describe.fields {
-        if field.createable && field.name != "Id" {
-            create_body.insert(
-                field.name.clone(),
-                json!(format!("{{{{${}}}}}", field.name)),
-            );
-        }
-        if field.updateable && field.name != "Id" {
-            update_body.insert(
-                field.name.clone(),
-                json!(format!("{{{{${}}}}}", field.name)),
-            );
-        }
-    }
-
-    let create_body_str =
-        serde_json::to_string_pretty(&create_body).unwrap_or_else(|_| "{}".to_string());
-    let update_body_str =
-        serde_json::to_string_pretty(&update_body).unwrap_or_else(|_| "{}".to_string());
+    let create_body_str = generate_dummy_body(describe, false);
+    let update_body_str = generate_dummy_body(describe, true);
 
     json!({
         "info": {
@@ -53,107 +129,10 @@ pub fn generate_postman_collection(describe: &SObjectDescribe) -> Value {
             "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
         },
         "item": [
-            {
-                "name": format!("Create {}", label),
-                "request": {
-                    "method": "POST",
-                    "header": [
-                        {
-                            "key": "Content-Type",
-                            "value": "application/json"
-                        }
-                    ],
-                    "body": {
-                        "mode": "raw",
-                        "raw": create_body_str
-                    },
-                    "url": {
-                        "raw": format!("{{{{_endpoint}}}}/services/data/v60.0/sobjects/{}", name),
-                        "host": [
-                            "{{_endpoint}}"
-                        ],
-                        "path": [
-                            "services",
-                            "data",
-                            "v60.0",
-                            "sobjects",
-                            name
-                        ]
-                    }
-                }
-            },
-            {
-                "name": format!("Read {}", label),
-                "request": {
-                    "method": "GET",
-                    "header": [],
-                    "url": {
-                        "raw": format!("{{{{_endpoint}}}}/services/data/v60.0/sobjects/{}/{{{{recordId}}}}", name),
-                        "host": [
-                            "{{_endpoint}}"
-                        ],
-                        "path": [
-                            "services",
-                            "data",
-                            "v60.0",
-                            "sobjects",
-                            name,
-                            "{{recordId}}"
-                        ]
-                    }
-                }
-            },
-            {
-                "name": format!("Update {}", label),
-                "request": {
-                    "method": "PATCH",
-                    "header": [
-                        {
-                            "key": "Content-Type",
-                            "value": "application/json"
-                        }
-                    ],
-                    "body": {
-                        "mode": "raw",
-                        "raw": update_body_str
-                    },
-                    "url": {
-                        "raw": format!("{{{{_endpoint}}}}/services/data/v60.0/sobjects/{}/{{{{recordId}}}}", name),
-                        "host": [
-                            "{{_endpoint}}"
-                        ],
-                        "path": [
-                            "services",
-                            "data",
-                            "v60.0",
-                            "sobjects",
-                            name,
-                            "{{recordId}}"
-                        ]
-                    }
-                }
-            },
-            {
-                "name": format!("Delete {}", label),
-                "request": {
-                    "method": "DELETE",
-                    "header": [],
-                    "url": {
-                        "raw": format!("{{{{_endpoint}}}}/services/data/v60.0/sobjects/{}/{{{{recordId}}}}", name),
-                        "host": [
-                            "{{_endpoint}}"
-                        ],
-                        "path": [
-                            "services",
-                            "data",
-                            "v60.0",
-                            "sobjects",
-                            name,
-                            "{{recordId}}"
-                        ]
-                    }
-                }
-            }
+            create_request_item(name, "POST", &label, Some(&create_body_str), false),
+            create_request_item(name, "GET", &label, None, true),
+            create_request_item(name, "PATCH", &label, Some(&update_body_str), true),
+            create_request_item(name, "DELETE", &label, None, true),
         ]
     })
 }
