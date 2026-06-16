@@ -28,3 +28,71 @@ pub fn project_sync_link(
         tombstone,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::identity::SyncKey;
+    use crate::model::{ChangeOperation, SourceSystem};
+    use chrono::Utc;
+    use serde_json::json;
+
+    fn mock_envelope() -> ChangeEnvelope {
+        ChangeEnvelope::new(
+            SyncKey::new("t1", "Account", "ext1")
+                .unwrap_or_else(|_| panic!("failed to create SyncKey")),
+            SourceSystem::Postgres,
+            ChangeOperation::Upsert,
+            Utc::now(),
+            json!({"name": "Test"}),
+        )
+    }
+
+    #[test]
+    fn project_sync_link_new_record_no_cursor() {
+        let envelope = mock_envelope();
+        let link = project_sync_link(None, &envelope, None, false);
+
+        assert_eq!(link.tenant, "t1");
+        assert_eq!(link.object_name, "Account");
+        assert_eq!(link.external_id, "ext1");
+        assert_eq!(link.salesforce_id, None);
+        assert_eq!(link.postgres_id, None);
+        assert_eq!(link.last_source, Some("postgres".to_owned()));
+        assert_eq!(link.last_source_cursor, None);
+        assert_eq!(
+            link.last_payload_hash,
+            Some(envelope.payload_hash().to_vec())
+        );
+        assert!(!link.tombstone);
+    }
+
+    #[test]
+    fn project_sync_link_with_existing_and_cursor() {
+        let envelope = mock_envelope().with_cursor(crate::model::SourceCursor::PostgresLsn(
+            "0/16B3748".to_string(),
+        ));
+        let existing = SyncLink {
+            tenant: "t1".to_string(),
+            object_name: "Account".to_string(),
+            external_id: "ext1".to_string(),
+            salesforce_id: Some("001000000000000".to_string()),
+            postgres_id: Some("pg-id-1".to_string()),
+            last_source: Some("salesforce".to_string()),
+            last_source_cursor: Some("salesforce-replay-id:123".to_string()),
+            last_payload_hash: Some(vec![1, 2, 3]),
+            tombstone: false,
+        };
+
+        let link = project_sync_link(Some(&existing), &envelope, None, true);
+
+        assert_eq!(link.salesforce_id, Some("001000000000000".to_string()));
+        assert_eq!(link.postgres_id, Some("pg-id-1".to_string()));
+        assert_eq!(link.last_source, Some("postgres".to_string()));
+        assert_eq!(
+            link.last_source_cursor,
+            Some("postgres-lsn:0/16B3748".to_string())
+        );
+        assert!(link.tombstone);
+    }
+}
