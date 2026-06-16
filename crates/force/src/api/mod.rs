@@ -34,7 +34,7 @@ pub mod cpq;
 pub mod consent;
 
 pub(crate) mod query_stream;
-pub(crate) mod rest_operation;
+pub mod rest_operation;
 pub(crate) mod soql;
 
 pub use rest_operation::RestOperation;

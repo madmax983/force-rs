@@ -23,3 +23,27 @@ name = "sosl_escape"
 path = "fuzz_targets/sosl_escape.rs"
 test = false
 doc = false
+
+[[bin]]
+name = "resolve_next_records_url"
+path = "fuzz_targets/resolve_next_records_url.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "resolve_next_records_url_2"
+path = "fuzz_targets/resolve_next_records_url_2.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "validate_url_path"
+path = "fuzz_targets/validate_url_path.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "validate_url_path_3"
+path = "fuzz_targets/validate_url_path_3.rs"
+test = false
+doc = false

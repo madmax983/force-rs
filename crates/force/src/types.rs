@@ -9,7 +9,7 @@ pub(crate) mod describe;
 pub(crate) mod query;
 pub(crate) mod salesforce_id;
 pub(crate) mod sobject;
-pub(crate) mod validator;
+pub mod validator;
 
 pub use crate::error::ApiError;
 pub use api_version::{ApiVersion, ApiVersionSupportTier};

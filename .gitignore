@@ -38,3 +38,4 @@ mutants.out.old/
 plan.md
 pr_description.md
 pr-description.md
+fuzz/corpus/
