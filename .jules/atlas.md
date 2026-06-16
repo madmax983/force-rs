@@ -16,3 +16,6 @@
 **[Unify error handling]
 **Tangle:** Inconsistent error handling across modules where Result was used with explicit types.
 **Blueprint:** Standardized error types across all modules to enforce domain boundaries.
+**Unify error handling in force-sync**
+**Tangle:** Inconsistent error handling across modules where Result was used with explicit types.
+**Blueprint:** Standardized error types across all modules to enforce domain boundaries by applying a new Result alias in crates/force-sync/src/error.rs across the crate.

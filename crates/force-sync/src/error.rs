@@ -93,6 +93,9 @@ impl From<force_pubsub::PubSubError> for ForceSyncError {
     }
 }
 
+/// A specialized `Result` type for `ForceSync` operations.
+pub type Result<T, E = crate::error::ForceSyncError> = std::result::Result<T, E>;
+
 #[cfg(test)]
 mod tests {
     use super::*;
