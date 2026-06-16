@@ -12,6 +12,9 @@ pub use data_masker::DataMasker;
 pub use data_seeder::DataSeeder;
 pub use data_validator::{DataValidator, ValidationError};
 
+pub(crate) mod data_mutator;
+pub use data_mutator::{DataMutator, MutationStrategy};
+
 #[cfg(all(feature = "data_utility", feature = "composite_graph"))]
 pub(crate) mod relational_seeder;
 #[cfg(all(feature = "data_utility", feature = "composite_graph"))]
