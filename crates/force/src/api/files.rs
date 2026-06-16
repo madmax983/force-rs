@@ -72,11 +72,14 @@ impl<A: Authenticator> FilesHandler<A> {
         let token = self.session.token_manager.token().await?;
         let api_version = self.session.config.api_version.as_str();
 
-        let url = format!(
-            "{}/services/data/v{}/sobjects/ContentVersion",
-            token.instance_url(),
-            api_version
-        );
+        // ⚡ Bolt: Use pre-allocated String instead of `format!` for URL construction to avoid intermediate allocation overhead.
+        let instance_url = token.instance_url();
+        let capacity = instance_url.len() + 16 + api_version.len() + 24;
+        let mut url = String::with_capacity(capacity);
+        url.push_str(instance_url);
+        url.push_str("/services/data/v");
+        url.push_str(api_version);
+        url.push_str("/sobjects/ContentVersion");
 
         let entity_content = json!({
             "Title": title,
@@ -138,12 +141,16 @@ impl<A: Authenticator> FilesHandler<A> {
         let token = self.session.token_manager.token().await?;
         let api_version = self.session.config.api_version.as_str();
 
-        let url = format!(
-            "{}/services/data/v{}/sobjects/ContentVersion/{}/VersionData",
-            token.instance_url(),
-            api_version,
-            content_version_id
-        );
+        // ⚡ Bolt: Use pre-allocated String instead of `format!` for URL construction to avoid intermediate allocation overhead.
+        let instance_url = token.instance_url();
+        let capacity = instance_url.len() + 16 + api_version.len() + 25 + content_version_id.len() + 12;
+        let mut url = String::with_capacity(capacity);
+        url.push_str(instance_url);
+        url.push_str("/services/data/v");
+        url.push_str(api_version);
+        url.push_str("/sobjects/ContentVersion/");
+        url.push_str(content_version_id);
+        url.push_str("/VersionData");
 
         let response = self
             .session
@@ -182,11 +189,14 @@ impl<A: Authenticator> FilesHandler<A> {
         let token = self.session.token_manager.token().await?;
         let api_version = self.session.config.api_version.as_str();
 
-        let url = format!(
-            "{}/services/data/v{}/sobjects/ContentDocumentLink",
-            token.instance_url(),
-            api_version
-        );
+        // ⚡ Bolt: Use pre-allocated String instead of `format!` for URL construction to avoid intermediate allocation overhead.
+        let instance_url = token.instance_url();
+        let capacity = instance_url.len() + 16 + api_version.len() + 29;
+        let mut url = String::with_capacity(capacity);
+        url.push_str(instance_url);
+        url.push_str("/services/data/v");
+        url.push_str(api_version);
+        url.push_str("/sobjects/ContentDocumentLink");
 
         let payload = json!({
             "ContentDocumentId": content_document_id,
