@@ -176,12 +176,19 @@ pub fn payload_hash(payload: &Value) -> [u8; 32] {
     let mut hasher = blake3::Hasher::new();
     // ⚡ Bolt: Write JSON directly into the hasher without an intermediate String allocation.
     // We avoid `payload.clone()` by manually sorting object keys dynamically during hashing.
-    hash_json_value(payload, &mut hasher);
+    hash_json_value(payload, &mut hasher, 0);
     *hasher.finalize().as_bytes()
 }
 
-fn hash_json_value(value: &Value, hasher: &mut blake3::Hasher) {
+fn hash_json_value(value: &Value, hasher: &mut blake3::Hasher, depth: u32) {
     use std::io::Write;
+
+    // 🔒 Warden: Prevent stack overflow Denial of Service (DoS) on maliciously nested JSON
+    if depth > 128 {
+        let _ = Write::write_all(hasher, b"\"...\"");
+        return;
+    }
+
     match value {
         Value::Object(map) => {
             let _ = Write::write_all(hasher, b"{");
@@ -197,7 +204,7 @@ fn hash_json_value(value: &Value, hasher: &mut blake3::Hasher) {
                 first = false;
                 let _ = serde_json::to_writer(&mut *hasher, k);
                 let _ = Write::write_all(hasher, b":");
-                hash_json_value(v, hasher);
+                hash_json_value(v, hasher, depth + 1);
             }
             let _ = Write::write_all(hasher, b"}");
         }
@@ -209,7 +216,7 @@ fn hash_json_value(value: &Value, hasher: &mut blake3::Hasher) {
                     let _ = Write::write_all(hasher, b",");
                 }
                 first = false;
-                hash_json_value(v, hasher);
+                hash_json_value(v, hasher, depth + 1);
             }
             let _ = Write::write_all(hasher, b"]");
         }
