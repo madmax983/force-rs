@@ -37,15 +37,23 @@ impl Attributes {
     /// Creates new attributes for the given SObject type and ID.
     ///
     /// The URL format follows Salesforce's REST API convention.
+    ///
+    /// ⚡ Bolt: Bypasses `format!` overhead for URL construction by pre-allocating
+    /// a `String` with exact capacity, eliminating intermediate allocations.
     #[must_use]
     pub fn new(type_name: impl Into<String>, id: &SalesforceId, api_version: &str) -> Self {
         let type_ = type_name.into();
-        let url = format!(
-            "/services/data/{}/sobjects/{}/{}",
-            api_version,
-            type_,
-            id.as_str()
-        );
+        let id_str = id.as_str();
+
+        let mut url =
+            String::with_capacity(15 + api_version.len() + 10 + type_.len() + 1 + id_str.len());
+        url.push_str("/services/data/");
+        url.push_str(api_version);
+        url.push_str("/sobjects/");
+        url.push_str(&type_);
+        url.push('/');
+        url.push_str(id_str);
+
         Self { type_, url }
     }
 
