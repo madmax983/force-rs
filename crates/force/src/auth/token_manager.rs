@@ -229,6 +229,9 @@ impl<A: Authenticator> TokenManager<A> {
     /// This is useful for handling 401 responses where the server has invalidated
     /// the token but the client doesn't know it yet.
     ///
+    /// ⚡ **Performance Optimization:** This method avoids a redundant `Arc` clone when returning
+    /// an already-refreshed token by using `(**token).clone()`, eliminating a temporary heap wrapper.
+    ///
     /// # Errors
     ///
     /// Returns an error if the refresh attempt fails.
@@ -260,7 +263,7 @@ impl<A: Authenticator> TokenManager<A> {
                     None => false,
                 };
                 if !is_same {
-                    return Ok((*token.clone()).clone());
+                    return Ok((**token).clone());
                 }
             }
         }
