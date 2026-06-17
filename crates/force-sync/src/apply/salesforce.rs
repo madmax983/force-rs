@@ -91,21 +91,20 @@ impl<A: Authenticator> SalesforceApplier<A> {
         sobject: &str,
         salesforce_id: &SalesforceId,
     ) -> Result<(), ApplyError> {
-        match self.client.rest().delete(sobject, salesforce_id).await {
-            Ok(_) => Ok(()),
-            Err(error) => {
-                if matches!(
-                    error,
-                    ForceError::Http(HttpError::StatusError {
-                        status_code: 404,
-                        ..
-                    })
-                ) {
-                    Ok(())
-                } else {
-                    Err(classify_force_error(error))
-                }
-            }
+        let Err(error) = self.client.rest().delete(sobject, salesforce_id).await else {
+            return Ok(());
+        };
+
+        if matches!(
+            error,
+            ForceError::Http(HttpError::StatusError {
+                status_code: 404,
+                ..
+            })
+        ) {
+            Ok(())
+        } else {
+            Err(classify_force_error(error))
         }
     }
 
