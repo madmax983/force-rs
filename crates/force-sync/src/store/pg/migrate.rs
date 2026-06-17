@@ -2,7 +2,6 @@
 
 use deadpool_postgres::Pool;
 
-use crate::error::ForceSyncError;
 
 const MIGRATIONS: &[(i32, &str)] = &[
     (1, include_str!("../../../migrations/0001_init.sql")),
@@ -17,7 +16,7 @@ const MIGRATIONS: &[(i32, &str)] = &[
 /// # Errors
 ///
 /// Returns a database or pool error if the migration cannot be applied.
-pub async fn migrate(pool: &Pool) -> Result<(), ForceSyncError> {
+pub async fn migrate(pool: &Pool) -> crate::error::Result<()> {
     let mut client = pool.get().await?;
     let transaction = client.transaction().await?;
 

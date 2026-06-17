@@ -47,7 +47,7 @@ pub enum PubSubError {
 }
 
 /// Convenience Result alias for Pub/Sub operations.
-pub type Result<T> = std::result::Result<T, PubSubError>;
+pub type Result<T, E = PubSubError> = std::result::Result<T, E>;
 
 #[cfg(test)]
 mod tests {

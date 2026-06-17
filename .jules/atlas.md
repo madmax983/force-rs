@@ -16,3 +16,7 @@
 **[Unify error handling]
 **Tangle:** Inconsistent error handling across modules where Result was used with explicit types.
 **Blueprint:** Standardized error types across all modules to enforce domain boundaries.
+
+**Unify error handling**
+**Tangle:** Inconsistent error handling across modules where Result was used with explicit types in force-sync and lacked default generic error parameters in force and force-pubsub.
+**Blueprint:** Standardized error types across all modules to enforce domain boundaries by using pub type Result<T, E = [CrateError]> and unified the API surface.

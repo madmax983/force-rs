@@ -252,7 +252,7 @@ pub enum SerializationError {
 }
 
 /// A specialized Result type for Force API operations.
-pub type Result<T> = std::result::Result<T, ForceError>;
+pub type Result<T, E = ForceError> = std::result::Result<T, E>;
 #[cfg(test)]
 mod tests {
     use super::*;
