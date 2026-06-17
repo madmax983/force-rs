@@ -62,13 +62,13 @@ mod tests {
             .unwrap_or_else(|_| panic!("Failed to build client"));
 
         // 1. Exact limit (should pass validation, but may fail due to URL parsing error)
-        let max_query = "A".repeat(100_000);
+        let max_query = "A".repeat(100_000 - 1);
         let result = client.rest().query::<Dummy>(&max_query).await;
         // Even if it fails (e.g. invalid URI), it should NOT fail with our InvalidInput > 100000 limit error.
         if let Err(ForceError::InvalidInput(msg)) = &result {
             assert!(
                 !msg.contains("100,000 bytes"),
-                "100,000 should not trigger the limit error"
+                "100,000 - 1 should not trigger the limit error"
             );
         }
 
@@ -111,17 +111,17 @@ mod tests {
             .unwrap_or_else(|_| panic!("Failed to build client"));
 
         // 1. Exact limit
-        let max_url = format!("/services/data/v60.0/query/{}", "A".repeat(100_000 - 32));
+        let max_url = format!("/services/data/v60.0/query/{}", "A".repeat(100_000 - 33));
         let result = client.rest().query_more::<Dummy>(&max_url).await;
         if let Err(ForceError::InvalidInput(msg)) = &result {
             assert!(
                 !msg.contains("100,000 bytes"),
-                "100,000 should not trigger the limit error"
+                "100,000 - 1 should not trigger the limit error"
             );
         }
 
         // 2. Off-by-one limit
-        let massive_url = "A".repeat(100_001);
+        let massive_url = "A".repeat(100_000);
         let result = client.rest().query_more::<Dummy>(&massive_url).await;
 
         let Err(err) = result else {

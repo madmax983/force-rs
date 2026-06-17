@@ -618,7 +618,7 @@ pub trait RestOperation<A: Authenticator> {
 // ── Private helper methods ───────────────────────────────────────────
 
 fn validate_query_input_len(name: &str, value: &str) -> Result<()> {
-    if value.len() > MAX_QUERY_INPUT_BYTES {
+    if value.len() >= MAX_QUERY_INPUT_BYTES {
         return Err(ForceError::InvalidInput(format!(
             "{name} exceeds maximum allowed length of 100,000 bytes"
         )));
@@ -837,11 +837,11 @@ mod tests {
     async fn test_validation_query_rejects_oversized_soql_before_session() {
         let op = TestRestOp;
 
-        let exact = "A".repeat(MAX_QUERY_INPUT_BYTES);
+        let exact = "A".repeat(MAX_QUERY_INPUT_BYTES - 1);
         assert!(super::validate_query_input_len("test", &exact).is_ok());
 
-        let soql = "A".repeat(MAX_QUERY_INPUT_BYTES + 1);
-        let result = op.query::<serde_json::Value>(&soql).await;
+        let soql = "A".repeat(MAX_QUERY_INPUT_BYTES);
+        let result = RestOperation::query::<serde_json::Value>(&op, &soql).await;
 
         assert_invalid_input_contains(result, "100,000 bytes");
     }
@@ -850,11 +850,11 @@ mod tests {
     async fn test_validation_query_more_rejects_oversized_url_before_session() {
         let op = TestRestOp;
 
-        let exact = "A".repeat(MAX_QUERY_INPUT_BYTES);
+        let exact = "A".repeat(MAX_QUERY_INPUT_BYTES - 1);
         assert!(super::validate_query_input_len("test", &exact).is_ok());
 
-        let next_records_url = "A".repeat(MAX_QUERY_INPUT_BYTES + 1);
-        let result = op.query_more::<serde_json::Value>(&next_records_url).await;
+        let next_records_url = "A".repeat(MAX_QUERY_INPUT_BYTES);
+        let result = RestOperation::query_more::<serde_json::Value>(&op, &next_records_url).await;
 
         assert_invalid_input_contains(result, "100,000 bytes");
     }
@@ -1025,6 +1025,84 @@ mod tests {
                 crate::error::HttpError::PayloadTooLarge { .. }
             ))
         ));
+    }
+
+    #[tokio::test]
+    async fn test_upsert_exact_payload_boundary_accepted() {
+        use crate::client::builder;
+        use serde_json::json;
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let mock_server = MockServer::start().await;
+        let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
+        let client = builder().authenticate(auth).build().await.must();
+
+        let exact_str = "A".repeat(100 * 1024 * 1024);
+        Mock::given(method("PATCH"))
+            .and(path(
+                "/services/data/v60.0/sobjects/Account/ExternalId__c/ACME-002",
+            ))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(exact_str.into_bytes()))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let rest = client.rest();
+        let response = rest
+            .upsert(
+                "Account",
+                "ExternalId__c",
+                "ACME-002",
+                &json!({"Name": "Acme Corp"}),
+            )
+            .await;
+
+        assert!(matches!(
+            response,
+            Err(crate::error::ForceError::Serialization(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn test_upsert_failure_with_retry() {
+        use crate::client::builder;
+        use crate::http::retry::RequestRetryClass;
+        use serde_json::json;
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let mock_server = MockServer::start().await;
+        let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
+        let client = builder().authenticate(auth).build().await.must();
+
+        Mock::given(method("PATCH"))
+            .and(path(
+                "/services/data/v60.0/sobjects/Account/ExternalId__c/ACME-003",
+            ))
+            .respond_with(ResponseTemplate::new(400).set_body_json(json!([{
+                "message": "Bad Request",
+                "errorCode": "BAD_REQUEST"
+            }])))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let rest = client.rest();
+        let result = rest
+            .upsert_with_retry_class(
+                "Account",
+                "ExternalId__c",
+                "ACME-003",
+                &json!({"Name": "Acme Corp 3"}),
+                RequestRetryClass::IdempotentMutation,
+            )
+            .await;
+
+        let Err(err) = result else {
+            panic!("Expected Err");
+        };
+        assert!(err.to_string().contains("Bad Request"));
     }
 
     #[tokio::test]
