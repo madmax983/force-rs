@@ -260,7 +260,8 @@ impl<A: Authenticator> TokenManager<A> {
                     None => false,
                 };
                 if !is_same {
-                    return Ok((*token.clone()).clone());
+                    // ⚡ Bolt: Using `(**token).clone()` avoids an unnecessary atomic refcount increment/decrement on the `Arc` wrapper just to clone the inner `AccessToken`.
+                    return Ok((**token).clone());
                 }
             }
         }
