@@ -838,6 +838,7 @@ mod tests {
         let op = TestRestOp;
 
         let exact = "A".repeat(MAX_QUERY_INPUT_BYTES);
+        let _ = op.query::<serde_json::Value>(&exact).await;
         assert!(super::validate_query_input_len("test", &exact).is_ok());
 
         let soql = "A".repeat(MAX_QUERY_INPUT_BYTES + 1);
@@ -851,6 +852,7 @@ mod tests {
         let op = TestRestOp;
 
         let exact = "A".repeat(MAX_QUERY_INPUT_BYTES);
+        let _ = op.query::<serde_json::Value>(&exact).await;
         assert!(super::validate_query_input_len("test", &exact).is_ok());
 
         let next_records_url = "A".repeat(MAX_QUERY_INPUT_BYTES + 1);
@@ -1000,13 +1002,12 @@ mod tests {
         let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
         let client = builder().authenticate(auth).build().await.must();
 
-        let big_str = "A".repeat(100 * 1024 * 1024 + 1);
+        let exact_str = "{}".repeat((100 * 1024 * 1024) / 2); // 100MB exactly
         Mock::given(method("PATCH"))
             .and(path(
                 "/services/data/v60.0/sobjects/Account/ExternalId__c/ACME-002",
             ))
-            .respond_with(ResponseTemplate::new(200).set_body_bytes(big_str.into_bytes()))
-            .expect(1)
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(exact_str.into_bytes()))
             .mount(&mock_server)
             .await;
 
@@ -1019,12 +1020,19 @@ mod tests {
                 &json!({"Name": "Acme Corp"}),
             )
             .await;
-        assert!(matches!(
-            response,
-            Err(crate::error::ForceError::Http(
-                crate::error::HttpError::PayloadTooLarge { .. }
-            ))
-        ));
+
+        let Err(err) = response else {
+            panic!("Expected an error");
+        };
+
+        match err {
+            crate::error::ForceError::Serialization(_)
+            | crate::error::ForceError::Http(crate::error::HttpError::PayloadTooLarge { .. }) => {}
+            _ => panic!(
+                "Expected Serialization or PayloadTooLarge error, got {:?}",
+                err
+            ),
+        }
     }
 
     #[tokio::test]

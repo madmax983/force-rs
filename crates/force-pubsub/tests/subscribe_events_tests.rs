@@ -348,6 +348,12 @@ async fn test_subscribe_exhausts_retries_returns_error() {
                     // attempts == max_retries + 1 due to the increment before the check
                     assert!(*attempts > 0, "attempts must be > 0");
                     assert_eq!(*attempts, 3, "expected 3 attempts (max_retries 2 + 1)");
+                    let elapsed = start_time.elapsed();
+                    // We expect total delay to be at least 30ms (10ms + 20ms).
+                    assert!(
+                        elapsed >= Duration::from_millis(30),
+                        "backoff delay too short, elapsed: {elapsed:?}"
+                    );
                     assert_eq!(
                         reconnect_events, 2,
                         "should have seen exactly 2 reconnect events"
