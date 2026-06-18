@@ -3,6 +3,7 @@
 use apache_avro::Schema;
 use dashmap::DashMap;
 use std::sync::Arc;
+use tokio::sync::Mutex;
 use tonic::transport::Channel;
 
 use crate::error::{PubSubError, Result};
@@ -21,6 +22,9 @@ pub struct SchemaCache {
 #[derive(Debug)]
 struct SchemaCacheInner {
     cache: DashMap<String, Schema>,
+    /// Serializes concurrent cache misses for the same schema_id to prevent
+    /// "thundering herd" RPC stampedes.
+    fetch_lock: Mutex<()>,
 }
 
 impl SchemaCache {
@@ -30,6 +34,7 @@ impl SchemaCache {
         Self {
             inner: Arc::new(SchemaCacheInner {
                 cache: DashMap::new(),
+                fetch_lock: Mutex::new(()),
             }),
         }
     }
@@ -88,7 +93,15 @@ impl SchemaCache {
             return Ok(schema);
         }
 
-        // Cache miss — call GetSchema RPC.
+        // Cache miss — acquire lock to prevent stampede
+        let _lock = self.inner.fetch_lock.lock().await;
+
+        // Double check: Did another thread already fetch the schema while we were waiting?
+        if let Some(schema) = self.get(schema_id) {
+            return Ok(schema);
+        }
+
+        // Still a miss — call GetSchema RPC.
         let mut req = tonic::Request::new(SchemaRequest {
             schema_id: schema_id.to_string(),
         });
