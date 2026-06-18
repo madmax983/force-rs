@@ -417,22 +417,19 @@ impl<A: Authenticator> SyncEngine<A> {
         error: ApplyError,
     ) -> Result<bool, ForceSyncError> {
         let error_message = error.to_string();
-        match error {
-            ApplyError::Retryable(_) => {
-                self.store
-                    .retry_task_for_worker(
-                        &self.worker_id,
-                        task.task_id,
-                        Utc::now() + chrono::Duration::seconds(30),
-                        error_message,
-                    )
-                    .await?;
-            }
-            ApplyError::Permanent(_) => {
-                self.store
-                    .fail_task_for_worker(&self.worker_id, task.task_id, error_message)
-                    .await?;
-            }
+        if let ApplyError::Retryable(_) = error {
+            self.store
+                .retry_task_for_worker(
+                    &self.worker_id,
+                    task.task_id,
+                    Utc::now() + chrono::Duration::seconds(30),
+                    error_message,
+                )
+                .await?;
+        } else {
+            self.store
+                .fail_task_for_worker(&self.worker_id, task.task_id, error_message)
+                .await?;
         }
 
         Ok(false)

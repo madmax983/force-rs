@@ -102,38 +102,41 @@ pub fn plan_change(context: &PlannerContext, envelope: &ChangeEnvelope) -> PlanD
         };
     }
 
-    match merge_payload(
+    let outcome = merge_payload(
         &context.object,
         context.current_payload.as_ref(),
         envelope.source(),
         envelope.payload(),
-    ) {
-        MergeOutcome::Noop => PlanDecision {
-            lane: ApplyLane::Noop,
-            payload: None,
-            conflicts: Vec::new(),
-        },
-        MergeOutcome::Conflict { fields } => PlanDecision {
-            lane: ApplyLane::Conflict,
-            payload: None,
-            conflicts: fields,
-        },
-        MergeOutcome::Merged(payload) => {
-            let is_noop = context
-                .current_payload
-                .as_ref()
-                .is_some_and(|current| current == &payload);
+    );
 
-            PlanDecision {
-                lane: if is_noop {
-                    ApplyLane::Noop
-                } else {
-                    choose_lane(context)
-                },
-                payload: if is_noop { None } else { Some(payload) },
+    let MergeOutcome::Merged(payload) = outcome else {
+        return match outcome {
+            MergeOutcome::Conflict { fields } => PlanDecision {
+                lane: ApplyLane::Conflict,
+                payload: None,
+                conflicts: fields,
+            },
+            _ => PlanDecision {
+                lane: ApplyLane::Noop,
+                payload: None,
                 conflicts: Vec::new(),
-            }
-        }
+            },
+        };
+    };
+
+    let is_noop = context
+        .current_payload
+        .as_ref()
+        .is_some_and(|current| current == &payload);
+
+    PlanDecision {
+        lane: if is_noop {
+            ApplyLane::Noop
+        } else {
+            choose_lane(context)
+        },
+        payload: if is_noop { None } else { Some(payload) },
+        conflicts: Vec::new(),
     }
 }
 
