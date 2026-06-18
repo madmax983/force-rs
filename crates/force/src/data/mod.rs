@@ -5,12 +5,14 @@ pub(crate) mod data_faker;
 pub(crate) mod data_masker;
 pub(crate) mod data_seeder;
 pub(crate) mod data_validator;
+pub(crate) mod record_diff;
 
 pub use data_archiver::DataArchiver;
 pub use data_faker::{generate_mock_query, generate_mock_record};
 pub use data_masker::DataMasker;
 pub use data_seeder::DataSeeder;
 pub use data_validator::{DataValidator, ValidationError};
+pub use record_diff::{FieldValueChange, RecordDiffResult, compare_records};
 
 #[cfg(all(feature = "data_utility", feature = "composite_graph"))]
 pub(crate) mod relational_seeder;
