@@ -28,3 +28,88 @@ pub fn project_sync_link(
         tombstone,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        identity::SyncKey,
+        model::{ChangeEnvelope, ChangeOperation, SourceCursor, SourceSystem},
+    };
+    use chrono::Utc;
+    use force::types::SalesforceId;
+    use serde_json::json;
+
+    #[test]
+    fn project_sync_link_without_existing_or_cursor() {
+        let sync_key =
+            SyncKey::new("tenant", "Account", "abc").unwrap_or_else(|_| panic!("valid key"));
+        let envelope = ChangeEnvelope::new(
+            sync_key,
+            SourceSystem::Salesforce,
+            ChangeOperation::Upsert,
+            Utc::now(),
+            json!({"Name": "Acme"}),
+        );
+        let id = SalesforceId::new("001000000000001AAA").unwrap_or_else(|_| panic!("valid id"));
+
+        let link = project_sync_link(None, &envelope, Some(&id), false);
+
+        assert_eq!(link.tenant, "tenant");
+        assert_eq!(link.object_name, "Account");
+        assert_eq!(link.external_id, "abc");
+        assert_eq!(link.salesforce_id, Some("001000000000001AAA".to_owned()));
+        assert_eq!(link.postgres_id, None);
+        assert_eq!(link.last_source, Some("salesforce".to_owned()));
+        assert_eq!(link.last_source_cursor, None);
+        assert_eq!(
+            link.last_payload_hash,
+            Some(envelope.payload_hash().to_vec())
+        );
+        assert!(!link.tombstone);
+    }
+
+    #[test]
+    fn project_sync_link_with_existing_and_cursor() {
+        let sync_key =
+            SyncKey::new("tenant", "Account", "abc").unwrap_or_else(|_| panic!("valid key"));
+        let envelope = ChangeEnvelope::new(
+            sync_key,
+            SourceSystem::Postgres,
+            ChangeOperation::Upsert,
+            Utc::now(),
+            json!({"Name": "Acme"}),
+        )
+        .with_cursor(SourceCursor::PostgresLsn("0/1234".to_owned()));
+
+        let existing = SyncLink {
+            tenant: "tenant".to_owned(),
+            object_name: "Account".to_owned(),
+            external_id: "abc".to_owned(),
+            salesforce_id: Some("001000000000001AAA".to_owned()),
+            postgres_id: Some("uuid-1234".to_owned()),
+            last_source: Some("salesforce".to_owned()),
+            last_source_cursor: None,
+            last_payload_hash: None,
+            tombstone: false,
+        };
+
+        let link = project_sync_link(Some(&existing), &envelope, None, true);
+
+        assert_eq!(link.tenant, "tenant");
+        assert_eq!(link.object_name, "Account");
+        assert_eq!(link.external_id, "abc");
+        assert_eq!(link.salesforce_id, Some("001000000000001AAA".to_owned())); // Fallback to existing
+        assert_eq!(link.postgres_id, Some("uuid-1234".to_owned())); // Carried over
+        assert_eq!(link.last_source, Some("postgres".to_owned())); // Updated
+        assert_eq!(
+            link.last_source_cursor,
+            Some("postgres-lsn:0/1234".to_owned())
+        ); // Updated
+        assert_eq!(
+            link.last_payload_hash,
+            Some(envelope.payload_hash().to_vec())
+        );
+        assert!(link.tombstone);
+    }
+}
