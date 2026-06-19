@@ -1006,6 +1006,19 @@ mod tests {
         assert!(matches!(result_owned, std::borrow::Cow::Owned(_)));
         assert_eq!(result_owned, "OwnedString");
     }
+
+    #[test]
+    fn test_escape_sosl_all_special_chars() {
+        let special_chars = [
+            '?', '&', '|', '!', '{', '}', '[', ']', '(', ')', '^', '~', '*', ':', '\\', '"', '\'',
+            '+', '-',
+        ];
+        for &c in &special_chars {
+            let text = format!("a{}b", c);
+            let escaped = escape_sosl(&text).into_owned();
+            assert_eq!(escaped, format!("a\\{}b", c));
+        }
+    }
 }
 
 // Integration tests with wiremock

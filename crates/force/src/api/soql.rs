@@ -766,6 +766,14 @@ mod tests {
         let result = escape_soql_cow(unsafe_str);
         assert!(matches!(result, Cow::Owned(_)));
         assert_eq!(result, r"O\'Reilly");
+
+        // Case 3: All special chars
+        let special_chars = ['\'', '\\', '"'];
+        for &c in &special_chars {
+            let text = format!("a{}b", c);
+            let escaped = escape_soql_cow(&text).into_owned();
+            assert_eq!(escaped, format!("a\\{}b", c));
+        }
     }
 
     #[test]
