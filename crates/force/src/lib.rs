@@ -35,6 +35,7 @@ pub mod config;
 #[cfg(feature = "data_utility")]
 pub mod data;
 pub mod error;
+pub use error::Result;
 pub mod http;
 #[cfg(feature = "schema")]
 pub mod schema;
