@@ -44,3 +44,6 @@ pub use runtime::{SyncEngine, SyncEngineBuilder};
 pub use store::pg::{
     AppendResult, CheckpointState, DeadLetter, LeasedTask, PgStore, SyncConflict, SyncLink, migrate,
 };
+
+/// Convenience alias for operations in this crate.
+pub type Result<T> = std::result::Result<T, ForceSyncError>;
