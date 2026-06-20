@@ -177,14 +177,18 @@ fn merge_object_payload(
             Some(existing_value) if existing_value == incoming_value => {}
             Some(_) => match object.field_owner_for(field) {
                 Some(Owner::Salesforce) if source == SourceSystem::Salesforce => {
-                    merged
-                        .get_or_insert_with(|| current.clone())
-                        .insert(field.clone(), incoming_value.clone());
+                    // ⚡ Bolt: Use .get_mut to modify the value in-place, avoiding unnecessary key string cloning.
+                    if let Some(val) = merged.get_or_insert_with(|| current.clone()).get_mut(field)
+                    {
+                        *val = incoming_value.clone();
+                    }
                 }
                 Some(Owner::Postgres) if source == SourceSystem::Postgres => {
-                    merged
-                        .get_or_insert_with(|| current.clone())
-                        .insert(field.clone(), incoming_value.clone());
+                    // ⚡ Bolt: Use .get_mut to modify the value in-place, avoiding unnecessary key string cloning.
+                    if let Some(val) = merged.get_or_insert_with(|| current.clone()).get_mut(field)
+                    {
+                        *val = incoming_value.clone();
+                    }
                 }
                 Some(Owner::Salesforce | Owner::Postgres) => {}
                 Some(Owner::Shared) | None => conflicts.push(field.clone()),
