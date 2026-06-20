@@ -847,6 +847,14 @@ mod tests {
     }
 
     #[tokio::test]
+    #[should_panic(expected = "validation should fail before session access")]
+    async fn test_validation_query_exact_size_soql_before_session() {
+        let op = TestRestOp;
+        let exact = "A".repeat(MAX_QUERY_INPUT_BYTES);
+        let _ = op.query::<serde_json::Value>(&exact).await;
+    }
+
+    #[tokio::test]
     async fn test_validation_query_more_rejects_oversized_url_before_session() {
         let op = TestRestOp;
 
@@ -857,6 +865,15 @@ mod tests {
         let result = op.query_more::<serde_json::Value>(&next_records_url).await;
 
         assert_invalid_input_contains(result, "100,000 bytes");
+    }
+
+    #[tokio::test]
+    #[should_panic(expected = "validation should fail before session access")]
+    async fn test_validation_query_more_exact_size_url_before_session() {
+        let op = TestRestOp;
+        // Need to add http prefix to pass the origin check, otherwise it fails on origin check
+        let exact = format!("http://{}", "A".repeat(MAX_QUERY_INPUT_BYTES - 7));
+        let _ = op.query_more::<serde_json::Value>(&exact).await;
     }
 
     #[tokio::test]

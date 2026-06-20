@@ -41,3 +41,10 @@
 **Finding:** Missing mutation test coverage in `upsert_with_retry_class` and `validate_query_input_len`. The `MAX_QUERY_INPUT_BYTES` threshold tests were weak, and the response limit calculation in `upsert` lacked explicit bound verification.
 **Evidence:** 5+ surviving mutants around `100 * 1024 * 1024` limit calculation in `upsert` paths. Surviving `>=` mutant on `validate_query_input_len`.
 **Recommendation:** Ensure exact boundary coverage in threshold validation methods (like EXACT max allowed size), and explicitly cover payload too large errors (`HttpError::PayloadTooLarge`) by setting up mocks with very large mock response data.
+
+**[MAX_QUERY_INPUT_BYTES boundary tests]**
+**Module:** `crates/force/src/api/rest_operation.rs`
+**Severity:** 🔴 Critical
+**Finding:** The exact `MAX_QUERY_INPUT_BYTES` threshold tests were missing for `.query()` and `.query_more()`. The `MAX_QUERY_INPUT_BYTES` bound `100,000` is vulnerable if `>` or `>=` mutation happens.
+**Evidence:** The tests `test_validation_query_rejects_oversized_soql_before_session` only checked over-sized payloads. `cargo mutants` reveals surviving mutants around `>=` in threshold checks.
+**Recommendation:** Added `test_validation_query_exact_size_soql_before_session` and `test_validation_query_more_exact_size_url_before_session` to verify that `MAX_QUERY_INPUT_BYTES` size is accepted by the validation and fails properly on the underlying mock.
