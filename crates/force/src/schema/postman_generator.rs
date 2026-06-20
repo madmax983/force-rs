@@ -13,7 +13,6 @@ use serde_json::{Value, json};
 /// Generates a Postman v2.1.0 Collection for an SObject.
 #[cfg(feature = "schema")]
 #[must_use]
-#[allow(clippy::too_many_lines)]
 pub fn generate_postman_collection(describe: &SObjectDescribe) -> Value {
     let name = &describe.name;
     let label = if describe.label.is_empty() {
@@ -67,19 +66,7 @@ pub fn generate_postman_collection(describe: &SObjectDescribe) -> Value {
                         "mode": "raw",
                         "raw": create_body_str
                     },
-                    "url": {
-                        "raw": format!("{{{{_endpoint}}}}/services/data/v60.0/sobjects/{}", name),
-                        "host": [
-                            "{{_endpoint}}"
-                        ],
-                        "path": [
-                            "services",
-                            "data",
-                            "v60.0",
-                            "sobjects",
-                            name
-                        ]
-                    }
+                    "url": build_postman_url(name, false)
                 }
             },
             {
@@ -87,20 +74,7 @@ pub fn generate_postman_collection(describe: &SObjectDescribe) -> Value {
                 "request": {
                     "method": "GET",
                     "header": [],
-                    "url": {
-                        "raw": format!("{{{{_endpoint}}}}/services/data/v60.0/sobjects/{}/{{{{recordId}}}}", name),
-                        "host": [
-                            "{{_endpoint}}"
-                        ],
-                        "path": [
-                            "services",
-                            "data",
-                            "v60.0",
-                            "sobjects",
-                            name,
-                            "{{recordId}}"
-                        ]
-                    }
+                    "url": build_postman_url(name, true)
                 }
             },
             {
@@ -117,20 +91,7 @@ pub fn generate_postman_collection(describe: &SObjectDescribe) -> Value {
                         "mode": "raw",
                         "raw": update_body_str
                     },
-                    "url": {
-                        "raw": format!("{{{{_endpoint}}}}/services/data/v60.0/sobjects/{}/{{{{recordId}}}}", name),
-                        "host": [
-                            "{{_endpoint}}"
-                        ],
-                        "path": [
-                            "services",
-                            "data",
-                            "v60.0",
-                            "sobjects",
-                            name,
-                            "{{recordId}}"
-                        ]
-                    }
+                    "url": build_postman_url(name, true)
                 }
             },
             {
@@ -138,23 +99,36 @@ pub fn generate_postman_collection(describe: &SObjectDescribe) -> Value {
                 "request": {
                     "method": "DELETE",
                     "header": [],
-                    "url": {
-                        "raw": format!("{{{{_endpoint}}}}/services/data/v60.0/sobjects/{}/{{{{recordId}}}}", name),
-                        "host": [
-                            "{{_endpoint}}"
-                        ],
-                        "path": [
-                            "services",
-                            "data",
-                            "v60.0",
-                            "sobjects",
-                            name,
-                            "{{recordId}}"
-                        ]
-                    }
+                    "url": build_postman_url(name, true)
                 }
             }
         ]
+    })
+}
+
+#[cfg(feature = "schema")]
+fn build_postman_url(name: &str, with_record_id: bool) -> Value {
+    let raw = if with_record_id {
+        format!(
+            "{{{{_endpoint}}}}/services/data/v60.0/sobjects/{}/{{{{recordId}}}}",
+            name
+        )
+    } else {
+        format!("{{{{_endpoint}}}}/services/data/v60.0/sobjects/{}", name)
+    };
+
+    let mut path = vec!["services", "data", "v60.0", "sobjects", name];
+
+    if with_record_id {
+        path.push("{{recordId}}");
+    }
+
+    json!({
+        "raw": raw,
+        "host": [
+            "{{_endpoint}}"
+        ],
+        "path": path
     })
 }
 
