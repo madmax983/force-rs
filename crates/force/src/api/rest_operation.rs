@@ -418,6 +418,59 @@ pub trait RestOperation<A: Authenticator> {
             .await
     }
 
+    /// Executes a SOQL query that includes deleted and archived records.
+    ///
+    /// This is equivalent to `query()`, but uses the `/queryAll` API endpoint.
+    /// It returns a paginated result set containing records that match the query,
+    /// including those in the Recycle Bin (`IsDeleted = true`) or archived activities.
+    ///
+    /// Use [`query_more()`](Self::query_more) to fetch subsequent pages when
+    /// the result set is paginated.
+    ///
+    /// # Security Warning
+    ///
+    /// This method accepts a raw SOQL string. **Do not construct queries using
+    /// `format!` with untrusted input**, as this leads to SOQL injection
+    /// vulnerabilities.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The query is malformed
+    /// - Authentication fails
+    /// - The HTTP request fails
+    /// - Deserialization fails
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// use force::types::DynamicSObject;
+    /// let result = handler.query_all::<DynamicSObject>("SELECT Id, IsDeleted FROM Account").await?;
+    /// for record in result.records {
+    ///     println!("Account: {}, Deleted: {:?}", record.id(), record.get_field_as::<bool>("IsDeleted"));
+    /// }
+    /// ```
+    async fn query_all<T>(&self, soql: &str) -> Result<QueryResult<T>>
+    where
+        T: DeserializeOwned,
+    {
+        validate_query_input_len("SOQL query", soql)?;
+
+        let api_path = self.resolve_api_path("queryAll");
+        let url = self.session().resolve_url(&api_path).await?;
+
+        let request = self
+            .session()
+            .get(&url)
+            .query(&[("q", soql)])
+            .build()
+            .map_err(crate::error::HttpError::from)?;
+
+        self.session()
+            .send_request_and_decode(request, "SOQL queryAll failed")
+            .await
+    }
+
     /// Fetches the next page of query results using a `nextRecordsUrl`.
     ///
     /// When a query returns `done: false`, use the `nextRecordsUrl` from the
@@ -1381,6 +1434,52 @@ mod tests {
         assert_eq!(response.name, "Account");
         assert_eq!(response.fields.len(), 1);
         assert_eq!(response.fields[0].name, "Id");
+    }
+
+    #[tokio::test]
+    async fn test_validation_query_all_rejects_oversized_soql_before_session() {
+        let op = TestRestOp;
+        let soql = "A".repeat(MAX_QUERY_INPUT_BYTES + 1);
+        let result = op.query_all::<serde_json::Value>(&soql).await;
+
+        assert_invalid_input_contains(result, "100,000 bytes");
+    }
+
+    #[tokio::test]
+    async fn test_query_all_success_mock() {
+        use crate::client::builder;
+        use serde_json::json;
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let mock_server = MockServer::start().await;
+        let auth =
+            crate::test_utils::mock_auth::MockAuthenticator::new("test_token", &mock_server.uri());
+        let client = builder().authenticate(auth).build().await.must();
+
+        Mock::given(method("GET"))
+            .and(path("/services/data/v60.0/queryAll"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "totalSize": 2,
+                "done": true,
+                "records": [
+                    {"Id": "001xx000003DHP0AAO", "Name": "Test Account", "IsDeleted": false},
+                    {"Id": "001xx000003DHP0AAP", "Name": "Deleted Account", "IsDeleted": true}
+                ]
+            })))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let rest = client.rest();
+        let result = rest
+            .query_all::<serde_json::Value>("SELECT Id, Name, IsDeleted FROM Account")
+            .await
+            .must();
+
+        assert_eq!(result.total_size, 2);
+        assert!(result.is_done());
+        assert_eq!(result.records.len(), 2);
     }
 
     #[tokio::test]
