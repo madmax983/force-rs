@@ -1,12 +1,49 @@
---- crates/force/src/schema/llm_context_generator.rs
-+++ crates/force/src/schema/llm_context_generator.rs
-@@ -48,7 +48,8 @@
-     );
-     let _ = writeln!(context, "Fields:");
+<<<<<<< SEARCH
+    /// Returns the current access token as an Arc reference, refreshing if necessary.
+    ///
+    /// This is an internal method to avoid cloning the token for internal use.
+    pub(crate) async fn get_token_arc(&self) -> Result<Arc<AccessToken>> {
+        let (is_soft_expired, is_hard_expired_actual, current_token) =
+            self.evaluate_token_state().await;
 
--    let mut sorted_fields = describe.fields.clone();
-+    // ⚡ Bolt: Collecting references to fields into a Vec avoids the costly `describe.fields.clone()` heap allocation since we just need to sort them before iterating.
-+    let mut sorted_fields: Vec<&crate::types::describe::FieldDescribe> = describe.fields.iter().collect();
-     sorted_fields.sort_by(|a, b| crate::schema::cmp_field_names(&a.name, &b.name));
+        if let Some(token) = current_token.as_ref() {
+            if !is_soft_expired && !is_hard_expired_actual {
+                return Ok(token.clone());
+            }
+        }
 
-     for field in sorted_fields {
+        if is_hard_expired_actual {
+            self.handle_hard_refresh().await
+        } else if let Some(valid_token) = current_token {
+            self.handle_soft_refresh(valid_token).await
+        } else {
+            Err(crate::error::ForceError::Authentication(
+                crate::error::AuthenticationError::InvalidToken,
+            ))
+        }
+    }
+=======
+    /// Returns the current access token as an Arc reference, refreshing if necessary.
+    ///
+    /// This is an internal method to avoid cloning the token for internal use.
+    pub(crate) async fn get_token_arc(&self) -> Result<Arc<AccessToken>> {
+        let (is_soft_expired, is_hard_expired_actual, current_token) =
+            self.evaluate_token_state().await;
+
+        if let Some(token) = current_token.as_ref() {
+            if !is_soft_expired {
+                return Ok(token.clone());
+            }
+        }
+
+        if is_hard_expired_actual {
+            self.handle_hard_refresh().await
+        } else if let Some(valid_token) = current_token {
+            self.handle_soft_refresh(valid_token).await
+        } else {
+            Err(crate::error::ForceError::Authentication(
+                crate::error::AuthenticationError::InvalidToken,
+            ))
+        }
+    }
+>>>>>>> REPLACE

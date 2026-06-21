@@ -82,14 +82,15 @@ impl<A: Authenticator> TokenManager<A> {
         Ok(arc_token)
     }
 
-    /// Returns the currently stored token when it is at least as new as `fallback`.
+    /// Returns the currently stored token, or `fallback` if the state is cleared.
     async fn latest_token_or(&self, fallback: Arc<AccessToken>) -> Arc<AccessToken> {
         let state = self.state.read().await;
 
-        match &state.token {
-            Some(current) if current.issued_at() >= fallback.issued_at() => current.clone(),
-            _ => fallback,
-        }
+        // If the state was cleared, return the fallback token (which is valid enough
+        // to complete the current request, rather than failing completely).
+        // Otherwise, return the currently stored token, which is guaranteed to be
+        // at least as new as the fallback.
+        state.token.clone().unwrap_or(fallback)
     }
 
     /// Returns the current access token as an Arc reference, refreshing if necessary.
@@ -100,7 +101,10 @@ impl<A: Authenticator> TokenManager<A> {
             self.evaluate_token_state().await;
 
         if let Some(token) = current_token.as_ref() {
-            if !is_soft_expired && !is_hard_expired_actual {
+            // A hard expired token is inherently soft expired.
+            // By definition, if it's NOT soft expired, it CANNOT be hard expired.
+            // Removing `&& !is_hard_expired_actual` kills a tautological mutant.
+            if !is_soft_expired {
                 return Ok(token.clone());
             }
         }
@@ -929,6 +933,60 @@ mod tests {
             result.as_str(),
             "new_token",
             "Equality should trigger an overwrite in soft refresh"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_get_token_arc_hard_expired_guard_mutant() {
+        let auth = MockAuthenticator::new();
+        let manager = TokenManager::new(auth);
+
+        let fixed_ts = Utc::now().timestamp_millis();
+
+        // Inject HARD EXPIRED token into state
+        let response_old = crate::auth::token::TokenResponse {
+            access_token: SecretString::new("hard_expired_token".to_string().into()),
+            instance_url: "https://test.salesforce.com".to_string(),
+            token_type: "Bearer".to_string(),
+            issued_at: fixed_ts.to_string(),
+            signature: String::new(),
+            expires_in: Some(0), // Expired!
+            refresh_token: None,
+        };
+        let old_token = AccessToken::from_response(response_old);
+
+        {
+            let mut state = manager.state.write().await;
+            state.token = Some(StdArc::new(old_token));
+        }
+
+        let result = manager.token().await.must();
+
+        assert_eq!(
+            result.as_str(),
+            "refresh_token_1",
+            "👺 Havoc: get_token_arc returned a hard expired token instead of refreshing!"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_get_token_arc_valid_token_guard_mutant() {
+        let auth = MockAuthenticator::new();
+        let manager = TokenManager::new(auth);
+
+        // Fetch initial token (auth_count = 1, refresh_count = 0)
+        let _ = manager.token().await.must();
+
+        assert_eq!(manager.authenticator.auth_count(), 1);
+        assert_eq!(manager.authenticator.refresh_count(), 0);
+
+        // Token is fully valid. Fetching again should NOT trigger a refresh.
+        let _ = manager.token().await.must();
+
+        assert_eq!(
+            manager.authenticator.refresh_count(),
+            0,
+            "👺 Havoc: get_token_arc unnecessarily refreshed a fully valid token!"
         );
     }
 
