@@ -161,6 +161,21 @@ const fn choose_lane(context: &PlannerContext) -> ApplyLane {
     }
 }
 
+/// ⚡ Bolt: Updates an existing value in the merged map in-place.
+/// This optimization avoids cloning the key `String` for fields that are already known to exist
+/// in the map, reducing unnecessary memory allocations on hot sync paths.
+#[inline]
+fn update_existing_field(
+    merged: &mut Option<Map<String, Value>>,
+    current: &Map<String, Value>,
+    field: &str,
+    incoming_value: &Value,
+) {
+    if let Some(val) = merged.get_or_insert_with(|| current.clone()).get_mut(field) {
+        *val = incoming_value.clone();
+    }
+}
+
 fn merge_object_payload(
     object: &ObjectSync,
     current: &Map<String, Value>,
@@ -177,14 +192,10 @@ fn merge_object_payload(
             Some(existing_value) if existing_value == incoming_value => {}
             Some(_) => match object.field_owner_for(field) {
                 Some(Owner::Salesforce) if source == SourceSystem::Salesforce => {
-                    merged
-                        .get_or_insert_with(|| current.clone())
-                        .insert(field.clone(), incoming_value.clone());
+                    update_existing_field(&mut merged, current, field, incoming_value);
                 }
                 Some(Owner::Postgres) if source == SourceSystem::Postgres => {
-                    merged
-                        .get_or_insert_with(|| current.clone())
-                        .insert(field.clone(), incoming_value.clone());
+                    update_existing_field(&mut merged, current, field, incoming_value);
                 }
                 Some(Owner::Salesforce | Owner::Postgres) => {}
                 Some(Owner::Shared) | None => conflicts.push(field.clone()),
