@@ -100,6 +100,17 @@ pub trait RestOperation<A: Authenticator> {
         Cow::Owned(out)
     }
 
+    /// Helper method to construct the full API path for a given SObject.
+    ///
+    /// Internally uses `crate::api::path_utils::format_sobject_path` and `resolve_api_path`.
+    fn resolve_sobject_path(&self, sobject: &str, id: Option<&str>) -> Cow<'_, str> {
+        let relative = crate::api::path_utils::format_sobject_path(sobject, id);
+        match self.resolve_api_path(&relative) {
+            Cow::Owned(s) => Cow::Owned(s),
+            Cow::Borrowed(_) => Cow::Owned(relative),
+        }
+    }
+
     // ── CRUD Operations ──────────────────────────────────────────────
 
     /// Creates a new record in Salesforce.
@@ -129,8 +140,7 @@ pub trait RestOperation<A: Authenticator> {
     /// ```
     async fn create(&self, sobject: &str, data: &serde_json::Value) -> Result<CreateResponse> {
         validate_sobject_name(sobject)?;
-        let relative = crate::api::path_utils::format_sobject_path(sobject, None);
-        let api_path = self.resolve_api_path(&relative);
+        let api_path = self.resolve_sobject_path(sobject, None);
         let url = self.session().resolve_url(&api_path).await?;
 
         let request = self
@@ -169,8 +179,7 @@ pub trait RestOperation<A: Authenticator> {
     /// ```
     async fn get(&self, sobject: &str, id: &SalesforceId) -> Result<serde_json::Value> {
         validate_sobject_name(sobject)?;
-        let relative = crate::api::path_utils::format_sobject_path(sobject, Some(id.as_str()));
-        let api_path = self.resolve_api_path(&relative);
+        let api_path = self.resolve_sobject_path(sobject, Some(id.as_str()));
         let url = self.session().resolve_url(&api_path).await?;
 
         let request = self
@@ -215,8 +224,7 @@ pub trait RestOperation<A: Authenticator> {
         data: &serde_json::Value,
     ) -> Result<UpdateResponse> {
         validate_sobject_name(sobject)?;
-        let relative = crate::api::path_utils::format_sobject_path(sobject, Some(id.as_str()));
-        let api_path = self.resolve_api_path(&relative);
+        let api_path = self.resolve_sobject_path(sobject, Some(id.as_str()));
         let url = self.session().resolve_url(&api_path).await?;
 
         let request = self
@@ -255,8 +263,7 @@ pub trait RestOperation<A: Authenticator> {
     /// ```
     async fn delete(&self, sobject: &str, id: &SalesforceId) -> Result<DeleteResponse> {
         validate_sobject_name(sobject)?;
-        let relative = crate::api::path_utils::format_sobject_path(sobject, Some(id.as_str()));
-        let api_path = self.resolve_api_path(&relative);
+        let api_path = self.resolve_sobject_path(sobject, Some(id.as_str()));
         let url = self.session().resolve_url(&api_path).await?;
 
         let request = self
@@ -598,9 +605,7 @@ pub trait RestOperation<A: Authenticator> {
     /// ```
     async fn describe(&self, sobject_type: &str) -> Result<SObjectDescribe> {
         validate_sobject_name(sobject_type)?;
-        let mut relative = crate::api::path_utils::format_sobject_path(sobject_type, None);
-        relative.push_str("/describe");
-        let api_path = self.resolve_api_path(&relative);
+        let api_path = self.resolve_sobject_path(sobject_type, Some("describe"));
         let url = self.session().resolve_url(&api_path).await?;
 
         let request = self
