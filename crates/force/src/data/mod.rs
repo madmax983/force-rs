@@ -16,3 +16,8 @@ pub use data_validator::{DataValidator, ValidationError};
 pub(crate) mod relational_seeder;
 #[cfg(all(feature = "data_utility", feature = "composite_graph"))]
 pub use relational_seeder::RelationalSeeder;
+
+#[cfg(all(feature = "data_utility", feature = "schema"))]
+pub(crate) mod lean_archiver;
+#[cfg(all(feature = "data_utility", feature = "schema"))]
+pub use lean_archiver::LeanArchiver;
