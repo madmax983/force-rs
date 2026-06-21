@@ -837,6 +837,8 @@ mod tests {
     async fn test_validation_query_rejects_oversized_soql_before_session() {
         let op = TestRestOp;
 
+        let exact_minus_one = "A".repeat(MAX_QUERY_INPUT_BYTES - 1);
+        assert!(super::validate_query_input_len("test", &exact_minus_one).is_ok());
         let exact = "A".repeat(MAX_QUERY_INPUT_BYTES);
         assert!(super::validate_query_input_len("test", &exact).is_ok());
 
@@ -850,6 +852,8 @@ mod tests {
     async fn test_validation_query_more_rejects_oversized_url_before_session() {
         let op = TestRestOp;
 
+        let exact_minus_one = "A".repeat(MAX_QUERY_INPUT_BYTES - 1);
+        assert!(super::validate_query_input_len("test", &exact_minus_one).is_ok());
         let exact = "A".repeat(MAX_QUERY_INPUT_BYTES);
         assert!(super::validate_query_input_len("test", &exact).is_ok());
 
@@ -987,6 +991,46 @@ mod tests {
         assert!(response.is_success());
         assert!(!response.is_created());
         assert_eq!(response.id.as_str(), "001xx000003DHP0AAO");
+    }
+
+    #[tokio::test]
+    async fn test_upsert_payload_exact_limit() {
+        use crate::client::builder;
+        use serde_json::json;
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let mock_server = MockServer::start().await;
+        let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
+        let client = builder().authenticate(auth).build().await.must();
+
+        // Create a valid JSON string padded with spaces up to exactly 100 * 1024 * 1024 bytes
+        let json_body = r#"{"id":"001xx000003DHP0AAO","success":true,"created":false,"errors":[]}"#;
+        let mut big_str = json_body.to_string();
+        let padding_needed = (100 * 1024 * 1024) - big_str.len();
+        big_str.push_str(&" ".repeat(padding_needed));
+        assert_eq!(big_str.len(), 100 * 1024 * 1024);
+
+        Mock::given(method("PATCH"))
+            .and(path(
+                "/services/data/v60.0/sobjects/Account/ExternalId__c/ACME-002",
+            ))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(big_str.into_bytes()))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let rest = client.rest();
+        let response = rest
+            .upsert(
+                "Account",
+                "ExternalId__c",
+                "ACME-002",
+                &json!({"Name": "Acme Corp"}),
+            )
+            .await
+            .must();
+        assert!(response.is_success());
     }
 
     #[tokio::test]
