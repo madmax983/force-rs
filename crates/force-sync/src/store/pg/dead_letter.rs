@@ -3,7 +3,7 @@
 use serde_json::Value;
 use tokio_postgres::GenericClient;
 
-use crate::error::ForceSyncError;
+use crate::error::Result;
 
 use super::PgStore;
 
@@ -25,10 +25,7 @@ pub struct DeadLetter {
     pub payload: Option<Value>,
 }
 
-async fn insert_dead_letter_query<C>(
-    client: &C,
-    dead_letter: &DeadLetter,
-) -> Result<i64, ForceSyncError>
+async fn insert_dead_letter_query<C>(client: &C, dead_letter: &DeadLetter) -> Result<i64>
 where
     C: GenericClient + Sync + ?Sized,
 {
@@ -62,10 +59,7 @@ where
 /// # Errors
 ///
 /// Returns an error if the database write fails.
-pub async fn insert_dead_letter_in_tx<C>(
-    client: &C,
-    dead_letter: &DeadLetter,
-) -> Result<i64, ForceSyncError>
+pub async fn insert_dead_letter_in_tx<C>(client: &C, dead_letter: &DeadLetter) -> Result<i64>
 where
     C: GenericClient + Sync + ?Sized,
 {
@@ -78,10 +72,7 @@ impl PgStore {
     /// # Errors
     ///
     /// Returns an error if the database write fails.
-    pub async fn insert_dead_letter(
-        &self,
-        dead_letter: &DeadLetter,
-    ) -> Result<i64, ForceSyncError> {
+    pub async fn insert_dead_letter(&self, dead_letter: &DeadLetter) -> Result<i64> {
         let client = self.pool().get().await?;
         insert_dead_letter_query(&**client, dead_letter).await
     }

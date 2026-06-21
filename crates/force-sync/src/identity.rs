@@ -1,6 +1,7 @@
 //! Canonical identity types for synced records.
 
 use crate::error::ForceSyncError;
+use crate::error::Result;
 
 /// Canonical identity for a synced record.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -20,7 +21,7 @@ impl SyncKey {
         tenant: impl Into<String>,
         object_name: impl Into<String>,
         external_id: impl Into<String>,
-    ) -> Result<Self, ForceSyncError> {
+    ) -> Result<Self> {
         let tenant = tenant.into();
         let object_name = object_name.into();
         let external_id = external_id.into();

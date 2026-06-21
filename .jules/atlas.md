@@ -16,3 +16,6 @@
 **[Unify error handling]
 **Tangle:** Inconsistent error handling across modules where Result was used with explicit types.
 **Blueprint:** Standardized error types across all modules to enforce domain boundaries.
+**[Unify error handling in force-sync]
+**Tangle:** The `force-sync` crate used raw `Result<T, ForceSyncError>` throughout its codebase instead of a centralized `Result<T>` alias, breaking standard Rust structural convention and consistency with `force` and `force-pubsub` crates which enforce a domain error type correctly via an alias.
+**Blueprint:** Created `pub type Result<T> = std::result::Result<T, ForceSyncError>;` in `crates/force-sync/src/error.rs` and replaced all raw occurrences across the crate to use `crate::error::Result`.
