@@ -601,17 +601,25 @@ async fn upsert_with_retry_class_impl<A: Authenticator>(
     // ⚡ Bolt: Pass `utf8_percent_encode` directly to `format!` to avoid an intermediate `String` allocation.
     let encoded_value = utf8_percent_encode(external_id_value, UPSERT_ENCODE_SET);
 
-    let api_path = if api_path_prefix.is_empty() {
-        format!(
-            "sobjects/{}/{}/{}",
-            sobject, external_id_field, encoded_value
-        )
-    } else {
-        format!(
-            "{}/sobjects/{}/{}/{}",
-            api_path_prefix, sobject, external_id_field, encoded_value
-        )
-    };
+    // ⚡ Bolt: Eliminate `format!` allocations entirely by pre-allocating a `String` capacity and using `.push_str()`
+    let mut api_path = String::with_capacity(
+        api_path_prefix.len()
+            + sobject.len()
+            + external_id_field.len()
+            + external_id_value.len() * 3
+            + 12,
+    );
+    if !api_path_prefix.is_empty() {
+        api_path.push_str(api_path_prefix);
+        api_path.push('/');
+    }
+    api_path.push_str("sobjects/");
+    api_path.push_str(sobject);
+    api_path.push('/');
+    api_path.push_str(external_id_field);
+    api_path.push('/');
+    let _ = std::fmt::Write::write_fmt(&mut api_path, format_args!("{}", encoded_value));
+
     let url = session.resolve_url(&api_path).await?;
 
     let request = session
