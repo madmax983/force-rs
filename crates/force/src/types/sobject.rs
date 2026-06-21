@@ -40,12 +40,16 @@ impl Attributes {
     #[must_use]
     pub fn new(type_name: impl Into<String>, id: &SalesforceId, api_version: &str) -> Self {
         let type_ = type_name.into();
-        let url = format!(
-            "/services/data/{}/sobjects/{}/{}",
-            api_version,
-            type_,
-            id.as_str()
-        );
+        // ⚡ Bolt: Avoid intermediate string allocation in `format!` macro by pre-allocating
+        // capacity and using `push_str`. Length is 26 constant chars + variable lengths.
+        let mut url =
+            String::with_capacity(26 + api_version.len() + type_.len() + id.as_str().len());
+        url.push_str("/services/data/");
+        url.push_str(api_version);
+        url.push_str("/sobjects/");
+        url.push_str(&type_);
+        url.push('/');
+        url.push_str(id.as_str());
         Self { type_, url }
     }
 
