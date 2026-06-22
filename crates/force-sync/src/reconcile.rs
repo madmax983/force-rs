@@ -3,7 +3,7 @@
 use futures::FutureExt;
 use tokio_postgres::GenericClient;
 
-use crate::{PgStore, error::ForceSyncError};
+use crate::PgStore;
 
 /// A drift candidate discovered during reconciliation.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -20,7 +20,7 @@ pub struct DriftItem {
     pub payload_hash: Vec<u8>,
 }
 
-async fn detect_drift_query<C>(client: &C, limit: i64) -> Result<Vec<DriftItem>, ForceSyncError>
+async fn detect_drift_query<C>(client: &C, limit: i64) -> crate::error::Result<Vec<DriftItem>>
 where
     C: GenericClient + Sync + ?Sized,
 {
@@ -71,7 +71,7 @@ where
         .collect())
 }
 
-async fn enqueue_repair_in_tx<C>(client: &C, journal_id: i64) -> Result<i64, ForceSyncError>
+async fn enqueue_repair_in_tx<C>(client: &C, journal_id: i64) -> crate::error::Result<i64>
 where
     C: GenericClient + Sync + ?Sized,
 {
@@ -85,7 +85,7 @@ where
 async fn existing_repair_task_in_tx<C>(
     client: &C,
     journal_id: i64,
-) -> Result<Option<i64>, ForceSyncError>
+) -> crate::error::Result<Option<i64>>
 where
     C: GenericClient + Sync + ?Sized,
 {
@@ -111,7 +111,7 @@ where
 /// # Errors
 ///
 /// Returns an error if the query fails.
-pub async fn detect_drift(store: &PgStore, limit: i64) -> Result<Vec<DriftItem>, ForceSyncError> {
+pub async fn detect_drift(store: &PgStore, limit: i64) -> crate::error::Result<Vec<DriftItem>> {
     let client = store.pool().get().await?;
     detect_drift_query(&**client, limit).await
 }
@@ -121,7 +121,7 @@ pub async fn detect_drift(store: &PgStore, limit: i64) -> Result<Vec<DriftItem>,
 /// # Errors
 ///
 /// Returns an error if the task cannot be written.
-pub async fn enqueue_repair(store: &PgStore, journal_id: i64) -> Result<i64, ForceSyncError> {
+pub async fn enqueue_repair(store: &PgStore, journal_id: i64) -> crate::error::Result<i64> {
     store
         .with_transaction(|tx| async move { enqueue_repair_in_tx(tx, journal_id).await }.boxed())
         .await
@@ -132,7 +132,7 @@ pub async fn enqueue_repair(store: &PgStore, journal_id: i64) -> Result<i64, For
 /// # Errors
 ///
 /// Returns an error if the detection or enqueue steps fail.
-pub async fn run_reconcile_once(store: &PgStore, limit: i64) -> Result<usize, ForceSyncError> {
+pub async fn run_reconcile_once(store: &PgStore, limit: i64) -> crate::error::Result<usize> {
     store
         .with_transaction(|tx| {
             async move {

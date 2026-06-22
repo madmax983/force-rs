@@ -1,5 +1,8 @@
 //! Error types for force-sync.
 
+/// Convenience Result alias for force-sync operations.
+pub type Result<T> = std::result::Result<T, ForceSyncError>;
+
 /// Database and migration errors.
 #[derive(Debug, thiserror::Error)]
 pub enum ForceSyncError {
