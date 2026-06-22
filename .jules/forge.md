@@ -98,3 +98,7 @@
 **[Flatten Match With Original Error Context]**
 **Learning:** When flattening nested `match` statements handling `Result` outputs, rewriting them with `let Ok(...) = result else` guard clauses can lead to silently swallowing the underlying original error if not passed through explicitly, which breaks observability and changes runtime behavior. Using `.map_err(...)?` provides a flatter structure while preserving the exact error mappings natively.
 **Action:** When acting as 'Forge', never drop the original underlying error variable (e.g., `e`). To flatten `Result` mapping, use `.map_err(|e| { ... })?` with the `?` operator instead of verbose `match` statements or dropping context inside `else` guards, ensuring the error propagates cleanly without over-nesting.
+
+**[Session Execution over Raw Reqwest]**
+**Learning:** Functions communicating with an API that manually construct URLs via `format!`, instantiate raw `reqwest` clients, and duplicate response body reading bypass the central telemetry, retry logic, and base path management of the `Session` layer.
+**Action:** Replace direct `reqwest` usages with `Session::resolve_url`, `Session::send_request_and_decode`, and `Session::execute_and_check_success` to ensure DRY URL formatting and proper integration with the client's internal request pipeline.

@@ -69,14 +69,7 @@ impl<A: Authenticator> FilesHandler<A> {
         path_on_client: &str,
         file_bytes: Vec<u8>,
     ) -> Result<String> {
-        let token = self.session.token_manager.token().await?;
-        let api_version = self.session.config.api_version.as_str();
-
-        let url = format!(
-            "{}/services/data/v{}/sobjects/ContentVersion",
-            token.instance_url(),
-            api_version
-        );
+        let url = self.session.resolve_url("sobjects/ContentVersion").await?;
 
         let entity_content = json!({
             "Title": title,
@@ -96,27 +89,17 @@ impl<A: Authenticator> FilesHandler<A> {
             .part("entity_content", entity_part)
             .part("VersionData", version_data_part);
 
-        let response = self
+        let request = self
             .session
-            .http_client
             .post(&url)
-            .bearer_auth(token.as_str())
             .multipart(form)
-            .send()
-            .await
-            .map_err(|e| ForceError::Http(crate::error::HttpError::RequestFailed(e)))?;
+            .build()
+            .map_err(crate::error::HttpError::from)?;
 
-        let status = response.status();
-        let body = Self::read_capped_body(response, 100 * 1024 * 1024)
-            .await
-            .map_err(|e| ForceError::Http(crate::error::HttpError::RequestFailed(e)))?;
-
-        if !status.is_success() && status.as_u16() != 201 {
-            return Err(ForceError::InvalidInput("Failed to upload ContentVersion".into()));
-        }
-
-        let result: serde_json::Value = serde_json::from_str(&body)
-            .map_err(|e| ForceError::Serialization(crate::error::SerializationError::Json(e)))?;
+        let result: serde_json::Value = self
+            .session
+            .send_request_and_decode(request, "Failed to upload ContentVersion")
+            .await?;
 
         if result["success"].as_bool().unwrap_or(false) {
             Ok(result["id"].as_str().unwrap_or_default().to_string())
@@ -135,34 +118,26 @@ impl<A: Authenticator> FilesHandler<A> {
     /// # Returns
     /// The binary content as a `Vec<u8>`.
     pub async fn download(&self, content_version_id: &str) -> Result<Vec<u8>> {
-        let token = self.session.token_manager.token().await?;
-        let api_version = self.session.config.api_version.as_str();
+        let url = self
+            .session
+            .resolve_url(&format!(
+                "sobjects/ContentVersion/{}/VersionData",
+                content_version_id
+            ))
+            .await?;
 
-        let url = format!(
-            "{}/services/data/v{}/sobjects/ContentVersion/{}/VersionData",
-            token.instance_url(),
-            api_version,
-            content_version_id
-        );
+        let request = self
+            .session
+            .get(&url)
+            .build()
+            .map_err(crate::error::HttpError::from)?;
 
         let response = self
             .session
-            .http_client
-            .get(&url)
-            .bearer_auth(token.as_str())
-            .send()
-            .await
-            .map_err(|e| ForceError::Http(crate::error::HttpError::RequestFailed(e)))?;
+            .execute_and_check_success(request, "Failed to download ContentVersion")
+            .await?;
 
-        let status = response.status();
-        let bytes = Self::read_capped_body_bytes(response, 100 * 1024 * 1024)
-            .await
-            .map_err(|e| ForceError::Http(crate::error::HttpError::RequestFailed(e)))?;
-
-        if !status.is_success() && status.as_u16() != 200 {
-            return Err(ForceError::InvalidInput("Failed to download ContentVersion".into()));
-        }
-
+        let bytes = crate::http::read_capped_body_bytes(response, 100 * 1024 * 1024).await?;
         Ok(bytes.to_vec())
     }
 
@@ -179,14 +154,7 @@ impl<A: Authenticator> FilesHandler<A> {
         content_document_id: &str,
         linked_entity_id: &str,
     ) -> Result<String> {
-        let token = self.session.token_manager.token().await?;
-        let api_version = self.session.config.api_version.as_str();
-
-        let url = format!(
-            "{}/services/data/v{}/sobjects/ContentDocumentLink",
-            token.instance_url(),
-            api_version
-        );
+        let url = self.session.resolve_url("sobjects/ContentDocumentLink").await?;
 
         let payload = json!({
             "ContentDocumentId": content_document_id,
@@ -194,27 +162,17 @@ impl<A: Authenticator> FilesHandler<A> {
             "ShareType": "V"
         });
 
-        let response = self
+        let request = self
             .session
-            .http_client
             .post(&url)
-            .bearer_auth(token.as_str())
             .json(&payload)
-            .send()
-            .await
-            .map_err(|e| ForceError::Http(crate::error::HttpError::RequestFailed(e)))?;
+            .build()
+            .map_err(crate::error::HttpError::from)?;
 
-        let status = response.status();
-        let body = Self::read_capped_body(response, 10 * 1024 * 1024)
-            .await
-            .map_err(|e| ForceError::Http(crate::error::HttpError::RequestFailed(e)))?;
-
-        if !status.is_success() && status.as_u16() != 201 {
-            return Err(ForceError::InvalidInput("Failed to insert ContentDocumentLink".into()));
-        }
-
-        let result: serde_json::Value = serde_json::from_str(&body)
-            .map_err(|e| ForceError::Serialization(crate::error::SerializationError::Json(e)))?;
+        let result: serde_json::Value = self
+            .session
+            .send_request_and_decode(request, "Failed to insert ContentDocumentLink")
+            .await?;
 
         if result["success"].as_bool().unwrap_or(false) {
             Ok(result["id"].as_str().unwrap_or_default().to_string())
