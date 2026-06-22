@@ -87,6 +87,7 @@ pub struct SearchAttributes {
 /// ```
 #[derive(Debug, Clone)]
 pub struct SearchQueryBuilder {
+    pub(crate) error: Option<String>,
     /// Search text.
     search_text: String,
     /// ⚡ Bolt: Using `&'static str` for predefined search scopes avoids `.to_string()` heap allocations.
@@ -105,6 +106,7 @@ impl SearchQueryBuilder {
     #[must_use]
     pub fn new() -> Self {
         Self {
+            error: None,
             search_text: String::new(),
             search_scope: None,
             returning: Vec::new(),
@@ -294,6 +296,9 @@ impl SearchQueryBuilder {
     /// Panics if search text is empty or no objects are specified in RETURNING.
     #[must_use]
     pub fn build(self) -> String {
+        if let Some(e) = self.error.clone() {
+            panic!("{}", e);
+        }
         self.try_build().unwrap_or_panic("build")
     }
 }
