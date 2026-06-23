@@ -12,7 +12,7 @@
 //! # use force::schema::analyze_schema_limits;
 //! # use force::auth::ClientCredentials;
 //! # #[tokio::main]
-//! # async fn main() -> anyhow::Result<()> {
+//! # async fn main() -> force::error::Result<()> {
 //! # let auth = ClientCredentials::new("id", "secret", "url");
 //! # let client = ForceClientBuilder::new().authenticate(auth).build().await?;
 //! let describe = client.rest().describe("Account").await?;

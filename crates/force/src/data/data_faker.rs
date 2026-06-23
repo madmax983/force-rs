@@ -13,7 +13,7 @@
 //! # use force::data::generate_mock_record;
 //! # use force::auth::ClientCredentials;
 //! # #[tokio::main]
-//! # async fn main() -> anyhow::Result<()> {
+//! # async fn main() -> force::error::Result<()> {
 //! # let auth = ClientCredentials::new("id", "secret", "url");
 //! # let client = ForceClientBuilder::new().authenticate(auth).build().await?;
 //! // Fetch the metadata for an Account

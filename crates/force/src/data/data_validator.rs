@@ -19,7 +19,7 @@
 //! # use force::auth::ClientCredentials;
 //! # use force::types::DynamicSObject;
 //! # #[tokio::main]
-//! # async fn main() -> anyhow::Result<()> {
+//! # async fn main() -> force::error::Result<()> {
 //! # let auth = ClientCredentials::new("id", "secret", "url");
 //! # let client = ForceClientBuilder::new().authenticate(auth).build().await?;
 //! // Fetch metadata for Contact

@@ -16,3 +16,6 @@
 **[Unify error handling]
 **Tangle:** Inconsistent error handling across modules where Result was used with explicit types.
 **Blueprint:** Standardized error types across all modules to enforce domain boundaries.
+**[Unified Error Boundaries]**
+**Tangle:** The `force` crate's `schema`, `data`, and `api::composite` modules, along with the `force-sync` crate, were relying heavily on `anyhow::Result`. This is a leaky abstraction that weakens domain boundaries.
+**Blueprint:** Refactored these modules to use their respective domain-specific `Result<T>` types (wrapping `ForceError` and `ForceSyncError` respectively), completely eliminating `anyhow` from the core library code.

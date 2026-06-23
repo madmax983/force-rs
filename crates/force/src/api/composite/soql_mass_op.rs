@@ -19,7 +19,7 @@
 //! # use force::auth::ClientCredentials;
 //! # use serde_json::json;
 //! # #[tokio::main]
-//! # async fn main() -> anyhow::Result<()> {
+//! # async fn main() -> force::error::Result<()> {
 //! # let auth = ClientCredentials::new("id", "secret", "url");
 //! # let client = ForceClientBuilder::new().authenticate(auth).build().await?;
 //! // 1. Build a safe SOQL query to find records
