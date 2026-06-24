@@ -176,12 +176,18 @@ pub fn payload_hash(payload: &Value) -> [u8; 32] {
     let mut hasher = blake3::Hasher::new();
     // ⚡ Bolt: Write JSON directly into the hasher without an intermediate String allocation.
     // We avoid `payload.clone()` by manually sorting object keys dynamically during hashing.
-    hash_json_value(payload, &mut hasher);
+    hash_json_value(payload, &mut hasher, 0);
     *hasher.finalize().as_bytes()
 }
 
-fn hash_json_value(value: &Value, hasher: &mut blake3::Hasher) {
+fn hash_json_value(value: &Value, hasher: &mut blake3::Hasher, depth: usize) {
     use std::io::Write;
+
+    // 👺 Havoc: Prevent stack overflow from deeply nested JSON payloads
+    if depth > 128 {
+        return;
+    }
+
     match value {
         Value::Object(map) => {
             let _ = Write::write_all(hasher, b"{");
@@ -197,7 +203,7 @@ fn hash_json_value(value: &Value, hasher: &mut blake3::Hasher) {
                 first = false;
                 let _ = serde_json::to_writer(&mut *hasher, k);
                 let _ = Write::write_all(hasher, b":");
-                hash_json_value(v, hasher);
+                hash_json_value(v, hasher, depth + 1);
             }
             let _ = Write::write_all(hasher, b"}");
         }
@@ -209,7 +215,7 @@ fn hash_json_value(value: &Value, hasher: &mut blake3::Hasher) {
                     let _ = Write::write_all(hasher, b",");
                 }
                 first = false;
-                hash_json_value(v, hasher);
+                hash_json_value(v, hasher, depth + 1);
             }
             let _ = Write::write_all(hasher, b"]");
         }
@@ -272,8 +278,8 @@ mod tests {
         sorted_payload.sort_all_objects();
 
         assert_eq!(
-            super::payload_hash(&payload),
-            super::payload_hash(&sorted_payload)
+            crate::model::payload_hash(&payload),
+            crate::model::payload_hash(&sorted_payload)
         );
     }
 
@@ -321,5 +327,28 @@ mod tests {
             "Description": "Keep",
             "Name": "Acme"
         })));
+    }
+
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn test_havoc_payload_hash_stack_overflow() {
+        use serde_json::Value;
+
+        // Build JSON iteratively with limits to not overflow when *building* the json via macro.
+        let mut v = Value::Null;
+        for _ in 0..100_000 {
+            v = Value::Array(vec![v]);
+        }
+
+        // This should not overflow stack now, since we put a 128 limit in hash_json_value
+        let _ = super::payload_hash(&v);
+
+        // Avoid drop stack overflow
+        std::thread::Builder::new()
+            .stack_size(32 * 1024 * 1024)
+            .spawn(move || drop(v))
+            .unwrap()
+            .join()
+            .unwrap();
     }
 }
