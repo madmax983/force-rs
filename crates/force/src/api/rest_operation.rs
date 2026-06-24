@@ -595,23 +595,36 @@ async fn upsert_with_retry_class_impl<A: Authenticator>(
     data: &serde_json::Value,
     retry_class: crate::http::RequestRetryClass,
 ) -> Result<UpsertResponse> {
+    use std::fmt::Write;
+
     validate_sobject_name(sobject)?;
     validate_external_id_field(external_id_field)?;
 
-    // ⚡ Bolt: Pass `utf8_percent_encode` directly to `format!` to avoid an intermediate `String` allocation.
     let encoded_value = utf8_percent_encode(external_id_value, UPSERT_ENCODE_SET);
 
-    let api_path = if api_path_prefix.is_empty() {
-        format!(
+    // ⚡ Bolt: Avoid intermediate `format!` allocation by writing directly to a pre-allocated buffer.
+    let mut api_path = String::with_capacity(
+        api_path_prefix.len()
+            + sobject.len()
+            + external_id_field.len()
+            + external_id_value.len()
+            + 24,
+    );
+    if api_path_prefix.is_empty() {
+        write!(
+            api_path,
             "sobjects/{}/{}/{}",
             sobject, external_id_field, encoded_value
         )
+        .unwrap_or_else(|_| unreachable!("writing to String is infallible"));
     } else {
-        format!(
+        write!(
+            api_path,
             "{}/sobjects/{}/{}/{}",
             api_path_prefix, sobject, external_id_field, encoded_value
         )
-    };
+        .unwrap_or_else(|_| unreachable!("writing to String is infallible"));
+    }
     let url = session.resolve_url(&api_path).await?;
 
     let request = session
