@@ -387,12 +387,14 @@ pub trait RestOperation<A: Authenticator> {
 
         let response = self
             .session()
-            .execute_request_with_retry_class(request, retry_class)
+            .execute_and_check_success_with_retry_class(
+                request,
+                retry_class,
+                "Upsert request failed",
+            )
             .await?;
 
-        let status = response.status();
-
-        if status.as_u16() == 204 {
+        if response.status().as_u16() == 204 {
             // 204 No Content means an existing record was updated
             // But the response does not include the record ID
             return Err(ForceError::NotImplemented(
@@ -401,15 +403,10 @@ pub trait RestOperation<A: Authenticator> {
             ));
         }
 
-        if status.is_success() {
-            // Success codes (201 Created, 200 OK) - parse as upsert response
-            let bytes =
-                crate::http::error::read_capped_body_bytes(response, 100 * 1024 * 1024).await?;
-            return serde_json::from_slice::<UpsertResponse>(&bytes)
-                .map_err(|e| crate::error::SerializationError::from(e).into());
-        }
-
-        Err(crate::http::response_to_force_error(response, "Upsert request failed").await)
+        // Success codes (201 Created, 200 OK) - parse as upsert response
+        let bytes = crate::http::error::read_capped_body_bytes(response, 100 * 1024 * 1024).await?;
+        serde_json::from_slice::<UpsertResponse>(&bytes)
+            .map_err(|e| crate::error::SerializationError::from(e).into())
     }
 
     // ── Query Operations ─────────────────────────────────────────────

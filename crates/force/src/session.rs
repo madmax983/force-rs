@@ -81,6 +81,26 @@ impl<A: crate::auth::authenticator::Authenticator> Session<A> {
             .await
     }
 
+    /// Executes a request with an explicit retry class override, checks for success, and returns the response if successful.
+    pub(crate) async fn execute_and_check_success_with_retry_class(
+        &self,
+        request: reqwest::Request,
+        retry_class: RequestRetryClass,
+        fallback_error_message: &str,
+    ) -> crate::error::Result<reqwest::Response> {
+        let response = self
+            .execute_request_with_retry_class(request, retry_class)
+            .await?;
+
+        if !response.status().is_success() {
+            return Err(
+                crate::http::response_to_force_error(response, fallback_error_message).await,
+            );
+        }
+
+        Ok(response)
+    }
+
     /// Executes a request and checks for success, returning the response if successful.
     ///
     /// This helper standardizes the pattern of:
