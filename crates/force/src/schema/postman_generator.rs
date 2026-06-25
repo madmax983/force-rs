@@ -27,17 +27,21 @@ pub fn generate_postman_collection(describe: &SObjectDescribe) -> Value {
     let mut update_body = serde_json::Map::new();
 
     for field in &describe.fields {
-        if field.createable && field.name != "Id" {
-            create_body.insert(
-                field.name.clone(),
-                json!(format!("{{{{${}}}}}", field.name)),
-            );
-        }
-        if field.updateable && field.name != "Id" {
-            update_body.insert(
-                field.name.clone(),
-                json!(format!("{{{{${}}}}}", field.name)),
-            );
+        if field.name != "Id" && (field.createable || field.updateable) {
+            // ⚡ Bolt: Eliminate multiple `format!` allocations by pre-allocating
+            // the variable string with `String::with_capacity` and sequential `push_str`.
+            let mut var_str = String::with_capacity(field.name.len() + 5);
+            var_str.push_str("{{$");
+            var_str.push_str(&field.name);
+            var_str.push_str("}}");
+            let var_val = json!(var_str);
+
+            if field.createable {
+                create_body.insert(field.name.clone(), var_val.clone());
+            }
+            if field.updateable {
+                update_body.insert(field.name.clone(), var_val);
+            }
         }
     }
 
@@ -45,6 +49,21 @@ pub fn generate_postman_collection(describe: &SObjectDescribe) -> Value {
         serde_json::to_string_pretty(&create_body).unwrap_or_else(|_| "{}".to_string());
     let update_body_str =
         serde_json::to_string_pretty(&update_body).unwrap_or_else(|_| "{}".to_string());
+
+    // ⚡ Bolt: Pre-calculate reusable endpoint strings to avoid repeated format! allocations
+    let url_no_id = {
+        let mut s = String::with_capacity(name.len() + 45);
+        s.push_str("{{_endpoint}}/services/data/v60.0/sobjects/");
+        s.push_str(name);
+        s
+    };
+
+    let url_with_id = {
+        let mut s = String::with_capacity(url_no_id.len() + 15);
+        s.push_str(&url_no_id);
+        s.push_str("/{{recordId}}");
+        s
+    };
 
     json!({
         "info": {
@@ -68,7 +87,7 @@ pub fn generate_postman_collection(describe: &SObjectDescribe) -> Value {
                         "raw": create_body_str
                     },
                     "url": {
-                        "raw": format!("{{{{_endpoint}}}}/services/data/v60.0/sobjects/{}", name),
+                        "raw": url_no_id,
                         "host": [
                             "{{_endpoint}}"
                         ],
@@ -88,7 +107,7 @@ pub fn generate_postman_collection(describe: &SObjectDescribe) -> Value {
                     "method": "GET",
                     "header": [],
                     "url": {
-                        "raw": format!("{{{{_endpoint}}}}/services/data/v60.0/sobjects/{}/{{{{recordId}}}}", name),
+                        "raw": &url_with_id,
                         "host": [
                             "{{_endpoint}}"
                         ],
@@ -118,7 +137,7 @@ pub fn generate_postman_collection(describe: &SObjectDescribe) -> Value {
                         "raw": update_body_str
                     },
                     "url": {
-                        "raw": format!("{{{{_endpoint}}}}/services/data/v60.0/sobjects/{}/{{{{recordId}}}}", name),
+                        "raw": &url_with_id,
                         "host": [
                             "{{_endpoint}}"
                         ],
@@ -139,7 +158,7 @@ pub fn generate_postman_collection(describe: &SObjectDescribe) -> Value {
                     "method": "DELETE",
                     "header": [],
                     "url": {
-                        "raw": format!("{{{{_endpoint}}}}/services/data/v60.0/sobjects/{}/{{{{recordId}}}}", name),
+                        "raw": url_with_id,
                         "host": [
                             "{{_endpoint}}"
                         ],
