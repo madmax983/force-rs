@@ -449,6 +449,22 @@ mod tests {
     }
 
     #[test]
+    fn test_search_query_builder_default() {
+        let builder1 = SearchQueryBuilder::default();
+        let builder2 = SearchQueryBuilder::new();
+        assert_eq!(builder1.search_text, builder2.search_text);
+        assert_eq!(builder1.search_scope, builder2.search_scope);
+        assert_eq!(builder1.returning, builder2.returning);
+        assert_eq!(builder1.limit, builder2.limit);
+        assert_eq!(builder1.offset, builder2.offset);
+    }
+
+    #[test]
+    fn test_validate_field_syntax_safe_valid() {
+        validate_field_syntax("ValidField");
+    }
+
+    #[test]
     #[should_panic(
         expected = "Invalid input in returning: invalid input: field name contains invalid character: '@' in \"Invalid@Field\""
     )]

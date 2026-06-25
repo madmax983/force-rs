@@ -273,6 +273,52 @@ mod tests {
         assert!(!debug_output.contains("my_secret"));
     }
 
+    #[test]
+    fn test_client_credentials_new_production() {
+        let auth = ClientCredentials::new_production("client_id", "client_secret");
+        assert_eq!(auth.client_id, "client_id");
+        assert_eq!(auth.client_secret.expose_secret(), "client_secret");
+        assert_eq!(auth.token_url, crate::auth::PRODUCTION_TOKEN_URL);
+    }
+
+    #[test]
+    fn test_client_credentials_new_sandbox() {
+        let auth = ClientCredentials::new_sandbox("client_id", "client_secret");
+        assert_eq!(auth.client_id, "client_id");
+        assert_eq!(auth.client_secret.expose_secret(), "client_secret");
+        assert_eq!(auth.token_url, crate::auth::SANDBOX_TOKEN_URL);
+    }
+
+    #[tokio::test]
+    #[cfg(feature = "mock")]
+    async fn test_client_credentials_refresh() {
+        use wiremock::{Mock, MockServer, ResponseTemplate, matchers};
+        let mock_server = MockServer::start().await;
+
+        let token_response = serde_json::json!({
+            "access_token": "refreshed_token",
+            "instance_url": "https://test.salesforce.com",
+            "id": "https://test.salesforce.com/id/00D/005",
+            "token_type": "Bearer",
+            "issued_at": "1704067200000",
+            "signature": "test_sig"
+        });
+
+        let target_url = format!("{}/services/oauth2/token", mock_server.uri());
+        let auth = ClientCredentials::new("client_id", "client_secret", &target_url);
+
+        Mock::given(matchers::method("POST"))
+            .and(matchers::path("/services/oauth2/token"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(&token_response))
+            .mount(&mock_server)
+            .await;
+
+        let token = auth.refresh().await.must();
+
+        assert_eq!(token.as_str(), "refreshed_token");
+        assert_eq!(token.instance_url(), "https://test.salesforce.com");
+    }
+
     // Integration tests with wiremock
 
     #[cfg(feature = "mock")]

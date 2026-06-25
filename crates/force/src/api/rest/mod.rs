@@ -343,4 +343,116 @@ mod tests {
         let debug_str = format!("{:?}", handler);
         assert!(!debug_str.is_empty());
     }
+
+    #[tokio::test]
+    async fn test_execute_post() {
+        use wiremock::{Mock, MockServer, ResponseTemplate, matchers};
+        let mock_server = MockServer::start().await;
+
+        Mock::given(matchers::method("POST"))
+            .and(matchers::path("/services/data/v60.0/test_path"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(serde_json::json!({"success": true})),
+            )
+            .mount(&mock_server)
+            .await;
+
+        let auth = MockAuthenticator::new("test_token", &mock_server.uri());
+        let client = builder().authenticate(auth).build().await.must();
+
+        let handler = client.rest();
+        let body = serde_json::json!({"test": "data"});
+        let result: serde_json::Value = handler
+            .execute_post("test_path", &body, "Test failed")
+            .await
+            .must();
+
+        assert_eq!(result["success"], true);
+    }
+
+    #[tokio::test]
+    async fn test_limits() {
+        use wiremock::{Mock, MockServer, ResponseTemplate, matchers};
+        let mock_server = MockServer::start().await;
+
+        let limits_response = serde_json::json!({
+            "DailyApiRequests": {
+                "Max": 100_000,
+                "Remaining": 99_999
+            },
+            "DailyAsyncApexExecutions": {"Max": 250_000, "Remaining": 250_000},
+            "DailyBatchApexExecutions": {"Max": 250_000, "Remaining": 250_000},
+            "DailyDurableGenericStreamingApiEvents": {"Max": 10000, "Remaining": 10000},
+            "DailyDurableStreamingApiEvents": {"Max": 10000, "Remaining": 10000},
+            "DailyGenericStreamingApiEvents": {"Max": 10000, "Remaining": 10000},
+            "DailyStreamingApiEvents": {"Max": 10000, "Remaining": 10000},
+            "DailyWorkflowEmails": {"Max": 1000, "Remaining": 1000},
+            "DataStorageMB": {"Max": 5120, "Remaining": 4800},
+            "FileStorageMB": {"Max": 20480, "Remaining": 20000},
+            "HourlyAsyncReportRuns": {"Max": 1200, "Remaining": 1200},
+            "HourlyDashboardRefreshes": {"Max": 200, "Remaining": 200},
+            "HourlyDashboardResults": {"Max": 5000, "Remaining": 5000},
+            "HourlyDashboardStatuses": {"Max": 999_999_999, "Remaining": 999_999_999},
+            "HourlyLongTermIdMapping": {"Max": 100_000, "Remaining": 100_000},
+            "HourlyManagedContentPublicRequests": {"Max": 50000, "Remaining": 50000},
+            "HourlyODataCallout": {"Max": 10000, "Remaining": 10000},
+            "HourlyShortTermIdMapping": {"Max": 100_000, "Remaining": 100_000},
+            "HourlyTimeBasedWorkflow": {"Max": 1000, "Remaining": 1000},
+            "MassEmail": {"Max": 10, "Remaining": 10},
+            "SingleEmail": {"Max": 15, "Remaining": 15}
+        });
+
+        Mock::given(matchers::method("GET"))
+            .and(matchers::path("/services/data/v60.0/limits"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(&limits_response))
+            .mount(&mock_server)
+            .await;
+
+        let auth = MockAuthenticator::new("test_token", &mock_server.uri());
+        let client = builder().authenticate(auth).build().await.must();
+
+        let handler = client.rest();
+        let limits = handler.limits().await.must();
+
+        assert_eq!(limits.daily_api_requests.max, 100_000);
+        assert_eq!(limits.daily_api_requests.remaining, 99_999);
+    }
+
+    #[tokio::test]
+    async fn test_search() {
+        use wiremock::{Mock, MockServer, ResponseTemplate, matchers};
+        let mock_server = MockServer::start().await;
+
+        let search_response = serde_json::json!({
+            "searchRecords": [
+                {
+                    "attributes": {
+                        "type": "Account",
+                        "url": "/services/data/v60.0/sobjects/Account/001000000000000AAA"
+                    },
+                    "records": [
+                        {
+                            "Id": "001000000000000AAA"
+                        }
+                    ]
+                }
+            ]
+        });
+
+        Mock::given(matchers::method("GET"))
+            .and(matchers::path("/services/data/v60.0/search"))
+            .and(matchers::query_param("q", "FIND {Acme} IN ALL FIELDS"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(&search_response))
+            .mount(&mock_server)
+            .await;
+
+        let auth = MockAuthenticator::new("test_token", &mock_server.uri());
+        let client = builder().authenticate(auth).build().await.must();
+
+        let handler = client.rest();
+        let result = handler.search("FIND {Acme} IN ALL FIELDS").await.must();
+
+        assert_eq!(result.search_records.len(), 1);
+        assert_eq!(result.search_records[0].attributes.type_, "Account");
+    }
 }

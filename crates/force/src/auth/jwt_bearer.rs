@@ -299,6 +299,41 @@ QcWLHR6ul3bFRWNhXoThNBQ=
             panic!("Expected InvalidJwtConfig error");
         }
     }
+
+    #[tokio::test]
+    #[cfg(feature = "mock")]
+    async fn test_jwt_bearer_refresh() {
+        use wiremock::{Mock, MockServer, ResponseTemplate, matchers};
+        let mock_server = MockServer::start().await;
+
+        let token_response = serde_json::json!({
+            "access_token": "refreshed_token",
+            "instance_url": "https://test.salesforce.com",
+            "id": "https://test.salesforce.com/id/00D/005",
+            "token_type": "Bearer",
+            "issued_at": "1704067200000",
+            "signature": "test_sig"
+        });
+
+        Mock::given(matchers::method("POST"))
+            .and(matchers::path("/services/oauth2/token"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(&token_response))
+            .mount(&mock_server)
+            .await;
+
+        let flow = JwtBearerFlow::new(
+            "test_client",
+            "test_user@example.com",
+            include_str!("../../tests/fixtures/dummy_key.pem"),
+            "https://login.salesforce.com",
+            format!("{}/services/oauth2/token", mock_server.uri()),
+        )
+        .must();
+
+        let token = flow.refresh().await.must();
+        assert_eq!(token.as_str(), "refreshed_token");
+        assert_eq!(token.instance_url(), "https://test.salesforce.com");
+    }
     #[test]
     fn test_jwt_bearer_debug_redacts_private_key() {
         let flow = JwtBearerFlow::new(

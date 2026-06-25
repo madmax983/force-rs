@@ -1045,6 +1045,66 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_tooling_upsert_uses_path_prefix() {
+        use crate::test_utils::mock_auth::MockAuthenticator;
+        use serde_json::json;
+        use wiremock::{Mock, MockServer, ResponseTemplate, matchers};
+
+        // Use a test struct that returns the right path prefix
+        #[derive(Clone)]
+        struct TestToolingOp(std::sync::Arc<crate::session::Session<MockAuthenticator>>);
+
+        impl RestOperation<MockAuthenticator> for TestToolingOp {
+            fn session(&self) -> &std::sync::Arc<crate::session::Session<MockAuthenticator>> {
+                &self.0
+            }
+            fn path_prefix(&self) -> &'static str {
+                "tooling"
+            }
+        }
+
+        let mock_server = MockServer::start().await;
+        let auth = MockAuthenticator::new("test_token", &mock_server.uri());
+
+        let create_response = json!({
+            "id": "001000000000001AAA",
+            "success": true,
+            "created": true,
+            "errors": []
+        });
+
+        Mock::given(matchers::method("PATCH"))
+            .and(matchers::path(
+                "/services/data/v60.0/tooling/sobjects/Account/ExternalId__c/ACME-001",
+            ))
+            .respond_with(ResponseTemplate::new(201).set_body_json(create_response))
+            .mount(&mock_server)
+            .await;
+
+        let client = crate::client::builder()
+            .authenticate(auth)
+            .build()
+            .await
+            .must();
+        let session = client.session();
+
+        let tooling = TestToolingOp(session);
+
+        let result = tooling
+            .upsert(
+                "Account",
+                "ExternalId__c",
+                "ACME-001",
+                &json!({"Name": "Acme Corp"}),
+            )
+            .await
+            .must();
+
+        assert_eq!(result.id.as_str(), "001000000000001AAA");
+        assert!(result.created);
+    }
+
+    #[tokio::test]
     async fn test_get_success_mock() {
         use crate::client::builder;
         use crate::types::SalesforceId;
