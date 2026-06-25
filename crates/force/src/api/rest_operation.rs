@@ -598,19 +598,42 @@ async fn upsert_with_retry_class_impl<A: Authenticator>(
     validate_sobject_name(sobject)?;
     validate_external_id_field(external_id_field)?;
 
-    // ⚡ Bolt: Pass `utf8_percent_encode` directly to `format!` to avoid an intermediate `String` allocation.
+    // ⚡ Bolt: Eliminate `format!` macro overhead by using pre-allocated `String` and `.push_str()` calls.
     let encoded_value = utf8_percent_encode(external_id_value, UPSERT_ENCODE_SET);
 
     let api_path = if api_path_prefix.is_empty() {
-        format!(
-            "sobjects/{}/{}/{}",
-            sobject, external_id_field, encoded_value
-        )
+        let mut out = String::with_capacity(
+            9 + sobject.len() + 1 + external_id_field.len() + 1 + external_id_value.len() * 3,
+        );
+        out.push_str("sobjects/");
+        out.push_str(sobject);
+        out.push('/');
+        out.push_str(external_id_field);
+        out.push('/');
+        for chunk in encoded_value {
+            out.push_str(chunk);
+        }
+        out
     } else {
-        format!(
-            "{}/sobjects/{}/{}/{}",
-            api_path_prefix, sobject, external_id_field, encoded_value
-        )
+        let mut out = String::with_capacity(
+            api_path_prefix.len()
+                + 10
+                + sobject.len()
+                + 1
+                + external_id_field.len()
+                + 1
+                + external_id_value.len() * 3,
+        );
+        out.push_str(api_path_prefix);
+        out.push_str("/sobjects/");
+        out.push_str(sobject);
+        out.push('/');
+        out.push_str(external_id_field);
+        out.push('/');
+        for chunk in encoded_value {
+            out.push_str(chunk);
+        }
+        out
     };
     let url = session.resolve_url(&api_path).await?;
 
