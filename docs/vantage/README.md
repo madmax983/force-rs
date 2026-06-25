@@ -39,6 +39,10 @@ Design backlog and product-spec notes for incubating `force-rs` capabilities. Th
 - [`metadata-api.md`](metadata-api.md): Metadata API deployment and retrieval operations.
 - [`query-plan-analyzer.md`](query-plan-analyzer.md): SOQL query performance analyzer and cost threshold validation.
 
+## Analytics and Reports
+
+- [`reports-dashboards-api.md`](reports-dashboards-api.md): Reports and Dashboards API for executing and exporting Salesforce reports.
+
 ## Content and Files
 
 - [`salesforce-files-api.md`](salesforce-files-api.md): streaming multipart file uploads and downloads.
