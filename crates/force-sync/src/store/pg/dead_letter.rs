@@ -28,7 +28,7 @@ pub struct DeadLetter {
 async fn insert_dead_letter_query<C>(
     client: &C,
     dead_letter: &DeadLetter,
-) -> Result<i64, ForceSyncError>
+) -> crate::error::Result<i64>
 where
     C: GenericClient + Sync + ?Sized,
 {
@@ -65,7 +65,7 @@ where
 pub async fn insert_dead_letter_in_tx<C>(
     client: &C,
     dead_letter: &DeadLetter,
-) -> Result<i64, ForceSyncError>
+) -> crate::error::Result<i64>
 where
     C: GenericClient + Sync + ?Sized,
 {
@@ -81,7 +81,7 @@ impl PgStore {
     pub async fn insert_dead_letter(
         &self,
         dead_letter: &DeadLetter,
-    ) -> Result<i64, ForceSyncError> {
+    ) -> crate::error::Result<i64> {
         let client = self.pool().get().await?;
         insert_dead_letter_query(&**client, dead_letter).await
     }
