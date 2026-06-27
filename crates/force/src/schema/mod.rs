@@ -1,6 +1,8 @@
 //! Schema inspection, analysis, and code-generation utilities.
 
 #[cfg(feature = "schema")]
+pub(crate) mod apex_test_factory_generator;
+#[cfg(feature = "schema")]
 pub(crate) mod avro_generator;
 #[cfg(feature = "schema")]
 pub(crate) mod bigquery_generator;
@@ -40,6 +42,8 @@ pub(crate) fn cmp_field_names(a: &str, b: &str) -> std::cmp::Ordering {
     }
 }
 
+#[cfg(feature = "schema")]
+pub use apex_test_factory_generator::generate_apex_test_factory;
 #[cfg(feature = "schema")]
 pub use avro_generator::{generate_avro_schema, write_avro_schema};
 #[cfg(feature = "schema")]
