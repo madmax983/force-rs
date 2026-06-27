@@ -598,20 +598,30 @@ async fn upsert_with_retry_class_impl<A: Authenticator>(
     validate_sobject_name(sobject)?;
     validate_external_id_field(external_id_field)?;
 
-    // ⚡ Bolt: Pass `utf8_percent_encode` directly to `format!` to avoid an intermediate `String` allocation.
+    // ⚡ Bolt: Avoid intermediate string allocation in `format!` macro by pre-allocating the capacity and writing directly to the buffer.
     let encoded_value = utf8_percent_encode(external_id_value, UPSERT_ENCODE_SET);
 
-    let api_path = if api_path_prefix.is_empty() {
-        format!(
-            "sobjects/{}/{}/{}",
-            sobject, external_id_field, encoded_value
-        )
-    } else {
-        format!(
-            "{}/sobjects/{}/{}/{}",
-            api_path_prefix, sobject, external_id_field, encoded_value
-        )
-    };
+    let capacity = api_path_prefix.len()
+        + usize::from(!api_path_prefix.is_empty())
+        + 9
+        + sobject.len()
+        + 1
+        + external_id_field.len()
+        + 1
+        + (external_id_value.len() * 3);
+    let mut api_path = String::with_capacity(capacity);
+    if !api_path_prefix.is_empty() {
+        api_path.push_str(api_path_prefix);
+        api_path.push('/');
+    }
+    api_path.push_str("sobjects/");
+    api_path.push_str(sobject);
+    api_path.push('/');
+    api_path.push_str(external_id_field);
+    api_path.push('/');
+    for chunk in encoded_value {
+        api_path.push_str(chunk);
+    }
     let url = session.resolve_url(&api_path).await?;
 
     let request = session
