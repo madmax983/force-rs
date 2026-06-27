@@ -2,6 +2,10 @@
 
 Design backlog and product-spec notes for incubating `force-rs` capabilities. These documents were moved out of the repo root so release-facing docs stay focused on shipped crates and active project documentation.
 
+## Analytics
+
+- [`analytics-api.md`](analytics-api.md): Reports and Dashboards REST API support.
+
 ## Streaming and Integration
 
 - [`apex-rest-api.md`](apex-rest-api.md): native Apex REST handler for custom Salesforce endpoints.
