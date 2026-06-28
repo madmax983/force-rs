@@ -69,20 +69,19 @@ pub struct MissingCustomSuffixRule;
 
 impl LintRule for MissingCustomSuffixRule {
     fn evaluate(&self, describe: &SObjectDescribe) -> Vec<LintResult> {
-        let mut results = Vec::new();
-        for field in &describe.fields {
-            if field.custom && !field.name.ends_with("__c") {
-                results.push(LintResult {
-                    rule_name: "MissingCustomSuffix",
-                    severity: LintSeverity::Warning,
-                    message: format!(
-                        "Custom field '{}' in SObject '{}' does not end with '__c'.",
-                        field.name, describe.name
-                    ),
-                });
-            }
-        }
-        results
+        describe
+            .fields
+            .iter()
+            .filter(|field| field.custom && !field.name.ends_with("__c"))
+            .map(|field| LintResult {
+                rule_name: "MissingCustomSuffix",
+                severity: LintSeverity::Warning,
+                message: format!(
+                    "Custom field '{}' in SObject '{}' does not end with '__c'.",
+                    field.name, describe.name
+                ),
+            })
+            .collect()
     }
 }
 
