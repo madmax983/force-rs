@@ -31,6 +31,9 @@ pub(crate) mod type_generator;
 pub(crate) mod typescript_generator;
 pub(crate) mod zod_generator;
 
+#[cfg(feature = "schema")]
+pub(crate) mod apex_generator;
+
 pub(crate) fn cmp_field_names(a: &str, b: &str) -> std::cmp::Ordering {
     match (a == "Id", b == "Id") {
         (true, true) => std::cmp::Ordering::Equal,
@@ -71,6 +74,9 @@ pub use sql_exporter::{generate_ddl, write_ddl};
 pub use type_generator::generate_rust_struct;
 pub use typescript_generator::{generate_typescript_interface, write_typescript_interface};
 pub use zod_generator::{generate_zod_schema, write_zod_schema};
+
+#[cfg(feature = "schema")]
+pub use apex_generator::{generate_apex_test_factory, write_apex_test_factory};
 
 pub(crate) mod llm_context_generator;
 pub use llm_context_generator::{LlmContextOptions, generate_llm_context};
