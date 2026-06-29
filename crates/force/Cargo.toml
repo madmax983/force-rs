@@ -116,3 +116,6 @@ required-features = ["ui"]
 [[example]]
 name = "graphql"
 required-features = ["graphql"]
+[[example]]
+name = "csv_dictionary"
+required-features = ["schema"]
