@@ -180,41 +180,69 @@ pub fn payload_hash(payload: &Value) -> [u8; 32] {
     *hasher.finalize().as_bytes()
 }
 
-fn hash_json_value(value: &Value, hasher: &mut blake3::Hasher) {
-    use std::io::Write;
-    match value {
-        Value::Object(map) => {
-            let _ = Write::write_all(hasher, b"{");
-            // ⚡ Bolt: Provide a capacity hint for the intermediate vector to avoid reallocations
-            let mut iter = Vec::with_capacity(map.len());
-            iter.extend(map.iter());
-            iter.sort_unstable_by_key(|(k, _)| *k);
-            let mut first = true;
-            for (k, v) in iter {
-                if !first {
-                    let _ = Write::write_all(hasher, b",");
+enum HashState<'a> {
+    Node(&'a Value),
+    EndObj,
+    EndArr,
+    Comma,
+    KeyColon(&'a String),
+}
+
+fn hash_json_value(root: &Value, hasher: &mut blake3::Hasher) {
+    let mut stack = vec![HashState::Node(root)];
+
+    while let Some(op) = stack.pop() {
+        match op {
+            HashState::Node(value) => match value {
+                Value::Object(map) => {
+                    let _ = std::io::Write::write_all(hasher, b"{");
+                    stack.push(HashState::EndObj);
+
+                    // ⚡ Bolt: Provide a capacity hint for the intermediate vector to avoid reallocations
+                    let mut iter = Vec::with_capacity(map.len());
+                    iter.extend(map.iter());
+                    iter.sort_unstable_by_key(|(k, _)| *k);
+
+                    let mut first = true;
+                    for (k, v) in iter.into_iter().rev() {
+                        stack.push(HashState::Node(v));
+                        stack.push(HashState::KeyColon(k));
+                        if !first {
+                            stack.push(HashState::Comma);
+                        }
+                        first = false;
+                    }
                 }
-                first = false;
+                Value::Array(arr) => {
+                    let _ = std::io::Write::write_all(hasher, b"[");
+                    stack.push(HashState::EndArr);
+
+                    let mut first = true;
+                    for v in arr.iter().rev() {
+                        stack.push(HashState::Node(v));
+                        if !first {
+                            stack.push(HashState::Comma);
+                        }
+                        first = false;
+                    }
+                }
+                _ => {
+                    let _ = serde_json::to_writer(&mut *hasher, value);
+                }
+            },
+            HashState::EndObj => {
+                let _ = std::io::Write::write_all(hasher, b"}");
+            }
+            HashState::EndArr => {
+                let _ = std::io::Write::write_all(hasher, b"]");
+            }
+            HashState::Comma => {
+                let _ = std::io::Write::write_all(hasher, b",");
+            }
+            HashState::KeyColon(k) => {
                 let _ = serde_json::to_writer(&mut *hasher, k);
-                let _ = Write::write_all(hasher, b":");
-                hash_json_value(v, hasher);
+                let _ = std::io::Write::write_all(hasher, b":");
             }
-            let _ = Write::write_all(hasher, b"}");
-        }
-        Value::Array(arr) => {
-            let _ = Write::write_all(hasher, b"[");
-            let mut first = true;
-            for v in arr {
-                if !first {
-                    let _ = Write::write_all(hasher, b",");
-                }
-                first = false;
-                hash_json_value(v, hasher);
-            }
-            let _ = Write::write_all(hasher, b"]");
-        }
-        _ => {
-            let _ = serde_json::to_writer(hasher, value);
         }
     }
 }
