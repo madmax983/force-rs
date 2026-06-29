@@ -304,7 +304,7 @@ where
             let mapped = item.and_then(|event| match event {
                 PubSubEvent::Event(msg) => {
                     // Re-decode the Value to T — schema already applied; just re-deserialize.
-                    serde_json::from_value::<T>(msg.payload.clone())
+                    serde_json::from_value::<T>(msg.payload)
                         .map_err(|e| PubSubError::Avro(e.to_string()))
                         .map(|typed_payload| {
                             PubSubEvent::Event(EventMessage {
