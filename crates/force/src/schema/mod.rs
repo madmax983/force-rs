@@ -7,6 +7,8 @@ pub(crate) mod bigquery_generator;
 pub(crate) mod data_dictionary;
 #[cfg(feature = "schema")]
 pub(crate) mod dbml_generator;
+#[cfg(feature = "schema")]
+pub(crate) mod go_generator;
 pub(crate) mod graphql_generator;
 pub(crate) mod json_schema;
 pub(crate) mod mock_data_generator;
@@ -47,6 +49,8 @@ pub use bigquery_generator::generate_bigquery_schema;
 pub use data_dictionary::DataDictionary;
 #[cfg(feature = "schema")]
 pub use dbml_generator::{generate_dbml, write_dbml};
+#[cfg(feature = "schema")]
+pub use go_generator::{generate_go_struct, write_go_struct};
 pub use graphql_generator::{generate_graphql_schema, write_graphql_schema};
 pub use json_schema::generate_json_schema;
 pub use mock_data_generator::generate_mock_data;
