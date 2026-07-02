@@ -48,6 +48,7 @@ Design backlog and product-spec notes for incubating `force-rs` capabilities. Th
 - [`soql-query-builder.md`](soql-query-builder.md): SOQL query builder for type-safe query construction.
 - [`data-faker.md`](data-faker.md): synthetic Salesforce-shaped data generation.
 - [`data-seeder.md`](data-seeder.md): repeatable fixture and seed workflows.
+- [`data-masker.md`](data-masker.md): anonymization of PII data during seeding workflows.
 
 ## Authentication
 
