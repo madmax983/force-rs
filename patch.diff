@@ -1,12 +1,38 @@
---- crates/force/src/schema/llm_context_generator.rs
-+++ crates/force/src/schema/llm_context_generator.rs
-@@ -48,7 +48,8 @@
-     );
-     let _ = writeln!(context, "Fields:");
-
--    let mut sorted_fields = describe.fields.clone();
-+    // ⚡ Bolt: Collecting references to fields into a Vec avoids the costly `describe.fields.clone()` heap allocation since we just need to sort them before iterating.
-+    let mut sorted_fields: Vec<&crate::types::describe::FieldDescribe> = describe.fields.iter().collect();
-     sorted_fields.sort_by(|a, b| crate::schema::cmp_field_names(&a.name, &b.name));
-
-     for field in sorted_fields {
+<<<<<<< SEARCH
+    /// Adds a node from a describe result (internal helper).
+    fn add_node(&mut self, describe: SObjectDescribe) {
+        let node = SchemaNode {
+            name: describe.name.clone(),
+            label: describe.label,
+            fields: describe
+                .fields
+                .into_iter()
+                .map(|f| SchemaField {
+                    name: f.name,
+                    type_: f.type_,
+                    reference_to: f.reference_to,
+                })
+                .collect(),
+        };
+        self.nodes.insert(describe.name, node);
+    }
+=======
+    /// Adds a node from a describe result (internal helper).
+    fn add_node(&mut self, describe: SObjectDescribe) {
+        let name = describe.name;
+        let node = SchemaNode {
+            name: name.clone(),
+            label: describe.label,
+            fields: describe
+                .fields
+                .into_iter()
+                .map(|f| SchemaField {
+                    name: f.name,
+                    type_: f.type_,
+                    reference_to: f.reference_to,
+                })
+                .collect(),
+        };
+        self.nodes.insert(name, node);
+    }
+>>>>>>> REPLACE

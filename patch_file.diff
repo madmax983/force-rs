@@ -1,0 +1,15 @@
+--- crates/force/src/schema/postman_generator.rs
++++ crates/force/src/schema/postman_generator.rs
+@@ -16,11 +16,7 @@
+ #[allow(clippy::too_many_lines)]
+ pub fn generate_postman_collection(describe: &SObjectDescribe) -> Value {
+     let name = &describe.name;
+-    let label = if describe.label.is_empty() {
+-        name.clone()
+-    } else {
+-        describe.label.clone()
+-    };
++    let label = if describe.label.is_empty() { name } else { &describe.label };
+
+     // Build dummy json body for create/update using fields that are createable/updateable
+     let mut create_body = serde_json::Map::new();

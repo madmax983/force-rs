@@ -1,0 +1,39 @@
+<<<<<<< SEARCH
+    // Build dummy json body for create/update using fields that are createable/updateable
+    let mut create_body = serde_json::Map::new();
+    let mut update_body = serde_json::Map::new();
+
+    for field in &describe.fields {
+        if field.createable && field.name != "Id" {
+            create_body.insert(
+                field.name.clone(),
+                json!(format!("{{{{${}}}}}", field.name)),
+            );
+        }
+        if field.updateable && field.name != "Id" {
+            update_body.insert(
+                field.name.clone(),
+                json!(format!("{{{{${}}}}}", field.name)),
+            );
+        }
+    }
+=======
+    // Build dummy json body for create/update using fields that are createable/updateable
+    let mut create_body = serde_json::Map::new();
+    let mut update_body = serde_json::Map::new();
+
+    for field in &describe.fields {
+        if field.createable && field.name != "Id" {
+            create_body.insert(
+                field.name.clone(),
+                json!(format!("{{{{${}}}}}", field.name)),
+            );
+        }
+        if field.updateable && field.name != "Id" {
+            update_body.insert(
+                field.name.clone(),
+                json!(format!("{{{{${}}}}}", field.name)),
+            );
+        }
+    }
+>>>>>>> REPLACE
