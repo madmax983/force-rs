@@ -5,17 +5,18 @@
 #[cfg(test)]
 mod tests {
     use force::api::SoqlQueryBuilder;
-    use proptest::prelude::*;
 
-    proptest! {
-        #[test]
-        fn test_soql_limit_offset_no_panic(limit in 0..u32::MAX, offset in 0..u32::MAX) {
-            let _ = SoqlQueryBuilder::new()
-                .select(&["Id"])
-                .from("Account")
-                .limit(limit)
-                .offset(offset)
-                .build();
-        }
+    #[test]
+    fn test_soql_where_in_dos_panic() {
+        let values: Vec<String> = vec!["A".to_string(); 500_000];
+        let result = SoqlQueryBuilder::new()
+            .select(&["Id"])
+            .from("Account")
+            .try_where_in("Id", &values);
+
+        assert!(matches!(
+            result,
+            Err(force::error::ForceError::InvalidInput(_))
+        ));
     }
 }

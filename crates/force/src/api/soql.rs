@@ -341,6 +341,12 @@ impl SoqlQueryBuilder {
             return Ok(self);
         }
 
+        if values.len() > 100_000 {
+            return Err(ForceError::InvalidInput(
+                "Too many values for IN clause".to_string(),
+            ));
+        }
+
         // Base capacity for "FIELD IN ()" + estimated 10 chars per value + quotes/commas
         let capacity = field.len() + 6 + (values.len() * 14);
         let mut buffer = String::with_capacity(capacity);
