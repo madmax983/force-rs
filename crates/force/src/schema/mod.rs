@@ -68,6 +68,10 @@ pub use schema_linter::{
 };
 pub use schema_visualizer::generate_visualizer_report;
 pub use sql_exporter::{generate_ddl, write_ddl};
+#[cfg(feature = "schema")]
+pub(crate) mod go_generator;
+#[cfg(feature = "schema")]
+pub use go_generator::{generate_go_struct, write_go_struct};
 pub use type_generator::generate_rust_struct;
 pub use typescript_generator::{generate_typescript_interface, write_typescript_interface};
 pub use zod_generator::{generate_zod_schema, write_zod_schema};
