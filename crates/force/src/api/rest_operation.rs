@@ -834,6 +834,13 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_validation_query_exact_size() {
+        let exact = "A".repeat(MAX_QUERY_INPUT_BYTES);
+        // The exact boundary must pass the validation check
+        assert!(super::validate_query_input_len("test", &exact).is_ok());
+    }
+
+    #[tokio::test]
     async fn test_validation_query_rejects_oversized_soql_before_session() {
         let op = TestRestOp;
 
@@ -1000,17 +1007,46 @@ mod tests {
         let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
         let client = builder().authenticate(auth).build().await.must();
 
-        let big_str = "A".repeat(100 * 1024 * 1024 + 1);
+        let exact_limit = 100 * 1024 * 1024;
+        let big_str_exact = "{}".repeat(exact_limit / 2);
+        Mock::given(method("PATCH"))
+            .and(path(
+                "/services/data/v60.0/sobjects/Account/ExternalId__c/ACME-EXACT",
+            ))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(big_str_exact.into_bytes()))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let big_str_oversized = "A".repeat(exact_limit + 1);
         Mock::given(method("PATCH"))
             .and(path(
                 "/services/data/v60.0/sobjects/Account/ExternalId__c/ACME-002",
             ))
-            .respond_with(ResponseTemplate::new(200).set_body_bytes(big_str.into_bytes()))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(big_str_oversized.into_bytes()))
             .expect(1)
             .mount(&mock_server)
             .await;
 
         let rest = client.rest();
+
+        // Exactly limit should not throw PayloadTooLarge
+        let response_exact = rest
+            .upsert(
+                "Account",
+                "ExternalId__c",
+                "ACME-EXACT",
+                &json!({"Name": "Acme Corp"}),
+            )
+            .await;
+
+        if let Err(crate::error::ForceError::Http(crate::error::HttpError::PayloadTooLarge {
+            ..
+        })) = response_exact
+        {
+            panic!("Expected exact payload limit to pass body reading, but got PayloadTooLarge");
+        }
+
         let response = rest
             .upsert(
                 "Account",
@@ -1019,6 +1055,7 @@ mod tests {
                 &json!({"Name": "Acme Corp"}),
             )
             .await;
+
         assert!(matches!(
             response,
             Err(crate::error::ForceError::Http(
