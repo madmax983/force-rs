@@ -324,7 +324,8 @@ impl<'a, A: crate::auth::Authenticator> SmartIngest<'a, A> {
     where
         T: Serialize + Sync,
     {
-        let mut bytes = Vec::new();
+        // ⚡ Bolt: Pre-allocate capacity to prevent multiple dynamic heap reallocations when serializing CSV records.
+        let mut bytes = Vec::with_capacity(512);
         csv::serialize_to_csv_with_options(std::slice::from_ref(record), &mut bytes, true)?;
 
         let header_end = bytes
