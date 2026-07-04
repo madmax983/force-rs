@@ -150,10 +150,11 @@ impl<T> QueryResult<T> {
         for r in self.records.into_iter().map(f) {
             records.push(r?);
         }
+        let records = Ok(records);
         Ok(QueryResult {
             total_size: self.total_size,
             done: self.done,
-            records,
+            records: records?,
             next_records_url: self.next_records_url,
         })
     }
