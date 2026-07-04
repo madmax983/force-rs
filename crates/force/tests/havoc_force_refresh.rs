@@ -65,10 +65,11 @@ mod tests {
             {
                 let mut guard = self.token.write().unwrap();
                 // FIX: Check if current token is newer
-                if let Some(current) = *guard
-                    && current >= new_token
-                {
-                    return current;
+                #[allow(clippy::collapsible_if)]
+                if let Some(current) = *guard {
+                    if current >= new_token {
+                        return current;
+                    }
                 }
                 *guard = Some(new_token);
             }
