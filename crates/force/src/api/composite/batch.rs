@@ -320,7 +320,10 @@ fn is_api_version_prefixed(url: &str) -> bool {
         return false;
     };
 
-    let version = rest.split('/').next().unwrap_or_default();
+    let Some(version) = rest.split('/').next() else {
+        return false;
+    };
+
     let mut parts = version.split('.');
     let Some(major) = parts.next() else {
         return false;

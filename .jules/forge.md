@@ -98,3 +98,7 @@
 **[Flatten Match With Original Error Context]**
 **Learning:** When flattening nested `match` statements handling `Result` outputs, rewriting them with `let Ok(...) = result else` guard clauses can lead to silently swallowing the underlying original error if not passed through explicitly, which breaks observability and changes runtime behavior. Using `.map_err(...)?` provides a flatter structure while preserving the exact error mappings natively.
 **Action:** When acting as 'Forge', never drop the original underlying error variable (e.g., `e`). To flatten `Result` mapping, use `.map_err(|e| { ... })?` with the `?` operator instead of verbose `match` statements or dropping context inside `else` guards, ensuring the error propagates cleanly without over-nesting.
+
+**Flatten Conditional Early Returns**
+**Learning:** Deeply nested `if` statements or chained `Some` matching within complex methods (like `retry_loop` or `is_api_version_prefixed`) create a "Pyramid of Doom" that reduces readability and increases cognitive load.
+**Action:** Use guard clauses or combine related conditions (e.g., `if A && B { ... continue; }`) to flatten parsing logic and gracefully execute early returns, improving idiomatic Rust clarity while maintaining identical runtime behavior.
