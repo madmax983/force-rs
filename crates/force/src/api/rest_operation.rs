@@ -34,6 +34,9 @@ const UPSERT_ENCODE_SET: &AsciiSet = &NON_ALPHANUMERIC
 
 const MAX_QUERY_INPUT_BYTES: usize = 100_000;
 
+/// Maximum allowed bytes for an upsert response.
+const MAX_UPSERT_RESPONSE_BYTES: usize = 100 * 1024 * 1024;
+
 /// Trait providing default REST operation implementations for Salesforce API handlers.
 ///
 /// Both `RestHandler` and `ToolingHandler` implement this trait. The only difference
@@ -404,7 +407,7 @@ pub trait RestOperation<A: Authenticator> {
         if status.is_success() {
             // Success codes (201 Created, 200 OK) - parse as upsert response
             let bytes =
-                crate::http::error::read_capped_body_bytes(response, 100 * 1024 * 1024).await?;
+                crate::http::error::read_capped_body_bytes(response, MAX_UPSERT_RESPONSE_BYTES).await?;
             return serde_json::from_slice::<UpsertResponse>(&bytes)
                 .map_err(|e| crate::error::SerializationError::from(e).into());
         }
@@ -987,6 +990,13 @@ mod tests {
         assert!(response.is_success());
         assert!(!response.is_created());
         assert_eq!(response.id.as_str(), "001xx000003DHP0AAO");
+    }
+
+
+    #[test]
+    fn test_max_upsert_response_bytes_constant() {
+        // Assert the exact byte limit to prevent mutation bugs in the threshold calculation.
+        assert_eq!(super::MAX_UPSERT_RESPONSE_BYTES, 104_857_600);
     }
 
     #[tokio::test]
