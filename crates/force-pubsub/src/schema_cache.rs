@@ -21,6 +21,7 @@ pub struct SchemaCache {
 #[derive(Debug)]
 struct SchemaCacheInner {
     cache: DashMap<String, Schema>,
+    fetching: DashMap<String, Arc<tokio::sync::Mutex<()>>>,
 }
 
 impl SchemaCache {
@@ -30,6 +31,7 @@ impl SchemaCache {
         Self {
             inner: Arc::new(SchemaCacheInner {
                 cache: DashMap::new(),
+                fetching: DashMap::new(),
             }),
         }
     }
@@ -88,18 +90,38 @@ impl SchemaCache {
             return Ok(schema);
         }
 
-        // Cache miss — call GetSchema RPC.
+        // Cache miss — obtain the per-schema lock to prevent thundering herd.
+        let lock = self
+            .inner
+            .fetching
+            .entry(schema_id.to_string())
+            .or_insert_with(|| Arc::new(tokio::sync::Mutex::new(())))
+            .clone();
+
+        let _guard = lock.lock().await;
+
+        // Double-checked locking: check cache again after acquiring the lock
+        if let Some(schema) = self.get(schema_id) {
+            self.inner.fetching.remove(schema_id);
+            return Ok(schema);
+        }
+
         let mut req = tonic::Request::new(SchemaRequest {
             schema_id: schema_id.to_string(),
         });
         *req.metadata_mut() = metadata;
 
-        let resp = PubSubClient::new(channel.clone())
-            .get_schema(req)
-            .await?
-            .into_inner();
+        let res = async {
+            let resp = PubSubClient::new(channel.clone())
+                .get_schema(req)
+                .await?
+                .into_inner();
+            self.parse_and_insert(resp.schema_id, &resp.schema_json)
+        }
+        .await;
 
-        self.parse_and_insert(resp.schema_id, &resp.schema_json)
+        self.inner.fetching.remove(schema_id);
+        res
     }
 }
 
