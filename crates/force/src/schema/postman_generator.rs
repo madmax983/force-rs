@@ -10,10 +10,72 @@ use crate::types::describe::SObjectDescribe;
 #[cfg(feature = "schema")]
 use serde_json::{Value, json};
 
+#[cfg(feature = "schema")]
+fn build_postman_item(
+    label: &str,
+    name: &str,
+    operation: &str,
+    method: &str,
+    body: Option<&str>,
+    requires_id: bool,
+) -> Value {
+    let mut url_path = vec![
+        json!("services"),
+        json!("data"),
+        json!("v60.0"),
+        json!("sobjects"),
+        json!(name),
+    ];
+
+    let mut raw_url = format!("{{{{_endpoint}}}}/services/data/v60.0/sobjects/{}", name);
+
+    if requires_id {
+        url_path.push(json!("{{recordId}}"));
+        raw_url.push_str("/{{recordId}}");
+    }
+
+    let mut request = serde_json::Map::new();
+    request.insert("method".to_string(), json!(method));
+
+    if let Some(body_str) = body {
+        request.insert(
+            "header".to_string(),
+            json!([{
+                "key": "Content-Type",
+                "value": "application/json"
+            }]),
+        );
+        request.insert(
+            "body".to_string(),
+            json!({
+                "mode": "raw",
+                "raw": body_str
+            }),
+        );
+    } else {
+        request.insert("header".to_string(), json!([]));
+    }
+
+    request.insert(
+        "url".to_string(),
+        json!({
+            "raw": raw_url,
+            "host": [
+                "{{_endpoint}}"
+            ],
+            "path": url_path
+        }),
+    );
+
+    json!({
+        "name": format!("{} {}", operation, label),
+        "request": request
+    })
+}
+
 /// Generates a Postman v2.1.0 Collection for an SObject.
 #[cfg(feature = "schema")]
 #[must_use]
-#[allow(clippy::too_many_lines)]
 pub fn generate_postman_collection(describe: &SObjectDescribe) -> Value {
     let name = &describe.name;
     let label = if describe.label.is_empty() {
@@ -53,107 +115,10 @@ pub fn generate_postman_collection(describe: &SObjectDescribe) -> Value {
             "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
         },
         "item": [
-            {
-                "name": format!("Create {}", label),
-                "request": {
-                    "method": "POST",
-                    "header": [
-                        {
-                            "key": "Content-Type",
-                            "value": "application/json"
-                        }
-                    ],
-                    "body": {
-                        "mode": "raw",
-                        "raw": create_body_str
-                    },
-                    "url": {
-                        "raw": format!("{{{{_endpoint}}}}/services/data/v60.0/sobjects/{}", name),
-                        "host": [
-                            "{{_endpoint}}"
-                        ],
-                        "path": [
-                            "services",
-                            "data",
-                            "v60.0",
-                            "sobjects",
-                            name
-                        ]
-                    }
-                }
-            },
-            {
-                "name": format!("Read {}", label),
-                "request": {
-                    "method": "GET",
-                    "header": [],
-                    "url": {
-                        "raw": format!("{{{{_endpoint}}}}/services/data/v60.0/sobjects/{}/{{{{recordId}}}}", name),
-                        "host": [
-                            "{{_endpoint}}"
-                        ],
-                        "path": [
-                            "services",
-                            "data",
-                            "v60.0",
-                            "sobjects",
-                            name,
-                            "{{recordId}}"
-                        ]
-                    }
-                }
-            },
-            {
-                "name": format!("Update {}", label),
-                "request": {
-                    "method": "PATCH",
-                    "header": [
-                        {
-                            "key": "Content-Type",
-                            "value": "application/json"
-                        }
-                    ],
-                    "body": {
-                        "mode": "raw",
-                        "raw": update_body_str
-                    },
-                    "url": {
-                        "raw": format!("{{{{_endpoint}}}}/services/data/v60.0/sobjects/{}/{{{{recordId}}}}", name),
-                        "host": [
-                            "{{_endpoint}}"
-                        ],
-                        "path": [
-                            "services",
-                            "data",
-                            "v60.0",
-                            "sobjects",
-                            name,
-                            "{{recordId}}"
-                        ]
-                    }
-                }
-            },
-            {
-                "name": format!("Delete {}", label),
-                "request": {
-                    "method": "DELETE",
-                    "header": [],
-                    "url": {
-                        "raw": format!("{{{{_endpoint}}}}/services/data/v60.0/sobjects/{}/{{{{recordId}}}}", name),
-                        "host": [
-                            "{{_endpoint}}"
-                        ],
-                        "path": [
-                            "services",
-                            "data",
-                            "v60.0",
-                            "sobjects",
-                            name,
-                            "{{recordId}}"
-                        ]
-                    }
-                }
-            }
+            build_postman_item(&label, name, "Create", "POST", Some(&create_body_str), false),
+            build_postman_item(&label, name, "Read", "GET", None, true),
+            build_postman_item(&label, name, "Update", "PATCH", Some(&update_body_str), true),
+            build_postman_item(&label, name, "Delete", "DELETE", None, true),
         ]
     })
 }

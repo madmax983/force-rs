@@ -150,16 +150,192 @@ fn build_engine(
         .build()
 }
 
-/// Combined integration test that exercises multiple runtime code paths:
-/// 1. Empty apply batch
-/// 2. DELETE with existing link (happy path)
-/// 3. DELETE without existing link (fail path)
-/// 4. Retryable 503 error (retry path)
-/// 5. Permanent 400 error (fail path)
-/// 6. DELETE with retryable error
+async fn test_empty_apply_batch(
+    mock_server: &MockServer,
+    pool: &deadpool_postgres::Pool,
+) -> Result<(), ForceSyncError> {
+    let engine = build_engine(test_client(mock_server).await, pool)?;
+    assert_eq!(engine.run_apply_once().await?, 0);
+    Ok(())
+}
+
+async fn test_delete_with_existing_link_succeeds(
+    mock_server: &MockServer,
+    pool: &deadpool_postgres::Pool,
+) -> Result<(), ForceSyncError> {
+    Mock::given(method("DELETE"))
+        .and(path(
+            "/services/data/v60.0/sobjects/Account/001000000000001AAA",
+        ))
+        .and(header("Authorization", "Bearer test_token"))
+        .respond_with(ResponseTemplate::new(204))
+        .expect(1)
+        .named("delete-success")
+        .mount(mock_server)
+        .await;
+
+    insert_link(pool, "001000000000001AAA", "del-ok-1").await?;
+    let task_id = insert_journal_and_task(
+        pool,
+        ChangeOperation::Delete,
+        SourceSystem::Postgres,
+        json!({}),
+        "del-ok-1",
+    )
+    .await?;
+
+    let engine = build_engine(test_client(mock_server).await, pool)?;
+    assert_eq!(engine.run_apply_once().await?, 1);
+
+    let (status, _error) = get_task_status(pool, task_id).await;
+    assert_eq!(status, "done");
+
+    // Verify link is tombstoned
+    let db = pool.get().await?;
+    let link = db
+        .query_one(
+            "select tombstone from sync_link
+             where tenant = 'tenant' and object_name = 'Account' and external_id = 'del-ok-1'",
+            &[],
+        )
+        .await?;
+    assert!(link.get::<_, bool>(0), "link should be tombstoned");
+    Ok(())
+}
+
+async fn test_delete_without_existing_link_fails_task(
+    mock_server: &MockServer,
+    pool: &deadpool_postgres::Pool,
+) -> Result<(), ForceSyncError> {
+    let task_id = insert_journal_and_task(
+        pool,
+        ChangeOperation::Delete,
+        SourceSystem::Postgres,
+        json!({}),
+        "del-no-link-1",
+    )
+    .await?;
+
+    let engine = build_engine(test_client(mock_server).await, pool)?;
+    assert_eq!(engine.run_apply_once().await?, 0);
+
+    let (status, error) = get_task_status(pool, task_id).await;
+    assert_eq!(status, "failed");
+    assert!(
+        error.unwrap_or_default().contains("missing Salesforce ID"),
+        "expected 'missing Salesforce ID' in error"
+    );
+    Ok(())
+}
+
+async fn test_retryable_503_upsert_error_retries_task(
+    mock_server: &MockServer,
+    pool: &deadpool_postgres::Pool,
+) -> Result<(), ForceSyncError> {
+    // 503 triggers the HTTP retry logic, so the mock may be called multiple times
+    Mock::given(method("PATCH"))
+        .and(path(
+            "/services/data/v60.0/sobjects/Account/ExternalId__c/retry-1",
+        ))
+        .respond_with(ResponseTemplate::new(503).set_body_string("Service Unavailable"))
+        .named("upsert-503")
+        .mount(mock_server)
+        .await;
+
+    let task_id = insert_journal_and_task(
+        pool,
+        ChangeOperation::Upsert,
+        SourceSystem::Postgres,
+        json!({"Name": "Retry Corp"}),
+        "retry-1",
+    )
+    .await?;
+
+    let engine = build_engine(test_client(mock_server).await, pool)?;
+    assert_eq!(engine.run_apply_once().await?, 0);
+
+    let (status, error) = get_task_status(pool, task_id).await;
+    assert_eq!(
+        status, "ready",
+        "retryable error should set status to ready"
+    );
+    assert!(
+        error.unwrap_or_default().contains("503"),
+        "expected '503' in error"
+    );
+    Ok(())
+}
+
+async fn test_permanent_400_error_fails_task(
+    mock_server: &MockServer,
+    pool: &deadpool_postgres::Pool,
+) -> Result<(), ForceSyncError> {
+    Mock::given(method("PATCH"))
+        .and(path(
+            "/services/data/v60.0/sobjects/Account/ExternalId__c/perm-1",
+        ))
+        .respond_with(ResponseTemplate::new(400).set_body_json(json!([{
+            "errorCode": "INVALID_FIELD",
+            "message": "Invalid field: BadField__c",
+            "fields": ["BadField__c"]
+        }])))
+        .expect(1)
+        .named("upsert-400")
+        .mount(mock_server)
+        .await;
+
+    let task_id = insert_journal_and_task(
+        pool,
+        ChangeOperation::Upsert,
+        SourceSystem::Postgres,
+        json!({"BadField__c": "value"}),
+        "perm-1",
+    )
+    .await?;
+
+    let engine = build_engine(test_client(mock_server).await, pool)?;
+    assert_eq!(engine.run_apply_once().await?, 0);
+
+    let (status, error) = get_task_status(pool, task_id).await;
+    assert_eq!(status, "failed");
+    assert!(error.is_some(), "permanent failure should have an error");
+    Ok(())
+}
+
+async fn test_delete_with_retryable_500_error(
+    mock_server: &MockServer,
+    pool: &deadpool_postgres::Pool,
+) -> Result<(), ForceSyncError> {
+    // 500 triggers the HTTP retry logic, so the mock may be called multiple times
+    Mock::given(method("DELETE"))
+        .and(path(
+            "/services/data/v60.0/sobjects/Account/001000000000002AAA",
+        ))
+        .respond_with(ResponseTemplate::new(500).set_body_string("Internal Server Error"))
+        .named("delete-500")
+        .mount(mock_server)
+        .await;
+
+    insert_link(pool, "001000000000002AAA", "del-retry-1").await?;
+    let task_id = insert_journal_and_task(
+        pool,
+        ChangeOperation::Delete,
+        SourceSystem::Postgres,
+        json!({}),
+        "del-retry-1",
+    )
+    .await?;
+
+    let engine = build_engine(test_client(mock_server).await, pool)?;
+    assert_eq!(engine.run_apply_once().await?, 0);
+
+    let (status, _error) = get_task_status(pool, task_id).await;
+    assert_eq!(status, "ready", "retryable delete error should retry");
+    Ok(())
+}
+
 #[tokio::test]
 #[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
-#[allow(clippy::too_many_lines)]
 async fn runtime_coverage_combined_tests() -> Result<(), ForceSyncError> {
     let mock_server = MockServer::start().await;
 
@@ -167,171 +343,12 @@ async fn runtime_coverage_combined_tests() -> Result<(), ForceSyncError> {
     support::postgres::reset_schema(&pool).await?;
     force_sync::migrate(&pool).await?;
 
-    // ── Subtest 1: Empty apply batch returns zero ────────────────────
-    {
-        let engine = build_engine(test_client(&mock_server).await, &pool)?;
-        assert_eq!(engine.run_apply_once().await?, 0);
-    }
-
-    // ── Subtest 2: DELETE with existing link succeeds ────────────────
-    {
-        Mock::given(method("DELETE"))
-            .and(path(
-                "/services/data/v60.0/sobjects/Account/001000000000001AAA",
-            ))
-            .and(header("Authorization", "Bearer test_token"))
-            .respond_with(ResponseTemplate::new(204))
-            .expect(1)
-            .named("delete-success")
-            .mount(&mock_server)
-            .await;
-
-        insert_link(&pool, "001000000000001AAA", "del-ok-1").await?;
-        let task_id = insert_journal_and_task(
-            &pool,
-            ChangeOperation::Delete,
-            SourceSystem::Postgres,
-            json!({}),
-            "del-ok-1",
-        )
-        .await?;
-
-        let engine = build_engine(test_client(&mock_server).await, &pool)?;
-        assert_eq!(engine.run_apply_once().await?, 1);
-
-        let (status, _error) = get_task_status(&pool, task_id).await;
-        assert_eq!(status, "done");
-
-        // Verify link is tombstoned
-        let db = pool.get().await?;
-        let link = db
-            .query_one(
-                "select tombstone from sync_link
-                 where tenant = 'tenant' and object_name = 'Account' and external_id = 'del-ok-1'",
-                &[],
-            )
-            .await?;
-        assert!(link.get::<_, bool>(0), "link should be tombstoned");
-    }
-
-    // ── Subtest 3: DELETE without existing link fails task ───────────
-    {
-        let task_id = insert_journal_and_task(
-            &pool,
-            ChangeOperation::Delete,
-            SourceSystem::Postgres,
-            json!({}),
-            "del-no-link-1",
-        )
-        .await?;
-
-        let engine = build_engine(test_client(&mock_server).await, &pool)?;
-        assert_eq!(engine.run_apply_once().await?, 0);
-
-        let (status, error) = get_task_status(&pool, task_id).await;
-        assert_eq!(status, "failed");
-        assert!(
-            error.unwrap_or_default().contains("missing Salesforce ID"),
-            "expected 'missing Salesforce ID' in error"
-        );
-    }
-
-    // ── Subtest 4: Retryable 503 upsert error retries task ──────────
-    {
-        // 503 triggers the HTTP retry logic, so the mock may be called multiple times
-        Mock::given(method("PATCH"))
-            .and(path(
-                "/services/data/v60.0/sobjects/Account/ExternalId__c/retry-1",
-            ))
-            .respond_with(ResponseTemplate::new(503).set_body_string("Service Unavailable"))
-            .named("upsert-503")
-            .mount(&mock_server)
-            .await;
-
-        let task_id = insert_journal_and_task(
-            &pool,
-            ChangeOperation::Upsert,
-            SourceSystem::Postgres,
-            json!({"Name": "Retry Corp"}),
-            "retry-1",
-        )
-        .await?;
-
-        let engine = build_engine(test_client(&mock_server).await, &pool)?;
-        assert_eq!(engine.run_apply_once().await?, 0);
-
-        let (status, error) = get_task_status(&pool, task_id).await;
-        assert_eq!(
-            status, "ready",
-            "retryable error should set status to ready"
-        );
-        assert!(
-            error.unwrap_or_default().contains("503"),
-            "expected '503' in error"
-        );
-    }
-
-    // ── Subtest 5: Permanent 400 error fails task ───────────────────
-    {
-        Mock::given(method("PATCH"))
-            .and(path(
-                "/services/data/v60.0/sobjects/Account/ExternalId__c/perm-1",
-            ))
-            .respond_with(ResponseTemplate::new(400).set_body_json(json!([{
-                "errorCode": "INVALID_FIELD",
-                "message": "Invalid field: BadField__c",
-                "fields": ["BadField__c"]
-            }])))
-            .expect(1)
-            .named("upsert-400")
-            .mount(&mock_server)
-            .await;
-
-        let task_id = insert_journal_and_task(
-            &pool,
-            ChangeOperation::Upsert,
-            SourceSystem::Postgres,
-            json!({"BadField__c": "value"}),
-            "perm-1",
-        )
-        .await?;
-
-        let engine = build_engine(test_client(&mock_server).await, &pool)?;
-        assert_eq!(engine.run_apply_once().await?, 0);
-
-        let (status, error) = get_task_status(&pool, task_id).await;
-        assert_eq!(status, "failed");
-        assert!(error.is_some(), "permanent failure should have an error");
-    }
-
-    // ── Subtest 6: DELETE with retryable 500 error ──────────────────
-    {
-        // 500 triggers the HTTP retry logic, so the mock may be called multiple times
-        Mock::given(method("DELETE"))
-            .and(path(
-                "/services/data/v60.0/sobjects/Account/001000000000002AAA",
-            ))
-            .respond_with(ResponseTemplate::new(500).set_body_string("Internal Server Error"))
-            .named("delete-500")
-            .mount(&mock_server)
-            .await;
-
-        insert_link(&pool, "001000000000002AAA", "del-retry-1").await?;
-        let task_id = insert_journal_and_task(
-            &pool,
-            ChangeOperation::Delete,
-            SourceSystem::Postgres,
-            json!({}),
-            "del-retry-1",
-        )
-        .await?;
-
-        let engine = build_engine(test_client(&mock_server).await, &pool)?;
-        assert_eq!(engine.run_apply_once().await?, 0);
-
-        let (status, _error) = get_task_status(&pool, task_id).await;
-        assert_eq!(status, "ready", "retryable delete error should retry");
-    }
+    test_empty_apply_batch(&mock_server, &pool).await?;
+    test_delete_with_existing_link_succeeds(&mock_server, &pool).await?;
+    test_delete_without_existing_link_fails_task(&mock_server, &pool).await?;
+    test_retryable_503_upsert_error_retries_task(&mock_server, &pool).await?;
+    test_permanent_400_error_fails_task(&mock_server, &pool).await?;
+    test_delete_with_retryable_500_error(&mock_server, &pool).await?;
 
     Ok(())
 }

@@ -98,3 +98,11 @@
 **[Flatten Match With Original Error Context]**
 **Learning:** When flattening nested `match` statements handling `Result` outputs, rewriting them with `let Ok(...) = result else` guard clauses can lead to silently swallowing the underlying original error if not passed through explicitly, which breaks observability and changes runtime behavior. Using `.map_err(...)?` provides a flatter structure while preserving the exact error mappings natively.
 **Action:** When acting as 'Forge', never drop the original underlying error variable (e.g., `e`). To flatten `Result` mapping, use `.map_err(|e| { ... })?` with the `?` operator instead of verbose `match` statements or dropping context inside `else` guards, ensuring the error propagates cleanly without over-nesting.
+
+**[Refactoring Postman Generator to extract generic items]**
+**Learning:** Hardcoding standard API actions into separate JSON maps adds massive redundancy and triggers `clippy::too_many_lines`.
+**Action:** Extract duplicate generation logic into a generic helper function (e.g. `build_postman_item`) when constructing repeating JSON objects for API operations.
+
+**[Decompose integration tests]**
+**Learning:** Large end-to-end integration tests that string together multiple distinct setups or code paths inside one huge block trigger `clippy::too_many_lines` and make identifying failures difficult.
+**Action:** Extract distinct logical blocks of a large integration test into individual helper tests/functions, then call them from the main test function. This improves readability and maintains a flatter structure.
