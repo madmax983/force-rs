@@ -60,3 +60,4 @@
 **2026-04-09 - [Capped Responses for CSV Parsing]
 **Threat:** [Unbounded memory allocation during CSV and bytes fetching causing DoS attacks]
 **Defense:** [Replaced unbounded .bytes().await with read_capped_body_bytes(response, 100 * 1024 * 1024) inside bulk query and ingest functions]
+Warden scan complete. No findings.
