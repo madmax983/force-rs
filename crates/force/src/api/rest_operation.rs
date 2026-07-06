@@ -859,6 +859,14 @@ mod tests {
         assert_invalid_input_contains(result, "100,000 bytes");
     }
 
+    #[test]
+    fn test_validate_query_input_len_boundary() {
+        let exact = "A".repeat(MAX_QUERY_INPUT_BYTES);
+        if let Err(e) = super::validate_query_input_len("test", &exact) {
+            panic!("Expected Ok(()), got Err({:?})", e);
+        }
+    }
+
     #[tokio::test]
     async fn test_validation_describe_rejects_invalid_sobject_before_session() {
         let op = TestRestOp;
@@ -1000,18 +1008,18 @@ mod tests {
         let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
         let client = builder().authenticate(auth).build().await.must();
 
-        let big_str = "A".repeat(100 * 1024 * 1024 + 1);
+        let large_body = "A".repeat(100 * 1024 * 1024 + 10);
         Mock::given(method("PATCH"))
             .and(path(
                 "/services/data/v60.0/sobjects/Account/ExternalId__c/ACME-002",
             ))
-            .respond_with(ResponseTemplate::new(200).set_body_bytes(big_str.into_bytes()))
+            .respond_with(ResponseTemplate::new(200).set_body_string(large_body))
             .expect(1)
             .mount(&mock_server)
             .await;
 
-        let rest = client.rest();
-        let response = rest
+        let response = client
+            .rest()
             .upsert(
                 "Account",
                 "ExternalId__c",
@@ -1019,12 +1027,15 @@ mod tests {
                 &json!({"Name": "Acme Corp"}),
             )
             .await;
-        assert!(matches!(
-            response,
-            Err(crate::error::ForceError::Http(
-                crate::error::HttpError::PayloadTooLarge { .. }
-            ))
-        ));
+
+        if let Err(crate::error::ForceError::Http(crate::error::HttpError::PayloadTooLarge {
+            limit_bytes,
+        })) = response
+        {
+            assert_eq!(limit_bytes, 100 * 1024 * 1024);
+        } else {
+            panic!("Expected HttpError::PayloadTooLarge, got: {:?}", response);
+        }
     }
 
     #[tokio::test]
