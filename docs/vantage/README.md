@@ -18,6 +18,7 @@ Design backlog and product-spec notes for incubating `force-rs` capabilities. Th
 - [`data-dictionary-generator.md`](data-dictionary-generator.md): metadata-to-documentation generation.
 - [`field-usage-scanner.md`](field-usage-scanner.md): schema usage analysis for low-value fields.
 - [`graphql-schema-generator.md`](graphql-schema-generator.md): GraphQL Schema Definition Language (SDL) generation.
+- [`go-struct-generator.md`](go-struct-generator.md): Go struct generation from Salesforce schema.
 - [`json-schema-generator.md`](json-schema-generator.md): JSON Schema generation from org metadata.
 - [`openapi-generator.md`](openapi-generator.md): OpenAPI generation for downstream consumers.
 - [`postman-collection-generator.md`](postman-collection-generator.md): Postman collection generation for API testing.
