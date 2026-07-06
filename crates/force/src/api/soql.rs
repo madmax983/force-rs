@@ -110,6 +110,8 @@ pub struct SoqlQueryBuilder {
     where_clauses: Vec<String>,
     limit: Option<u32>,
     offset: Option<u32>,
+    /// Deferred validation error.
+    error: Option<String>,
     order_by: Option<String>,
 }
 
@@ -170,8 +172,14 @@ impl SoqlQueryBuilder {
     ///
     /// Panics if any field name contains invalid characters.
     #[must_use]
-    pub fn select(self, fields: &[impl AsRef<str>]) -> Self {
-        self.try_select(fields).unwrap_or_panic("select")
+    pub fn select(mut self, fields: &[impl AsRef<str>]) -> Self {
+        match self.clone().try_select(fields) {
+            Ok(s) => s,
+            Err(e) => {
+                self.error = Some(e.to_string());
+                self
+            }
+        }
     }
 
     /// Sets the SObject to select from.
@@ -192,8 +200,15 @@ impl SoqlQueryBuilder {
     ///
     /// Panics if the SObject name contains invalid characters.
     #[must_use]
-    pub fn from(self, sobject: impl Into<String>) -> Self {
-        self.try_from(sobject).unwrap_or_panic("from")
+    pub fn from(mut self, sobject: impl Into<String>) -> Self {
+        let sobject = sobject.into();
+        match self.clone().try_from(sobject) {
+            Ok(s) => s,
+            Err(e) => {
+                self.error = Some(e.to_string());
+                self
+            }
+        }
     }
 
     /// Adds a raw WHERE condition without escaping.
@@ -559,6 +574,9 @@ impl SoqlQueryBuilder {
     ///
     /// Returns an error if no fields are selected or no SObject is specified.
     pub fn try_build(self) -> crate::error::Result<String> {
+        if let Some(ref err) = self.error {
+            return Err(ForceError::InvalidInput(err.clone()));
+        }
         self.validate()?;
 
         // 256 is a reasonable default to avoid immediate reallocations
@@ -830,19 +848,17 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(
-        expected = "Invalid input in from: invalid input: SObject name contains invalid characters: Invalid Object"
-    )]
     fn test_from_panics_on_invalid_sobject() {
-        let _ = SoqlQueryBuilder::new().from("Invalid Object");
+        let res = SoqlQueryBuilder::new().from("Invalid Object").try_build();
+        assert!(res.is_err());
     }
 
     #[test]
-    #[should_panic(
-        expected = "Invalid input in select: invalid input: Field name contains invalid character ';': Invalid;DROP"
-    )]
     fn test_select_panics_on_invalid_field() {
-        let _ = SoqlQueryBuilder::new().select(&["Valid", "Invalid;DROP"]);
+        let res = SoqlQueryBuilder::new()
+            .select(&["Valid", "Invalid;DROP"])
+            .try_build();
+        assert!(res.is_err());
     }
 
     #[test]

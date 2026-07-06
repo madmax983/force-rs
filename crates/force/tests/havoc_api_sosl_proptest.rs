@@ -10,7 +10,7 @@ mod tests {
         #[test]
         fn havoc_sosl_never_panics_on_any_string(s in ".*") {
             if !s.trim().is_empty() {
-                let _ = SearchQueryBuilder::new().find(&s).in_all_fields().try_returning("Account", &["Id"]);
+                let _ = SearchQueryBuilder::new().find(&s).in_all_fields().try_returning("Account", &[s.as_str()]);
             }
         }
     }

@@ -13,6 +13,8 @@ mod tests {
             let _ = SoqlQueryBuilder::new().try_where_ne("Id", &s);
             let _ = SoqlQueryBuilder::new().try_where_like("Id", &s);
             let _ = SoqlQueryBuilder::new().try_where_in("Id", &[s.as_str()]);
+            let _ = SoqlQueryBuilder::new().try_select(&[&s]);
+            let _ = SoqlQueryBuilder::new().try_from(&s);
             let _ = force::api::escape_soql(&s);
         }
     }
