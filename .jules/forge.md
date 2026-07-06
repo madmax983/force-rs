@@ -98,3 +98,7 @@
 **[Flatten Match With Original Error Context]**
 **Learning:** When flattening nested `match` statements handling `Result` outputs, rewriting them with `let Ok(...) = result else` guard clauses can lead to silently swallowing the underlying original error if not passed through explicitly, which breaks observability and changes runtime behavior. Using `.map_err(...)?` provides a flatter structure while preserving the exact error mappings natively.
 **Action:** When acting as 'Forge', never drop the original underlying error variable (e.g., `e`). To flatten `Result` mapping, use `.map_err(|e| { ... })?` with the `?` operator instead of verbose `match` statements or dropping context inside `else` guards, ensuring the error propagates cleanly without over-nesting.
+
+**Extracting JSON boilerplate from God Functions**
+**Learning:** Repetitive nested `json!` macros often lead to massive "God Functions" that trip `clippy::too_many_lines`.
+**Action:** Extract repeated JSON block structures (like identical URL patterns or request schemas) into their own standalone private helper functions returning `Value`. This significantly cleans up the main orchestrating function and allows for dropping `#[allow(clippy::too_many_lines)]`.
