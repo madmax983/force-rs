@@ -354,12 +354,15 @@ mod tests {
 /// A String representing a valid SOQL query.
 #[must_use]
 pub fn generate_mock_query(describe: &SObjectDescribe) -> String {
-    let fields: Vec<String> = describe
+    // ⚡ Bolt: Collect borrowed `&str` references instead of owned `String`s.
+    // This avoids up to 50 unnecessary heap allocations per call, as `select()`
+    // already iterates and allocates its own strings internally via `AsRef<str>`.
+    let fields: Vec<&str> = describe
         .fields
         .iter()
         .filter(|f| f.createable)
         .take(50)
-        .map(|f| f.name.clone())
+        .map(|f| f.name.as_str())
         .collect();
 
     crate::api::soql::SoqlQueryBuilder::new()
