@@ -187,36 +187,36 @@ impl HttpExecutor {
 
             let status = response.status();
 
-            if status == StatusCode::UNAUTHORIZED {
-                if !refreshed {
+            match status {
+                StatusCode::UNAUTHORIZED if !refreshed => {
                     let new_token = refresh_token().await?;
                     Self::inject_auth_header(&mut request, &new_token)?;
                     refreshed = true;
                     continue;
                 }
-
-                self.record_completion(
-                    ctx,
-                    Some(StatusCode::UNAUTHORIZED.as_u16()),
-                    None,
-                    retry_attempt,
-                );
-                return Ok(response);
+                StatusCode::UNAUTHORIZED => {
+                    self.record_completion(
+                        ctx,
+                        Some(StatusCode::UNAUTHORIZED.as_u16()),
+                        None,
+                        retry_attempt,
+                    );
+                    return Ok(response);
+                }
+                StatusCode::TOO_MANY_REQUESTS => {
+                    return Err(self.handle_rate_limit(&response, retry_attempt, ctx));
+                }
+                StatusCode::SERVICE_UNAVAILABLE if retry_attempt < max_retries => {
+                    self.handle_transient_failure(retry_attempt, ctx, Some(503))
+                        .await;
+                    retry_attempt += 1;
+                    continue;
+                }
+                _ => {
+                    self.record_completion(ctx, Some(status.as_u16()), None, retry_attempt);
+                    return Ok(response);
+                }
             }
-
-            if status == StatusCode::TOO_MANY_REQUESTS {
-                return Err(self.handle_rate_limit(&response, retry_attempt, ctx));
-            }
-
-            if status == StatusCode::SERVICE_UNAVAILABLE && retry_attempt < max_retries {
-                self.handle_transient_failure(retry_attempt, ctx, Some(503))
-                    .await;
-                retry_attempt += 1;
-                continue;
-            }
-
-            self.record_completion(ctx, Some(status.as_u16()), None, retry_attempt);
-            return Ok(response);
         }
     }
 
@@ -251,13 +251,13 @@ impl HttpExecutor {
     }
 
     fn is_retryable_error(error: &crate::error::ForceError) -> bool {
-        match error {
-            crate::error::ForceError::Http(HttpError::Timeout { .. }) => true,
-            crate::error::ForceError::Http(HttpError::RequestFailed(re)) => {
-                !re.is_builder() && !re.is_redirect() && !re.is_status()
-            }
-            _ => false,
+        if let crate::error::ForceError::Http(HttpError::Timeout { .. }) = error {
+            return true;
         }
+        if let crate::error::ForceError::Http(HttpError::RequestFailed(re)) = error {
+            return !re.is_builder() && !re.is_redirect() && !re.is_status();
+        }
+        false
     }
 
     fn handle_rate_limit(
