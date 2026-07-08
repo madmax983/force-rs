@@ -124,12 +124,6 @@ pub fn generate_llm_context(describe: &SObjectDescribe, options: &LlmContextOpti
             modifiers_str.push(']');
         }
 
-        let label_str = if options.include_labels {
-            format!(" // {}", field.label)
-        } else {
-            String::new()
-        };
-
         if options.include_relationships && field.type_ == FieldType::Reference {
             let _ = write!(context, "  - {}: {} -> ", field.name, type_str);
 
@@ -143,13 +137,15 @@ pub fn generate_llm_context(describe: &SObjectDescribe, options: &LlmContextOpti
                 context.push_str(target);
             }
 
-            let _ = writeln!(context, "{}{}", modifiers_str, label_str);
+            let _ = write!(context, "{}", modifiers_str);
         } else {
-            let _ = writeln!(
-                context,
-                "  - {}: {}{}{}",
-                field.name, type_str, modifiers_str, label_str
-            );
+            let _ = write!(context, "  - {}: {}{}", field.name, type_str, modifiers_str);
+        }
+
+        if options.include_labels {
+            let _ = writeln!(context, " // {}", field.label);
+        } else {
+            let _ = writeln!(context);
         }
     }
 
