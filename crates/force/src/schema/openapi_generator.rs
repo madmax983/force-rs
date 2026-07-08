@@ -63,6 +63,9 @@ fn write_field_schema(out: &mut String, field: &FieldDescribe) {
         out.push_str("          readOnly: true\n");
     }
 
+    let type_str = map_field_type_to_openapi(&field.type_);
+    let _ = writeln!(out, "          type: {}", type_str);
+
     match field.type_ {
         FieldType::String
         | FieldType::Email
@@ -71,16 +74,11 @@ fn write_field_schema(out: &mut String, field: &FieldDescribe) {
         | FieldType::Id
         | FieldType::Reference
         | FieldType::Combobox => {
-            out.push_str("          type: string\n");
             if field.length > 0 {
                 let _ = writeln!(out, "          maxLength: {}", field.length);
             }
         }
-        FieldType::Textarea => {
-            out.push_str("          type: string\n");
-        }
         FieldType::Picklist | FieldType::Multipicklist => {
-            out.push_str("          type: string\n");
             if let Some(values) = &field.picklist_values {
                 if !values.is_empty() {
                     out.push_str("          enum:\n");
@@ -90,31 +88,25 @@ fn write_field_schema(out: &mut String, field: &FieldDescribe) {
                 }
             }
         }
-        FieldType::Boolean => {
-            out.push_str("          type: boolean\n");
-        }
-        FieldType::Int => {
-            out.push_str("          type: integer\n");
-        }
-        FieldType::Double | FieldType::Percent | FieldType::Currency => {
-            out.push_str("          type: number\n");
-        }
         FieldType::Date => {
-            out.push_str("          type: string\n");
             out.push_str("          format: date\n");
         }
         FieldType::Datetime => {
-            out.push_str("          type: string\n");
             out.push_str("          format: date-time\n");
         }
         FieldType::Base64 => {
-            out.push_str("          type: string\n");
             out.push_str("          format: byte\n");
         }
-        _ => {
-            // Fallback for any other type
-            out.push_str("          type: string\n");
-        }
+        _ => {}
+    }
+}
+
+fn map_field_type_to_openapi(ft: &FieldType) -> &'static str {
+    match ft {
+        FieldType::Boolean => "boolean",
+        FieldType::Int => "integer",
+        FieldType::Double | FieldType::Percent | FieldType::Currency => "number",
+        _ => "string", // Fallback
     }
 }
 

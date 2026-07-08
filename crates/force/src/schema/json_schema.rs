@@ -69,6 +69,9 @@ fn generate_field_schema(field: &FieldDescribe) -> Value {
         schema.insert("readOnly".to_string(), Value::Bool(true));
     }
 
+    let type_str = map_field_type_to_json_schema(&field.type_);
+    schema.insert("type".to_string(), Value::String(type_str.to_string()));
+
     match field.type_ {
         FieldType::String
         | FieldType::Email
@@ -77,7 +80,6 @@ fn generate_field_schema(field: &FieldDescribe) -> Value {
         | FieldType::Id
         | FieldType::Reference
         | FieldType::Combobox => {
-            schema.insert("type".to_string(), Value::String("string".to_string()));
             if field.length > 0 {
                 schema.insert(
                     "maxLength".to_string(),
@@ -87,7 +89,6 @@ fn generate_field_schema(field: &FieldDescribe) -> Value {
         }
 
         FieldType::Picklist | FieldType::Multipicklist => {
-            schema.insert("type".to_string(), Value::String("string".to_string()));
             if let Some(values) = &field.picklist_values {
                 if !values.is_empty() {
                     let enum_values: Vec<Value> = values
@@ -98,36 +99,31 @@ fn generate_field_schema(field: &FieldDescribe) -> Value {
                 }
             }
         }
-        FieldType::Boolean => {
-            schema.insert("type".to_string(), Value::String("boolean".to_string()));
-        }
-        FieldType::Int => {
-            schema.insert("type".to_string(), Value::String("integer".to_string()));
-        }
-        FieldType::Double | FieldType::Percent | FieldType::Currency => {
-            schema.insert("type".to_string(), Value::String("number".to_string()));
-        }
         FieldType::Date => {
-            schema.insert("type".to_string(), Value::String("string".to_string()));
             schema.insert("format".to_string(), Value::String("date".to_string()));
         }
         FieldType::Datetime => {
-            schema.insert("type".to_string(), Value::String("string".to_string()));
             schema.insert("format".to_string(), Value::String("date-time".to_string()));
         }
         FieldType::Base64 => {
-            schema.insert("type".to_string(), Value::String("string".to_string()));
             schema.insert(
                 "contentEncoding".to_string(),
                 Value::String("base64".to_string()),
             );
         }
-        _ => {
-            schema.insert("type".to_string(), Value::String("string".to_string()));
-        }
+        _ => {}
     }
 
     Value::Object(schema)
+}
+
+fn map_field_type_to_json_schema(ft: &FieldType) -> &'static str {
+    match ft {
+        FieldType::Boolean => "boolean",
+        FieldType::Int => "integer",
+        FieldType::Double | FieldType::Percent | FieldType::Currency => "number",
+        _ => "string", // Fallback
+    }
 }
 
 #[cfg(test)]

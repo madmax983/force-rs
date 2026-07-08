@@ -1,0 +1,9 @@
+⚒️ Forge: Refactor schema generation match blocks
+
+🚮 Smell: The `write_field_schema` in `openapi_generator.rs` and `generate_field_schema` in `json_schema.rs` contained deep "Pyramid of Doom" style nested match blocks that repeatedly pushed identical type strings (e.g., `out.push_str("          type: string\n");` or `schema.insert("type".to_string(), Value::String("string".to_string()));`) for many `FieldType` enum variants. This violated DRY principles and added unnecessary verbosity.
+
+✨ Solution: Extracted the mapping of `FieldType` to OpenAPI/JSON schema type strings into standalone helper functions (`map_field_type_to_openapi` and `map_field_type_to_json_schema`). These helpers return `&'static str`, allowing the main functions to unconditionally insert the type string *before* the match block. This allowed us to dramatically simplify the match block to only handle variant-specific options (like `maxLength`, `enum`, or `format`).
+
+🧼 Benefit: Greatly reduces the size and cognitive load of the main schema generation functions. Improves readability by separating type mapping from schema formatting. Eliminates repetitive string allocations/insertions.
+
+🛡️ Verification: Tests passed. No logic changed. Output strings are identical to before.
