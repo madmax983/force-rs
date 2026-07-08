@@ -2,7 +2,6 @@ use crate::api::rest_operation::RestOperation;
 use crate::auth::Authenticator;
 use crate::client::ForceClient;
 use crate::error::Result;
-use std::collections::HashMap;
 use std::fmt::Write;
 
 use super::scanner::FieldUsageScanner;
@@ -68,10 +67,8 @@ pub async fn generate_visualizer_report<A: Authenticator>(
     let usages = if include_usage {
         let scanner = FieldUsageScanner::new(client);
         let u = scanner.scan(sobject).await?;
-        let mut map = HashMap::with_capacity(u.len());
-        for usage in u {
-            map.insert(usage.name, usage.percentage);
-        }
+        let mut sorted_usages = u;
+        sorted_usages.sort_by(|a, b| crate::schema::cmp_field_names(&a.name, &b.name));
 
         let mut sorted_fields: Vec<&crate::types::describe::FieldDescribe> =
             describe.fields.iter().collect();
@@ -82,15 +79,35 @@ pub async fn generate_visualizer_report<A: Authenticator>(
         let _ = writeln!(usage_md, "| Label | API Name | Populated % |");
         let _ = writeln!(usage_md, "|---|---|---|");
 
+        // ⚡ Bolt: Iterate concurrently to avoid hash map lookups. O(N) complexity since both lists are sorted.
+        let mut u_iter = sorted_usages.into_iter().peekable();
         for field in sorted_fields {
-            if let Some(pct) = map.get(&field.name) {
-                let _ = writeln!(
-                    usage_md,
-                    "| {} | `{}` | {:.1}% |",
-                    field.label, field.name, pct
-                );
-            } else {
-                let _ = writeln!(usage_md, "| {} | `{}` | N/A |", field.label, field.name);
+            // Advance the usage iterator until we find a match or pass the field alphabetically
+            loop {
+                if let Some(u) = u_iter.peek() {
+                    match crate::schema::cmp_field_names(&u.name, &field.name) {
+                        std::cmp::Ordering::Less => {
+                            u_iter.next(); // Skip usages for fields that aren't in this describe (shouldn't happen but safe)
+                        }
+                        std::cmp::Ordering::Equal => {
+                            let _ = writeln!(
+                                usage_md,
+                                "| {} | `{}` | {:.1}% |",
+                                field.label, field.name, u.percentage
+                            );
+                            u_iter.next();
+                            break;
+                        }
+                        std::cmp::Ordering::Greater => {
+                            let _ =
+                                writeln!(usage_md, "| {} | `{}` | N/A |", field.label, field.name);
+                            break;
+                        }
+                    }
+                } else {
+                    let _ = writeln!(usage_md, "| {} | `{}` | N/A |", field.label, field.name);
+                    break;
+                }
             }
         }
         Some(usage_md)
