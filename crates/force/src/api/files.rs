@@ -73,7 +73,7 @@ impl<A: Authenticator> FilesHandler<A> {
         let api_version = self.session.config.api_version.as_str();
 
         let url = format!(
-            "{}/services/data/v{}/sobjects/ContentVersion",
+            "{}/services/data/{}/sobjects/ContentVersion",
             token.instance_url(),
             api_version
         );
@@ -112,7 +112,9 @@ impl<A: Authenticator> FilesHandler<A> {
             .map_err(|e| ForceError::Http(crate::error::HttpError::RequestFailed(e)))?;
 
         if !status.is_success() && status.as_u16() != 201 {
-            return Err(ForceError::InvalidInput("Failed to upload ContentVersion".into()));
+            return Err(ForceError::InvalidInput(
+                "Failed to upload ContentVersion".into(),
+            ));
         }
 
         let result: serde_json::Value = serde_json::from_str(&body)
@@ -139,7 +141,7 @@ impl<A: Authenticator> FilesHandler<A> {
         let api_version = self.session.config.api_version.as_str();
 
         let url = format!(
-            "{}/services/data/v{}/sobjects/ContentVersion/{}/VersionData",
+            "{}/services/data/{}/sobjects/ContentVersion/{}/VersionData",
             token.instance_url(),
             api_version,
             content_version_id
@@ -160,7 +162,9 @@ impl<A: Authenticator> FilesHandler<A> {
             .map_err(|e| ForceError::Http(crate::error::HttpError::RequestFailed(e)))?;
 
         if !status.is_success() && status.as_u16() != 200 {
-            return Err(ForceError::InvalidInput("Failed to download ContentVersion".into()));
+            return Err(ForceError::InvalidInput(
+                "Failed to download ContentVersion".into(),
+            ));
         }
 
         Ok(bytes.to_vec())
@@ -183,7 +187,7 @@ impl<A: Authenticator> FilesHandler<A> {
         let api_version = self.session.config.api_version.as_str();
 
         let url = format!(
-            "{}/services/data/v{}/sobjects/ContentDocumentLink",
+            "{}/services/data/{}/sobjects/ContentDocumentLink",
             token.instance_url(),
             api_version
         );
@@ -210,7 +214,9 @@ impl<A: Authenticator> FilesHandler<A> {
             .map_err(|e| ForceError::Http(crate::error::HttpError::RequestFailed(e)))?;
 
         if !status.is_success() && status.as_u16() != 201 {
-            return Err(ForceError::InvalidInput("Failed to insert ContentDocumentLink".into()));
+            return Err(ForceError::InvalidInput(
+                "Failed to insert ContentDocumentLink".into(),
+            ));
         }
 
         let result: serde_json::Value = serde_json::from_str(&body)
@@ -231,8 +237,7 @@ mod tests {
     use super::*;
     use crate::client::builder;
     use crate::test_utils::mock_auth::MockAuthenticator;
-use crate::test_utils::must::{Must, MustMsg};
-    use crate::test_utils::mock_auth::MockAuthenticator;
+    use crate::test_utils::must::{Must, MustMsg};
     use serde_json::json;
     use wiremock::matchers::{method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};

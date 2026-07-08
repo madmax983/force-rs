@@ -189,6 +189,14 @@ impl<A: crate::auth::authenticator::Authenticator> ForceClient<A> {
             dc,
         )))
     }
+
+    handler_accessor! {
+        /// Creates a Files API handler for this client.
+        ///
+        /// Provides capabilities to upload, download, and link ContentVersions.
+        #[cfg(feature = "files")]
+        pub fn files -> crate::api::files::FilesHandler<A>
+    }
 }
 
 #[cfg(test)]

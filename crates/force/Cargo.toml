@@ -47,7 +47,7 @@ proptest = "1.5"
 
 [features]
 default = ["rest"]
-files = ["rest"]
+files = ["rest", "reqwest/multipart"]
 
 # Platform API surfaces
 rest = []

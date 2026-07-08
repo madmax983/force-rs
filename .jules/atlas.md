@@ -16,3 +16,6 @@
 **[Unify error handling]
 **Tangle:** Inconsistent error handling across modules where Result was used with explicit types.
 **Blueprint:** Standardized error types across all modules to enforce domain boundaries.
+**[Expose FilesHandler and wire Files API to ForceClient]**
+**Tangle:** The `FilesHandler` module (`api::files`) was implemented but completely disconnected from the public API boundary. It was not exported in `crates/force/src/api/mod.rs` and lacked a handler accessor in `crates/force/src/client/mod.rs`, rendering it invisible. Additionally, the `files` feature flag and necessary `reqwest/multipart` dependency were missing in `Cargo.toml`.
+**Blueprint:** Exported `pub mod files` behind the `#[cfg(feature = "files")]` flag in `api/mod.rs`, added the corresponding feature and dependency in `Cargo.toml`, and wired the `files` handler accessor to `ForceClient` in `client/mod.rs` using the `handler_accessor!` macro to formally integrate it into the client ecosystem while preserving feature-gated boundaries.
