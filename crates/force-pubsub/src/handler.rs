@@ -164,8 +164,9 @@ impl<A: Authenticator> PubSubHandler<A> {
     /// [`crate::interceptor::build_metadata`].
     async fn auth_request<T>(&self, message: T) -> Result<tonic::Request<T>> {
         let token = self.session.token_manager().token().await?;
-        let tenant_id = self.get_tenant_id().await?.to_string();
-        let meta = interceptor::build_metadata(&token, token.instance_url(), &tenant_id)?;
+        // ⚡ Bolt: Avoid allocating a String by using the returned string slice directly.
+        let tenant_id = self.get_tenant_id().await?;
+        let meta = interceptor::build_metadata(&token, token.instance_url(), tenant_id)?;
         let mut req = tonic::Request::new(message);
         *req.metadata_mut() = meta;
         Ok(req)
@@ -239,8 +240,9 @@ impl<A: Authenticator + Send + Sync + 'static> PubSubHandler<A> {
 
         // Ensure the schema is in the cache (fetches from GetSchema if not).
         let token = self.session.token_manager().token().await?;
-        let tenant_id = self.get_tenant_id().await?.to_string();
-        let meta = interceptor::build_metadata(&token, token.instance_url(), &tenant_id)?;
+        // ⚡ Bolt: Avoid allocating a String by using the returned string slice directly.
+        let tenant_id = self.get_tenant_id().await?;
+        let meta = interceptor::build_metadata(&token, token.instance_url(), tenant_id)?;
         self.schema_cache
             .get_or_fetch(schema_id, &self.channel, meta)
             .await?;
@@ -252,7 +254,7 @@ impl<A: Authenticator + Send + Sync + 'static> PubSubHandler<A> {
             schema_id,
             topic,
             events,
-            &tenant_id,
+            tenant_id,
         )
         .await
     }
