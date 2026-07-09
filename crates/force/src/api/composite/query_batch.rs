@@ -6,7 +6,10 @@
 use crate::api::rest_operation::RestOperation;
 use crate::auth::Authenticator;
 #[cfg(feature = "composite")]
-use crate::client::ForceClient;
+use crate::api::rest::RestHandler;
+use crate::api::composite::CompositeHandler;
+use std::sync::Arc;
+use crate::session::Session;
 use crate::error::Result;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
@@ -35,23 +38,23 @@ pub struct BatchStats {
 
 /// A processor that queries records and executes batch operations.
 #[cfg(feature = "composite")]
-pub struct QueryBatch<'a, A: Authenticator> {
-    client: &'a ForceClient<A>,
+pub struct QueryBatch<A: Authenticator> {
+    session: Arc<Session<A>>,
     query: String,
     halt_on_error: bool,
 }
 
 #[cfg(feature = "composite")]
-impl<'a, A: Authenticator> QueryBatch<'a, A> {
+impl<A: Authenticator> QueryBatch<A> {
     /// Creates a new query batch processor.
     ///
     /// # Arguments
     ///
     /// * `client` - The Force client.
     /// * `query` - The SOQL query to execute.
-    pub fn new(client: &'a ForceClient<A>, query: impl Into<String>) -> Self {
+    pub fn new(session: Arc<Session<A>>, query: impl Into<String>) -> Self {
         Self {
-            client,
+            session,
             query: query.into(),
             halt_on_error: false,
         }
@@ -81,7 +84,7 @@ impl<'a, A: Authenticator> QueryBatch<'a, A> {
         let mut stats = BatchStats::default();
         let mut buffer = Vec::with_capacity(25);
 
-        let mut result = self.client.rest().query::<T>(&self.query).await?;
+        let mut result = RestHandler::new(Arc::clone(&self.session)).query::<T>(&self.query).await?;
 
         loop {
             let records = std::mem::take(&mut result.records);
@@ -100,7 +103,7 @@ impl<'a, A: Authenticator> QueryBatch<'a, A> {
             }
 
             if let Some(next_url) = result.next_records_url {
-                result = self.client.rest().query_more(&next_url).await?;
+                result = RestHandler::new(Arc::clone(&self.session)).query_more(&next_url).await?;
             } else {
                 break;
             }
@@ -119,10 +122,7 @@ impl<'a, A: Authenticator> QueryBatch<'a, A> {
             return Ok(());
         }
 
-        let mut batch = self
-            .client
-            .composite()
-            .batch()
+        let mut batch = CompositeHandler::new(Arc::clone(&self.session)).batch()
             .halt_on_error(self.halt_on_error);
 
         for op in ops.drain(..) {
@@ -161,7 +161,7 @@ mod tests {
         MockServer::start().await
     }
 
-    async fn create_test_client(mock_server: &MockServer) -> ForceClient<MockAuthenticator> {
+    async fn create_test_client(mock_server: &MockServer) -> crate::client::ForceClient<MockAuthenticator> {
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
         builder().authenticate(auth).build().await.must()
     }
@@ -242,7 +242,7 @@ mod tests {
             .await;
 
         let query = "SELECT Id FROM Account";
-        let query_batch = QueryBatch::new(&client, query);
+        let query_batch = QueryBatch::new(client.session(), query);
 
         let stats = query_batch
             .run::<crate::types::DynamicSObject, _>(|record| {
@@ -304,7 +304,7 @@ mod tests {
             .await;
 
         let query = "SELECT Id FROM Contact";
-        let query_batch = QueryBatch::new(&client, query);
+        let query_batch = QueryBatch::new(client.session(), query);
 
         let stats = query_batch
             .run::<crate::types::DynamicSObject, _>(|record| {

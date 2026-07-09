@@ -52,6 +52,18 @@ impl<A: Authenticator> CompositeHandler<A> {
         Self { inner }
     }
 
+    /// Creates a new mass operations processor.
+    #[cfg(feature = "composite")]
+    pub fn soql_mass_op(&self, query: crate::api::SoqlQueryBuilder) -> SoqlMassOp<A> {
+        SoqlMassOp::new(Arc::clone(&self.inner), query)
+    }
+
+    /// Creates a processor that queries records and executes batch operations.
+    #[cfg(feature = "composite")]
+    pub fn query_batch(&self, query: impl Into<String>) -> QueryBatch<A> {
+        QueryBatch::new(Arc::clone(&self.inner), query)
+    }
+
     /// Creates a new batch request.
     ///
     /// A batch request can contain up to 25 subrequests. Subrequests are independent

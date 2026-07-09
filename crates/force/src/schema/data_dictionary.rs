@@ -8,7 +8,7 @@
 
 use crate::api::rest_operation::RestOperation;
 use crate::auth::Authenticator;
-use crate::client::ForceClient;
+use crate::api::rest::RestHandler;
 use crate::error::Result;
 use std::collections::HashMap;
 use std::fmt::Write;
@@ -17,19 +17,19 @@ use super::scanner::FieldUsageScanner;
 
 /// Generator for SObject data dictionaries in Markdown format.
 #[derive(Debug)]
-pub struct DataDictionary<'a, A: Authenticator> {
-    client: &'a ForceClient<A>,
+pub struct DataDictionary<A: Authenticator> {
+    rest: RestHandler<A>,
 }
 
-impl<'a, A: Authenticator> DataDictionary<'a, A> {
+impl<A: Authenticator> DataDictionary<A> {
     /// Creates a new data dictionary generator.
     ///
     /// # Arguments
     ///
     /// * `client` - The authenticated Force client.
     #[must_use]
-    pub fn new(client: &'a ForceClient<A>) -> Self {
-        Self { client }
+    pub fn new(rest: RestHandler<A>) -> Self {
+        Self { rest }
     }
 
     /// Generates a Markdown data dictionary for the specified SObject.
@@ -43,11 +43,11 @@ impl<'a, A: Authenticator> DataDictionary<'a, A> {
     ///
     /// A String containing the generated Markdown document.
     pub async fn generate(&self, sobject: &str, include_usage: bool) -> Result<String> {
-        let describe = self.client.rest().describe(sobject).await?;
+        let describe = self.rest.describe(sobject).await?;
 
         let mut usage_map = HashMap::new();
         if include_usage {
-            let scanner = FieldUsageScanner::new(self.client);
+            let scanner = FieldUsageScanner::new(self.rest.clone());
             let usages = scanner.scan(sobject).await?;
             usage_map.reserve(usages.len());
             for usage in usages {
@@ -179,7 +179,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let dict = DataDictionary::new(&client);
+        let dict = DataDictionary::new(client.rest());
         let md = dict.generate("Account", false).await.must();
 
         assert!(md.contains("# Data Dictionary: Account"));
@@ -278,7 +278,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let dict = DataDictionary::new(&client);
+        let dict = DataDictionary::new(client.rest());
         let md = dict.generate("Account", true).await.must();
 
         assert!(md.contains("# Data Dictionary: Account"));

@@ -11,7 +11,9 @@
 
 use crate::api::composite::Graph;
 use crate::auth::Authenticator;
-use crate::client::ForceClient;
+use crate::api::composite::CompositeHandler;
+use std::sync::Arc;
+use crate::session::Session;
 use crate::error::{ForceError, Result};
 use crate::types::describe::{FieldType, SObjectDescribe};
 
@@ -19,19 +21,19 @@ use super::data_faker::generate_mock_record;
 
 /// Utility for generating and inserting relational mock records from schema metadata.
 #[derive(Debug)]
-pub struct RelationalSeeder<'a, A: Authenticator> {
-    client: &'a ForceClient<A>,
+pub struct RelationalSeeder<A: Authenticator> {
+    session: Arc<Session<A>>,
 }
 
-impl<'a, A: Authenticator> RelationalSeeder<'a, A> {
+impl<A: Authenticator> RelationalSeeder<A> {
     /// Creates a new relational seeder.
     ///
     /// # Arguments
     ///
     /// * `client` - The Force client.
     #[must_use]
-    pub fn new(client: &'a ForceClient<A>) -> Self {
-        Self { client }
+    pub fn new(session: Arc<Session<A>>) -> Self {
+        Self { session }
     }
 
     /// Generates and inserts a parent record and multiple child records.
@@ -107,7 +109,7 @@ impl<'a, A: Authenticator> RelationalSeeder<'a, A> {
         }
 
         // 4. Execute the Graph.
-        let mut graph_req = self.client.composite().graph();
+        let mut graph_req = CompositeHandler::new(Arc::clone(&self.session)).graph();
         graph_req = graph_req.add_graph(graph)?;
         let response = graph_req.execute().await?;
 
@@ -135,7 +137,7 @@ mod tests {
         MockServer::start().await
     }
 
-    async fn create_test_client(mock_server: &MockServer) -> ForceClient<MockAuthenticator> {
+    async fn create_test_client(mock_server: &MockServer) -> crate::client::ForceClient<MockAuthenticator> {
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
         builder().authenticate(auth).build().await.must()
     }
@@ -216,7 +218,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let seeder = RelationalSeeder::new(&client);
+        let seeder = RelationalSeeder::new(client.session());
         let result = seeder
             .seed_hierarchy(&parent_describe, &child_describe, 1)
             .await;
@@ -241,7 +243,7 @@ mod tests {
             ]),
         );
 
-        let seeder = RelationalSeeder::new(&client);
+        let seeder = RelationalSeeder::new(client.session());
         let result = seeder
             .seed_hierarchy(&parent_describe, &child_describe, 1)
             .await;

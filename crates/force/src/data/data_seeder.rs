@@ -6,28 +6,31 @@
 
 use crate::api::rest_operation::RestOperation;
 use crate::auth::Authenticator;
-use crate::client::ForceClient;
+use crate::api::rest::RestHandler;
+use crate::api::composite::CompositeHandler;
+use std::sync::Arc;
+use crate::session::Session;
 use crate::error::Result;
 
 use super::data_faker::generate_mock_record;
 
 /// Utility for generating and inserting mock records from schema metadata.
 #[derive(Debug)]
-pub struct DataSeeder<'a, A: Authenticator> {
-    client: &'a ForceClient<A>,
+pub struct DataSeeder<A: Authenticator> {
+    session: Arc<Session<A>>,
     halt_on_error: bool,
 }
 
-impl<'a, A: Authenticator> DataSeeder<'a, A> {
+impl<A: Authenticator> DataSeeder<A> {
     /// Creates a new data seeder.
     ///
     /// # Arguments
     ///
     /// * `client` - The Force client.
     #[must_use]
-    pub fn new(client: &'a ForceClient<A>) -> Self {
+    pub fn new(session: Arc<Session<A>>) -> Self {
         Self {
-            client,
+            session,
             halt_on_error: false,
         }
     }
@@ -59,13 +62,10 @@ impl<'a, A: Authenticator> DataSeeder<'a, A> {
             return Ok(0);
         }
 
-        let describe = self.client.rest().describe(sobject).await?;
+        let describe = RestHandler::new(Arc::clone(&self.session)).describe(sobject).await?;
 
         let mut success_count = 0;
-        let mut current_batch = self
-            .client
-            .composite()
-            .batch()
+        let mut current_batch = CompositeHandler::new(Arc::clone(&self.session)).batch()
             .halt_on_error(self.halt_on_error);
 
         for i in 0..count {
@@ -91,10 +91,7 @@ impl<'a, A: Authenticator> DataSeeder<'a, A> {
                 }
 
                 // Reset the batch for the next chunk
-                current_batch = self
-                    .client
-                    .composite()
-                    .batch()
+                current_batch = CompositeHandler::new(Arc::clone(&self.session)).batch()
                     .halt_on_error(self.halt_on_error);
             }
         }
@@ -117,7 +114,7 @@ mod tests {
         MockServer::start().await
     }
 
-    async fn create_test_client(mock_server: &MockServer) -> ForceClient<MockAuthenticator> {
+    async fn create_test_client(mock_server: &MockServer) -> crate::client::ForceClient<MockAuthenticator> {
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
         builder().authenticate(auth).build().await.must()
     }
@@ -175,7 +172,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let seeder = DataSeeder::new(&client);
+        let seeder = DataSeeder::new(client.session());
         let success_count = seeder.seed("Account", 2).await.must();
 
         assert_eq!(success_count, 2);

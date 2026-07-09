@@ -5,7 +5,7 @@
 
 use crate::api::rest_operation::RestOperation;
 use crate::auth::Authenticator;
-use crate::client::ForceClient;
+use crate::api::rest::RestHandler;
 use crate::error::Result;
 use crate::types::describe::FieldType;
 use serde::Deserialize;
@@ -29,15 +29,15 @@ pub struct FieldUsage {
 
 /// Scanner for analyzing field usage.
 #[derive(Debug)]
-pub struct FieldUsageScanner<'a, A: Authenticator> {
-    client: &'a ForceClient<A>,
+pub struct FieldUsageScanner<A: Authenticator> {
+    rest: RestHandler<A>,
 }
 
-impl<'a, A: Authenticator> FieldUsageScanner<'a, A> {
+impl<A: Authenticator> FieldUsageScanner<A> {
     /// Creates a new scanner using the provided client.
     #[must_use]
-    pub fn new(client: &'a ForceClient<A>) -> Self {
-        Self { client }
+    pub fn new(rest: RestHandler<A>) -> Self {
+        Self { rest }
     }
 
     /// Scans the specified SObject to determine field usage.
@@ -61,7 +61,7 @@ impl<'a, A: Authenticator> FieldUsageScanner<'a, A> {
     /// - The response cannot be parsed.
     pub async fn scan(&self, sobject: &str) -> Result<Vec<FieldUsage>> {
         // 1. Describe the object to get fields
-        let describe = self.client.rest().describe(sobject).await?;
+        let describe = self.rest.describe(sobject).await?;
 
         // 2. Filter scanable fields
         let scanable_fields: Vec<_> = describe
@@ -119,7 +119,7 @@ impl<'a, A: Authenticator> FieldUsageScanner<'a, A> {
             .unwrap_or_else(|_| unreachable!("writing to String is infallible"));
 
         // Execute query
-        let response = self.client.rest().query::<Value>(&query).await?;
+        let response = self.rest.query::<Value>(&query).await?;
 
         if response.records.is_empty() {
             // Should not happen for aggregate queries unless table is empty?
@@ -195,7 +195,7 @@ mod tests {
         setup_mock_describe(&mock_server).await;
         setup_mock_query(&mock_server).await;
 
-        let scanner = FieldUsageScanner::new(&client);
+        let scanner = FieldUsageScanner::new(client.rest());
         let usage = scanner.scan("Account").await.must();
 
         assert_eq!(usage.len(), 2);
@@ -388,7 +388,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let scanner = FieldUsageScanner::new(&client);
+        let scanner = FieldUsageScanner::new(client.rest());
         let usage = scanner.scan("Account").await.must();
 
         assert_eq!(usage.len(), 1);
@@ -421,7 +421,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let scanner = FieldUsageScanner::new(&client);
+        let scanner = FieldUsageScanner::new(client.rest());
         let usage = scanner.scan("Account").await.must();
 
         assert_eq!(usage.len(), 1);
@@ -562,7 +562,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let scanner = FieldUsageScanner::new(&client);
+        let scanner = FieldUsageScanner::new(client.rest());
         let usage = scanner.scan("Account").await.must();
 
         assert_eq!(usage.len(), 25);
@@ -581,7 +581,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let scanner = FieldUsageScanner::new(&client);
+        let scanner = FieldUsageScanner::new(client.rest());
         let result = scanner.scan("Account").await;
         let Err(err) = result else {
             panic!("Expected an error");

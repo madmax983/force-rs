@@ -14,7 +14,7 @@
 //! # async fn main() -> anyhow::Result<()> {
 //! # let auth = ClientCredentials::new("id", "secret", "url");
 //! # let client = ForceClientBuilder::new().authenticate(auth).build().await?;
-//! let mut graph = SchemaGraph::new(&client);
+//! let mut graph = SchemaGraph::new(client.rest());
 //! graph.scan("Account").await?;
 //! graph.scan("Contact").await?;
 //!
@@ -27,7 +27,7 @@
 
 use crate::api::rest_operation::RestOperation;
 use crate::auth::Authenticator;
-use crate::client::ForceClient;
+use crate::api::rest::RestHandler;
 use crate::error::Result;
 use crate::types::describe::{FieldType, SObjectDescribe};
 use std::collections::{HashMap, HashSet};
@@ -50,18 +50,18 @@ struct SchemaField {
 
 /// Graph builder for Salesforce schema visualization.
 #[derive(Debug)]
-pub struct SchemaGraph<'a, A: Authenticator> {
-    client: &'a ForceClient<A>,
+pub struct SchemaGraph<A: Authenticator> {
+    rest: RestHandler<A>,
     nodes: HashMap<String, SchemaNode>,
     scanned: HashSet<String>,
 }
 
-impl<'a, A: Authenticator> SchemaGraph<'a, A> {
+impl<A: Authenticator> SchemaGraph<A> {
     /// Creates a new schema graph builder.
     #[must_use]
-    pub fn new(client: &'a ForceClient<A>) -> Self {
+    pub fn new(rest: RestHandler<A>) -> Self {
         Self {
-            client,
+            rest,
             nodes: HashMap::new(),
             scanned: HashSet::new(),
         }
@@ -75,7 +75,7 @@ impl<'a, A: Authenticator> SchemaGraph<'a, A> {
         if !self.scanned.insert(sobject.to_string()) {
             return Ok(()); // Already scanned — skip redundant API call
         }
-        let describe = self.client.rest().describe(sobject).await?;
+        let describe = self.rest.describe(sobject).await?;
         self.add_node(describe);
         Ok(())
     }
@@ -293,7 +293,7 @@ mod tests {
         setup_mock_describe_account(&mock_server).await;
         setup_mock_describe_contact(&mock_server).await;
 
-        let mut graph = SchemaGraph::new(&client);
+        let mut graph = SchemaGraph::new(client.rest());
         graph.scan("Account").await.must();
         graph.scan("Contact").await.must();
 

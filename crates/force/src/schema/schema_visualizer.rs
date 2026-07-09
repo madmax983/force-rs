@@ -1,6 +1,6 @@
 use crate::api::rest_operation::RestOperation;
 use crate::auth::Authenticator;
-use crate::client::ForceClient;
+use crate::api::rest::RestHandler;
 use crate::error::Result;
 use std::collections::HashMap;
 use std::fmt::Write;
@@ -25,11 +25,11 @@ use super::schema_graph::SchemaGraph;
 /// * `sobject` - The API name of the SObject (e.g., "Account").
 /// * `include_usage` - Whether to scan and include field population statistics.
 pub async fn generate_visualizer_report<A: Authenticator>(
-    client: &ForceClient<A>,
+    rest: &RestHandler<A>,
     sobject: &str,
     include_usage: bool,
 ) -> Result<String> {
-    let describe = client.rest().describe(sobject).await?;
+    let describe = rest.describe(sobject).await?;
 
     let insights = analyze_schema(&describe);
 
@@ -60,13 +60,13 @@ pub async fn generate_visualizer_report<A: Authenticator>(
         insights.required_field_count
     );
 
-    let mut graph = SchemaGraph::new(client);
+    let mut graph = SchemaGraph::new(rest.clone());
 
     // ⚡ Bolt: We borrow fields from `describe` for usage stats before moving it into the graph.
     // However, to satisfy the borrow checker when sorting, we collect references to fields
     // rather than cloning the entire vector.
     let usages = if include_usage {
-        let scanner = FieldUsageScanner::new(client);
+        let scanner = FieldUsageScanner::new(rest.clone());
         let u = scanner.scan(sobject).await?;
         let mut map = HashMap::with_capacity(u.len());
         for usage in u {
@@ -125,7 +125,7 @@ mod tests {
         MockServer::start().await
     }
 
-    async fn create_test_client(mock_server: &MockServer) -> ForceClient<MockAuthenticator> {
+    async fn create_test_client(mock_server: &MockServer) -> crate::client::ForceClient<MockAuthenticator> {
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
         builder().authenticate(auth).build().await.must()
     }
@@ -184,7 +184,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let md = generate_visualizer_report(&client, "Account", false)
+        let md = generate_visualizer_report(&client.rest(), "Account", false)
             .await
             .must();
 
@@ -272,7 +272,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let md = generate_visualizer_report(&client, "Account", true)
+        let md = generate_visualizer_report(&client.rest(), "Account", true)
             .await
             .must();
 

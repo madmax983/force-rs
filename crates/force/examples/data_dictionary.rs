@@ -25,7 +25,7 @@ async fn main() -> anyhow::Result<()> {
     let sobject = "Account";
     println!("Generating data dictionary for {sobject}...");
 
-    let dict = DataDictionary::new(&client);
+    let dict = DataDictionary::new(client.rest());
     let md = dict.generate(sobject, true).await?;
 
     println!("---");

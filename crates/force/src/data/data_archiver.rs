@@ -6,7 +6,7 @@
 use super::DataMasker;
 use crate::api::rest_operation::RestOperation;
 use crate::auth::Authenticator;
-use crate::client::ForceClient;
+use crate::api::rest::RestHandler;
 use crate::error::{ForceError, Result, SerializationError};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
@@ -16,19 +16,19 @@ use tokio::io::AsyncWriteExt;
 
 /// Utility for exporting query results to disk.
 #[derive(Debug)]
-pub struct DataArchiver<'a, A: Authenticator> {
-    client: &'a ForceClient<A>,
+pub struct DataArchiver<A: Authenticator> {
+    rest: RestHandler<A>,
 }
 
-impl<'a, A: Authenticator> DataArchiver<'a, A> {
+impl<A: Authenticator> DataArchiver<A> {
     /// Creates a new data archiver.
     ///
     /// # Arguments
     ///
     /// * `client` - The Force client.
     #[must_use]
-    pub fn new(client: &'a ForceClient<A>) -> Self {
-        Self { client }
+    pub fn new(rest: RestHandler<A>) -> Self {
+        Self { rest }
     }
 
     /// Exports a SOQL query to a JSON Lines (JSONL) file.
@@ -47,7 +47,7 @@ impl<'a, A: Authenticator> DataArchiver<'a, A> {
     where
         T: DeserializeOwned + Serialize + Unpin,
     {
-        let mut stream = self.client.rest().query_stream::<T>(soql);
+        let mut stream = self.rest.query_stream::<T>(soql);
         let mut file = File::create(path).await?;
         let mut count = 0;
 
@@ -86,12 +86,11 @@ impl<'a, A: Authenticator> DataArchiver<'a, A> {
         soql: &str,
         path: impl AsRef<Path>,
     ) -> Result<usize> {
-        let describe = self.client.rest().describe(sobject_name).await?;
+        let describe = self.rest.describe(sobject_name).await?;
         let masker = DataMasker::new(&describe);
 
         let mut stream = self
-            .client
-            .rest()
+            .rest
             .query_stream::<crate::types::DynamicSObject>(soql);
 
         let mut file = File::create(path).await?;
@@ -158,7 +157,7 @@ mod tests {
             .build()
             .await
             .must();
-        let archiver = DataArchiver::new(&client);
+        let archiver = DataArchiver::new(client.rest());
 
         let file_path = env::temp_dir().join(format!("export_{}.jsonl", std::process::id()));
 
@@ -264,7 +263,7 @@ mod tests {
             .build()
             .await
             .must();
-        let archiver = DataArchiver::new(&client);
+        let archiver = DataArchiver::new(client.rest());
 
         let file_path = env::temp_dir().join(format!("export_masked_{}.jsonl", std::process::id()));
 
