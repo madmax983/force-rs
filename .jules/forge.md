@@ -98,3 +98,11 @@
 **[Flatten Match With Original Error Context]**
 **Learning:** When flattening nested `match` statements handling `Result` outputs, rewriting them with `let Ok(...) = result else` guard clauses can lead to silently swallowing the underlying original error if not passed through explicitly, which breaks observability and changes runtime behavior. Using `.map_err(...)?` provides a flatter structure while preserving the exact error mappings natively.
 **Action:** When acting as 'Forge', never drop the original underlying error variable (e.g., `e`). To flatten `Result` mapping, use `.map_err(|e| { ... })?` with the `?` operator instead of verbose `match` statements or dropping context inside `else` guards, ensuring the error propagates cleanly without over-nesting.
+
+**[Standalone Helper Functions]**
+**Learning:** In Rust, pure functions that do not operate on instance state (`self`) should remain standalone module-level functions. Forcing them into a trait as default methods introduces an Object-Oriented anti-pattern and unnecessarily requires taking `&self`.
+**Action:** Do not move standalone helper functions into traits. Leave them as module-level functions.
+
+**[Flatten Async Error Handling]**
+**Learning:** When flattening nested `match` blocks for `Result` outputs, if the error handling requires an `async` function call, `.map_err()` cannot be used with the `?` operator because closures cannot `.await`.
+**Action:** Use an early-return approach (e.g., `let val = match result { Ok(v) => v, Err(e) => return handle_error(e).await };`) as the idiomatic solution to flatten the logic without swallowing errors.
