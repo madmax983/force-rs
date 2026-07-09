@@ -27,17 +27,16 @@ impl<A: Authenticator> FilesHandler<A> {
     async fn read_capped_body_bytes(
         response: reqwest::Response,
         limit_bytes: usize,
-    ) -> std::result::Result<bytes::Bytes, reqwest::Error> {
+    ) -> crate::error::Result<bytes::Bytes> {
         let mut stream = response.bytes_stream();
         let init_cap = std::cmp::min(limit_bytes, 4096);
         let mut vec = Vec::with_capacity(init_cap);
 
         while let Some(chunk_result) = stream.next().await {
-            let chunk = chunk_result?;
+            let chunk = chunk_result.map_err(|e| ForceError::Http(crate::error::HttpError::RequestFailed(e)))?;
             let remaining = limit_bytes.saturating_sub(vec.len());
             if chunk.len() > remaining {
-                vec.extend_from_slice(&chunk[..remaining]);
-                break;
+                return Err(ForceError::InvalidInput("response body exceeded size limit".into()));
             }
             vec.extend_from_slice(&chunk[..]);
         }
@@ -47,7 +46,7 @@ impl<A: Authenticator> FilesHandler<A> {
     async fn read_capped_body(
         response: reqwest::Response,
         limit_bytes: usize,
-    ) -> std::result::Result<String, reqwest::Error> {
+    ) -> crate::error::Result<String> {
         let bytes = Self::read_capped_body_bytes(response, limit_bytes).await?;
         let bytes_vec = bytes.to_vec();
         Ok(String::from_utf8(bytes_vec)
@@ -104,12 +103,12 @@ impl<A: Authenticator> FilesHandler<A> {
             .multipart(form)
             .send()
             .await
-            .map_err(|e| ForceError::Http(crate::error::HttpError::RequestFailed(e)))?;
+            ?;
 
         let status = response.status();
         let body = Self::read_capped_body(response, 100 * 1024 * 1024)
             .await
-            .map_err(|e| ForceError::Http(crate::error::HttpError::RequestFailed(e)))?;
+            ?;
 
         if !status.is_success() && status.as_u16() != 201 {
             return Err(ForceError::InvalidInput("Failed to upload ContentVersion".into()));
@@ -152,12 +151,12 @@ impl<A: Authenticator> FilesHandler<A> {
             .bearer_auth(token.as_str())
             .send()
             .await
-            .map_err(|e| ForceError::Http(crate::error::HttpError::RequestFailed(e)))?;
+            ?;
 
         let status = response.status();
         let bytes = Self::read_capped_body_bytes(response, 100 * 1024 * 1024)
             .await
-            .map_err(|e| ForceError::Http(crate::error::HttpError::RequestFailed(e)))?;
+            ?;
 
         if !status.is_success() && status.as_u16() != 200 {
             return Err(ForceError::InvalidInput("Failed to download ContentVersion".into()));
@@ -202,12 +201,12 @@ impl<A: Authenticator> FilesHandler<A> {
             .json(&payload)
             .send()
             .await
-            .map_err(|e| ForceError::Http(crate::error::HttpError::RequestFailed(e)))?;
+            ?;
 
         let status = response.status();
         let body = Self::read_capped_body(response, 10 * 1024 * 1024)
             .await
-            .map_err(|e| ForceError::Http(crate::error::HttpError::RequestFailed(e)))?;
+            ?;
 
         if !status.is_success() && status.as_u16() != 201 {
             return Err(ForceError::InvalidInput("Failed to insert ContentDocumentLink".into()));
