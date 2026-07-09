@@ -5,7 +5,7 @@
 //!
 //! # Salesforce API
 //!
-//! **Endpoint:** `GET /services/data/v60.0/tooling/executeAnonymous/?anonymousBody={code}`
+//! **Endpoint:** `GET /services/data/v67.0/tooling/executeAnonymous/?anonymousBody={code}`
 //!
 //! The code is URL-encoded and sent as a query parameter. Salesforce compiles
 //! and executes the Apex code in the context of the authenticated user's org.
@@ -28,7 +28,7 @@ use serde::{Deserialize, Serialize};
 /// Result of executing anonymous Apex code via the Tooling API.
 ///
 /// This struct maps directly to the JSON response from
-/// `GET /services/data/v60.0/tooling/executeAnonymous/`.
+/// `GET /services/data/v67.0/tooling/executeAnonymous/`.
 ///
 /// Three outcome states are possible:
 ///
@@ -290,7 +290,7 @@ mod tests {
         let apex_code = "System.debug('Hello from Apex');";
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/tooling/executeAnonymous"))
+            .and(path("/services/data/v67.0/tooling/executeAnonymous"))
             .and(query_param("anonymousBody", apex_code))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "line": -1,
@@ -325,7 +325,7 @@ mod tests {
         let apex_code = "invalid apex code here;";
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/tooling/executeAnonymous"))
+            .and(path("/services/data/v67.0/tooling/executeAnonymous"))
             .and(query_param("anonymousBody", apex_code))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "line": 1,
@@ -362,7 +362,7 @@ mod tests {
         let apex_code = "Account a = new Account(); insert a;";
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/tooling/executeAnonymous"))
+            .and(path("/services/data/v67.0/tooling/executeAnonymous"))
             .and(query_param("anonymousBody", apex_code))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "line": 1,
@@ -403,7 +403,7 @@ mod tests {
         let client = builder().authenticate(auth).build().await.must();
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/tooling/executeAnonymous"))
+            .and(path("/services/data/v67.0/tooling/executeAnonymous"))
             .respond_with(
                 ResponseTemplate::new(500).set_body_json(serde_json::json!([{
                     "message": "Internal Server Error",

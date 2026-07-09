@@ -32,7 +32,7 @@ impl Environment {
 /// Configuration for the Force API client.
 #[derive(Debug, Clone)]
 pub struct ClientConfig {
-    /// API version to use (e.g., "v60.0")
+    /// API version to use (e.g., "v67.0")
     pub api_version: String,
     /// Salesforce environment
     pub environment: Environment,
@@ -85,7 +85,7 @@ mod tests {
         #[test]
         fn test_default_config() {
             let config = ClientConfig::default();
-            assert_eq!(config.api_version, "v60.0");
+            assert_eq!(config.api_version, "v67.0");
             assert_eq!(config.environment, Environment::Production);
             assert_eq!(config.timeout, Duration::from_secs(30));
             assert_eq!(config.max_retries, 3);

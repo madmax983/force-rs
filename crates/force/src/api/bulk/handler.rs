@@ -53,7 +53,7 @@ impl<A: crate::auth::Authenticator> BulkHandler<A> {
     ///
     /// ```ignore
     /// let base = handler.base_url().await?;
-    /// // Returns: "https://na1.salesforce.com/services/data/v60.0/jobs/ingest"
+    /// // Returns: "https://na1.salesforce.com/services/data/v67.0/jobs/ingest"
     /// ```
     pub async fn base_url(&self) -> Result<String> {
         self.inner.resolve_url("jobs/ingest").await
@@ -110,7 +110,7 @@ mod tests {
         let base_url = handler.base_url().await.must();
         assert!(base_url.contains(&mock_server.uri()));
         assert!(base_url.contains("/services/data/"));
-        assert!(base_url.ends_with("v60.0/jobs/ingest")); // Default API version
+        assert!(base_url.ends_with("v67.0/jobs/ingest")); // Default API version
     }
 
     #[cfg(feature = "bulk")]

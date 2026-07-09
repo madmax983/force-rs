@@ -180,7 +180,7 @@ crates/force/src/
 ├── types/
 │   ├── mod.rs
 │   ├── salesforce_id.rs   # SalesforceId newtype (15/18 char validation)
-│   └── api_version.rs     # ApiVersion newtype (v60.0 format)
+│   └── api_version.rs     # ApiVersion newtype (v67.0 format)
 ├── error/
 │   ├── mod.rs             # Error hierarchy
 │   ├── auth_error.rs
@@ -458,7 +458,7 @@ use force::{ClientConfig, ForceClient};
 
 let config = ClientConfig::builder()
     .instance_url("https://custom.my.salesforce.com")
-    .api_version("v60.0")
+    .api_version("v67.0")
     .timeout_seconds(30)
     .max_retries(3)
     .build()?;

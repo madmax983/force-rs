@@ -27,7 +27,7 @@ async fn test_uncloneable_request_panic() {
     let request = reqwest::Client::new()
         .request(
             Method::POST,
-            format!("{}/services/data/v60.0/query", mock_server.uri()),
+            format!("{}/services/data/v67.0/query", mock_server.uri()),
         )
         .body(body)
         .build()

@@ -85,7 +85,7 @@ mod tests {
 
         // Mock: Create Job
         Mock::given(method("POST"))
-            .and(path("/services/data/v60.0/jobs/ingest"))
+            .and(path("/services/data/v67.0/jobs/ingest"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "JOB_ID",
                 "state": "Open",
@@ -102,7 +102,7 @@ mod tests {
         // exercises internal buffer flushes, but the HTTP contract is a
         // single PUT containing all rows with one header.
         Mock::given(method("PUT"))
-            .and(path("/services/data/v60.0/jobs/ingest/JOB_ID/batches"))
+            .and(path("/services/data/v67.0/jobs/ingest/JOB_ID/batches"))
             .and(body_string("id,name\n001,Batch1\n002,Batch2\n003,Batch3\n"))
             .respond_with(ResponseTemplate::new(201))
             .expect(1)
@@ -111,7 +111,7 @@ mod tests {
 
         // Mock: Close Job
         Mock::given(method("PATCH"))
-            .and(path("/services/data/v60.0/jobs/ingest/JOB_ID"))
+            .and(path("/services/data/v67.0/jobs/ingest/JOB_ID"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "JOB_ID",
                 "state": "UploadComplete",
@@ -126,7 +126,7 @@ mod tests {
 
         // Mock: Poll (Complete)
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/jobs/ingest/JOB_ID"))
+            .and(path("/services/data/v67.0/jobs/ingest/JOB_ID"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "JOB_ID",
                 "state": "JobComplete",

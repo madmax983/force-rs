@@ -617,7 +617,7 @@ mod integration_tests {
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/limits"))
+            .and(path("/services/data/v67.0/limits"))
             .and(bearer_token("test_token"))
             .respond_with(ResponseTemplate::new(200).set_body_json(sample_limits_response()))
             .mount(&mock_server)
@@ -679,7 +679,7 @@ mod integration_tests {
         let auth = MockAuthenticator::new("invalid_token", &mock_server.uri());
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/limits"))
+            .and(path("/services/data/v67.0/limits"))
             .respond_with(ResponseTemplate::new(401))
             .mount(&mock_server)
             .await;
@@ -703,7 +703,7 @@ mod integration_tests {
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/limits"))
+            .and(path("/services/data/v67.0/limits"))
             .respond_with(ResponseTemplate::new(500))
             .mount(&mock_server)
             .await;
@@ -727,7 +727,7 @@ mod integration_tests {
         let auth = MockAuthenticator::new("header_test_token", &mock_server.uri());
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/limits"))
+            .and(path("/services/data/v67.0/limits"))
             .and(header("Authorization", "Bearer header_test_token"))
             .respond_with(ResponseTemplate::new(200).set_body_json(sample_limits_response()))
             .expect(1)
@@ -782,7 +782,7 @@ mod integration_tests {
         });
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/limits"))
+            .and(path("/services/data/v67.0/limits"))
             .respond_with(ResponseTemplate::new(200).set_body_json(at_limit_response))
             .mount(&mock_server)
             .await;
@@ -814,7 +814,7 @@ mod integration_tests {
         );
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/limits"))
+            .and(path("/services/data/v67.0/limits"))
             .respond_with(ResponseTemplate::new(200).set_body_json(response))
             .mount(&mock_server)
             .await;
@@ -868,7 +868,7 @@ mod integration_tests {
         });
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/limits"))
+            .and(path("/services/data/v67.0/limits"))
             .respond_with(ResponseTemplate::new(200).set_body_json(high_usage_response))
             .mount(&mock_server)
             .await;
@@ -894,7 +894,7 @@ mod integration_tests {
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/limits"))
+            .and(path("/services/data/v67.0/limits"))
             .respond_with(ResponseTemplate::new(200).set_body_json(sample_limits_response()))
             .expect(3)
             .mount(&mock_server)
@@ -923,7 +923,7 @@ mod integration_tests {
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/limits"))
+            .and(path("/services/data/v67.0/limits"))
             .respond_with(ResponseTemplate::new(200).set_body_json(sample_limits_response()))
             .expect(2)
             .mount(&mock_server)

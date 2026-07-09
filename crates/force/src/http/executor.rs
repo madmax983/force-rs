@@ -433,7 +433,7 @@ mod tests {
         let mock_server = MockServer::start().await;
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/query"))
+            .and(path("/services/data/v67.0/query"))
             .and(header("Authorization", "Bearer test_token"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "totalSize": 1,
@@ -455,7 +455,7 @@ mod tests {
             .client
             .request(
                 Method::GET,
-                format!("{}/services/data/v60.0/query", mock_server.uri()),
+                format!("{}/services/data/v67.0/query", mock_server.uri()),
             )
             .build()
             .must();
@@ -474,7 +474,7 @@ mod tests {
 
         // First attempt fails with 401
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/query"))
+            .and(path("/services/data/v67.0/query"))
             .and(header("Authorization", "Bearer expired_token"))
             .respond_with(
                 ResponseTemplate::new(401).set_body_json(serde_json::json!([{
@@ -488,7 +488,7 @@ mod tests {
 
         // Second attempt succeeds with new token
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/query"))
+            .and(path("/services/data/v67.0/query"))
             .and(header("Authorization", "Bearer test_token"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "totalSize": 1,
@@ -522,7 +522,7 @@ mod tests {
             .client
             .request(
                 Method::GET,
-                format!("{}/services/data/v60.0/query", mock_server.uri()),
+                format!("{}/services/data/v67.0/query", mock_server.uri()),
             )
             .build()
             .must();
@@ -541,7 +541,7 @@ mod tests {
         let mock_server = MockServer::start().await;
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/query"))
+            .and(path("/services/data/v67.0/query"))
             .respond_with(
                 ResponseTemplate::new(429)
                     .insert_header("Retry-After", "60")
@@ -565,7 +565,7 @@ mod tests {
             .client
             .request(
                 Method::GET,
-                format!("{}/services/data/v60.0/query", mock_server.uri()),
+                format!("{}/services/data/v67.0/query", mock_server.uri()),
             )
             .build()
             .must();
@@ -589,7 +589,7 @@ mod tests {
 
         // Mock a 503 Service Unavailable response
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/query"))
+            .and(path("/services/data/v67.0/query"))
             .respond_with(
                 ResponseTemplate::new(503).set_body_json(serde_json::json!([{
                     "message": "Service Unavailable",
@@ -617,7 +617,7 @@ mod tests {
             .client
             .request(
                 Method::GET,
-                format!("{}/services/data/v60.0/query", mock_server.uri()),
+                format!("{}/services/data/v67.0/query", mock_server.uri()),
             )
             .build()
             .must();
@@ -637,7 +637,7 @@ mod tests {
 
         // Mock a delayed response that exceeds our timeout
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/query"))
+            .and(path("/services/data/v67.0/query"))
             .respond_with(
                 ResponseTemplate::new(200)
                     .set_delay(Duration::from_millis(100))
@@ -662,7 +662,7 @@ mod tests {
             .client
             .request(
                 Method::GET,
-                format!("{}/services/data/v60.0/query", mock_server.uri()),
+                format!("{}/services/data/v67.0/query", mock_server.uri()),
             )
             .build()
             .must();
@@ -682,7 +682,7 @@ mod tests {
     #[tokio::test]
     async fn test_execute_transport_error() {
         // Use an unroutable local address to force a transport/connection error
-        let unroutable_url = "http://127.0.0.1:0/services/data/v60.0/query";
+        let unroutable_url = "http://127.0.0.1:0/services/data/v67.0/query";
 
         // We only want 0 retries here so we can assert the final error directly
         let executor = HttpExecutor::with_config(0, Duration::from_millis(100));
@@ -716,7 +716,7 @@ mod tests {
     async fn test_execute_transport_error_retries_transient_failure() {
         // We use an unroutable local address to force a transport/connection error.
         // It will fail every time, but we test that it actually retries up to the limit.
-        let unroutable_url = "http://127.0.0.1:0/services/data/v60.0/query";
+        let unroutable_url = "http://127.0.0.1:0/services/data/v67.0/query";
 
         // Set max retries to 3
         let executor = HttpExecutor::with_config(3, Duration::from_millis(100))
@@ -869,7 +869,7 @@ mod tests {
         let mock_server = MockServer::start().await;
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/query"))
+            .and(path("/services/data/v67.0/query"))
             .and(header("Authorization", "Bearer test_token"))
             .respond_with(
                 ResponseTemplate::new(400).set_body_json(serde_json::json!([{
@@ -892,7 +892,7 @@ mod tests {
             .client
             .request(
                 Method::GET,
-                format!("{}/services/data/v60.0/query", mock_server.uri()),
+                format!("{}/services/data/v67.0/query", mock_server.uri()),
             )
             .build()
             .must();
@@ -917,7 +917,7 @@ mod tests {
 
         // Both attempts return 401 -- initial token and refreshed token both fail.
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/query"))
+            .and(path("/services/data/v67.0/query"))
             .respond_with(
                 ResponseTemplate::new(401).set_body_json(serde_json::json!([{
                     "message": "Session expired or invalid",
@@ -936,7 +936,7 @@ mod tests {
             .client
             .request(
                 Method::GET,
-                format!("{}/services/data/v60.0/query", mock_server.uri()),
+                format!("{}/services/data/v67.0/query", mock_server.uri()),
             )
             .build()
             .must();

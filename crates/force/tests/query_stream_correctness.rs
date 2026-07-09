@@ -62,11 +62,11 @@ async fn test_query_stream_empty_middle_page_repro() {
 
     // First page: returns 1 record, done=false
     Mock::given(method("GET"))
-        .and(path("/services/data/v60.0/query"))
+        .and(path("/services/data/v67.0/query"))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
             "totalSize": 3,
             "done": false,
-            "nextRecordsUrl": "/services/data/v60.0/query/page2",
+            "nextRecordsUrl": "/services/data/v67.0/query/page2",
             "records": [
                 {"Id": "001", "Name": "A"}
             ]
@@ -76,11 +76,11 @@ async fn test_query_stream_empty_middle_page_repro() {
 
     // Second page: returns 0 records, done=false (empty page)
     Mock::given(method("GET"))
-        .and(path("/services/data/v60.0/query/page2"))
+        .and(path("/services/data/v67.0/query/page2"))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
             "totalSize": 3,
             "done": false,
-            "nextRecordsUrl": "/services/data/v60.0/query/page3",
+            "nextRecordsUrl": "/services/data/v67.0/query/page3",
             "records": []
         })))
         .mount(&mock_server)
@@ -88,7 +88,7 @@ async fn test_query_stream_empty_middle_page_repro() {
 
     // Third page: returns 1 record, done=true
     Mock::given(method("GET"))
-        .and(path("/services/data/v60.0/query/page3"))
+        .and(path("/services/data/v67.0/query/page3"))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
             "totalSize": 3,
             "done": true,

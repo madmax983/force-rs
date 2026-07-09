@@ -60,7 +60,7 @@ async fn test_havoc_token_leak_via_absolute_url() {
 
     // 3. Salesforce returns a response pointing to Attacker
     Mock::given(method("GET"))
-        .and(path("/services/data/v60.0/query"))
+        .and(path("/services/data/v67.0/query"))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
             "totalSize": 2,
             "done": false,

@@ -241,7 +241,7 @@ mod tests {
 
     fn create_mock_record(fields: serde_json::Map<String, Value>) -> DynamicSObject {
         let id = SalesforceId::new("003000000000001AAA").must();
-        let attrs = Attributes::new("Contact", &id, "v60.0");
+        let attrs = Attributes::new("Contact", &id, "v67.0");
         let mut record = DynamicSObject::new(attrs);
         record.fields = fields;
         record

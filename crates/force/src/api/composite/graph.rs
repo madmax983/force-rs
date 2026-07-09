@@ -469,7 +469,7 @@ mod tests {
         });
 
         Mock::given(method("POST"))
-            .and(path("/services/data/v60.0/composite/graph"))
+            .and(path("/services/data/v67.0/composite/graph"))
             .respond_with(ResponseTemplate::new(200).set_body_json(response_json))
             .mount(&mock_server)
             .await;

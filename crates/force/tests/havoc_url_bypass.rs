@@ -49,7 +49,7 @@ mod tests {
         let mock_server = MockServer::start().await;
 
         Mock::given(method("GET"))
-            .and(path("/@evil.com/services/data/v60.0/query/01g"))
+            .and(path("/@evil.com/services/data/v67.0/query/01g"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "totalSize": 0,
                 "done": true,
@@ -68,7 +68,7 @@ mod tests {
         let handler = client.rest();
 
         // This is the SSRF payload.
-        let next_records_url = "@evil.com/services/data/v60.0/query/01g";
+        let next_records_url = "@evil.com/services/data/v67.0/query/01g";
 
         // Before the fix, this would create `http://127.0.0.1:port@evil.com/...`
         // which sends the request to `evil.com`.

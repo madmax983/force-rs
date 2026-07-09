@@ -142,7 +142,7 @@ mod tests {
         let (server, client) = setup().await;
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/consent/action/email"))
+            .and(path("/services/data/v67.0/consent/action/email"))
             .and(query_param("ids", "001xx000003GYk1"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "001xx000003GYk1": {
@@ -172,7 +172,7 @@ mod tests {
         let (server, client) = setup().await;
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/consent/action/email"))
+            .and(path("/services/data/v67.0/consent/action/email"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "001xx000003GYk1": {
                     "result": "Success",
@@ -205,7 +205,7 @@ mod tests {
         let (server, client) = setup().await;
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/consent/action/email"))
+            .and(path("/services/data/v67.0/consent/action/email"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "001xx000003GONE": {
                     "result": "NotFound",
@@ -230,7 +230,7 @@ mod tests {
         let (server, client) = setup().await;
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/consent/action/email"))
+            .and(path("/services/data/v67.0/consent/action/email"))
             .respond_with(ResponseTemplate::new(500))
             .mount(&server)
             .await;
@@ -249,7 +249,7 @@ mod tests {
         let (server, client) = setup().await;
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/consent/multiaction"))
+            .and(path("/services/data/v67.0/consent/multiaction"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "001xx000003GYk1": {
                     "result": "Success",
@@ -280,7 +280,7 @@ mod tests {
         let (server, client) = setup().await;
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/consent/multiaction"))
+            .and(path("/services/data/v67.0/consent/multiaction"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "001xx000003GYk1": {
                     "result": "Success",
@@ -313,7 +313,7 @@ mod tests {
         let (server, client) = setup().await;
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/consent/multiaction"))
+            .and(path("/services/data/v67.0/consent/multiaction"))
             .respond_with(
                 ResponseTemplate::new(400).set_body_json(serde_json::json!([{
                     "message": "Invalid action specified",

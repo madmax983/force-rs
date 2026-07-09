@@ -352,7 +352,7 @@ pub enum ConfigError {
     InvalidInstanceUrl { url: String },
 
     /// Invalid API version format
-    #[error("Invalid API version: {version} (expected format: v60.0)")]
+    #[error("Invalid API version: {version} (expected format: v67.0)")]
     InvalidApiVersion { version: String },
 
     /// Invalid Salesforce ID format

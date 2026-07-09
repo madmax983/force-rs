@@ -287,7 +287,7 @@ Credential sources:
   - `SF_INSTANCE_URL`
 - or a locally authenticated Salesforce CLI org discovered via `sf org display --verbose --json`
   - optional `SF_TARGET_ORG` to select a non-default org alias or username
-- optional `SF_API_VERSION` (default `v60.0`)
+- optional `SF_API_VERSION` (default `v67.0`)
 
 Optional runtime tuning:
 

@@ -122,7 +122,7 @@ async fn bulk_upsert_uses_the_external_id_field() {
     let applier = SalesforceApplier::new(client);
 
     Mock::given(method("POST"))
-        .and(path("/services/data/v60.0/jobs/ingest"))
+        .and(path("/services/data/v67.0/jobs/ingest"))
         .and(header("Authorization", "Bearer test_token"))
         .and(body_json(json!({
             "object": "Account",
@@ -144,7 +144,7 @@ async fn bulk_upsert_uses_the_external_id_field() {
 
     Mock::given(method("PUT"))
         .and(path(
-            "/services/data/v60.0/jobs/ingest/750xx0000000001AAA/batches",
+            "/services/data/v67.0/jobs/ingest/750xx0000000001AAA/batches",
         ))
         .and(body_string(
             "External_Id__c,Name\nexternal-1,Acme\nexternal-2,Acme 2\n",
@@ -155,7 +155,7 @@ async fn bulk_upsert_uses_the_external_id_field() {
         .await;
 
     Mock::given(method("PATCH"))
-        .and(path("/services/data/v60.0/jobs/ingest/750xx0000000001AAA"))
+        .and(path("/services/data/v67.0/jobs/ingest/750xx0000000001AAA"))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
             "id": "750xx0000000001AAA",
             "state": "UploadComplete",
@@ -170,7 +170,7 @@ async fn bulk_upsert_uses_the_external_id_field() {
         .await;
 
     Mock::given(method("GET"))
-        .and(path("/services/data/v60.0/jobs/ingest/750xx0000000001AAA"))
+        .and(path("/services/data/v67.0/jobs/ingest/750xx0000000001AAA"))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
             "id": "750xx0000000001AAA",
             "state": "JobComplete",

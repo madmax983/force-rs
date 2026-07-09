@@ -93,7 +93,7 @@ fn fallback_demonstration() -> anyhow::Result<()> {
         "undeletable": true,
         "updateable": true,
         "urls": {
-            "sobject": "/services/data/v60.0/sobjects/Contact"
+            "sobject": "/services/data/v67.0/sobjects/Contact"
         },
         "fields": [
             {

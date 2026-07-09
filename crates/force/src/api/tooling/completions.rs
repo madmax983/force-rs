@@ -243,7 +243,7 @@ mod tests {
         });
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/tooling/completions"))
+            .and(path("/services/data/v67.0/tooling/completions"))
             .and(query_param("type", "apex"))
             .and(query_param("q", "System.d"))
             .respond_with(ResponseTemplate::new(200).set_body_json(&response_body))
@@ -282,7 +282,7 @@ mod tests {
         });
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/tooling/completions"))
+            .and(path("/services/data/v67.0/tooling/completions"))
             .and(query_param("type", "visualforce"))
             .and(query_param("q", "apex:o"))
             .respond_with(ResponseTemplate::new(200).set_body_json(&response_body))
@@ -306,7 +306,7 @@ mod tests {
         let client = builder().authenticate(auth).build().await.must();
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/tooling/completions"))
+            .and(path("/services/data/v67.0/tooling/completions"))
             .and(query_param("type", "apex"))
             .and(query_param("q", "xyznonexistent"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "completions": [] })))
@@ -330,7 +330,7 @@ mod tests {
         let client = builder().authenticate(auth).build().await.must();
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/tooling/completions"))
+            .and(path("/services/data/v67.0/tooling/completions"))
             .respond_with(ResponseTemplate::new(400).set_body_json(json!([
                 { "errorCode": "INVALID_TYPE", "message": "Invalid type parameter" }
             ])))
@@ -362,7 +362,7 @@ mod tests {
         let client = builder().authenticate(auth).build().await.must();
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/tooling/completions"))
+            .and(path("/services/data/v67.0/tooling/completions"))
             .respond_with(ResponseTemplate::new(500).set_body_string("Internal Server Error"))
             .expect(1)
             .mount(&mock_server)

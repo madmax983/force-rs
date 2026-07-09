@@ -99,7 +99,7 @@ mod tests {
         let (server, client) = setup().await;
 
         Mock::given(method("POST"))
-            .and(path("/services/data/v60.0/portability"))
+            .and(path("/services/data/v67.0/portability"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "requestId": "req-001",
                 "status": "Pending"
@@ -120,7 +120,7 @@ mod tests {
         let (server, client) = setup().await;
 
         Mock::given(method("POST"))
-            .and(path("/services/data/v60.0/portability"))
+            .and(path("/services/data/v67.0/portability"))
             .respond_with(
                 ResponseTemplate::new(400).set_body_json(serde_json::json!([{
                     "message": "Invalid object type",
@@ -142,7 +142,7 @@ mod tests {
         let (server, client) = setup().await;
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/portability/req-001"))
+            .and(path("/services/data/v67.0/portability/req-001"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "requestId": "req-001",
                 "status": "Pending"
@@ -165,7 +165,7 @@ mod tests {
         let (server, client) = setup().await;
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/portability/req-001"))
+            .and(path("/services/data/v67.0/portability/req-001"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "requestId": "req-001",
                 "status": "Complete",
@@ -192,7 +192,7 @@ mod tests {
         let (server, client) = setup().await;
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/portability/req-002"))
+            .and(path("/services/data/v67.0/portability/req-002"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "requestId": "req-002",
                 "status": "Failed"
@@ -215,7 +215,7 @@ mod tests {
         let (server, client) = setup().await;
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/portability/nonexistent"))
+            .and(path("/services/data/v67.0/portability/nonexistent"))
             .respond_with(
                 ResponseTemplate::new(404).set_body_json(serde_json::json!([{
                     "message": "Request not found",
