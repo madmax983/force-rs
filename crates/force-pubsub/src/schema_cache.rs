@@ -3,6 +3,7 @@
 use apache_avro::Schema;
 use dashmap::DashMap;
 use std::sync::Arc;
+use tokio::sync::Mutex;
 use tonic::transport::Channel;
 
 use crate::error::{PubSubError, Result};
@@ -21,6 +22,18 @@ pub struct SchemaCache {
 #[derive(Debug)]
 struct SchemaCacheInner {
     cache: DashMap<String, Schema>,
+    locks: DashMap<String, Arc<Mutex<()>>>,
+}
+
+struct LockGuard<'a> {
+    locks: &'a DashMap<String, Arc<Mutex<()>>>,
+    schema_id: String,
+}
+
+impl Drop for LockGuard<'_> {
+    fn drop(&mut self) {
+        self.locks.remove(&self.schema_id);
+    }
 }
 
 impl SchemaCache {
@@ -30,6 +43,7 @@ impl SchemaCache {
         Self {
             inner: Arc::new(SchemaCacheInner {
                 cache: DashMap::new(),
+                locks: DashMap::new(),
             }),
         }
     }
@@ -84,6 +98,26 @@ impl SchemaCache {
         metadata: tonic::metadata::MetadataMap,
     ) -> Result<Schema> {
         // Fast path: lock-free cache hit.
+        if let Some(schema) = self.get(schema_id) {
+            return Ok(schema);
+        }
+
+        let lock = Arc::clone(
+            self.inner
+                .locks
+                .entry(schema_id.to_string())
+                .or_insert_with(|| Arc::new(Mutex::new(())))
+                .value(),
+        );
+
+        let _mutex_guard = lock.lock().await;
+
+        let _cleanup_guard = LockGuard {
+            locks: &self.inner.locks,
+            schema_id: schema_id.to_string(),
+        };
+
+        // Double-check locking: another task might have fetched it while we waited.
         if let Some(schema) = self.get(schema_id) {
             return Ok(schema);
         }
