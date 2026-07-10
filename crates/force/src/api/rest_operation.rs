@@ -715,7 +715,7 @@ pub fn resolve_next_records_url(instance_url: &str, next_records_url: &str) -> R
     }
 
     // Security check: absolute URL must match the instance host
-    let next_parsed = url::Url::parse(next_records_url)
+    let _next_parsed = url::Url::parse(next_records_url)
         .map_err(|e| ForceError::InvalidInput(format!("Invalid nextRecordsUrl: {e}")))?;
     let instance_parsed = url::Url::parse(instance_url)
         .map_err(|e| ForceError::InvalidInput(format!("Invalid instance URL in token: {e}")))?;
