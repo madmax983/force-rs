@@ -221,6 +221,7 @@ impl<A: Authenticator> TokenManager<A> {
     /// ```
     pub async fn token(&self) -> Result<AccessToken> {
         let arc_token = self.get_token_arc().await?;
+        // ⚡ Bolt: Avoid unnecessary Arc clone to reduce atomic overhead
         Ok((*arc_token).clone())
     }
 
@@ -260,7 +261,8 @@ impl<A: Authenticator> TokenManager<A> {
                     None => false,
                 };
                 if !is_same {
-                    return Ok((*token.clone()).clone());
+                    // ⚡ Bolt: Avoid unnecessary Arc clone to reduce atomic overhead
+                    return Ok((**token).clone());
                 }
             }
         }
@@ -280,6 +282,7 @@ impl<A: Authenticator> TokenManager<A> {
         // when transferring ownership, saving one heap allocation per force refresh.
         let arc_token = Arc::new(new_token);
         let final_token = self.update_token_state(arc_token, clear_count).await?;
+        // ⚡ Bolt: Avoid unnecessary Arc clone to reduce atomic overhead
         Ok((*final_token).clone())
     }
 
