@@ -134,12 +134,12 @@ mod tests {
             "done": true,
             "records": [
                 {
-                    "attributes": {"type": "Account", "url": "/services/data/v60.0/sobjects/Account/001xx000000001AAA"},
+                    "attributes": {"type": "Account", "url": "/services/data/v67.0/sobjects/Account/001xx000000001AAA"},
                     "Id": "001xx000000001AAA",
                     "Name": "Acme"
                 },
                 {
-                    "attributes": {"type": "Account", "url": "/services/data/v60.0/sobjects/Account/001xx000000002AAA"},
+                    "attributes": {"type": "Account", "url": "/services/data/v67.0/sobjects/Account/001xx000000002AAA"},
                     "Id": "001xx000000002AAA",
                     "Name": "Globex"
                 }
@@ -147,7 +147,7 @@ mod tests {
         });
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/query"))
+            .and(path("/services/data/v67.0/query"))
             .respond_with(ResponseTemplate::new(200).set_body_json(query_response))
             .mount(&mock_server)
             .await;
@@ -234,7 +234,7 @@ mod tests {
         }"#).must();
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/sobjects/Contact/describe"))
+            .and(path("/services/data/v67.0/sobjects/Contact/describe"))
             .respond_with(ResponseTemplate::new(200).set_body_json(describe_json))
             .mount(&mock_server)
             .await;
@@ -244,7 +244,7 @@ mod tests {
             "done": true,
             "records": [
                 {
-                    "attributes": {"type": "Contact", "url": "/services/data/v60.0/sobjects/Contact/003xx000000001AAA"},
+                    "attributes": {"type": "Contact", "url": "/services/data/v67.0/sobjects/Contact/003xx000000001AAA"},
                     "Id": "003xx000000001AAA",
                     "Name": "Jane Doe",
                     "Email": "jane.doe@example.com"
@@ -253,7 +253,7 @@ mod tests {
         });
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/query"))
+            .and(path("/services/data/v67.0/query"))
             .respond_with(ResponseTemplate::new(200).set_body_json(query_response))
             .mount(&mock_server)
             .await;

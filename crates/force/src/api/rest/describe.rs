@@ -27,7 +27,7 @@ mod tests {
             "keyPrefix": "001",
             "custom": false,
             "urls": {
-                "sobject": "/services/data/v60.0/sobjects/Account"
+                "sobject": "/services/data/v67.0/sobjects/Account"
             }
         }"#;
 
@@ -168,7 +168,7 @@ mod tests {
             "undeletable": true,
             "updateable": true,
             "urls": {
-                "sobject": "/services/data/v60.0/sobjects/Account"
+                "sobject": "/services/data/v67.0/sobjects/Account"
             },
             "fields": [
                 {

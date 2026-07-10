@@ -27,7 +27,7 @@ mod tests {
         let client = builder().authenticate(auth).build().await.must();
 
         Mock::given(method("POST"))
-            .and(path("/services/data/v60.0/sobjects/Account"))
+            .and(path("/services/data/v67.0/sobjects/Account"))
             .and(header("Authorization", "Bearer test_token"))
             .and(body_json(json!({"Name": "Test Account"})))
             .respond_with(ResponseTemplate::new(201).set_body_json(json!({
@@ -57,7 +57,7 @@ mod tests {
         let client = builder().authenticate(auth).build().await.must();
 
         Mock::given(method("POST"))
-            .and(path("/services/data/v60.0/sobjects/Account"))
+            .and(path("/services/data/v67.0/sobjects/Account"))
             .respond_with(ResponseTemplate::new(400).set_body_json(json!([{
                 "message": "Required fields are missing: [Name]",
                 "statusCode": "REQUIRED_FIELD_MISSING",
@@ -83,7 +83,7 @@ mod tests {
         let client = builder().authenticate(auth).build().await.must();
 
         Mock::given(method("POST"))
-            .and(path("/services/data/v60.0/sobjects/Account"))
+            .and(path("/services/data/v67.0/sobjects/Account"))
             .respond_with(ResponseTemplate::new(400).set_body_json(json!([{
                 "message": "No such column 'InvalidField' on sobject of type Account",
                 "statusCode": "INVALID_FIELD",
@@ -113,10 +113,10 @@ mod tests {
         let client = builder().authenticate(auth).build().await.must();
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/sobjects/Contact/003xx000004TmiQAAS"))
+            .and(path("/services/data/v67.0/sobjects/Contact/003xx000004TmiQAAS"))
             .and(header("Authorization", "Bearer test_token"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
-                "attributes": {"type": "Contact", "url": "/services/data/v60.0/sobjects/Contact/003xx000004TmiQAAS"},
+                "attributes": {"type": "Contact", "url": "/services/data/v67.0/sobjects/Contact/003xx000004TmiQAAS"},
                 "Id": "003xx000004TmiQAAS",
                 "FirstName": "John",
                 "LastName": "Doe",
@@ -143,7 +143,7 @@ mod tests {
 
         Mock::given(method("GET"))
             .and(path(
-                "/services/data/v60.0/sobjects/Contact/003000000000001",
+                "/services/data/v67.0/sobjects/Contact/003000000000001",
             ))
             .respond_with(ResponseTemplate::new(404).set_body_json(json!([{
                 "message": "Provided external ID field does not exist or is not accessible",
@@ -176,7 +176,7 @@ mod tests {
 
         Mock::given(method("PATCH"))
             .and(path(
-                "/services/data/v60.0/sobjects/Account/001xx000003DHP0AAO",
+                "/services/data/v67.0/sobjects/Account/001xx000003DHP0AAO",
             ))
             .and(header("Authorization", "Bearer test_token"))
             .and(body_json(json!({"Phone": "555-0100"})))
@@ -204,7 +204,7 @@ mod tests {
 
         Mock::given(method("PATCH"))
             .and(path(
-                "/services/data/v60.0/sobjects/Account/001000000000002",
+                "/services/data/v67.0/sobjects/Account/001000000000002",
             ))
             .respond_with(ResponseTemplate::new(404).set_body_json(json!([{
                 "message": "Entity is deleted",
@@ -234,7 +234,7 @@ mod tests {
 
         Mock::given(method("PATCH"))
             .and(path(
-                "/services/data/v60.0/sobjects/Account/001xx000003DHP0AAO",
+                "/services/data/v67.0/sobjects/Account/001xx000003DHP0AAO",
             ))
             .respond_with(ResponseTemplate::new(400).set_body_json(json!([{
                 "message": "No such column 'BadField' on sobject of type Account",
@@ -267,7 +267,7 @@ mod tests {
 
         Mock::given(method("DELETE"))
             .and(path(
-                "/services/data/v60.0/sobjects/Account/001xx000003DHP0AAO",
+                "/services/data/v67.0/sobjects/Account/001xx000003DHP0AAO",
             ))
             .and(header("Authorization", "Bearer test_token"))
             .respond_with(ResponseTemplate::new(204))
@@ -291,7 +291,7 @@ mod tests {
 
         Mock::given(method("DELETE"))
             .and(path(
-                "/services/data/v60.0/sobjects/Account/001000000000003",
+                "/services/data/v67.0/sobjects/Account/001000000000003",
             ))
             .respond_with(ResponseTemplate::new(404).set_body_json(json!([{
                 "message": "Entity is deleted",
@@ -321,7 +321,7 @@ mod tests {
 
         Mock::given(method("PATCH"))
             .and(path(
-                "/services/data/v60.0/sobjects/Account/ExternalId__c/ACME-001",
+                "/services/data/v67.0/sobjects/Account/ExternalId__c/ACME-001",
             ))
             .and(header("Authorization", "Bearer test_token"))
             .and(body_json(json!({"Name": "Acme Corp"})))
@@ -360,7 +360,7 @@ mod tests {
         // Testing the `_ if response.status().is_success()` match arm directly
         Mock::given(method("PATCH"))
             .and(path(
-                "/services/data/v60.0/sobjects/Account/ExternalId__c/ACME-002",
+                "/services/data/v67.0/sobjects/Account/ExternalId__c/ACME-002",
             ))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "id": "001xx000003DHP0AAO",
@@ -396,7 +396,7 @@ mod tests {
 
         Mock::given(method("PATCH"))
             .and(path(
-                "/services/data/v60.0/sobjects/Account/ExternalId__c/ACME-001",
+                "/services/data/v67.0/sobjects/Account/ExternalId__c/ACME-001",
             ))
             .respond_with(ResponseTemplate::new(503).set_body_string("temporary outage"))
             .expect(1)
@@ -427,7 +427,7 @@ mod tests {
 
         Mock::given(method("PATCH"))
             .and(path(
-                "/services/data/v60.0/sobjects/Account/ExternalId__c/ACME-001",
+                "/services/data/v67.0/sobjects/Account/ExternalId__c/ACME-001",
             ))
             .respond_with(ResponseTemplate::new(503))
             .up_to_n_times(1)
@@ -436,7 +436,7 @@ mod tests {
 
         Mock::given(method("PATCH"))
             .and(path(
-                "/services/data/v60.0/sobjects/Account/ExternalId__c/ACME-001",
+                "/services/data/v67.0/sobjects/Account/ExternalId__c/ACME-001",
             ))
             .respond_with(ResponseTemplate::new(201).set_body_json(json!({
                 "id": "001xx000003DHP0AAO",
@@ -471,7 +471,7 @@ mod tests {
 
         Mock::given(method("PATCH"))
             .and(path(
-                "/services/data/v60.0/sobjects/Account/ExternalId__c/ACME-001",
+                "/services/data/v67.0/sobjects/Account/ExternalId__c/ACME-001",
             ))
             .respond_with(ResponseTemplate::new(204))
             .expect(1)
@@ -504,7 +504,7 @@ mod tests {
 
         Mock::given(method("PATCH"))
             .and(path(
-                "/services/data/v60.0/sobjects/Account/BadField__c/VALUE",
+                "/services/data/v67.0/sobjects/Account/BadField__c/VALUE",
             ))
             .respond_with(ResponseTemplate::new(400).set_body_json(json!([{
                 "message": "Provided external ID field does not exist or is not accessible",

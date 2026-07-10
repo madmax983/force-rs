@@ -46,7 +46,7 @@ mod integration_tests {
         let token = create_test_token();
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/sobjects"))
+            .and(path("/services/data/v67.0/sobjects"))
             .and(header("Authorization", "Bearer test_token_123"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "sobjects": []
@@ -55,7 +55,7 @@ mod integration_tests {
             .await;
 
         // Act
-        let url = format!("{}/services/data/v60.0/sobjects", mock_server.uri());
+        let url = format!("{}/services/data/v67.0/sobjects", mock_server.uri());
         let request = reqwest::Client::new().get(&url).build().must();
 
         let result = executor

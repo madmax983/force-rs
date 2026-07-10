@@ -157,14 +157,14 @@ mod tests {
         }"#).must();
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/sobjects/Account/describe"))
+            .and(path("/services/data/v67.0/sobjects/Account/describe"))
             .respond_with(ResponseTemplate::new(200).set_body_json(describe_json))
             .mount(&mock_server)
             .await;
 
         // Mock the composite batch response
         Mock::given(method("POST"))
-            .and(path("/services/data/v60.0/composite/batch"))
+            .and(path("/services/data/v67.0/composite/batch"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "hasErrors": false,
                 "results": [

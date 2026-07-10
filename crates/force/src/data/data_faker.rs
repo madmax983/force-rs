@@ -54,7 +54,7 @@ pub fn generate_mock_record(describe: &SObjectDescribe) -> DynamicSObject {
     // but DynamicSObject requires Attributes to initialize.
     // We'll use a valid-looking 18 character dummy ID.
     let dummy_id = SalesforceId::new("001000000000000AAA").unwrap_or_else(|_| unreachable!());
-    let attrs = Attributes::new(describe.name.clone(), &dummy_id, "v60.0");
+    let attrs = Attributes::new(describe.name.clone(), &dummy_id, "v67.0");
     let mut record = DynamicSObject::new(attrs);
 
     for field in &describe.fields {

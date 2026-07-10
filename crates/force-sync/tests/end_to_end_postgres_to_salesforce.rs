@@ -97,7 +97,7 @@ async fn run_capture_and_apply_once_converges_one_postgres_record() -> Result<()
 
     Mock::given(method("PATCH"))
         .and(path(
-            "/services/data/v60.0/sobjects/Account/ExternalId__c/external-1",
+            "/services/data/v67.0/sobjects/Account/ExternalId__c/external-1",
         ))
         .and(header("Authorization", "Bearer test_token"))
         .and(body_json(json!({"Name": "Acme Corp"})))
@@ -168,7 +168,7 @@ async fn replayed_postgres_change_is_not_reapplied_to_salesforce() -> Result<(),
 
     Mock::given(method("PATCH"))
         .and(path(
-            "/services/data/v60.0/sobjects/Account/ExternalId__c/external-1",
+            "/services/data/v67.0/sobjects/Account/ExternalId__c/external-1",
         ))
         .and(header("Authorization", "Bearer test_token"))
         .and(body_json(json!({"Name": "Acme Corp"})))

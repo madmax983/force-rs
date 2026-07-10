@@ -61,7 +61,7 @@ mod tests {
             "records": [{
                 "attributes": {
                     "type": "Account",
-                    "url": "/services/data/v60.0/sobjects/Account/001"
+                    "url": "/services/data/v67.0/sobjects/Account/001"
                 },
                 "Id": "001",
                 "Name": "Acme"
@@ -86,7 +86,7 @@ mod tests {
         let json = serde_json::json!({
             "totalSize": 4,
             "done": false,
-            "nextRecordsUrl": "/services/data/v60.0/query/01g-2000",
+            "nextRecordsUrl": "/services/data/v67.0/query/01g-2000",
             "records": [
                 {"Id": "001", "Name": "Acme"},
                 {"Id": "002", "Name": "Globex"}
@@ -100,7 +100,7 @@ mod tests {
         assert!(result.has_more());
         assert_eq!(
             result.next_records_url,
-            Some("/services/data/v60.0/query/01g-2000".to_string())
+            Some("/services/data/v67.0/query/01g-2000".to_string())
         );
     }
 
@@ -147,7 +147,7 @@ mod tests {
         let json = serde_json::json!({
             "totalSize": 100,
             "done": false,
-            "nextRecordsUrl": "/services/data/v60.0/query/01g-batch2",
+            "nextRecordsUrl": "/services/data/v67.0/query/01g-batch2",
             "records": [
                 {"Id": "001", "Name": "First"},
                 {"Id": "002", "Name": "Second"}
@@ -175,7 +175,7 @@ mod tests {
 
         // Mock the query endpoint
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/query"))
+            .and(path("/services/data/v67.0/query"))
             .and(query_param("q", "SELECT Id, Name FROM Account LIMIT 2"))
             .and(header("authorization", "Bearer test_token"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
@@ -211,7 +211,7 @@ mod tests {
 
         // Mock response with done: false but no nextRecordsUrl
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/query"))
+            .and(path("/services/data/v67.0/query"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "totalSize": 10,
                 "done": false,
@@ -244,13 +244,13 @@ mod tests {
 
         // Mock first page
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/query"))
+            .and(path("/services/data/v67.0/query"))
             .and(query_param("q", "SELECT Id, Name FROM Account"))
             .and(header("authorization", "Bearer test_token"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "totalSize": 4,
                 "done": false,
-                "nextRecordsUrl": "/services/data/v60.0/query/01gxx-batch2",
+                "nextRecordsUrl": "/services/data/v67.0/query/01gxx-batch2",
                 "records": [
                     {"Id": "001xx0000000001", "Name": "Page1 Record1"},
                     {"Id": "001xx0000000002", "Name": "Page1 Record2"}
@@ -273,7 +273,7 @@ mod tests {
         assert_eq!(result.len(), 2);
         assert_eq!(
             result.next_records_url,
-            Some("/services/data/v60.0/query/01gxx-batch2".to_string())
+            Some("/services/data/v67.0/query/01gxx-batch2".to_string())
         );
     }
 
@@ -284,13 +284,13 @@ mod tests {
 
         // Mock first page
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/query"))
+            .and(path("/services/data/v67.0/query"))
             .and(query_param("q", "SELECT Id, Name FROM Account"))
             .and(header("authorization", "Bearer test_token"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "totalSize": 4,
                 "done": false,
-                "nextRecordsUrl": "/services/data/v60.0/query/01gxx-batch2",
+                "nextRecordsUrl": "/services/data/v67.0/query/01gxx-batch2",
                 "records": [
                     {"Id": "001xx0000000001", "Name": "Batch1 Rec1"},
                     {"Id": "001xx0000000002", "Name": "Batch1 Rec2"}
@@ -301,7 +301,7 @@ mod tests {
 
         // Mock second page (query_more)
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/query/01gxx-batch2"))
+            .and(path("/services/data/v67.0/query/01gxx-batch2"))
             .and(header("authorization", "Bearer test_token"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "totalSize": 4,
@@ -347,11 +347,11 @@ mod tests {
 
         // Mock first page
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/query"))
+            .and(path("/services/data/v67.0/query"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "totalSize": 6,
                 "done": false,
-                "nextRecordsUrl": "/services/data/v60.0/query/batch2",
+                "nextRecordsUrl": "/services/data/v67.0/query/batch2",
                 "records": [
                     {"Id": "001xx0000000001", "Name": "Record1"},
                     {"Id": "001xx0000000002", "Name": "Record2"}
@@ -362,11 +362,11 @@ mod tests {
 
         // Mock second page
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/query/batch2"))
+            .and(path("/services/data/v67.0/query/batch2"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "totalSize": 6,
                 "done": false,
-                "nextRecordsUrl": "/services/data/v60.0/query/batch3",
+                "nextRecordsUrl": "/services/data/v67.0/query/batch3",
                 "records": [
                     {"Id": "001xx0000000003", "Name": "Record3"},
                     {"Id": "001xx0000000004", "Name": "Record4"}
@@ -377,7 +377,7 @@ mod tests {
 
         // Mock third (final) page
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/query/batch3"))
+            .and(path("/services/data/v67.0/query/batch3"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "totalSize": 6,
                 "done": true,
@@ -421,7 +421,7 @@ mod tests {
 
         // Mock query_more with 404 error (invalid locator)
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/query/invalid-locator"))
+            .and(path("/services/data/v67.0/query/invalid-locator"))
             .respond_with(ResponseTemplate::new(404).set_body_json(json!([{
                 "errorCode": "INVALID_QUERY_LOCATOR",
                 "message": "Unable to find query cursor"
@@ -433,7 +433,7 @@ mod tests {
 
         let result: Result<QueryResult<TestAccount>, _> = client
             .rest()
-            .query_more("/services/data/v60.0/query/invalid-locator")
+            .query_more("/services/data/v67.0/query/invalid-locator")
             .await;
 
         let Err(err) = result else {
@@ -450,7 +450,7 @@ mod tests {
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/query"))
+            .and(path("/services/data/v67.0/query"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "totalSize": 0,
                 "done": true,
@@ -480,12 +480,12 @@ mod tests {
 
         // Mock first page
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/query"))
+            .and(path("/services/data/v67.0/query"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "totalSize": 4,
                 "done": false,
                 // Absolute URL pointing back to the mock server
-                "nextRecordsUrl": format!("{}/services/data/v60.0/query/batch2", mock_server.uri()),
+                "nextRecordsUrl": format!("{}/services/data/v67.0/query/batch2", mock_server.uri()),
                 "records": [
                     {"Id": "001xx0000000001", "Name": "Record1"}
                 ]
@@ -495,7 +495,7 @@ mod tests {
 
         // Mock second page
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/query/batch2"))
+            .and(path("/services/data/v67.0/query/batch2"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "totalSize": 4,
                 "done": true,
@@ -531,7 +531,7 @@ mod tests {
         let client = builder().authenticate(auth).build().await.must();
 
         // Attempt to query_more with a malicious URL (different host)
-        let malicious_url = "https://attacker.com/services/data/v60.0/query/leak_token";
+        let malicious_url = "https://attacker.com/services/data/v67.0/query/leak_token";
 
         let result: Result<QueryResult<TestAccount>, _> =
             client.rest().query_more(malicious_url).await;
@@ -558,7 +558,7 @@ mod tests {
 
         // Attempt to query_more with a malicious URL containing a different scheme (https instead of http)
         let malicious_url = format!(
-            "https://{}:{}/services/data/v60.0/query/leak_token",
+            "https://{}:{}/services/data/v67.0/query/leak_token",
             parsed_base.host_str().must(),
             parsed_base.port_or_known_default().must()
         );
@@ -588,7 +588,7 @@ mod tests {
 
         // Attempt to query_more with a malicious URL containing a username
         let malicious_url = format!(
-            "{}://attacker@{}:{}/services/data/v60.0/query/leak_token",
+            "{}://attacker@{}:{}/services/data/v67.0/query/leak_token",
             parsed_base.scheme(),
             parsed_base.host_str().must(),
             parsed_base.port_or_known_default().must()
@@ -619,7 +619,7 @@ mod tests {
 
         // Attempt to query_more with a malicious URL containing a different port
         let malicious_url = format!(
-            "{}://{}:9999/services/data/v60.0/query/leak_token",
+            "{}://{}:9999/services/data/v67.0/query/leak_token",
             parsed_base.scheme(),
             parsed_base.host_str().must()
         );
@@ -649,7 +649,7 @@ mod tests {
 
         // Attempt to query_more with a malicious URL containing credentials
         let malicious_url = format!(
-            "{}://attacker:password@{}:{}/services/data/v60.0/query/leak_token",
+            "{}://attacker:password@{}:{}/services/data/v67.0/query/leak_token",
             parsed_base.scheme(),
             parsed_base.host_str().must(),
             parsed_base.port_or_known_default().must()

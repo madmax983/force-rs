@@ -672,7 +672,7 @@ mod tests {
         let sobject = DynamicSObject {
             attributes: Attributes {
                 r#type: "Account".to_string(),
-                url: "/services/data/v60.0/sobjects/Account/001xx".to_string(),
+                url: "/services/data/v67.0/sobjects/Account/001xx".to_string(),
             },
             fields: serde_json::from_value(json!({
                 "Id": "001xx000000ABCD",
@@ -699,7 +699,7 @@ mod tests {
         let result = QueryResult {
             total_size: 250,
             done: false,
-            next_records_url: Some("/services/data/v60.0/query/01gxx-2000".to_string()),
+            next_records_url: Some("/services/data/v67.0/query/01gxx-2000".to_string()),
             records: vec![],
         };
 
@@ -721,7 +721,7 @@ mod integration_tests {
         let mock_server = MockServer::start().await;
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/query"))
+            .and(path("/services/data/v67.0/query"))
             .and(query_param("q", "SELECT Id FROM Account"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "totalSize": 1,
@@ -730,7 +730,7 @@ mod integration_tests {
                     {
                         "attributes": {
                             "type": "Account",
-                            "url": "/services/data/v60.0/sobjects/Account/001xx"
+                            "url": "/services/data/v67.0/sobjects/Account/001xx"
                         },
                         "Id": "001xx000000ABCD"
                     }

@@ -68,7 +68,7 @@ async fn test_upsert_path_injection() {
 
     Mock::given(method("PATCH"))
         .and(path(
-            "/services/data/v60.0/sobjects/Account/ExternalId__c/A%2FB",
+            "/services/data/v67.0/sobjects/Account/ExternalId__c/A%2FB",
         ))
         .respond_with(ResponseTemplate::new(201).set_body_json(serde_json::json!({
             "id": "001xx000003DHP0AAO",
@@ -82,7 +82,7 @@ async fn test_upsert_path_injection() {
     // Also catch unencoded version to be sure
     Mock::given(method("PATCH"))
         .and(path(
-            "/services/data/v60.0/sobjects/Account/ExternalId__c/A/B",
+            "/services/data/v67.0/sobjects/Account/ExternalId__c/A/B",
         ))
         .respond_with(ResponseTemplate::new(400)) // Fail
         .mount(&mock_server)

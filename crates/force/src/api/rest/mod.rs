@@ -87,7 +87,7 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
     ///
     /// ```ignore
     /// let base = handler.base_url().await?;
-    /// // Returns: "https://na1.salesforce.com/services/data/v60.0"
+    /// // Returns: "https://na1.salesforce.com/services/data/v67.0"
     /// ```
     pub async fn base_url(&self) -> Result<String> {
         self.inner.resolve_url("").await
@@ -263,7 +263,7 @@ mod tests {
         let base_url: String = handler.base_url().await.must();
         assert!(base_url.starts_with("https://test.salesforce.com"));
         assert!(base_url.contains("/services/data/"));
-        assert!(base_url.ends_with("v60.0")); // Default API version
+        assert!(base_url.ends_with("v67.0")); // Default API version
     }
 
     #[tokio::test]

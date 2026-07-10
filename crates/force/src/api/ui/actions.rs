@@ -120,7 +120,7 @@ mod tests {
 
         Mock::given(method("GET"))
             .and(path(format!(
-                "/services/data/v60.0/ui-api/actions/record/{VALID_ID}"
+                "/services/data/v67.0/ui-api/actions/record/{VALID_ID}"
             )))
             .respond_with(ResponseTemplate::new(200).set_body_json(&response_body))
             .expect(1)
@@ -153,7 +153,7 @@ mod tests {
 
         Mock::given(method("GET"))
             .and(path(format!(
-                "/services/data/v60.0/ui-api/actions/record/{joined}"
+                "/services/data/v67.0/ui-api/actions/record/{joined}"
             )))
             .respond_with(ResponseTemplate::new(200).set_body_json(&response_body))
             .expect(1)
@@ -180,7 +180,7 @@ mod tests {
 
         Mock::given(method("GET"))
             .and(path(format!(
-                "/services/data/v60.0/ui-api/actions/record/{VALID_ID}"
+                "/services/data/v67.0/ui-api/actions/record/{VALID_ID}"
             )))
             .respond_with(ResponseTemplate::new(404).set_body_json(json!([{
                 "errorCode": "NOT_FOUND",

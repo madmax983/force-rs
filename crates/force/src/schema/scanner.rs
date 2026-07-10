@@ -279,7 +279,7 @@ mod tests {
         });
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/sobjects/Account/describe"))
+            .and(path("/services/data/v67.0/sobjects/Account/describe"))
             .respond_with(ResponseTemplate::new(200).set_body_json(describe_json))
             .mount(mock_server)
             .await;
@@ -295,7 +295,7 @@ mod tests {
                 {
                     "attributes": {
                         "type": "AggregateResult",
-                        "url": "/services/data/v60.0/sobjects/AggregateResult/row0"
+                        "url": "/services/data/v67.0/sobjects/AggregateResult/row0"
                     },
                     "total": 10,
                     "f0": 10, // Id
@@ -305,7 +305,7 @@ mod tests {
         });
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/query"))
+            .and(path("/services/data/v67.0/query"))
             .and(query_param(
                 "q",
                 "SELECT COUNT(Id) total, COUNT(Id) f0, COUNT(Name) f1 FROM Account",
@@ -361,7 +361,7 @@ mod tests {
         });
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/sobjects/Account/describe"))
+            .and(path("/services/data/v67.0/sobjects/Account/describe"))
             .respond_with(ResponseTemplate::new(200).set_body_json(describe_json))
             .mount(&mock_server)
             .await;
@@ -371,14 +371,14 @@ mod tests {
             "records": [{
                 "attributes": {
                     "type": "AggregateResult",
-                    "url": "/services/data/v60.0/sobjects/AggregateResult/row0"
+                    "url": "/services/data/v67.0/sobjects/AggregateResult/row0"
                 },
                 "total": 10, "f0": 10
             }]
         });
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/query"))
+            .and(path("/services/data/v67.0/query"))
             // Should ONLY query Id (f0), not BillingAddress
             .and(query_param(
                 "q",
@@ -409,14 +409,14 @@ mod tests {
             "records": [{
                 "attributes": {
                     "type": "AggregateResult",
-                    "url": "/services/data/v60.0/sobjects/AggregateResult/row0"
+                    "url": "/services/data/v67.0/sobjects/AggregateResult/row0"
                 },
                 "total": 0, "f0": 0
             }]
         });
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/query"))
+            .and(path("/services/data/v67.0/query"))
             .respond_with(ResponseTemplate::new(200).set_body_json(query_json))
             .mount(&mock_server)
             .await;
@@ -459,7 +459,7 @@ mod tests {
         });
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/sobjects/Account/describe"))
+            .and(path("/services/data/v67.0/sobjects/Account/describe"))
             .respond_with(ResponseTemplate::new(200).set_body_json(describe_json))
             .mount(mock_server)
             .await;
@@ -522,7 +522,7 @@ mod tests {
         });
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/sobjects/Account/describe"))
+            .and(path("/services/data/v67.0/sobjects/Account/describe"))
             .respond_with(ResponseTemplate::new(200).set_body_json(describe_json))
             .mount(&mock_server)
             .await;
@@ -533,7 +533,7 @@ mod tests {
 
         // We match strictly on the query param to verify batching
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/query"))
+            .and(path("/services/data/v67.0/query"))
             .and(QueryContains("Field0"))
             .and(QueryContains("Field19"))
             .and(QueryNotContains("Field20")) // Should NOT contain Field20
@@ -548,7 +548,7 @@ mod tests {
             .await;
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/query"))
+            .and(path("/services/data/v67.0/query"))
             .and(QueryContains("Field20"))
             .and(QueryContains("Field24"))
             .and(QueryNotContains("Field0")) // Should NOT contain Field0
@@ -576,7 +576,7 @@ mod tests {
 
         // 1. Describe failure
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/sobjects/Account/describe"))
+            .and(path("/services/data/v67.0/sobjects/Account/describe"))
             .respond_with(ResponseTemplate::new(404)) // Not Found
             .mount(&mock_server)
             .await;
@@ -594,7 +594,7 @@ mod tests {
         setup_mock_describe_simple(&mock_server).await;
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/query"))
+            .and(path("/services/data/v67.0/query"))
             .respond_with(ResponseTemplate::new(400).set_body_string("Bad Query"))
             .mount(&mock_server)
             .await;

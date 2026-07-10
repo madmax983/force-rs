@@ -244,7 +244,7 @@ use crate::test_utils::must::{Must, MustMsg};
         let client = builder().authenticate(auth).build().await.must();
 
         Mock::given(method("POST"))
-            .and(path("/services/data/v60.0/sobjects/ContentVersion"))
+            .and(path("/services/data/v67.0/sobjects/ContentVersion"))
             .respond_with(ResponseTemplate::new(201).set_body_json(json!({
                 "id": "068000000000001AAA",
                 "success": true,
@@ -272,7 +272,7 @@ use crate::test_utils::must::{Must, MustMsg};
 
         Mock::given(method("GET"))
             .and(path(
-                "/services/data/v60.0/sobjects/ContentVersion/068000000000001AAA/VersionData",
+                "/services/data/v67.0/sobjects/ContentVersion/068000000000001AAA/VersionData",
             ))
             .respond_with(ResponseTemplate::new(200).set_body_bytes(expected_bytes.clone()))
             .mount(&mock_server)
@@ -294,7 +294,7 @@ use crate::test_utils::must::{Must, MustMsg};
         let client = builder().authenticate(auth).build().await.must();
 
         Mock::given(method("POST"))
-            .and(path("/services/data/v60.0/sobjects/ContentDocumentLink"))
+            .and(path("/services/data/v67.0/sobjects/ContentDocumentLink"))
             .respond_with(ResponseTemplate::new(201).set_body_json(json!({
                 "id": "06A000000000001AAA",
                 "success": true,

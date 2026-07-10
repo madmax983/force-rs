@@ -182,7 +182,7 @@ mod tests {
             });
 
             Mock::given(method("POST"))
-                .and(path("/services/data/v60.0/ssot/query"))
+                .and(path("/services/data/v67.0/ssot/query"))
                 .respond_with(ResponseTemplate::new(200).set_body_json(query_response))
                 .expect(1)
                 .mount(&mock_server)
@@ -214,7 +214,7 @@ mod tests {
             });
 
             Mock::given(method("POST"))
-                .and(path("/services/data/v60.0/ssot/query"))
+                .and(path("/services/data/v67.0/ssot/query"))
                 .respond_with(ResponseTemplate::new(200).set_body_json(query_response))
                 .mount(&mock_server)
                 .await;
@@ -232,7 +232,7 @@ mod tests {
             let mock_server = MockServer::start().await;
 
             Mock::given(method("POST"))
-                .and(path("/services/data/v60.0/ssot/query"))
+                .and(path("/services/data/v67.0/ssot/query"))
                 .respond_with(
                     ResponseTemplate::new(400).set_body_string(
                         r#"[{"message":"Invalid SQL","errorCode":"INVALID_QUERY"}]"#,
@@ -260,7 +260,7 @@ mod tests {
             });
 
             Mock::given(method("POST"))
-                .and(path("/services/data/v60.0/ssot/query"))
+                .and(path("/services/data/v67.0/ssot/query"))
                 .respond_with(ResponseTemplate::new(200).set_body_json(query_response))
                 .mount(&mock_server)
                 .await;

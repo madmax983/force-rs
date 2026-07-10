@@ -58,7 +58,7 @@ async fn test_query_more_with_absolute_url() -> Result<()> {
     let auth = MockAuthenticator::new(&mock_server.uri());
 
     // Construct an absolute URL for the next page
-    let next_page_path = "/services/data/v60.0/query/next-page";
+    let next_page_path = "/services/data/v67.0/query/next-page";
     let absolute_next_url = format!("{}{}", mock_server.uri(), next_page_path);
 
     // Mock the next page request

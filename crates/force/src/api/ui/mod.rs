@@ -250,6 +250,6 @@ mod tests {
         let client = test_client().await;
         let handler = client.ui();
         let url = handler.resolve_ui_url("records/001test").await.must();
-        assert!(url.contains("v60.0"), "URL should contain API version");
+        assert!(url.contains("v67.0"), "URL should contain API version");
     }
 }

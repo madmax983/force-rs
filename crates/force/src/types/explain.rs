@@ -157,7 +157,7 @@ mod tests {
         });
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/query"))
+            .and(path("/services/data/v67.0/query"))
             .and(query_param("explain", soql))
             .respond_with(ResponseTemplate::new(200).set_body_json(json_response))
             .mount(&mock_server)

@@ -169,7 +169,7 @@ mod tests {
         let client = builder().authenticate(auth).build().await.must();
 
         Mock::given(method("POST"))
-            .and(path("/services/data/v60.0/tooling/sobjects/ApexClass"))
+            .and(path("/services/data/v67.0/tooling/sobjects/ApexClass"))
             .and(header("Authorization", "Bearer test_token"))
             .respond_with(ResponseTemplate::new(201).set_body_json(json!({
                 "id": "01p000000000001AAA",
@@ -198,7 +198,7 @@ mod tests {
 
         Mock::given(method("GET"))
             .and(path(
-                "/services/data/v60.0/tooling/sobjects/ApexClass/01p000000000001AAA",
+                "/services/data/v67.0/tooling/sobjects/ApexClass/01p000000000001AAA",
             ))
             .and(header("Authorization", "Bearer test_token"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
@@ -224,7 +224,7 @@ mod tests {
         let client = builder().authenticate(auth).build().await.must();
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/tooling/query"))
+            .and(path("/services/data/v67.0/tooling/query"))
             .and(query_param("q", "SELECT Id FROM ApexClass"))
             .and(header("Authorization", "Bearer test_token"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
@@ -255,7 +255,7 @@ mod tests {
 
         Mock::given(method("GET"))
             .and(path(
-                "/services/data/v60.0/tooling/sobjects/ApexClass/describe",
+                "/services/data/v67.0/tooling/sobjects/ApexClass/describe",
             ))
             .and(header("Authorization", "Bearer test_token"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
@@ -283,7 +283,7 @@ mod tests {
                 "undeletable": true,
                 "updateable": true,
                 "urls": {
-                    "sobject": "/services/data/v60.0/tooling/sobjects/ApexClass"
+                    "sobject": "/services/data/v67.0/tooling/sobjects/ApexClass"
                 },
                 "fields": [],
                 "childRelationships": [],
@@ -308,7 +308,7 @@ mod tests {
         let client = builder().authenticate(auth).build().await.must();
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/tooling/sobjects"))
+            .and(path("/services/data/v67.0/tooling/sobjects"))
             .and(header("Authorization", "Bearer test_token"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "encoding": "UTF-8",

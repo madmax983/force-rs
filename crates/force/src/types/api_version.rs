@@ -81,11 +81,25 @@ impl ApiVersion {
     pub const MIN_SUPPORTED: Self = Self::V55;
 
     /// Highest API version covered by the crate's compatibility test matrix.
-    pub const MAX_TESTED: Self = Self::V60;
+    pub const MAX_TESTED: Self = Self::V67;
 
     /// Default API version used by client configuration.
-    pub const DEFAULT: Self = Self::V60;
+    pub const DEFAULT: Self = Self::V67;
 
+    /// API version 67.0 (Summer '25).
+    pub const V67: Self = Self::new(67);
+    /// API version 66.0 (Spring '25).
+    pub const V66: Self = Self::new(66);
+    /// API version 65.0 (Winter '25).
+    pub const V65: Self = Self::new(65);
+    /// API version 64.0 (Summer '24).
+    pub const V64: Self = Self::new(64);
+    /// API version 63.0 (Spring '24).
+    pub const V63: Self = Self::new(63);
+    /// API version 62.0 (Winter '24).
+    pub const V62: Self = Self::new(62);
+    /// API version 61.0 (Summer '24).
+    pub const V61: Self = Self::new(61);
     /// API version 60.0 (Winter '24).
     pub const V60: Self = Self::new(60);
     /// API version 59.0 (Summer '23).
@@ -268,8 +282,8 @@ mod tests {
         assert_eq!(ApiVersion::V56.major(), 56);
         assert_eq!(ApiVersion::V55.major(), 55);
         assert_eq!(ApiVersion::MIN_SUPPORTED, ApiVersion::V55);
-        assert_eq!(ApiVersion::MAX_TESTED, ApiVersion::V60);
-        assert_eq!(ApiVersion::DEFAULT, ApiVersion::V60);
+        assert_eq!(ApiVersion::MAX_TESTED, ApiVersion::V67);
+        assert_eq!(ApiVersion::DEFAULT, ApiVersion::V67);
     }
 
     #[test]
@@ -277,8 +291,8 @@ mod tests {
         assert!(ApiVersion::V55.is_supported());
         assert!(ApiVersion::V55.is_tested());
         assert!(ApiVersion::V60.is_tested());
-        assert!(ApiVersion::new(61).is_supported());
-        assert!(!ApiVersion::new(61).is_tested());
+        assert!(ApiVersion::new(68).is_supported());
+        assert!(!ApiVersion::new(68).is_tested());
         assert!(!ApiVersion::new(54).is_supported());
     }
 
@@ -297,7 +311,7 @@ mod tests {
             ApiVersionSupportTier::Tested
         );
         assert_eq!(
-            ApiVersion::new(61).support_tier(),
+            ApiVersion::new(68).support_tier(),
             ApiVersionSupportTier::SupportedUntested
         );
     }

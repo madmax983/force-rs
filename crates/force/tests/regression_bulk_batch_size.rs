@@ -86,7 +86,7 @@ async fn test_smart_ingest_errors_on_zero_batch_size() {
 
     // Mock failure to catch if it proceeds to HTTP call
     Mock::given(method("POST"))
-        .and(path("/services/data/v60.0/jobs/ingest"))
+        .and(path("/services/data/v67.0/jobs/ingest"))
         .respond_with(ResponseTemplate::new(500))
         .mount(&mock_server)
         .await;

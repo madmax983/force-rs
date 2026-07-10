@@ -56,11 +56,11 @@ const MAX_QUERY_INPUT_BYTES: usize = 100_000;
 /// ```ignore
 /// // REST API (prefix = "")
 /// client.rest().create("Account", &data).await?;
-/// // => POST {instance}/services/data/v60.0/sobjects/Account
+/// // => POST {instance}/services/data/v67.0/sobjects/Account
 ///
 /// // Tooling API (prefix = "tooling")
 /// client.tooling().create("ApexClass", &data).await?;
-/// // => POST {instance}/services/data/v60.0/tooling/sobjects/ApexClass
+/// // => POST {instance}/services/data/v67.0/tooling/sobjects/ApexClass
 /// ```
 #[allow(async_fn_in_trait)] // Intentional: trait is used internally, Send bound not needed
 pub trait RestOperation<A: Authenticator> {
@@ -652,7 +652,7 @@ async fn upsert_with_retry_class_impl<A: Authenticator>(
 ///
 /// # Security
 ///
-/// - Relative URLs (e.g., `/services/data/v60.0/query/01g-2000`) are
+/// - Relative URLs (e.g., `/services/data/v67.0/query/01g-2000`) are
 ///   prefixed with the instance URL.
 /// - Absolute URLs are validated: scheme, host, port must match the instance,
 ///   and no embedded credentials are allowed.
@@ -713,12 +713,12 @@ mod tests {
     fn test_resolve_relative_url() {
         let result = resolve_next_records_url(
             "https://na1.salesforce.com",
-            "/services/data/v60.0/query/01g-2000",
+            "/services/data/v67.0/query/01g-2000",
         )
         .must();
         assert_eq!(
             result,
-            "https://na1.salesforce.com/services/data/v60.0/query/01g-2000"
+            "https://na1.salesforce.com/services/data/v67.0/query/01g-2000"
         );
     }
 
@@ -726,12 +726,12 @@ mod tests {
     fn test_resolve_absolute_url_same_origin() {
         let result = resolve_next_records_url(
             "https://na1.salesforce.com",
-            "https://na1.salesforce.com/services/data/v60.0/query/01g-2000",
+            "https://na1.salesforce.com/services/data/v67.0/query/01g-2000",
         )
         .must();
         assert_eq!(
             result,
-            "https://na1.salesforce.com/services/data/v60.0/query/01g-2000"
+            "https://na1.salesforce.com/services/data/v67.0/query/01g-2000"
         );
     }
 
@@ -739,7 +739,7 @@ mod tests {
     fn test_resolve_absolute_url_different_host_rejected() {
         let result = resolve_next_records_url(
             "https://na1.salesforce.com",
-            "https://attacker.com/services/data/v60.0/query/leak",
+            "https://attacker.com/services/data/v67.0/query/leak",
         );
         let Err(err) = result else {
             panic!("Expected Err");
@@ -751,7 +751,7 @@ mod tests {
     fn test_resolve_absolute_url_scheme_mismatch_rejected() {
         let result = resolve_next_records_url(
             "https://na1.salesforce.com",
-            "http://na1.salesforce.com/services/data/v60.0/query/01g",
+            "http://na1.salesforce.com/services/data/v67.0/query/01g",
         );
         let Err(err) = result else {
             panic!("Expected Err");
@@ -763,7 +763,7 @@ mod tests {
     fn test_resolve_absolute_url_port_mismatch_rejected() {
         let result = resolve_next_records_url(
             "https://na1.salesforce.com",
-            "https://na1.salesforce.com:9999/services/data/v60.0/query/01g",
+            "https://na1.salesforce.com:9999/services/data/v67.0/query/01g",
         );
         let Err(err) = result else {
             panic!("Expected Err");
@@ -775,7 +775,7 @@ mod tests {
     fn test_resolve_absolute_url_with_username_rejected() {
         let result = resolve_next_records_url(
             "https://na1.salesforce.com",
-            "https://attacker@na1.salesforce.com/services/data/v60.0/query/01g",
+            "https://attacker@na1.salesforce.com/services/data/v67.0/query/01g",
         );
         let Err(err) = result else {
             panic!("Expected Err");
@@ -787,7 +787,7 @@ mod tests {
     fn test_resolve_absolute_url_with_credentials_rejected() {
         let result = resolve_next_records_url(
             "https://na1.salesforce.com",
-            "https://user:pass@na1.salesforce.com/services/data/v60.0/query/01g",
+            "https://user:pass@na1.salesforce.com/services/data/v67.0/query/01g",
         );
         let Err(err) = result else {
             panic!("Expected Err");
@@ -937,7 +937,7 @@ mod tests {
 
         Mock::given(method("PATCH"))
             .and(path(
-                "/services/data/v60.0/sobjects/Account/ExternalId__c/123",
+                "/services/data/v67.0/sobjects/Account/ExternalId__c/123",
             ))
             .respond_with(ResponseTemplate::new(204))
             .mount(&mock_server)
@@ -976,7 +976,7 @@ mod tests {
         // Testing the `_ if response.status().is_success()` match arm directly
         Mock::given(method("PATCH"))
             .and(path(
-                "/services/data/v60.0/sobjects/Account/ExternalId__c/ACME-002",
+                "/services/data/v67.0/sobjects/Account/ExternalId__c/ACME-002",
             ))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "id": "001xx000003DHP0AAO",
@@ -1018,7 +1018,7 @@ mod tests {
 
         Mock::given(method("PATCH"))
             .and(path(
-                "/services/data/v60.0/sobjects/Account/ExternalId__c/ACME-003",
+                "/services/data/v67.0/sobjects/Account/ExternalId__c/ACME-003",
             ))
             .respond_with(ResponseTemplate::new(400).set_body_json(json!([{
                 "message": "Bad Request",
@@ -1059,7 +1059,7 @@ mod tests {
 
         Mock::given(method("GET"))
             .and(path(
-                "/services/data/v60.0/sobjects/Account/001xx000003DHP0AAO",
+                "/services/data/v67.0/sobjects/Account/001xx000003DHP0AAO",
             ))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "Id": "001xx000003DHP0AAO",
@@ -1089,7 +1089,7 @@ mod tests {
         let client = builder().authenticate(auth).build().await.must();
 
         Mock::given(method("POST"))
-            .and(path("/services/data/v60.0/sobjects/Account"))
+            .and(path("/services/data/v67.0/sobjects/Account"))
             .respond_with(ResponseTemplate::new(201).set_body_json(json!({
                 "id": "001xx000003DHP0AAO",
                 "success": true,
@@ -1124,7 +1124,7 @@ mod tests {
 
         Mock::given(method("PATCH"))
             .and(path(
-                "/services/data/v60.0/sobjects/Account/001xx000003DHP0AAO",
+                "/services/data/v67.0/sobjects/Account/001xx000003DHP0AAO",
             ))
             .respond_with(ResponseTemplate::new(204))
             .expect(1)
@@ -1155,7 +1155,7 @@ mod tests {
 
         Mock::given(method("DELETE"))
             .and(path(
-                "/services/data/v60.0/sobjects/Account/001xx000003DHP0AAO",
+                "/services/data/v67.0/sobjects/Account/001xx000003DHP0AAO",
             ))
             .respond_with(ResponseTemplate::new(204))
             .expect(1)
@@ -1183,7 +1183,7 @@ mod tests {
 
         Mock::given(method("PATCH"))
             .and(path(
-                "/services/data/v60.0/sobjects/Account/ExternalId__c/ACME-005",
+                "/services/data/v67.0/sobjects/Account/ExternalId__c/ACME-005",
             ))
             .respond_with(ResponseTemplate::new(201).set_body_json(json!({
                 "id": "001xx000003DHP0AAO",
@@ -1259,7 +1259,7 @@ mod tests {
         .must();
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/sobjects"))
+            .and(path("/services/data/v67.0/sobjects"))
             .respond_with(ResponseTemplate::new(200).set_body_json(global_describe_json))
             .expect(1)
             .mount(&mock_server)
@@ -1369,7 +1369,7 @@ mod tests {
         .must();
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/sobjects/Account/describe"))
+            .and(path("/services/data/v67.0/sobjects/Account/describe"))
             .respond_with(ResponseTemplate::new(200).set_body_json(describe_json))
             .expect(1)
             .mount(&mock_server)
@@ -1396,7 +1396,7 @@ mod tests {
         let client = builder().authenticate(auth).build().await.must();
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/query"))
+            .and(path("/services/data/v67.0/query"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "totalSize": 1,
                 "done": true,
@@ -1431,7 +1431,7 @@ mod tests {
         let client = builder().authenticate(auth).build().await.must();
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/query/01g"))
+            .and(path("/services/data/v67.0/query/01g"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "totalSize": 2,
                 "done": true,
@@ -1443,7 +1443,7 @@ mod tests {
 
         let rest = client.rest();
         let result = rest
-            .query_more::<serde_json::Value>("/services/data/v60.0/query/01g")
+            .query_more::<serde_json::Value>("/services/data/v67.0/query/01g")
             .await
             .must();
 
@@ -1457,7 +1457,7 @@ mod tests {
     fn test_query_more_security_check_scheme_mismatch() {
         let result = resolve_next_records_url(
             "https://na1.salesforce.com",
-            "http://na1.salesforce.com/services/data/v60.0/query/01g",
+            "http://na1.salesforce.com/services/data/v67.0/query/01g",
         );
         let Err(err) = result else {
             panic!("Expected Err");
@@ -1469,7 +1469,7 @@ mod tests {
     fn test_query_more_security_check_port_mismatch() {
         let result = resolve_next_records_url(
             "https://na1.salesforce.com",
-            "https://na1.salesforce.com:8080/services/data/v60.0/query/01g",
+            "https://na1.salesforce.com:8080/services/data/v67.0/query/01g",
         );
         let Err(err) = result else {
             panic!("Expected Err");
@@ -1481,7 +1481,7 @@ mod tests {
     fn test_query_more_security_check_username_mismatch() {
         let result = resolve_next_records_url(
             "https://na1.salesforce.com",
-            "https://user@na1.salesforce.com/services/data/v60.0/query/01g",
+            "https://user@na1.salesforce.com/services/data/v67.0/query/01g",
         );
         let Err(err) = result else {
             panic!("Expected Err");
@@ -1493,7 +1493,7 @@ mod tests {
     fn test_query_more_security_check_password_mismatch() {
         let result = resolve_next_records_url(
             "https://na1.salesforce.com",
-            "https://:password@na1.salesforce.com/services/data/v60.0/query/01g",
+            "https://:password@na1.salesforce.com/services/data/v67.0/query/01g",
         );
         let Err(err) = result else {
             panic!("Expected Err");
