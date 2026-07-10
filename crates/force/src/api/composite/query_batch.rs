@@ -100,11 +100,11 @@ impl<'a, A: Authenticator> QueryBatch<'a, A> {
                 break;
             }
 
-            if let Some(next_url) = result.next_records_url {
-                result = self.client.rest().query_more(&next_url).await?;
-            } else {
+            let Some(next_url) = result.next_records_url else {
                 break;
-            }
+            };
+
+            result = self.client.rest().query_more(&next_url).await?;
         }
 
         // Flush remaining

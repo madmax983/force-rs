@@ -98,3 +98,7 @@
 **[Flatten Match With Original Error Context]**
 **Learning:** When flattening nested `match` statements handling `Result` outputs, rewriting them with `let Ok(...) = result else` guard clauses can lead to silently swallowing the underlying original error if not passed through explicitly, which breaks observability and changes runtime behavior. Using `.map_err(...)?` provides a flatter structure while preserving the exact error mappings natively.
 **Action:** When acting as 'Forge', never drop the original underlying error variable (e.g., `e`). To flatten `Result` mapping, use `.map_err(|e| { ... })?` with the `?` operator instead of verbose `match` statements or dropping context inside `else` guards, ensuring the error propagates cleanly without over-nesting.
+
+**[Flatten Nesting with Guard Clauses]
+**Learning:** Attempting to replace manual pagination loops directly with async stream abstractions (`StreamExt::next`) can leak internal traits (`Unpin`) or run into `Option<Result>` unwrap difficulties on the public API, violating strict zero-behavior change refactoring principles if not natively supported.
+**Action:** Instead of imposing complex abstraction changes to fix readability issues, use standard Rust guard clauses (`let Some(...) = ... else { return }`) to flatten deeply nested structures safely and idiomaticly without changing behavior.
