@@ -309,12 +309,7 @@ pub trait RestOperation<A: Authenticator> {
         external_id_value: &str,
         data: &serde_json::Value,
     ) -> Result<UpsertResponse> {
-        validate_sobject_name(sobject)?;
-        validate_external_id_field(external_id_field)?;
-
-        upsert_with_retry_class_impl(
-            self.session(),
-            self.path_prefix(),
+        self.upsert_with_retry_class(
             sobject,
             external_id_field,
             external_id_value,
@@ -351,12 +346,7 @@ pub trait RestOperation<A: Authenticator> {
         external_id_value: &str,
         data: &serde_json::Value,
     ) -> Result<UpsertResponse> {
-        validate_sobject_name(sobject)?;
-        validate_external_id_field(external_id_field)?;
-
-        upsert_with_retry_class_impl(
-            self.session(),
-            self.path_prefix(),
+        self.upsert_with_retry_class(
             sobject,
             external_id_field,
             external_id_value,
@@ -364,6 +354,62 @@ pub trait RestOperation<A: Authenticator> {
             crate::http::RequestRetryClass::IdempotentMutation,
         )
         .await
+    }
+
+    #[doc(hidden)]
+    async fn upsert_with_retry_class(
+        &self,
+        sobject: &str,
+        external_id_field: &str,
+        external_id_value: &str,
+        data: &serde_json::Value,
+        retry_class: crate::http::RequestRetryClass,
+    ) -> Result<UpsertResponse> {
+        validate_sobject_name(sobject)?;
+        validate_external_id_field(external_id_field)?;
+
+        // ⚡ Bolt: Pass `utf8_percent_encode` directly to `format!` to avoid an intermediate `String` allocation.
+        let encoded_value = utf8_percent_encode(external_id_value, UPSERT_ENCODE_SET);
+
+        let relative = format!(
+            "sobjects/{}/{}/{}",
+            sobject, external_id_field, encoded_value
+        );
+        let api_path = self.resolve_api_path(&relative);
+        let url = self.session().resolve_url(&api_path).await?;
+
+        let request = self
+            .session()
+            .patch(&url)
+            .json(data)
+            .build()
+            .map_err(crate::error::HttpError::from)?;
+
+        let response = self
+            .session()
+            .execute_request_with_retry_class(request, retry_class)
+            .await?;
+
+        let status = response.status();
+
+        if status.as_u16() == 204 {
+            // 204 No Content means an existing record was updated
+            // But the response does not include the record ID
+            return Err(ForceError::NotImplemented(
+                "Upsert update (204) response does not include record ID - use query to retrieve"
+                    .to_string(),
+            ));
+        }
+
+        if status.is_success() {
+            // Success codes (201 Created, 200 OK) - parse as upsert response
+            let bytes =
+                crate::http::error::read_capped_body_bytes(response, 100 * 1024 * 1024).await?;
+            return serde_json::from_slice::<UpsertResponse>(&bytes)
+                .map_err(|e| crate::error::SerializationError::from(e).into());
+        }
+
+        Err(crate::http::response_to_force_error(response, "Upsert request failed").await)
     }
 
     // ── Query Operations ─────────────────────────────────────────────
@@ -664,8 +710,15 @@ async fn upsert_with_retry_class_impl<A: Authenticator>(
 /// - The origin does not match the instance
 /// - Credentials are embedded in the URL
 pub fn resolve_next_records_url(instance_url: &str, next_records_url: &str) -> Result<String> {
+    if !next_records_url.starts_with("http") {
+        return Ok(format!("{}{}", instance_url, next_records_url));
+    }
+
+    // Security check: absolute URL must match the instance host
+    let next_parsed = url::Url::parse(next_records_url)
+        .map_err(|e| ForceError::InvalidInput(format!("Invalid nextRecordsUrl: {e}")))?;
     let instance_parsed = url::Url::parse(instance_url)
-        .map_err(|e| ForceError::InvalidInput(format!("Invalid instance URL in token: {}", e)))?;
+        .map_err(|e| ForceError::InvalidInput(format!("Invalid instance URL in token: {e}")))?;
 
     // Combine safely using `url::Url::join` which handles relative vs absolute correctly
     // and prevents `@evil.com` from changing the host.
@@ -855,6 +908,10 @@ mod tests {
     #[tokio::test]
     async fn test_validation_query_rejects_oversized_soql_before_session() {
         let op = TestRestOp;
+
+        let exact = "A".repeat(MAX_QUERY_INPUT_BYTES);
+        assert!(super::validate_query_input_len("test", &exact).is_ok());
+
         let soql = "A".repeat(MAX_QUERY_INPUT_BYTES + 1);
         let result = op.query::<serde_json::Value>(&soql).await;
 
@@ -864,6 +921,10 @@ mod tests {
     #[tokio::test]
     async fn test_validation_query_more_rejects_oversized_url_before_session() {
         let op = TestRestOp;
+
+        let exact = "A".repeat(MAX_QUERY_INPUT_BYTES);
+        assert!(super::validate_query_input_len("test", &exact).is_ok());
+
         let next_records_url = "A".repeat(MAX_QUERY_INPUT_BYTES + 1);
         let result = op.query_more::<serde_json::Value>(&next_records_url).await;
 
@@ -950,15 +1011,13 @@ mod tests {
             .upsert("Account", "ExternalId__c", "123", &json!({"Name": "Acme"}))
             .await;
 
-        match result {
-            Err(crate::error::ForceError::NotImplemented(msg)) => {
-                assert_eq!(
-                    msg,
-                    "Upsert update (204) response does not include record ID - use query to retrieve"
-                );
-            }
-            _ => panic!("Expected NotImplemented error for 204 response"),
-        }
+        let Err(crate::error::ForceError::NotImplemented(msg)) = result else {
+            panic!("Expected NotImplemented error")
+        };
+        assert_eq!(
+            msg,
+            "Upsert update (204) response does not include record ID - use query to retrieve"
+        );
     }
 
     #[tokio::test]
@@ -1002,6 +1061,44 @@ mod tests {
         assert!(response.is_success());
         assert!(!response.is_created());
         assert_eq!(response.id.as_str(), "001xx000003DHP0AAO");
+    }
+
+    #[tokio::test]
+    async fn test_upsert_payload_too_large() {
+        use crate::client::builder;
+        use serde_json::json;
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let mock_server = MockServer::start().await;
+        let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
+        let client = builder().authenticate(auth).build().await.must();
+
+        let big_str = "A".repeat(100 * 1024 * 1024 + 1);
+        Mock::given(method("PATCH"))
+            .and(path(
+                "/services/data/v60.0/sobjects/Account/ExternalId__c/ACME-002",
+            ))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(big_str.into_bytes()))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let rest = client.rest();
+        let response = rest
+            .upsert(
+                "Account",
+                "ExternalId__c",
+                "ACME-002",
+                &json!({"Name": "Acme Corp"}),
+            )
+            .await;
+        assert!(matches!(
+            response,
+            Err(crate::error::ForceError::Http(
+                crate::error::HttpError::PayloadTooLarge { .. }
+            ))
+        ));
     }
 
     #[tokio::test]

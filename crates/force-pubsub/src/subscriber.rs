@@ -106,10 +106,109 @@ impl<A: Authenticator> SubscribeState<A> {
             .await?;
         Ok(response.into_inner())
     }
+
+    async fn process_events(
+        &self,
+        events: &[crate::proto::eventbus_v1::ConsumerEvent],
+        tx: &mpsc::Sender<Result<PubSubEvent<Value>>>,
+        reconnect_count: &mut u32,
+    ) -> bool {
+        for event in events {
+            let Some(header) = &event.event else { continue };
+            let schema_id = &header.schema_id;
+            let replay_id = ReplayId::from_bytes(header.replay_id.clone());
+
+            // Fetch schema from cache or via GetSchema RPC on miss.
+            let schema = match self.fetch_schema(schema_id).await {
+                Ok(s) => s,
+                Err(e) => {
+                    if tx.send(Err(e)).await.is_err() {
+                        return false;
+                    }
+                    continue;
+                }
+            };
+
+            match decode_avro(&schema, &event.payload) {
+                Ok(payload) => {
+                    let msg = EventMessage {
+                        payload,
+                        replay_id,
+                        schema_id: schema_id.clone(),
+                        event_id: header.producer_partition_key.clone(),
+                    };
+                    if tx.send(Ok(PubSubEvent::Event(msg))).await.is_err() {
+                        return false;
+                    }
+                    // Reset on successful event decode — connection-level success,
+                    // not decode-level success. A successfully decoded event proves
+                    // the current stream is healthy; the reconnect counter measures
+                    // consecutive stream drops, not individual decode failures.
+                    *reconnect_count = 0;
+                }
+                Err(e) => {
+                    if tx.send(Err(e)).await.is_err() {
+                        return false;
+                    }
+                }
+            }
+        }
+        true
+    }
+
+    async fn handle_reconnect(
+        &self,
+        reconnect_count: &mut u32,
+        current_preset: &ReplayPreset,
+        tx: &mpsc::Sender<Result<PubSubEvent<Value>>>,
+    ) -> bool {
+        match &self.config.reconnect_policy {
+            ReconnectPolicy::None => {
+                let _ = tx
+                    .send(Err(PubSubError::Transport(tonic::Status::unavailable(
+                        "subscribe stream ended",
+                    ))))
+                    .await;
+                false
+            }
+            ReconnectPolicy::Auto {
+                max_retries,
+                backoff,
+            } => {
+                *reconnect_count += 1;
+                if *reconnect_count > *max_retries {
+                    let _ = tx
+                        .send(Err(PubSubError::ReconnectFailed {
+                            attempts: *reconnect_count,
+                            last_error: Box::new(PubSubError::Transport(
+                                tonic::Status::unavailable("max retries exceeded"),
+                            )),
+                        }))
+                        .await;
+                    return false;
+                }
+
+                let delay = backoff.delay_for(*reconnect_count - 1);
+                tokio::time::sleep(delay).await;
+
+                let replay_id = match current_preset {
+                    ReplayPreset::Custom(id) => id.clone(),
+                    _ => ReplayId::from_bytes(vec![]),
+                };
+
+                let _ = tx
+                    .send(Ok(PubSubEvent::Reconnected {
+                        replay_id,
+                        attempt: *reconnect_count,
+                    }))
+                    .await;
+                true
+            }
+        }
+    }
 }
 
 /// Run the subscribe loop, emitting `PubSubEvent<Value>` to `tx`.
-#[allow(clippy::too_many_lines)]
 async fn subscribe_loop<A: Authenticator + Send + Sync + 'static>(
     state: SubscribeState<A>,
     initial_preset: ReplayPreset,
@@ -128,105 +227,35 @@ async fn subscribe_loop<A: Authenticator + Send + Sync + 'static>(
         };
 
         loop {
-            if let Ok(Some(response)) = stream.message().await {
-                // Update replay position
-                if !response.latest_replay_id.is_empty() {
-                    current_preset = ReplayPreset::Custom(ReplayId::from_bytes(
-                        response.latest_replay_id.clone(),
-                    ));
-                }
-
-                if response.events.is_empty() {
-                    if tx.send(Ok(PubSubEvent::KeepAlive)).await.is_err() {
-                        break 'outer;
-                    }
-                } else {
-                    for event in &response.events {
-                        let Some(header) = &event.event else { continue };
-                        let schema_id = &header.schema_id;
-                        let replay_id = ReplayId::from_bytes(header.replay_id.clone());
-
-                        // Fetch schema from cache or via GetSchema RPC on miss.
-                        let schema = match state.fetch_schema(schema_id).await {
-                            Ok(s) => s,
-                            Err(e) => {
-                                if tx.send(Err(e)).await.is_err() {
-                                    break 'outer;
-                                }
-                                continue;
-                            }
-                        };
-
-                        match decode_avro(&schema, &event.payload) {
-                            Ok(payload) => {
-                                let msg = EventMessage {
-                                    payload,
-                                    replay_id,
-                                    schema_id: schema_id.clone(),
-                                    event_id: header.producer_partition_key.clone(),
-                                };
-                                if tx.send(Ok(PubSubEvent::Event(msg))).await.is_err() {
-                                    break 'outer;
-                                }
-                                // Reset on successful event decode — connection-level success,
-                                // not decode-level success. A successfully decoded event proves
-                                // the current stream is healthy; the reconnect counter measures
-                                // consecutive stream drops, not individual decode failures.
-                                reconnect_count = 0;
-                            }
-                            Err(e) => {
-                                if tx.send(Err(e)).await.is_err() {
-                                    break 'outer;
-                                }
-                            }
-                        }
-                    }
-                }
-            } else {
+            let Ok(Some(response)) = stream.message().await else {
                 // Stream ended or errored
-                match &state.config.reconnect_policy {
-                    ReconnectPolicy::None => {
-                        let _ = tx
-                            .send(Err(PubSubError::Transport(tonic::Status::unavailable(
-                                "subscribe stream ended",
-                            ))))
-                            .await;
-                        break 'outer;
-                    }
-                    ReconnectPolicy::Auto {
-                        max_retries,
-                        backoff,
-                    } => {
-                        reconnect_count += 1;
-                        if reconnect_count > *max_retries {
-                            let _ = tx
-                                .send(Err(PubSubError::ReconnectFailed {
-                                    attempts: reconnect_count,
-                                    last_error: Box::new(PubSubError::Transport(
-                                        tonic::Status::unavailable("max retries exceeded"),
-                                    )),
-                                }))
-                                .await;
-                            break 'outer;
-                        }
-
-                        let delay = backoff.delay_for(reconnect_count - 1);
-                        tokio::time::sleep(delay).await;
-
-                        let replay_id = match &current_preset {
-                            ReplayPreset::Custom(id) => id.clone(),
-                            _ => ReplayId::from_bytes(vec![]),
-                        };
-
-                        let _ = tx
-                            .send(Ok(PubSubEvent::Reconnected {
-                                replay_id: replay_id.clone(),
-                                attempt: reconnect_count,
-                            }))
-                            .await;
-                    }
+                if !state
+                    .handle_reconnect(&mut reconnect_count, &current_preset, &tx)
+                    .await
+                {
+                    break 'outer;
                 }
                 break; // restart outer loop (reconnect)
+            };
+
+            // Update replay position
+            if !response.latest_replay_id.is_empty() {
+                current_preset =
+                    ReplayPreset::Custom(ReplayId::from_bytes(response.latest_replay_id.clone()));
+            }
+
+            if response.events.is_empty() {
+                if tx.send(Ok(PubSubEvent::KeepAlive)).await.is_err() {
+                    break 'outer;
+                }
+                continue;
+            }
+
+            if !state
+                .process_events(&response.events, &tx, &mut reconnect_count)
+                .await
+            {
+                break 'outer;
             }
         }
     }
@@ -332,6 +361,12 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_stream_channel_capacity() {
+        assert_eq!(super::stream_channel_capacity(1), 2);
+        assert_eq!(super::stream_channel_capacity(50), 100);
+    }
 
     #[test]
     fn test_preset_to_proto_latest() {

@@ -363,15 +363,27 @@ mod tests {
         let w: Wrapper = serde_json::from_str(json).must();
         assert_eq!(w.value, None);
 
-        // Test an arbitrary string that mutants might generate
-        let json = r#"{"value": "xyzzy"}"#;
-        let w: Wrapper = serde_json::from_str(json).must();
-        assert_eq!(w.value, Some("xyzzy".to_string()));
+        // Ensure manual calling works
+        let mut d = serde_json::Deserializer::from_str("null");
+        let res = deserialize_optional_string_or_number(&mut d);
+        let Ok(res_null) = res else {
+            panic!("expected Ok")
+        };
+        assert_eq!(res_null, None);
 
-        // Test an empty string
-        let json = r#"{"value": ""}"#;
-        let w: Wrapper = serde_json::from_str(json).must();
-        assert_eq!(w.value, Some(String::new()));
+        let mut d2 = serde_json::Deserializer::from_str("\"\"");
+        let res2 = deserialize_optional_string_or_number(&mut d2);
+        let Ok(res_empty) = res2 else {
+            panic!("expected Ok")
+        };
+        assert_eq!(res_empty, Some(String::new()));
+
+        let mut d3 = serde_json::Deserializer::from_str("\"xyzzy\"");
+        let res3 = deserialize_optional_string_or_number(&mut d3);
+        let Ok(res_xyzzy) = res3 else {
+            panic!("expected Ok")
+        };
+        assert_eq!(res_xyzzy, Some("xyzzy".to_string()));
     }
 
     #[test]

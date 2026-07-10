@@ -35,28 +35,27 @@ pub fn escape_soql(input: &str) -> String {
 pub fn escape_soql_cow(input: &str) -> Cow<'_, str> {
     let first_special = input.find(['\'', '\\', '"']);
 
-    match first_special {
-        Some(idx) => {
-            let mut escaped = String::with_capacity(input.len() + 8);
-            escaped.push_str(&input[..idx]);
+    let Some(idx) = first_special else {
+        return Cow::Borrowed(input);
+    };
 
-            // Note: `input.find()` returns a byte index.
-            // Using `input[idx..]` here is technically safe because we know the needle
-            // `['\'', '\\', '"']` are 1-byte ASCII characters, meaning `idx` will
-            // always align with a char boundary for `input`. If we searched for a
-            // multi-byte char this would panic.
-            for c in input[idx..].chars() {
-                match c {
-                    '\'' => escaped.push_str(r"\'"),
-                    '\\' => escaped.push_str(r"\\"),
-                    '"' => escaped.push_str(r#"\""#),
-                    _ => escaped.push(c),
-                }
-            }
-            Cow::Owned(escaped)
+    let mut escaped = String::with_capacity(input.len() + 8);
+    escaped.push_str(&input[..idx]);
+
+    // Note: `input.find()` returns a byte index.
+    // Using `input[idx..]` here is technically safe because we know the needle
+    // `['\'', '\\', '"']` are 1-byte ASCII characters, meaning `idx` will
+    // always align with a char boundary for `input`. If we searched for a
+    // multi-byte char this would panic.
+    for c in input[idx..].chars() {
+        match c {
+            '\'' => escaped.push_str(r"\'"),
+            '\\' => escaped.push_str(r"\\"),
+            '"' => escaped.push_str(r#"\""#),
+            _ => escaped.push(c),
         }
-        None => Cow::Borrowed(input),
     }
+    Cow::Owned(escaped)
 }
 
 /// Encodes a `SoqlQueryBuilder` into a URL-safe `query?q=...` string.
@@ -626,6 +625,7 @@ impl SoqlQueryBuilder {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)]
     use super::*;
     use crate::test_utils::must::Must;
 
@@ -859,24 +859,18 @@ mod tests {
         // Missing fields
         let builder = SoqlQueryBuilder::new().from("Account");
         let result = builder.try_build();
-        match result {
-            Err(e) => assert_eq!(
-                e.to_string(),
-                "invalid input: Select fields cannot be empty"
-            ),
-            Ok(_) => panic!("Expected error"),
-        }
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "invalid input: Select fields cannot be empty"
+        );
 
         // Missing SObject
         let builder = SoqlQueryBuilder::new().select(&["Id"]);
         let result = builder.try_build();
-        match result {
-            Err(e) => assert_eq!(
-                e.to_string(),
-                "invalid input: FROM clause (SObject) is required"
-            ),
-            Ok(_) => panic!("Expected error"),
-        }
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "invalid input: FROM clause (SObject) is required"
+        );
     }
 
     #[test]

@@ -84,3 +84,17 @@
 **[Flattening is_retryable_error in HttpExecutor]**
 **Learning:** The `is_retryable_error` function in `HttpExecutor` had a double `match` statement ('Pyramid of Doom') on `ForceError::Http` checking `HttpError::Timeout` and `HttpError::RequestFailed`. This caused deep nesting.
 **Action:** Flattened into a single `match error` that matches `ForceError::Http(HttpError::Timeout { .. })` and `ForceError::Http(HttpError::RequestFailed(re))` directly.
+**[Extract and flatten subscribe_loop]**
+**Learning:** `subscribe_loop` was a "God Function" with deep nesting ("Pyramid of Doom") that handled stream listening, event processing, decoding, schema fetching, and reconnect logic all in one place, triggering `clippy::too_many_lines` and `clippy::cognitive_complexity`.
+**Action:** Extract the complex inner logic into well-named private methods (`process_events` and `handle_reconnect`) on the state struct (`SubscribeState`), and use guard clauses (`let Ok(Some(response)) = ... else { ... }`) to flatten the outer loop structure.
+**[Test Unwrap Simplification]**
+**Learning:** Re-implementing unwraps in tests with `match` statements (e.g. `match result { Err(e) => e, Ok(_) => panic!("Expected error") }`) is verbose and obscures test intent, while using `.unwrap_err()` directly triggers `clippy::unwrap_used`.
+**Action:** Always prefer `result.unwrap_err()` in test modules and explicitly add `#![allow(clippy::unwrap_used)]` at the top of the test module or file.
+
+**[Consolidate RestOperation Helpers]**
+**Learning:** Standalone helper functions for traits often duplicate internal logic (like `resolve_api_path`) because they lack access to the `self` context, leading to manual string formatting and potential errors.
+**Action:** Extract shared logic between trait methods into internal private/hidden methods on the trait itself, rather than free-standing functions, to reuse trait utilities.
+
+**[Flatten Match With Original Error Context]**
+**Learning:** When flattening nested `match` statements handling `Result` outputs, rewriting them with `let Ok(...) = result else` guard clauses can lead to silently swallowing the underlying original error if not passed through explicitly, which breaks observability and changes runtime behavior. Using `.map_err(...)?` provides a flatter structure while preserving the exact error mappings natively.
+**Action:** When acting as 'Forge', never drop the original underlying error variable (e.g., `e`). To flatten `Result` mapping, use `.map_err(|e| { ... })?` with the `?` operator instead of verbose `match` statements or dropping context inside `else` guards, ensuring the error propagates cleanly without over-nesting.

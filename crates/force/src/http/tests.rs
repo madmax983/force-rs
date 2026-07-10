@@ -154,14 +154,13 @@ mod integration_tests {
             .await;
 
         // Assert
-        match result {
-            Err(ForceError::Http(crate::error::HttpError::RateLimitExceeded {
-                retry_after_seconds,
-            })) => {
-                assert_eq!(retry_after_seconds, 120);
-            }
-            _ => panic!("Expected RateLimitExceeded error, got: {:?}", result),
-        }
+        let Err(ForceError::Http(crate::error::HttpError::RateLimitExceeded {
+            retry_after_seconds,
+        })) = result
+        else {
+            panic!("Expected RateLimitExceeded error, got: {:?}", result)
+        };
+        assert_eq!(retry_after_seconds, 120);
     }
 
     #[tokio::test]
@@ -188,17 +187,13 @@ mod integration_tests {
             .await;
 
         // Assert
-        match result {
-            Err(ForceError::Http(crate::error::HttpError::RateLimitExceeded {
-                retry_after_seconds,
-            })) => {
-                assert_eq!(retry_after_seconds, 60);
-            }
-            _ => panic!(
-                "Expected RateLimitExceeded error with default 60s, got: {:?}",
-                result
-            ),
-        }
+        let Err(ForceError::Http(crate::error::HttpError::RateLimitExceeded {
+            retry_after_seconds,
+        })) = result
+        else {
+            panic!("Expected RateLimitExceeded error, got: {:?}", result)
+        };
+        assert_eq!(retry_after_seconds, 60);
     }
 
     #[tokio::test]
@@ -229,17 +224,13 @@ mod integration_tests {
             .await;
 
         // Assert
-        match result {
-            Err(ForceError::Http(crate::error::HttpError::RateLimitExceeded {
-                retry_after_seconds,
-            })) => {
-                assert_eq!(retry_after_seconds, 60);
-            }
-            _ => panic!(
-                "Expected RateLimitExceeded error with default 60s, got: {:?}",
-                result
-            ),
-        }
+        let Err(ForceError::Http(crate::error::HttpError::RateLimitExceeded {
+            retry_after_seconds,
+        })) = result
+        else {
+            panic!("Expected RateLimitExceeded error, got: {:?}", result)
+        };
+        assert_eq!(retry_after_seconds, 60);
     }
 
     #[tokio::test]
@@ -467,17 +458,16 @@ mod integration_tests {
             .await;
 
         // Assert
-        match result {
-            Err(ForceError::Http(crate::error::HttpError::StatusError {
-                status_code,
-                message,
-            })) => {
-                assert_eq!(status_code, 400);
-                assert!(message.contains("INVALID_FIELD"));
-                assert!(message.contains("Field 'InvalidField' does not exist"));
-            }
-            _ => panic!("Expected StatusError, got: {:?}", result),
-        }
+        let Err(ForceError::Http(crate::error::HttpError::StatusError {
+            status_code,
+            message,
+        })) = result
+        else {
+            panic!("Expected StatusError, got: {:?}", result)
+        };
+        assert_eq!(status_code, 400);
+        assert!(message.contains("INVALID_FIELD"));
+        assert!(message.contains("Field 'InvalidField' does not exist"));
     }
 
     #[tokio::test]
@@ -573,16 +563,15 @@ mod integration_tests {
             .await;
 
         // Assert
-        match result {
-            Err(ForceError::Http(crate::error::HttpError::StatusError {
-                status_code,
-                message,
-            })) => {
-                assert_eq!(status_code, 401);
-                assert!(message.contains("after token refresh"));
-            }
-            _ => panic!("Expected StatusError with 401, got: {:?}", result),
-        }
+        let Err(ForceError::Http(crate::error::HttpError::StatusError {
+            status_code,
+            message,
+        })) = result
+        else {
+            panic!("Expected StatusError, got: {:?}", result)
+        };
+        assert_eq!(status_code, 401);
+        assert!(message.contains("after token refresh"));
     }
 
     #[tokio::test]

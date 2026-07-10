@@ -121,27 +121,22 @@ pub fn plan_change(context: &PlannerContext, envelope: &ChangeEnvelope) -> PlanD
             payload: None,
             conflicts: fields,
         },
-        MergeOutcome::Merged(payload) => PlanDecision {
-            lane: if context
+        MergeOutcome::Merged(payload) => {
+            let is_noop = context
                 .current_payload
                 .as_ref()
-                .is_some_and(|current| current == &payload)
-            {
-                ApplyLane::Noop
-            } else {
-                choose_lane(context)
-            },
-            payload: if context
-                .current_payload
-                .as_ref()
-                .is_some_and(|current| current == &payload)
-            {
-                None
-            } else {
-                Some(payload)
-            },
-            conflicts: Vec::new(),
-        },
+                .is_some_and(|current| current == &payload);
+
+            PlanDecision {
+                lane: if is_noop {
+                    ApplyLane::Noop
+                } else {
+                    choose_lane(context)
+                },
+                payload: if is_noop { None } else { Some(payload) },
+                conflicts: Vec::new(),
+            }
+        }
     }
 }
 
@@ -173,40 +168,30 @@ fn merge_object_payload(
     let mut conflicts = Vec::new();
 
     for (field, incoming_value) in incoming {
-        match current.get(field) {
-            Some(existing_value) if existing_value == incoming_value => {}
-            Some(_) => match object.field_owner_for(field) {
-                Some(Owner::Salesforce) if source == SourceSystem::Salesforce => {
-                    merged
-                        .get_or_insert_with(|| current.clone())
-                        .insert(field.clone(), incoming_value.clone());
+        if let Some(existing_value) = current.get(field) {
+            if existing_value == incoming_value {
+                continue;
+            }
+        }
+
+        let should_update = match object.field_owner_for(field) {
+            Some(Owner::Salesforce) if source == SourceSystem::Salesforce => true,
+            Some(Owner::Postgres) if source == SourceSystem::Postgres => true,
+            Some(Owner::Salesforce | Owner::Postgres) => false,
+            Some(Owner::Shared) | None => {
+                if current.contains_key(field) {
+                    conflicts.push(field.clone());
+                    false
+                } else {
+                    true
                 }
-                Some(Owner::Postgres) if source == SourceSystem::Postgres => {
-                    merged
-                        .get_or_insert_with(|| current.clone())
-                        .insert(field.clone(), incoming_value.clone());
-                }
-                Some(Owner::Salesforce | Owner::Postgres) => {}
-                Some(Owner::Shared) | None => conflicts.push(field.clone()),
-            },
-            None => match object.field_owner_for(field) {
-                Some(Owner::Salesforce) if source == SourceSystem::Salesforce => {
-                    merged
-                        .get_or_insert_with(|| current.clone())
-                        .insert(field.clone(), incoming_value.clone());
-                }
-                Some(Owner::Postgres) if source == SourceSystem::Postgres => {
-                    merged
-                        .get_or_insert_with(|| current.clone())
-                        .insert(field.clone(), incoming_value.clone());
-                }
-                Some(Owner::Salesforce | Owner::Postgres) => {}
-                Some(Owner::Shared) | None => {
-                    merged
-                        .get_or_insert_with(|| current.clone())
-                        .insert(field.clone(), incoming_value.clone());
-                }
-            },
+            }
+        };
+
+        if should_update {
+            merged
+                .get_or_insert_with(|| current.clone())
+                .insert(field.clone(), incoming_value.clone());
         }
     }
 

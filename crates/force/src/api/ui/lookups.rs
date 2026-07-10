@@ -108,6 +108,7 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)]
 
     use super::*;
     use crate::client::builder;
@@ -307,12 +308,10 @@ mod tests {
             .await;
         assert!(result.is_err());
         assert!(
-            match result {
-                Err(e) => e,
-                Ok(_) => panic!("Expected error"),
-            }
-            .to_string()
-            .contains("SObject name contains invalid characters")
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("SObject name contains invalid characters")
         );
     }
 
@@ -327,12 +326,10 @@ mod tests {
             .await;
         assert!(result.is_err());
         assert!(
-            match result {
-                Err(e) => e,
-                Ok(_) => panic!("Expected error"),
-            }
-            .to_string()
-            .contains("Field name contains invalid character")
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Field name contains invalid character")
         );
     }
 
@@ -347,12 +344,10 @@ mod tests {
             .await;
         assert!(result.is_err());
         assert!(
-            match result {
-                Err(e) => e,
-                Ok(_) => panic!("Expected error"),
-            }
-            .to_string()
-            .contains("SObject name contains invalid characters")
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("SObject name contains invalid characters")
         );
     }
 
@@ -367,12 +362,10 @@ mod tests {
             .await;
         assert!(result.is_err());
         assert!(
-            match result {
-                Err(e) => e,
-                Ok(_) => panic!("Expected error"),
-            }
-            .to_string()
-            .contains("Field name contains invalid character")
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Field name contains invalid character")
         );
     }
 }
