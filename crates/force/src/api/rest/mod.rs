@@ -344,3 +344,5 @@ mod tests {
         assert!(!debug_str.is_empty());
     }
 }
+pub mod prometheus_exporter;
+pub use prometheus_exporter::{PrometheusExportOptions, export_limits_to_prometheus};

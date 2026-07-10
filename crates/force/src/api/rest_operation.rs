@@ -715,7 +715,7 @@ pub fn resolve_next_records_url(instance_url: &str, next_records_url: &str) -> R
     }
 
     // Security check: absolute URL must match the instance host
-    let next_parsed = url::Url::parse(next_records_url)
+    let _next_parsed = url::Url::parse(next_records_url)
         .map_err(|e| ForceError::InvalidInput(format!("Invalid nextRecordsUrl: {e}")))?;
     let instance_parsed = url::Url::parse(instance_url)
         .map_err(|e| ForceError::InvalidInput(format!("Invalid instance URL in token: {e}")))?;
@@ -1071,7 +1071,7 @@ mod tests {
         use wiremock::{Mock, MockServer, ResponseTemplate};
 
         let mock_server = MockServer::start().await;
-        let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
+        let auth = crate::test_utils::mock_auth::MockAuthenticator::new("test_token", &mock_server.uri());
         let client = builder().authenticate(auth).build().await.must();
 
         let big_str = "A".repeat(100 * 1024 * 1024 + 1);
