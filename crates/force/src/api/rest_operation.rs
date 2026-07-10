@@ -711,11 +711,13 @@ async fn upsert_with_retry_class_impl<A: Authenticator>(
 /// - Credentials are embedded in the URL
 pub fn resolve_next_records_url(instance_url: &str, next_records_url: &str) -> Result<String> {
     if !next_records_url.starts_with("http") {
-        return Ok(format!("{}{}", instance_url, next_records_url));
+        let instance_parsed = url::Url::parse(instance_url).map_err(|e| ForceError::InvalidInput(format!("Invalid instance URL in token: {e}")))?;
+        let next_parsed = instance_parsed.join(next_records_url).map_err(|e| ForceError::InvalidInput(format!("Invalid nextRecordsUrl: {}", e)))?;
+        return Ok(next_parsed.into());
     }
 
     // Security check: absolute URL must match the instance host
-    let next_parsed = url::Url::parse(next_records_url)
+    let _next_parsed = url::Url::parse(next_records_url)
         .map_err(|e| ForceError::InvalidInput(format!("Invalid nextRecordsUrl: {e}")))?;
     let instance_parsed = url::Url::parse(instance_url)
         .map_err(|e| ForceError::InvalidInput(format!("Invalid instance URL in token: {e}")))?;
@@ -1071,13 +1073,13 @@ mod tests {
         use wiremock::{Mock, MockServer, ResponseTemplate};
 
         let mock_server = MockServer::start().await;
-        let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
+        let auth = crate::test_utils::mock_auth::MockAuthenticator::new("test_token", &mock_server.uri());
         let client = builder().authenticate(auth).build().await.must();
 
         let big_str = "A".repeat(100 * 1024 * 1024 + 1);
         Mock::given(method("PATCH"))
             .and(path(
-                "/services/data/v60.0/sobjects/Account/ExternalId__c/ACME-002",
+                format!("/services/data/{}/sobjects/Account/ExternalId__c/ACME-002", crate::types::ApiVersion::DEFAULT),
             ))
             .respond_with(ResponseTemplate::new(200).set_body_bytes(big_str.into_bytes()))
             .expect(1)

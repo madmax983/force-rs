@@ -32,7 +32,7 @@ pub enum ForceError {
 
     /// Invalid Salesforce ID.
     #[error("invalid Salesforce ID: {0}")]
-    InvalidId(#[from] crate::types::salesforce_id::SalesforceIdError),
+    InvalidId(#[from] SalesforceIdError),
 
     /// Invalid input provided to an API method.
     #[error("invalid input: {0}")]
@@ -447,7 +447,7 @@ mod tests {
 
     #[test]
     fn test_force_error_from_invalid_id_length() {
-        let id_err = crate::types::salesforce_id::SalesforceIdError::InvalidLength(10);
+        let id_err = SalesforceIdError::InvalidLength(10);
         let force_err: ForceError = id_err.into();
         assert_eq!(
             force_err.to_string(),
@@ -457,7 +457,7 @@ mod tests {
 
     #[test]
     fn test_force_error_from_invalid_id_characters() {
-        let id_err = crate::types::salesforce_id::SalesforceIdError::InvalidCharacters;
+        let id_err = SalesforceIdError::InvalidCharacters;
         let force_err: ForceError = id_err.into();
         assert_eq!(
             force_err.to_string(),
@@ -467,7 +467,7 @@ mod tests {
 
     #[test]
     fn test_force_error_from_invalid_id_checksum() {
-        let id_err = crate::types::salesforce_id::SalesforceIdError::InvalidChecksum;
+        let id_err = SalesforceIdError::InvalidChecksum;
         let force_err: ForceError = id_err.into();
         assert_eq!(
             force_err.to_string(),
@@ -487,4 +487,20 @@ mod tests {
         assert_send_sync::<ConfigError>();
         assert_send_sync::<SerializationError>();
     }
+}
+
+/// Errors that can occur when parsing or validating a Salesforce ID.
+#[derive(Debug, PartialEq, Eq, thiserror::Error)]
+pub enum SalesforceIdError {
+    /// The ID length is invalid (must be 15 or 18 characters).
+    #[error("invalid ID length: {0} (must be 15 or 18 characters)")]
+    InvalidLength(usize),
+
+    /// The ID contains non-alphanumeric characters.
+    #[error("ID contains invalid characters (must be alphanumeric)")]
+    InvalidCharacters,
+
+    /// The 18-character checksum is invalid.
+    #[error("invalid checksum for 18-character ID")]
+    InvalidChecksum,
 }

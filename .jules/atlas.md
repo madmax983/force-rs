@@ -16,3 +16,6 @@
 **[Unify error handling]
 **Tangle:** Inconsistent error handling across modules where Result was used with explicit types.
 **Blueprint:** Standardized error types across all modules to enforce domain boundaries.
+**[Refactor] SalesforceIdError extracted to break cycle**
+**Tangle:** error.rs depended on types.rs for SalesforceIdError, while types.rs exported error.rs primitives, creating a circular dependency module boundary leak.
+**Blueprint:** Extracted SalesforceIdError to error.rs directly, and removed leaky module re-exports in types.rs.

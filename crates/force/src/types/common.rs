@@ -16,7 +16,8 @@ use serde::{Deserialize, Serialize};
 /// # Examples
 ///
 /// ```
-/// use force::types::{ApiError, CreateResponse, SalesforceId};
+/// use force::error::ApiError;
+/// use force::types::{CreateResponse, SalesforceId};
 ///
 /// // Successful create
 /// let response = CreateResponse {

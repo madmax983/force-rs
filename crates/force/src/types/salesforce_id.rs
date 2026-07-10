@@ -41,18 +41,18 @@ impl SalesforceId {
     /// - The ID is not 15 or 18 characters long
     /// - The ID contains non-alphanumeric characters
     /// - The 18-character checksum is invalid (when applicable)
-    pub fn new(id: impl Into<String>) -> Result<Self, SalesforceIdError> {
+    pub fn new(id: impl Into<String>) -> Result<Self, crate::error::SalesforceIdError> {
         let id = id.into();
 
         // Validate length
         match id.len() {
             15 | 18 => {}
-            _ => return Err(SalesforceIdError::InvalidLength(id.len())),
+            _ => return Err(crate::error::SalesforceIdError::InvalidLength(id.len())),
         }
 
         // Validate characters are alphanumeric
         if !id.chars().all(|c| c.is_ascii_alphanumeric()) {
-            return Err(SalesforceIdError::InvalidCharacters);
+            return Err(crate::error::SalesforceIdError::InvalidCharacters);
         }
 
         // Validate 18-char checksum if applicable
@@ -101,7 +101,7 @@ impl SalesforceId {
     }
 
     /// Validates the checksum of an 18-character ID.
-    fn validate_checksum(id: &str) -> Result<(), SalesforceIdError> {
+    fn validate_checksum(id: &str) -> Result<(), crate::error::SalesforceIdError> {
         debug_assert_eq!(id.len(), 18);
 
         let base = &id[..15];
@@ -111,7 +111,7 @@ impl SalesforceId {
         if provided == computed {
             Ok(())
         } else {
-            Err(SalesforceIdError::InvalidChecksum)
+            Err(crate::error::SalesforceIdError::InvalidChecksum)
         }
     }
 
@@ -166,7 +166,7 @@ impl From<SalesforceId> for String {
 }
 
 impl TryFrom<String> for SalesforceId {
-    type Error = SalesforceIdError;
+    type Error = crate::error::SalesforceIdError;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
         Self::new(value)
@@ -214,26 +214,26 @@ mod tests {
     #[test]
     fn test_new_invalid_length_too_short() {
         let id = SalesforceId::new("00100000000");
-        assert!(matches!(id, Err(SalesforceIdError::InvalidLength(11))));
+        assert!(matches!(id, Err(crate::error::SalesforceIdError::InvalidLength(11))));
     }
 
     #[test]
     fn test_new_invalid_length_too_long() {
         let id = SalesforceId::new("0010000000000001AAA");
-        assert!(matches!(id, Err(SalesforceIdError::InvalidLength(19))));
+        assert!(matches!(id, Err(crate::error::SalesforceIdError::InvalidLength(19))));
     }
 
     #[test]
     fn test_new_invalid_characters() {
         let id = SalesforceId::new("001000000000@01");
-        assert!(matches!(id, Err(SalesforceIdError::InvalidCharacters)));
+        assert!(matches!(id, Err(crate::error::SalesforceIdError::InvalidCharacters)));
     }
 
     #[test]
     fn test_new_invalid_checksum() {
         // Valid format but wrong checksum
         let id = SalesforceId::new("001000000000001XXX");
-        assert!(matches!(id, Err(SalesforceIdError::InvalidChecksum)));
+        assert!(matches!(id, Err(crate::error::SalesforceIdError::InvalidChecksum)));
     }
 
     #[test]
@@ -334,7 +334,7 @@ mod tests {
         let Err(err) = result else {
             panic!("Expected an error");
         };
-        assert!(matches!(err, SalesforceIdError::InvalidLength(_)));
+        assert!(matches!(err, crate::error::SalesforceIdError::InvalidLength(_)));
     }
 
     #[test]
@@ -411,7 +411,7 @@ mod tests {
             fn prop_invalid_length_rejects(id_str in invalid_length_string()) {
                 let result = SalesforceId::new(&id_str);
 
-                let Err(SalesforceIdError::InvalidLength(len)) = result else {
+                let Err(crate::error::SalesforceIdError::InvalidLength(len)) = result else {
                     panic!("Expected InvalidLength error");
                 };
                 prop_assert_eq!(len, id_str.len());
@@ -427,7 +427,7 @@ mod tests {
                 let id_str = format!("{}{}{}", prefix, special_char, suffix);
                 let result = SalesforceId::new(&id_str);
 
-                prop_assert!(matches!(result, Err(SalesforceIdError::InvalidCharacters)));
+                prop_assert!(matches!(result, Err(crate::error::SalesforceIdError::InvalidCharacters)));
             }
 
             // Property 6: to_15() is idempotent for 15-char IDs
@@ -482,7 +482,7 @@ mod tests {
                 let bad_id = format!("{}{}", &id_18_str[..15], bad_checksum);
                 let result = SalesforceId::new(&bad_id);
 
-                prop_assert!(matches!(result, Err(SalesforceIdError::InvalidChecksum)));
+                prop_assert!(matches!(result, Err(crate::error::SalesforceIdError::InvalidChecksum)));
             }
         }
     }
