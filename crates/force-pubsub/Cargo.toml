@@ -16,7 +16,7 @@ readme = "README.md"
 workspace = true
 
 [dependencies]
-force = { path = "../force", version = "0.2.0" }
+force = { path = "../force", version = "0.3.0" }
 reqwest = { workspace = true }
 tonic = { workspace = true, features = ["tls-webpki-roots"] }
 prost = { workspace = true }
@@ -42,7 +42,7 @@ tokio-test = "0.4"
 tokio-stream = { workspace = true, features = ["net"] }
 anyhow = { workspace = true }
 async-trait = { workspace = true }
-force = { path = "../force", version = "0.2.0", features = ["jwt", "username_password"] }
+force = { path = "../force", version = "0.3.0", features = ["jwt", "username_password"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 wiremock = { workspace = true }
 futures = { workspace = true }

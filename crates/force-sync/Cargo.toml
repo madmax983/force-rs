@@ -17,8 +17,8 @@ readme = "README.md"
 workspace = true
 
 [dependencies]
-force = { path = "../force", version = "0.2.0", features = ["rest", "bulk", "composite"] }
-force-pubsub = { path = "../force-pubsub", version = "0.2.0" }
+force = { path = "../force", version = "0.3.0", features = ["rest", "bulk", "composite"] }
+force-pubsub = { path = "../force-pubsub", version = "0.3.0" }
 tokio = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
