@@ -26,7 +26,7 @@ struct TestAuthenticator {
 impl Authenticator for TestAuthenticator {
     async fn authenticate(&self) -> Result<AccessToken> {
         Ok(AccessToken::from_response(TokenResponse {
-            access_token: "test_token".to_string(),
+            access_token: secrecy::SecretString::new("test_token".to_string().into()),
             instance_url: self.instance_url.clone(),
             token_type: "Bearer".to_string(),
             issued_at: "1000".to_string(),
@@ -86,7 +86,7 @@ async fn test_smart_ingest_errors_on_zero_batch_size() {
 
     // Mock failure to catch if it proceeds to HTTP call
     Mock::given(method("POST"))
-        .and(path("/services/data/v60.0/jobs/ingest"))
+        .and(path("/services/data/v67.0/jobs/ingest"))
         .respond_with(ResponseTemplate::new(500))
         .mount(&mock_server)
         .await;

@@ -9,7 +9,7 @@ use crate::error::ForceError;
 ///
 /// Shared logic for SObject names, external ID fields, and any other identifier
 /// that must be a strict `[a-zA-Z0-9_]+` pattern.
-pub fn validate_identifier(name: &str, label: &str) -> Result<(), ForceError> {
+pub fn validate_identifier(name: &str, label: &str) -> crate::error::Result<()> {
     if name.is_empty() {
         return Err(ForceError::InvalidInput(format!("{label} cannot be empty")));
     }
@@ -31,7 +31,7 @@ pub fn validate_identifier(name: &str, label: &str) -> Result<(), ForceError> {
 ///
 /// This prevents path traversal and injection attacks when SObject names are used
 /// in URLs or queries.
-pub fn validate_sobject_name(name: &str) -> Result<(), ForceError> {
+pub fn validate_sobject_name(name: &str) -> crate::error::Result<()> {
     validate_identifier(name, "SObject name")
 }
 
@@ -46,7 +46,7 @@ pub fn validate_sobject_name(name: &str) -> Result<(), ForceError> {
 /// # Security
 ///
 /// This prevents SOQL injection when field names are interpolated into queries.
-pub fn validate_field_name(name: &str) -> Result<(), ForceError> {
+pub fn validate_field_name(name: &str) -> crate::error::Result<()> {
     validate_field_name_internal(name, true)
 }
 
@@ -61,11 +61,11 @@ pub fn validate_field_name(name: &str) -> Result<(), ForceError> {
 ///
 /// This ensures that the external ID field is a valid identifier on the object,
 /// preventing path manipulation in upsert requests.
-pub fn validate_external_id_field(name: &str) -> Result<(), ForceError> {
+pub fn validate_external_id_field(name: &str) -> crate::error::Result<()> {
     validate_identifier(name, "External ID field name")
 }
 
-fn validate_field_name_internal(name: &str, allow_functions: bool) -> Result<(), ForceError> {
+fn validate_field_name_internal(name: &str, allow_functions: bool) -> crate::error::Result<()> {
     if name.is_empty() {
         return Err(ForceError::InvalidInput(
             "Field name cannot be empty".to_string(),
@@ -131,22 +131,38 @@ fn validate_field_name_internal(name: &str, allow_functions: bool) -> Result<(),
 ///
 /// This prevents SSRF and path traversal attacks when user inputs are used
 /// directly in composite requests or dynamic URLs.
-pub fn validate_url_path(path: &str) -> Result<(), ForceError> {
+pub fn validate_url_path(path: &str) -> crate::error::Result<()> {
     if path.is_empty() {
         return Err(ForceError::InvalidInput(
             "URL path cannot be empty".to_string(),
         ));
-    }
-    if path.contains("..") || path.contains("//") {
-        return Err(ForceError::InvalidInput(format!(
-            "URL path contains invalid path traversal characters: {path}"
-        )));
     }
     if path.starts_with("http://") || path.starts_with("https://") {
         return Err(ForceError::InvalidInput(format!(
             "URL path must be relative, but absolute URL was provided: {path}"
         )));
     }
+
+    // Parse the URL to extract the path without resolving/normalizing it,
+    // so we can catch explicit ".." components in the raw path.
+    let base =
+        url::Url::parse("http://localhost").unwrap_or_else(|_| unreachable!("valid base url"));
+    let _parsed = base
+        .join(path)
+        .map_err(|_| ForceError::InvalidInput(format!("Invalid URL path: {path}")))?;
+
+    // Since `Url::join` resolves `..` (e.g., `/a/b/..` -> `/a/`), checking `parsed.path()`
+    // directly won't catch `..`. So we need to look at the raw input string,
+    // but only the path part (before `?` or `#`).
+    let path_only = path.split(['?', '#']).next().unwrap_or(path);
+    let decoded_path = percent_encoding::percent_decode_str(path_only).decode_utf8_lossy();
+
+    if decoded_path.contains("..") || decoded_path.contains("//") {
+        return Err(ForceError::InvalidInput(format!(
+            "URL path contains invalid path traversal characters: {path}"
+        )));
+    }
+
     Ok(())
 }
 
@@ -213,6 +229,30 @@ mod tests {
         assert!(validate_external_id_field("Parent.ExternalId__c").is_err()); // No dots
         assert!(validate_external_id_field("Id;").is_err());
     }
+
+    #[test]
+    fn test_validate_url_path_valid() {
+        assert!(validate_url_path("query?q=SELECT+Id+FROM+Account").is_ok());
+        assert!(validate_url_path("sobjects/Account/001000000000000AAA").is_ok());
+        // '..' in query string should be allowed
+        assert!(validate_url_path("query?q=SELECT+Name+FROM+Account+WHERE+Name='..'").is_ok());
+        assert!(validate_url_path("query?q=SELECT+Name+FROM+Account+WHERE+Name='//'").is_ok());
+    }
+
+    #[test]
+    fn test_validate_url_path_invalid() {
+        assert!(validate_url_path("").is_err());
+        assert!(validate_url_path("http://evil.com").is_err());
+        assert!(validate_url_path("https://evil.com").is_err());
+        assert!(validate_url_path("sobjects/Account/001000000000000AAA/..").is_err());
+        assert!(validate_url_path("sobjects/Account/../../Contact").is_err());
+        assert!(validate_url_path("sobjects//Account").is_err());
+        assert!(validate_url_path("../../../etc/passwd").is_err());
+        assert!(validate_url_path("sobjects/Account/%2e%2e/Contact").is_err());
+        assert!(validate_url_path("sobjects/Account/%2E%2E/Contact").is_err());
+        assert!(validate_url_path("%2e%2e/%2e%2e/%2e%2e/etc/passwd").is_err());
+        assert!(validate_url_path("%2f%2f").is_err());
+    }
 }
 
 #[cfg(test)]
@@ -226,6 +266,8 @@ mod havoc_tests {
             let _ = validate_field_name(&s);
             let _ = validate_sobject_name(&s);
             let _ = validate_external_id_field(&s);
+            let _ = validate_identifier(&s, "test");
+            let _ = validate_url_path(&s);
         }
     }
 }

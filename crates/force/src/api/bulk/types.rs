@@ -164,7 +164,7 @@ pub struct UpdateJobRequest {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_support::Must;
+    use crate::test_utils::must::Must;
 
     #[test]
     fn test_job_operation_serialization() {
@@ -303,11 +303,11 @@ mod tests {
             "createdDate": "2024-01-01T00:00:00.000Z",
             "createdById": "005xx0000000001AAA",
             "state": "JobComplete",
-            "apiVersion": 60.0
+            "apiVersion": 67.0
         }"#;
 
         let info: JobInfo = serde_json::from_str(json).must();
-        assert_eq!(info.api_version, Some("60.0".to_string()));
+        assert_eq!(info.api_version, Some("67.0".to_string()));
     }
 
     #[test]
@@ -329,14 +329,14 @@ mod tests {
         }
 
         // Test String
-        let json = r#"{"value": "60.0"}"#;
+        let json = r#"{"value": "67.0"}"#;
         let w: Wrapper = serde_json::from_str(json).must();
-        assert_eq!(w.value, Some("60.0".to_string()));
+        assert_eq!(w.value, Some("67.0".to_string()));
 
         // Test Number
-        let json = r#"{"value": 60.0}"#;
+        let json = r#"{"value": 67.0}"#;
         let w: Wrapper = serde_json::from_str(json).must();
-        assert_eq!(w.value, Some("60.0".to_string()));
+        assert_eq!(w.value, Some("67.0".to_string()));
 
         // Test null
         let json = r#"{"value": null}"#;

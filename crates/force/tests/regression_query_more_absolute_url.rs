@@ -28,9 +28,9 @@ impl MockAuthenticator {
 
 #[async_trait]
 impl Authenticator for MockAuthenticator {
-    async fn authenticate(&self) -> Result<AccessToken, force::error::ForceError> {
+    async fn authenticate(&self) -> force::error::Result<AccessToken> {
         Ok(AccessToken::from_response(TokenResponse {
-            access_token: "test_token".to_string(),
+            access_token: secrecy::SecretString::new("test_token".to_string().into()),
             instance_url: self.instance_url.clone(),
             token_type: "Bearer".to_string(),
             issued_at: "1704067200000".to_string(),
@@ -40,7 +40,7 @@ impl Authenticator for MockAuthenticator {
         }))
     }
 
-    async fn refresh(&self) -> Result<AccessToken, force::error::ForceError> {
+    async fn refresh(&self) -> force::error::Result<AccessToken> {
         self.authenticate().await
     }
 }
@@ -58,7 +58,7 @@ async fn test_query_more_with_absolute_url() -> Result<()> {
     let auth = MockAuthenticator::new(&mock_server.uri());
 
     // Construct an absolute URL for the next page
-    let next_page_path = "/services/data/v60.0/query/next-page";
+    let next_page_path = "/services/data/v67.0/query/next-page";
     let absolute_next_url = format!("{}{}", mock_server.uri(), next_page_path);
 
     // Mock the next page request

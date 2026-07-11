@@ -167,7 +167,8 @@ impl<A: crate::auth::Authenticator> GraphqlHandler<A> {
 #[cfg(test)]
 mod tests {
     use crate::client::{ForceClient, builder};
-    use crate::test_support::{MockAuthenticator, Must, MustMsg};
+    use crate::test_utils::mock_auth::MockAuthenticator;
+    use crate::test_utils::must::{Must, MustMsg};
 
     async fn test_client() -> ForceClient<MockAuthenticator> {
         let auth = MockAuthenticator::new("test_token", "https://test.salesforce.com");
@@ -208,7 +209,7 @@ mod tests {
         let client = test_client().await;
         let handler = client.graphql();
         let url = handler.resolve_graphql_url().await.must();
-        assert!(url.contains("v60.0"), "URL should contain API version");
+        assert!(url.contains("v67.0"), "URL should contain API version");
     }
 
     #[tokio::test]
@@ -236,7 +237,8 @@ mod integration_tests {
 
     use super::*;
     use crate::client::builder;
-    use crate::test_support::{MockAuthenticator, Must};
+    use crate::test_utils::mock_auth::MockAuthenticator;
+    use crate::test_utils::must::Must;
     use serde::Deserialize;
     use serde_json::json;
     use wiremock::matchers::{body_json, header, method, path};
@@ -255,7 +257,7 @@ mod integration_tests {
         let (mock_server, handler) = setup().await;
 
         Mock::given(method("POST"))
-            .and(path("/services/data/v60.0/graphql"))
+            .and(path("/services/data/v67.0/graphql"))
             .and(header("Authorization", "Bearer test_token"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "data": {
@@ -294,7 +296,7 @@ mod integration_tests {
         });
 
         Mock::given(method("POST"))
-            .and(path("/services/data/v60.0/graphql"))
+            .and(path("/services/data/v67.0/graphql"))
             .and(body_json(&expected_body))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "data": {"uiapi": {"query": {"Account": {"edges": []}}}}
@@ -327,7 +329,7 @@ mod integration_tests {
         });
 
         Mock::given(method("POST"))
-            .and(path("/services/data/v60.0/graphql"))
+            .and(path("/services/data/v67.0/graphql"))
             .and(body_json(&expected_body))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "data": {"result": "ok"}
@@ -349,7 +351,7 @@ mod integration_tests {
         let (mock_server, handler) = setup().await;
 
         Mock::given(method("POST"))
-            .and(path("/services/data/v60.0/graphql"))
+            .and(path("/services/data/v67.0/graphql"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "data": null,
                 "errors": []
@@ -376,7 +378,7 @@ mod integration_tests {
         let (mock_server, handler) = setup().await;
 
         Mock::given(method("POST"))
-            .and(path("/services/data/v60.0/graphql"))
+            .and(path("/services/data/v67.0/graphql"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "data": null,
                 "errors": [
@@ -409,7 +411,7 @@ mod integration_tests {
         let (mock_server, handler) = setup().await;
 
         Mock::given(method("POST"))
-            .and(path("/services/data/v60.0/graphql"))
+            .and(path("/services/data/v67.0/graphql"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "data": {"partial": "result"},
                 "errors": [{"message": "Insufficient access to field 'Revenue'"}]
@@ -429,7 +431,7 @@ mod integration_tests {
         let (mock_server, handler) = setup().await;
 
         Mock::given(method("POST"))
-            .and(path("/services/data/v60.0/graphql"))
+            .and(path("/services/data/v67.0/graphql"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "data": {"partial": "result"},
                 "errors": [{"message": "Warning: deprecated field"}]
@@ -454,7 +456,7 @@ mod integration_tests {
         let (mock_server, handler) = setup().await;
 
         Mock::given(method("POST"))
-            .and(path("/services/data/v60.0/graphql"))
+            .and(path("/services/data/v67.0/graphql"))
             .respond_with(ResponseTemplate::new(500).set_body_string("Internal Server Error"))
             .expect(1)
             .mount(&mock_server)
@@ -479,7 +481,7 @@ mod integration_tests {
         let (mock_server, handler) = setup().await;
 
         Mock::given(method("POST"))
-            .and(path("/services/data/v60.0/graphql"))
+            .and(path("/services/data/v67.0/graphql"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "data": {"count": 42}
             })))
@@ -496,7 +498,7 @@ mod integration_tests {
         let (mock_server, handler) = setup().await;
 
         Mock::given(method("POST"))
-            .and(path("/services/data/v60.0/graphql"))
+            .and(path("/services/data/v67.0/graphql"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "data": {"result": "ok"}
             })))
@@ -522,7 +524,7 @@ mod integration_tests {
         }
 
         Mock::given(method("POST"))
-            .and(path("/services/data/v60.0/graphql"))
+            .and(path("/services/data/v67.0/graphql"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "data": {"name": "Acme", "count": 7}
             })))
@@ -541,7 +543,7 @@ mod integration_tests {
         let (mock_server, handler) = setup().await;
 
         Mock::given(method("POST"))
-            .and(path("/services/data/v60.0/graphql"))
+            .and(path("/services/data/v67.0/graphql"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({})))
             .expect(1)
             .mount(&mock_server)
@@ -561,7 +563,7 @@ mod integration_tests {
         let (mock_server, handler) = setup().await;
 
         Mock::given(method("POST"))
-            .and(path("/services/data/v60.0/graphql"))
+            .and(path("/services/data/v67.0/graphql"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "data": {
                     "uiapi": {

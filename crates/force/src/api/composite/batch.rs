@@ -151,8 +151,8 @@ impl<A: Authenticator> BatchRequest<A> {
     ///
     /// * `method` - HTTP method (GET, POST, etc.)
     /// * `url` - REST resource URL. The API version is added automatically when omitted
-    ///   (for example, `"query?q=Select+Id+From+Account"` becomes `"v60.0/query?..."`
-    ///   for a `v60.0` client).
+    ///   (for example, `"query?q=Select+Id+From+Account"` becomes `"v67.0/query?..."`
+    ///   for a `v67.0` client).
     /// * `body` - Optional JSON body
     ///
     /// # Errors
@@ -268,14 +268,10 @@ impl<A: Authenticator> BatchRequest<A> {
         let url = self.handler.inner.resolve_url("composite/batch").await?;
 
         let api_version = self.handler.inner.config.api_version.as_str();
-        let batch_requests = self
-            .requests
-            .into_iter()
-            .map(|mut request| {
-                request.url = normalize_subrequest_url(&request.url, api_version);
-                request
-            })
-            .collect();
+        let mut batch_requests = self.requests;
+        for request in &mut batch_requests {
+            request.url = normalize_subrequest_url(std::mem::take(&mut request.url), api_version);
+        }
 
         let request_body = BatchRequestBody {
             batch_requests,
@@ -297,22 +293,33 @@ impl<A: Authenticator> BatchRequest<A> {
     }
 }
 
-fn normalize_subrequest_url(url: &str, api_version: &str) -> String {
-    let trimmed = url.trim_start_matches('/');
-
-    if trimmed.starts_with("http://") || trimmed.starts_with("https://") {
-        return url.to_string();
+/// ⚡ Bolt: Takes ownership of the `String` to avoid unnecessary allocations.
+/// In cases where the URL is already normalized, we reuse the existing allocation.
+fn normalize_subrequest_url(mut url: String, api_version: &str) -> String {
+    let trim_len = url.len() - url.trim_start_matches('/').len();
+    if trim_len > 0 {
+        url.drain(..trim_len);
     }
 
-    if let Some(rest) = trimmed.strip_prefix("services/data/") {
-        return rest.to_string();
+    if url.starts_with("http://") || url.starts_with("https://") {
+        return url;
     }
 
-    if is_api_version_prefixed(trimmed) {
-        return trimmed.to_string();
+    if url.starts_with("services/data/") {
+        url.drain(..14); // "services/data/".len() == 14
+        return url;
     }
 
-    format!("{}/{}", api_version.trim_matches('/'), trimmed)
+    if is_api_version_prefixed(&url) {
+        return url;
+    }
+
+    let api_ver = api_version.trim_matches('/');
+    let mut new_url = String::with_capacity(api_ver.len() + 1 + url.len());
+    new_url.push_str(api_ver);
+    new_url.push('/');
+    new_url.push_str(&url);
+    new_url
 }
 
 fn is_api_version_prefixed(url: &str) -> bool {
@@ -379,7 +386,7 @@ pub struct BatchSubResponse {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_support::{Must, MustMsg};
+    use crate::test_utils::must::{Must, MustMsg};
 
     // Unit tests for serialization logic
 
@@ -445,7 +452,7 @@ mod tests {
     }
 
     use crate::client::builder as client_builder;
-    use crate::test_support::MockAuthenticator;
+    use crate::test_utils::mock_auth::MockAuthenticator;
 
     async fn create_builder() -> BatchRequest<MockAuthenticator> {
         let auth = MockAuthenticator::new("token", "https://test.salesforce.com");
@@ -472,12 +479,12 @@ mod tests {
             .must_msg("failed to build client");
 
         Mock::given(method("POST"))
-            .and(path("/services/data/v60.0/composite/batch"))
+            .and(path("/services/data/v67.0/composite/batch"))
             .and(body_json(serde_json::json!({
                 "batchRequests": [
                     {
                         "method": "GET",
-                        "url": "v60.0/limits"
+                        "url": "v67.0/limits"
                     }
                 ],
                 "haltOnError": false

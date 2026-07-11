@@ -23,7 +23,7 @@ struct MyMockAuthenticator {
 impl Authenticator for MyMockAuthenticator {
     async fn authenticate(&self) -> Result<AccessToken> {
         Ok(AccessToken::from_response(TokenResponse {
-            access_token: self.token.clone(),
+            access_token: secrecy::SecretString::new(self.token.clone().into()),
             instance_url: self.instance_url.clone(),
             token_type: "Bearer".to_string(),
             issued_at: "1704067200000".to_string(),
@@ -64,12 +64,12 @@ async fn test_query_batch_pagination_and_update() {
     // We will update the first one and delete the second one.
     // nextRecordsUrl points to page 2.
     Mock::given(method("GET"))
-        .and(path("/services/data/v60.0/query"))
+        .and(path("/services/data/v67.0/query"))
         .and(query_param("q", "SELECT Id, Name FROM Account"))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
             "totalSize": 4,
             "done": false,
-            "nextRecordsUrl": "/services/data/v60.0/query/page2",
+            "nextRecordsUrl": "/services/data/v67.0/query/page2",
             "records": [
                 {"Id": "001000000000001", "Name": "Account 1"},
                 {"Id": "001000000000002", "Name": "Account 2"}
@@ -81,7 +81,7 @@ async fn test_query_batch_pagination_and_update() {
     // 2. Mock Query Page 2 (2 records)
     // We will ignore the first one and create a child for the second one.
     Mock::given(method("GET"))
-        .and(path("/services/data/v60.0/query/page2"))
+        .and(path("/services/data/v67.0/query/page2"))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
             "totalSize": 4,
             "done": true,
@@ -97,7 +97,7 @@ async fn test_query_batch_pagination_and_update() {
     // We expect one batch request since we have < 25 operations.
     // Ops: Update(Acc1), Delete(Acc2), Create(Contact for Acc4).
     Mock::given(method("POST"))
-        .and(path("/services/data/v60.0/composite/batch"))
+        .and(path("/services/data/v67.0/composite/batch"))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
             "hasErrors": false,
             "results": [
@@ -156,7 +156,7 @@ async fn test_query_batch_multiple_batches() {
     }
 
     Mock::given(method("GET"))
-        .and(path("/services/data/v60.0/query"))
+        .and(path("/services/data/v67.0/query"))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
             "totalSize": 26,
             "done": true,
@@ -174,7 +174,7 @@ async fn test_query_batch_multiple_batches() {
     }
 
     Mock::given(method("POST"))
-        .and(path("/services/data/v60.0/composite/batch"))
+        .and(path("/services/data/v67.0/composite/batch"))
         .and(wiremock::matchers::body_string_contains("001000000000000"))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
             "hasErrors": false,
@@ -186,7 +186,7 @@ async fn test_query_batch_multiple_batches() {
     // Batch 2 (Specific, 1 item, ID 25)
     // Mounted LAST, checked FIRST
     Mock::given(method("POST"))
-        .and(path("/services/data/v60.0/composite/batch"))
+        .and(path("/services/data/v67.0/composite/batch"))
         .and(wiremock::matchers::body_string_contains("001000000000025"))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
             "hasErrors": false,
@@ -220,7 +220,7 @@ async fn test_query_batch_halt_on_error() {
         .expect("client build failed");
 
     Mock::given(method("GET"))
-        .and(path("/services/data/v60.0/query"))
+        .and(path("/services/data/v67.0/query"))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
             "totalSize": 1,
             "done": true,
@@ -230,7 +230,7 @@ async fn test_query_batch_halt_on_error() {
         .await;
 
     Mock::given(method("POST"))
-        .and(path("/services/data/v60.0/composite/batch"))
+        .and(path("/services/data/v67.0/composite/batch"))
         .and(wiremock::matchers::body_string_contains(
             "haltOnError\":true",
         ))
@@ -266,7 +266,7 @@ async fn test_query_batch_empty_results() {
         .expect("client build failed");
 
     Mock::given(method("GET"))
-        .and(path("/services/data/v60.0/query"))
+        .and(path("/services/data/v67.0/query"))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
             "totalSize": 0,
             "done": true,
@@ -302,7 +302,7 @@ async fn test_query_batch_mixed_results() {
 
     // 1. Mock Query with 2 records
     Mock::given(method("GET"))
-        .and(path("/services/data/v60.0/query"))
+        .and(path("/services/data/v67.0/query"))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
             "totalSize": 2,
             "done": true,
@@ -316,7 +316,7 @@ async fn test_query_batch_mixed_results() {
 
     // 2. Mock Batch Request with 1 success, 1 failure
     Mock::given(method("POST"))
-        .and(path("/services/data/v60.0/composite/batch"))
+        .and(path("/services/data/v67.0/composite/batch"))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
             "hasErrors": true,
             "results": [
@@ -353,7 +353,7 @@ async fn test_query_batch_halt_on_error_false() {
         .expect("client build failed");
 
     Mock::given(method("GET"))
-        .and(path("/services/data/v60.0/query"))
+        .and(path("/services/data/v67.0/query"))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
             "totalSize": 1,
             "done": true,
@@ -363,7 +363,7 @@ async fn test_query_batch_halt_on_error_false() {
         .await;
 
     Mock::given(method("POST"))
-        .and(path("/services/data/v60.0/composite/batch"))
+        .and(path("/services/data/v67.0/composite/batch"))
         .and(wiremock::matchers::body_string_contains(
             "haltOnError\":false",
         ))
@@ -399,7 +399,7 @@ async fn test_query_batch_returns_default_stats_if_empty() {
         .expect("client build failed");
 
     Mock::given(method("GET"))
-        .and(path("/services/data/v60.0/query"))
+        .and(path("/services/data/v67.0/query"))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
             "totalSize": 0,
             "done": true,
@@ -435,7 +435,7 @@ async fn test_query_batch_ops_counts() {
 
     // 1. Mock Query
     Mock::given(method("GET"))
-        .and(path("/services/data/v60.0/query"))
+        .and(path("/services/data/v67.0/query"))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
             "totalSize": 2,
             "done": true,
@@ -449,7 +449,7 @@ async fn test_query_batch_ops_counts() {
 
     // 2. Mock Batch Request with 1 success, 1 failure
     Mock::given(method("POST"))
-        .and(path("/services/data/v60.0/composite/batch"))
+        .and(path("/services/data/v67.0/composite/batch"))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
             "hasErrors": true,
             "results": [

@@ -90,8 +90,7 @@ impl<'a, A: Authenticator> QueryBatch<'a, A> {
                 if let Some(op) = transform(record) {
                     buffer.push(op);
                     if buffer.len() >= 25 {
-                        self.flush_batch(buffer, &mut stats).await?;
-                        buffer = Vec::with_capacity(25);
+                        self.flush_batch(&mut buffer, &mut stats).await?;
                     }
                 }
             }
@@ -109,13 +108,13 @@ impl<'a, A: Authenticator> QueryBatch<'a, A> {
 
         // Flush remaining
         if !buffer.is_empty() {
-            self.flush_batch(buffer, &mut stats).await?;
+            self.flush_batch(&mut buffer, &mut stats).await?;
         }
 
         Ok(stats)
     }
 
-    async fn flush_batch(&self, ops: Vec<BatchOp>, stats: &mut BatchStats) -> Result<()> {
+    async fn flush_batch(&self, ops: &mut Vec<BatchOp>, stats: &mut BatchStats) -> Result<()> {
         if ops.is_empty() {
             return Ok(());
         }
@@ -126,7 +125,7 @@ impl<'a, A: Authenticator> QueryBatch<'a, A> {
             .batch()
             .halt_on_error(self.halt_on_error);
 
-        for op in ops {
+        for op in ops.drain(..) {
             batch = match op {
                 BatchOp::Update(sobject, id, fields) => batch.patch(&sobject, &id, fields)?,
                 BatchOp::Delete(sobject, id) => batch.delete(&sobject, &id)?,
@@ -152,7 +151,8 @@ impl<'a, A: Authenticator> QueryBatch<'a, A> {
 mod tests {
     use super::*;
     use crate::client::builder;
-    use crate::test_support::{MockAuthenticator, Must};
+    use crate::test_utils::mock_auth::MockAuthenticator;
+    use crate::test_utils::must::Must;
     use serde_json::json;
     use wiremock::matchers::{method, path, query_param};
     use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -174,7 +174,7 @@ mod tests {
         let mut page1_records = Vec::new();
         for i in 0..20 {
             page1_records.push(json!({
-                "attributes": { "type": "Account", "url": format!("/services/data/v60.0/sobjects/Account/0010000000000{:02}AAA", i) },
+                "attributes": { "type": "Account", "url": format!("/services/data/v67.0/sobjects/Account/0010000000000{:02}AAA", i) },
                 "Id": format!("0010000000000{:02}AAA", i)
             }));
         }
@@ -182,19 +182,19 @@ mod tests {
         let mut page2_records = Vec::new();
         for i in 20..30 {
             page2_records.push(json!({
-                "attributes": { "type": "Account", "url": format!("/services/data/v60.0/sobjects/Account/0010000000000{:02}AAA", i) },
+                "attributes": { "type": "Account", "url": format!("/services/data/v67.0/sobjects/Account/0010000000000{:02}AAA", i) },
                 "Id": format!("0010000000000{:02}AAA", i)
             }));
         }
 
         // Mock the first query response
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/query"))
+            .and(path("/services/data/v67.0/query"))
             .and(query_param("q", "SELECT Id FROM Account"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "totalSize": 30,
                 "done": false,
-                "nextRecordsUrl": "/services/data/v60.0/query/01gD0000002HU6K",
+                "nextRecordsUrl": "/services/data/v67.0/query/01gD0000002HU6K",
                 "records": page1_records
             })))
             .mount(&mock_server)
@@ -202,7 +202,7 @@ mod tests {
 
         // Mock the next page query response
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/query/01gD0000002HU6K"))
+            .and(path("/services/data/v67.0/query/01gD0000002HU6K"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "totalSize": 30,
                 "done": true,
@@ -222,7 +222,7 @@ mod tests {
         }
 
         Mock::given(method("POST"))
-            .and(path("/services/data/v60.0/composite/batch"))
+            .and(path("/services/data/v67.0/composite/batch"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "hasErrors": false,
                 "results": responses_page2
@@ -232,7 +232,7 @@ mod tests {
             .await;
 
         Mock::given(method("POST"))
-            .and(path("/services/data/v60.0/composite/batch"))
+            .and(path("/services/data/v67.0/composite/batch"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "hasErrors": false,
                 "results": responses_page1
@@ -267,13 +267,13 @@ mod tests {
         let mut records = Vec::new();
         for i in 0..10 {
             records.push(json!({
-                "attributes": { "type": "Contact", "url": format!("/services/data/v60.0/sobjects/Contact/0030000000000{:02}AAA", i) },
+                "attributes": { "type": "Contact", "url": format!("/services/data/v67.0/sobjects/Contact/0030000000000{:02}AAA", i) },
                 "Id": format!("0030000000000{:02}AAA", i)
             }));
         }
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/query"))
+            .and(path("/services/data/v67.0/query"))
             .and(query_param("q", "SELECT Id FROM Contact"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "totalSize": 10,
@@ -295,7 +295,7 @@ mod tests {
         }
 
         Mock::given(method("POST"))
-            .and(path("/services/data/v60.0/composite/batch"))
+            .and(path("/services/data/v67.0/composite/batch"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "hasErrors": true,
                 "results": results

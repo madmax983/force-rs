@@ -30,31 +30,30 @@
 //! ```
 
 use crate::types::describe::{FieldDescribe, FieldType, SObjectDescribe};
-use std::collections::HashMap;
 
 /// Represents a change in a field's definition.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FieldChange {
+pub struct FieldChange<'a> {
     /// The name of the field.
-    pub name: String,
+    pub name: &'a str,
     /// The old type of the field.
-    pub old_type: FieldType,
+    pub old_type: &'a FieldType,
     /// The new type of the field.
-    pub new_type: FieldType,
+    pub new_type: &'a FieldType,
 }
 
 /// The result of comparing two schema definitions.
 #[derive(Debug, Clone, PartialEq, Default)]
-pub struct SchemaDiffResult {
+pub struct SchemaDiffResult<'a> {
     /// Fields that were added in the new schema.
-    pub added: Vec<FieldDescribe>,
+    pub added: Vec<&'a FieldDescribe>,
     /// Fields that were removed in the new schema.
-    pub removed: Vec<FieldDescribe>,
+    pub removed: Vec<&'a FieldDescribe>,
     /// Fields whose types have changed.
-    pub changed: Vec<FieldChange>,
+    pub changed: Vec<FieldChange<'a>>,
 }
 
-impl SchemaDiffResult {
+impl SchemaDiffResult<'_> {
     /// Returns true if there are no differences between the schemas.
     #[must_use]
     pub fn is_empty(&self) -> bool {
@@ -72,57 +71,72 @@ impl SchemaDiffResult {
 /// # Returns
 ///
 /// A `SchemaDiffResult` containing added, removed, and changed fields.
+/// ⚡ Bolt: Uses borrowed references tied to the original describe payloads instead
+/// of deep cloning string vectors and objects.
 #[must_use]
-pub fn compare_schemas(
-    old_schema: &SObjectDescribe,
-    new_schema: &SObjectDescribe,
-) -> SchemaDiffResult {
+pub fn compare_schemas<'a>(
+    old_schema: &'a SObjectDescribe,
+    new_schema: &'a SObjectDescribe,
+) -> SchemaDiffResult<'a> {
     let mut result = SchemaDiffResult::default();
 
-    // ⚡ Bolt: Use .as_str() directly in the map instead of doing a heap allocation (.clone())
-    let mut old_fields: HashMap<&str, &FieldDescribe> =
-        HashMap::with_capacity(old_schema.fields.len());
-    for field in &old_schema.fields {
-        old_fields.insert(field.name.as_str(), field);
-    }
+    // ⚡ Bolt: Sort fields and use an O(N) linear merge to avoid allocating a `HashMap`.
+    // This removes the hashing overhead and map allocations entirely.
+    let mut old_fields: Vec<&'a FieldDescribe> = old_schema.fields.iter().collect();
+    let mut new_fields: Vec<&'a FieldDescribe> = new_schema.fields.iter().collect();
 
-    // Find added and changed fields
-    // ⚡ Bolt: Use new_field.name.as_str() instead of doing a heap allocation (.clone())
-    for new_field in &new_schema.fields {
-        if let Some(old_field) = old_fields.remove(new_field.name.as_str()) {
-            if old_field.type_ != new_field.type_ {
-                result.changed.push(FieldChange {
-                    name: new_field.name.clone(),
-                    old_type: old_field.type_.clone(),
-                    new_type: new_field.type_.clone(),
-                });
+    old_fields.sort_by(|a, b| crate::schema::cmp_field_names(&a.name, &b.name));
+    new_fields.sort_by(|a, b| crate::schema::cmp_field_names(&a.name, &b.name));
+
+    let mut old_iter = old_fields.into_iter();
+    let mut new_iter = new_fields.into_iter();
+
+    let mut current_old = old_iter.next();
+    let mut current_new = new_iter.next();
+
+    while let (Some(old), Some(new)) = (current_old, current_new) {
+        match crate::schema::cmp_field_names(&old.name, &new.name) {
+            std::cmp::Ordering::Less => {
+                result.removed.push(old);
+                current_old = old_iter.next();
             }
-        } else {
-            result.added.push(new_field.clone());
+            std::cmp::Ordering::Greater => {
+                result.added.push(new);
+                current_new = new_iter.next();
+            }
+            std::cmp::Ordering::Equal => {
+                if old.type_ != new.type_ {
+                    result.changed.push(FieldChange {
+                        name: new.name.as_str(),
+                        old_type: &old.type_,
+                        new_type: &new.type_,
+                    });
+                }
+                current_old = old_iter.next();
+                current_new = new_iter.next();
+            }
         }
     }
 
-    // Find removed fields
-    // ⚡ Bolt: Using `extend` automatically pre-allocates the exact capacity needed from the iterator's size hint, preventing multiple vector reallocations.
-    result.removed.extend(old_fields.into_values().cloned());
+    // Drain remaining old fields as removed
+    if let Some(old) = current_old {
+        result.removed.push(old);
+        result.removed.extend(old_iter);
+    }
 
-    // Sort to ensure deterministic output
-    result
-        .added
-        .sort_by(|a, b| crate::schema::cmp_field_names(&a.name, &b.name));
-    result
-        .removed
-        .sort_by(|a, b| crate::schema::cmp_field_names(&a.name, &b.name));
-    result
-        .changed
-        .sort_by(|a, b| crate::schema::cmp_field_names(&a.name, &b.name));
+    // Drain remaining new fields as added
+    if let Some(new) = current_new {
+        result.added.push(new);
+        result.added.extend(new_iter);
+    }
 
+    // We do not need to sort the result vectors since we traversed in sorted order.
     result
 }
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_support::Must;
+    use crate::test_utils::must::Must;
     use serde_json::json;
 
     fn create_mock_describe(fields_json: &serde_json::Value) -> SObjectDescribe {
@@ -137,7 +151,7 @@ mod tests {
             "mergeable": true, "mruEnabled": true, "replicateable": true, "retrieveable": true,
             "searchable": true, "triggerable": true, "undeletable": true, "updateable": true,
             "urls": {}, "childRelationships": [], "recordTypeInfos": [],
-            "fields": fields_json.clone()
+            "fields": fields_json
         });
         serde_json::from_value(describe_json).must()
     }
@@ -240,7 +254,7 @@ mod tests {
         assert_eq!(diff.changed.len(), 1);
 
         assert_eq!(diff.changed[0].name, "Age");
-        assert_eq!(diff.changed[0].old_type, FieldType::Int);
-        assert_eq!(diff.changed[0].new_type, FieldType::Double);
+        assert_eq!(diff.changed[0].old_type, &FieldType::Int);
+        assert_eq!(diff.changed[0].new_type, &FieldType::Double);
     }
 }

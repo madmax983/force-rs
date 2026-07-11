@@ -31,7 +31,7 @@ impl MockAuthenticator {
 
 fn create_token(token_value: String, expires_in_seconds: u64) -> AccessToken {
     let response = TokenResponse {
-        access_token: token_value,
+        access_token: secrecy::SecretString::new(token_value.into()),
         instance_url: "https://test.salesforce.com".to_string(),
         token_type: "Bearer".to_string(),
         issued_at: Utc::now().timestamp_millis().to_string(),

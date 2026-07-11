@@ -194,8 +194,8 @@ impl<A: crate::auth::authenticator::Authenticator> ForceClient<A> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_support::MockAuthenticator;
-    use crate::test_support::Must;
+    use crate::test_utils::mock_auth::MockAuthenticator;
+    use crate::test_utils::must::Must;
 
     #[test]
     fn test_builder_creates_noauth_state() {

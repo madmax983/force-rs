@@ -110,7 +110,7 @@ pub fn write_changelog(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_support::Must;
+    use crate::test_utils::must::Must;
     use serde_json::json;
 
     fn create_mock_describe(fields_json: &serde_json::Value) -> SObjectDescribe {
@@ -125,7 +125,7 @@ mod tests {
             "mergeable": true, "mruEnabled": true, "replicateable": true, "retrieveable": true,
             "searchable": true, "triggerable": true, "undeletable": true, "updateable": true,
             "urls": {}, "childRelationships": [], "recordTypeInfos": [],
-            "fields": fields_json.clone()
+            "fields": fields_json
         });
         serde_json::from_value(describe_json).must()
     }

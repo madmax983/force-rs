@@ -107,7 +107,8 @@ impl<'a, A: Authenticator> DataSeeder<'a, A> {
 mod tests {
     use super::*;
     use crate::client::builder;
-    use crate::test_support::{MockAuthenticator, Must};
+    use crate::test_utils::mock_auth::MockAuthenticator;
+    use crate::test_utils::must::Must;
     use serde_json::json;
     use wiremock::matchers::{method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -156,14 +157,14 @@ mod tests {
         }"#).must();
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/sobjects/Account/describe"))
+            .and(path("/services/data/v67.0/sobjects/Account/describe"))
             .respond_with(ResponseTemplate::new(200).set_body_json(describe_json))
             .mount(&mock_server)
             .await;
 
         // Mock the composite batch response
         Mock::given(method("POST"))
-            .and(path("/services/data/v60.0/composite/batch"))
+            .and(path("/services/data/v67.0/composite/batch"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "hasErrors": false,
                 "results": [

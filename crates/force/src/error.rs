@@ -124,6 +124,10 @@ pub enum HttpError {
     #[error("invalid URL: {0}")]
     InvalidUrl(String),
 
+    /// Request body could not be built or cloned.
+    #[error("request build error: {0}")]
+    RequestBuildError(String),
+
     /// Response payload too large.
     #[error("response payload exceeded the safety limit of {limit_bytes} bytes")]
     PayloadTooLarge {
@@ -252,7 +256,7 @@ pub type Result<T> = std::result::Result<T, ForceError>;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_support::Must;
+    use crate::test_utils::must::Must;
 
     #[test]
     fn test_authentication_error_display() {

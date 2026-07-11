@@ -60,19 +60,17 @@ impl<'a> DataMasker<'a> {
     /// It iterates through the record's keys, checks the schema for the corresponding
     /// field, and if it's sensitive (e.g., Email, Phone, Encrypted), replaces the
     /// value with a masked version.
+    /// ⚡ Bolt: Iterate over fields mutably to find and update sensitive ones in place.
+    /// This eliminates intermediate vector allocations and string cloning.
     pub fn mask_record(&self, record: &mut DynamicSObject) {
-        // Collect keys first to avoid borrowing issues during mutation
-        let keys: Vec<String> = record.fields.keys().cloned().collect();
+        for (key, val) in &mut record.fields {
+            if val.is_null() {
+                continue;
+            }
 
-        for key in keys {
-            if let Some(field) = self.find_field(&key) {
+            if let Some(field) = self.find_field(key) {
                 if Self::is_sensitive(field) {
-                    if let Some(val) = record.fields.get(&key) {
-                        if !val.is_null() {
-                            let masked_val = Self::generate_mask(field, val);
-                            record.set_field(&key, masked_val);
-                        }
-                    }
+                    *val = Self::generate_mask(field, val);
                 }
             }
         }
@@ -131,7 +129,7 @@ impl<'a> DataMasker<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_support::Must;
+    use crate::test_utils::must::Must;
     use crate::types::{Attributes, SalesforceId};
     use serde_json::json;
 
@@ -176,7 +174,7 @@ mod tests {
 
     fn create_mock_record(fields: serde_json::Map<String, Value>) -> DynamicSObject {
         let id = SalesforceId::new("003000000000001AAA").must();
-        let attrs = Attributes::new("Contact", &id, "v60.0");
+        let attrs = Attributes::new("Contact", &id, "v67.0");
         let mut record = DynamicSObject::new(attrs);
         record.fields = fields;
         record
@@ -237,5 +235,97 @@ mod tests {
 
         let revenue = record.get_field_as::<f64>("Revenue").must().must();
         assert!((revenue - 0.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_mask_record_name_heuristics() {
+        let describe = create_mock_describe(&json!([
+            mock_field("Password__c", "string", false),
+            mock_field("CreditCardNumber", "string", false),
+            mock_field("ClientSecret", "string", false),
+            mock_field("RegularField", "string", false)
+        ]));
+
+        let masker = DataMasker::new(&describe);
+
+        let mut record_fields = serde_json::Map::new();
+        record_fields.insert("Password__c".to_string(), json!("my_password"));
+        record_fields.insert("CreditCardNumber".to_string(), json!("1234-5678-9012-3456"));
+        record_fields.insert("ClientSecret".to_string(), json!("secret_token"));
+        record_fields.insert("RegularField".to_string(), json!("safe_data"));
+
+        let mut record = create_mock_record(record_fields);
+
+        masker.mask_record(&mut record);
+
+        assert_eq!(
+            record.get_field_as::<String>("Password__c").must().must(),
+            "********"
+        );
+        assert_eq!(
+            record
+                .get_field_as::<String>("CreditCardNumber")
+                .must()
+                .must(),
+            "********"
+        );
+        assert_eq!(
+            record.get_field_as::<String>("ClientSecret").must().must(),
+            "********"
+        );
+        assert_eq!(
+            record.get_field_as::<String>("RegularField").must().must(),
+            "safe_data"
+        );
+    }
+
+    #[test]
+    fn test_mask_record_null_values() {
+        let describe = create_mock_describe(&json!([
+            mock_field("Email", "email", false),
+            mock_field("SSN__c", "string", false)
+        ]));
+
+        let masker = DataMasker::new(&describe);
+
+        let mut record_fields = serde_json::Map::new();
+        record_fields.insert("Email".to_string(), json!(null));
+        record_fields.insert("SSN__c".to_string(), json!(null));
+
+        let mut record = create_mock_record(record_fields);
+
+        masker.mask_record(&mut record);
+
+        assert!(record.get_field("Email").must().is_null());
+        assert!(record.get_field("SSN__c").must().is_null());
+    }
+
+    #[test]
+    fn test_mask_record_boolean_and_numbers() {
+        let describe = create_mock_describe(&json!([
+            mock_field("SecretBoolean", "boolean", true),
+            mock_field("SecretInt", "int", true),
+            mock_field("SecretDouble", "double", true),
+            mock_field("SecretPercent", "percent", true)
+        ]));
+
+        let masker = DataMasker::new(&describe);
+
+        let mut record_fields = serde_json::Map::new();
+        record_fields.insert("SecretBoolean".to_string(), json!(true));
+        record_fields.insert("SecretInt".to_string(), json!(42));
+        record_fields.insert("SecretDouble".to_string(), json!(42.5));
+        record_fields.insert("SecretPercent".to_string(), json!(99.9));
+
+        let mut record = create_mock_record(record_fields);
+
+        masker.mask_record(&mut record);
+
+        assert!(!record.get_field_as::<bool>("SecretBoolean").must().must());
+        assert_eq!(record.get_field_as::<i64>("SecretInt").must().must(), 0);
+        let double_val = record.get_field_as::<f64>("SecretDouble").must().must();
+        assert!((double_val - 0.0).abs() < f64::EPSILON);
+        let percent_val = record.get_field_as::<f64>("SecretPercent").must().must();
+        assert!((percent_val - 0.0).abs() < f64::EPSILON);
     }
 }

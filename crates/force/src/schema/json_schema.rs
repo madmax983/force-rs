@@ -134,7 +134,7 @@ fn generate_field_schema(field: &FieldDescribe) -> Value {
 #[cfg(feature = "schema")]
 mod tests {
     use super::*;
-    use crate::test_support::{MockFieldDescribeBuilder, MockSObjectDescribeBuilder};
+    use crate::test_utils::mock_describe::{MockFieldDescribeBuilder, MockSObjectDescribeBuilder};
 
     #[test]
     fn test_json_schema_generator_basic() {
@@ -179,5 +179,64 @@ mod tests {
 
         assert_eq!(props["Name"]["type"], "string");
         assert_eq!(props["Name"]["maxLength"], 255);
+    }
+
+    #[test]
+    fn test_json_schema_generator_all_types() {
+        let describe = MockSObjectDescribeBuilder::new("AllTypes")
+            .field(MockFieldDescribeBuilder::new("BoolField", FieldType::Boolean).build())
+            .field(MockFieldDescribeBuilder::new("IntField", FieldType::Int).build())
+            .field(MockFieldDescribeBuilder::new("DoubleField", FieldType::Double).build())
+            .field(MockFieldDescribeBuilder::new("PercentField", FieldType::Percent).build())
+            .field(MockFieldDescribeBuilder::new("CurrencyField", FieldType::Currency).build())
+            .field(MockFieldDescribeBuilder::new("DateField", FieldType::Date).build())
+            .field(MockFieldDescribeBuilder::new("DatetimeField", FieldType::Datetime).build())
+            .field(MockFieldDescribeBuilder::new("Base64Field", FieldType::Base64).build())
+            .field(
+                MockFieldDescribeBuilder::new("PicklistField", FieldType::Picklist)
+                    .picklist_values(vec![
+                        crate::types::describe::PicklistValue {
+                            active: true,
+                            default_value: false,
+                            label: "A".to_string(),
+                            valid_for: None,
+                            value: "A".to_string(),
+                        },
+                        crate::types::describe::PicklistValue {
+                            active: true,
+                            default_value: false,
+                            label: "B".to_string(),
+                            valid_for: None,
+                            value: "B".to_string(),
+                        },
+                    ])
+                    .build(),
+            )
+            .field(MockFieldDescribeBuilder::new("UnknownField", FieldType::AnyType).build())
+            .build();
+
+        let schema = generate_json_schema(&describe);
+        let props = &schema["properties"];
+
+        assert_eq!(props["BoolField"]["type"], "boolean");
+        assert_eq!(props["IntField"]["type"], "integer");
+        assert_eq!(props["DoubleField"]["type"], "number");
+        assert_eq!(props["PercentField"]["type"], "number");
+        assert_eq!(props["CurrencyField"]["type"], "number");
+
+        assert_eq!(props["DateField"]["type"], "string");
+        assert_eq!(props["DateField"]["format"], "date");
+
+        assert_eq!(props["DatetimeField"]["type"], "string");
+        assert_eq!(props["DatetimeField"]["format"], "date-time");
+
+        assert_eq!(props["Base64Field"]["type"], "string");
+        assert_eq!(props["Base64Field"]["contentEncoding"], "base64");
+
+        assert_eq!(props["PicklistField"]["type"], "string");
+        assert_eq!(props["PicklistField"]["enum"][0], "A");
+        assert_eq!(props["PicklistField"]["enum"][1], "B");
+
+        assert_eq!(props["UnknownField"]["type"], "string");
     }
 }

@@ -56,11 +56,11 @@ const MAX_QUERY_INPUT_BYTES: usize = 100_000;
 /// ```ignore
 /// // REST API (prefix = "")
 /// client.rest().create("Account", &data).await?;
-/// // => POST {instance}/services/data/v60.0/sobjects/Account
+/// // => POST {instance}/services/data/v67.0/sobjects/Account
 ///
 /// // Tooling API (prefix = "tooling")
 /// client.tooling().create("ApexClass", &data).await?;
-/// // => POST {instance}/services/data/v60.0/tooling/sobjects/ApexClass
+/// // => POST {instance}/services/data/v67.0/tooling/sobjects/ApexClass
 /// ```
 #[allow(async_fn_in_trait)] // Intentional: trait is used internally, Send bound not needed
 pub trait RestOperation<A: Authenticator> {
@@ -627,6 +627,70 @@ fn validate_query_input_len(name: &str, value: &str) -> Result<()> {
     Ok(())
 }
 
+/// Internal helper shared by [`RestOperation::upsert`] and
+/// [`RestOperation::upsert_idempotent`].
+///
+/// Extracted as a standalone async function rather than a default trait method
+/// to keep the public trait surface clean while avoiding code duplication.
+async fn upsert_with_retry_class_impl<A: Authenticator>(
+    session: &Arc<Session<A>>,
+    api_path_prefix: &str,
+    sobject: &str,
+    external_id_field: &str,
+    external_id_value: &str,
+    data: &serde_json::Value,
+    retry_class: crate::http::RequestRetryClass,
+) -> Result<UpsertResponse> {
+    validate_sobject_name(sobject)?;
+    validate_external_id_field(external_id_field)?;
+
+    // ⚡ Bolt: Pass `utf8_percent_encode` directly to `format!` to avoid an intermediate `String` allocation.
+    let encoded_value = utf8_percent_encode(external_id_value, UPSERT_ENCODE_SET);
+
+    let api_path = if api_path_prefix.is_empty() {
+        format!(
+            "sobjects/{}/{}/{}",
+            sobject, external_id_field, encoded_value
+        )
+    } else {
+        format!(
+            "{}/sobjects/{}/{}/{}",
+            api_path_prefix, sobject, external_id_field, encoded_value
+        )
+    };
+    let url = session.resolve_url(&api_path).await?;
+
+    let request = session
+        .patch(&url)
+        .json(data)
+        .build()
+        .map_err(crate::error::HttpError::from)?;
+
+    let response = session
+        .execute_request_with_retry_class(request, retry_class)
+        .await?;
+
+    let status = response.status();
+
+    if status.as_u16() == 204 {
+        // 204 No Content means an existing record was updated
+        // But the response does not include the record ID
+        return Err(ForceError::NotImplemented(
+            "Upsert update (204) response does not include record ID - use query to retrieve"
+                .to_string(),
+        ));
+    }
+
+    if status.is_success() {
+        // Success codes (201 Created, 200 OK) - parse as upsert response
+        let bytes = crate::http::error::read_capped_body_bytes(response, 100 * 1024 * 1024).await?;
+        return serde_json::from_slice::<UpsertResponse>(&bytes)
+            .map_err(|e| crate::error::SerializationError::from(e).into());
+    }
+
+    Err(crate::http::response_to_force_error(response, "Upsert request failed").await)
+}
+
 /// Resolves and validates the `nextRecordsUrl` for query pagination.
 ///
 /// Ensures that absolute URLs match the instance origin to prevent
@@ -634,7 +698,7 @@ fn validate_query_input_len(name: &str, value: &str) -> Result<()> {
 ///
 /// # Security
 ///
-/// - Relative URLs (e.g., `/services/data/v60.0/query/01g-2000`) are
+/// - Relative URLs (e.g., `/services/data/v67.0/query/01g-2000`) are
 ///   prefixed with the instance URL.
 /// - Absolute URLs are validated: scheme, host, port must match the instance,
 ///   and no embedded credentials are allowed.
@@ -646,19 +710,20 @@ fn validate_query_input_len(name: &str, value: &str) -> Result<()> {
 /// - The origin does not match the instance
 /// - Credentials are embedded in the URL
 pub fn resolve_next_records_url(instance_url: &str, next_records_url: &str) -> Result<String> {
-    if !next_records_url.starts_with("http") {
-        return Ok(format!("{}{}", instance_url, next_records_url));
-    }
-
-    // Security check: absolute URL must match the instance host
-    let next_parsed = url::Url::parse(next_records_url)
-        .map_err(|e| ForceError::InvalidInput(format!("Invalid nextRecordsUrl: {e}")))?;
     let instance_parsed = url::Url::parse(instance_url)
         .map_err(|e| ForceError::InvalidInput(format!("Invalid instance URL in token: {e}")))?;
 
+    // Combine safely using `url::Url::join` which handles relative vs absolute correctly
+    // and prevents `@evil.com` from changing the host.
+    let next_parsed = instance_parsed
+        .join(next_records_url)
+        .map_err(|e| ForceError::InvalidInput(format!("Invalid nextRecordsUrl: {}", e)))?;
+
+    // Security check: the resolved absolute URL must match the instance host
     validate_url_origin_match(&instance_parsed, &next_parsed)?;
 
-    Ok(next_records_url.to_string())
+    // ⚡ Bolt: Avoid unnecessary heap allocation and copy by using `.into()` to consume the `Url` and yield its internal string buffer instead of `.to_string()`.
+    Ok(next_parsed.into())
 }
 
 /// Helper function to validate that the origin and credentials of an absolute URL match the instance.
@@ -686,7 +751,7 @@ fn validate_url_origin_match(instance: &url::Url, next: &url::Url) -> Result<()>
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_support::Must;
+    use crate::test_utils::must::Must;
 
     // ── resolve_next_records_url unit tests ──────────────────────────
 
@@ -694,12 +759,12 @@ mod tests {
     fn test_resolve_relative_url() {
         let result = resolve_next_records_url(
             "https://na1.salesforce.com",
-            "/services/data/v60.0/query/01g-2000",
+            "/services/data/v67.0/query/01g-2000",
         )
         .must();
         assert_eq!(
             result,
-            "https://na1.salesforce.com/services/data/v60.0/query/01g-2000"
+            "https://na1.salesforce.com/services/data/v67.0/query/01g-2000"
         );
     }
 
@@ -707,12 +772,12 @@ mod tests {
     fn test_resolve_absolute_url_same_origin() {
         let result = resolve_next_records_url(
             "https://na1.salesforce.com",
-            "https://na1.salesforce.com/services/data/v60.0/query/01g-2000",
+            "https://na1.salesforce.com/services/data/v67.0/query/01g-2000",
         )
         .must();
         assert_eq!(
             result,
-            "https://na1.salesforce.com/services/data/v60.0/query/01g-2000"
+            "https://na1.salesforce.com/services/data/v67.0/query/01g-2000"
         );
     }
 
@@ -720,7 +785,7 @@ mod tests {
     fn test_resolve_absolute_url_different_host_rejected() {
         let result = resolve_next_records_url(
             "https://na1.salesforce.com",
-            "https://attacker.com/services/data/v60.0/query/leak",
+            "https://attacker.com/services/data/v67.0/query/leak",
         );
         let Err(err) = result else {
             panic!("Expected Err");
@@ -732,7 +797,7 @@ mod tests {
     fn test_resolve_absolute_url_scheme_mismatch_rejected() {
         let result = resolve_next_records_url(
             "https://na1.salesforce.com",
-            "http://na1.salesforce.com/services/data/v60.0/query/01g",
+            "http://na1.salesforce.com/services/data/v67.0/query/01g",
         );
         let Err(err) = result else {
             panic!("Expected Err");
@@ -744,7 +809,7 @@ mod tests {
     fn test_resolve_absolute_url_port_mismatch_rejected() {
         let result = resolve_next_records_url(
             "https://na1.salesforce.com",
-            "https://na1.salesforce.com:9999/services/data/v60.0/query/01g",
+            "https://na1.salesforce.com:9999/services/data/v67.0/query/01g",
         );
         let Err(err) = result else {
             panic!("Expected Err");
@@ -756,7 +821,7 @@ mod tests {
     fn test_resolve_absolute_url_with_username_rejected() {
         let result = resolve_next_records_url(
             "https://na1.salesforce.com",
-            "https://attacker@na1.salesforce.com/services/data/v60.0/query/01g",
+            "https://attacker@na1.salesforce.com/services/data/v67.0/query/01g",
         );
         let Err(err) = result else {
             panic!("Expected Err");
@@ -768,7 +833,7 @@ mod tests {
     fn test_resolve_absolute_url_with_credentials_rejected() {
         let result = resolve_next_records_url(
             "https://na1.salesforce.com",
-            "https://user:pass@na1.salesforce.com/services/data/v60.0/query/01g",
+            "https://user:pass@na1.salesforce.com/services/data/v67.0/query/01g",
         );
         let Err(err) = result else {
             panic!("Expected Err");
@@ -782,8 +847,8 @@ mod tests {
     #[derive(Clone)]
     struct TestRestOp;
 
-    impl RestOperation<crate::test_support::MockAuthenticator> for TestRestOp {
-        fn session(&self) -> &Arc<Session<crate::test_support::MockAuthenticator>> {
+    impl RestOperation<crate::test_utils::mock_auth::MockAuthenticator> for TestRestOp {
+        fn session(&self) -> &Arc<Session<crate::test_utils::mock_auth::MockAuthenticator>> {
             panic!("validation should fail before session access")
         }
         fn path_prefix(&self) -> &'static str {
@@ -795,8 +860,8 @@ mod tests {
     #[derive(Clone)]
     struct TestToolingOp;
 
-    impl RestOperation<crate::test_support::MockAuthenticator> for TestToolingOp {
-        fn session(&self) -> &Arc<Session<crate::test_support::MockAuthenticator>> {
+    impl RestOperation<crate::test_utils::mock_auth::MockAuthenticator> for TestToolingOp {
+        fn session(&self) -> &Arc<Session<crate::test_utils::mock_auth::MockAuthenticator>> {
             unimplemented!("not needed for path tests")
         }
         fn path_prefix(&self) -> &'static str {
@@ -921,11 +986,12 @@ mod tests {
         use wiremock::{Mock, MockServer, ResponseTemplate};
 
         let mock_server = MockServer::start().await;
-        let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
+        let auth =
+            crate::test_utils::mock_auth::MockAuthenticator::new("test_token", &mock_server.uri());
 
         Mock::given(method("PATCH"))
             .and(path(
-                "/services/data/v60.0/sobjects/Account/ExternalId__c/123",
+                "/services/data/v67.0/sobjects/Account/ExternalId__c/123",
             ))
             .respond_with(ResponseTemplate::new(204))
             .mount(&mock_server)
@@ -955,13 +1021,14 @@ mod tests {
         use wiremock::{Mock, MockServer, ResponseTemplate};
 
         let mock_server = MockServer::start().await;
-        let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
+        let auth =
+            crate::test_utils::mock_auth::MockAuthenticator::new("test_token", &mock_server.uri());
         let client = builder().authenticate(auth).build().await.must();
 
         // Testing the `_ if response.status().is_success()` match arm directly
         Mock::given(method("PATCH"))
             .and(path(
-                "/services/data/v60.0/sobjects/Account/ExternalId__c/ACME-002",
+                "/services/data/v67.0/sobjects/Account/ExternalId__c/ACME-002",
             ))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "id": "001xx000003DHP0AAO",
@@ -997,13 +1064,14 @@ mod tests {
         use wiremock::{Mock, MockServer, ResponseTemplate};
 
         let mock_server = MockServer::start().await;
-        let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
+        let auth =
+            crate::test_utils::mock_auth::MockAuthenticator::new("test_token", &mock_server.uri());
         let client = builder().authenticate(auth).build().await.must();
 
         let big_str = "A".repeat(100 * 1024 * 1024 + 1);
         Mock::given(method("PATCH"))
             .and(path(
-                "/services/data/v60.0/sobjects/Account/ExternalId__c/ACME-002",
+                "/services/data/v67.0/sobjects/Account/ExternalId__c/ACME-002",
             ))
             .respond_with(ResponseTemplate::new(200).set_body_bytes(big_str.into_bytes()))
             .expect(1)
@@ -1035,12 +1103,13 @@ mod tests {
         use wiremock::{Mock, MockServer, ResponseTemplate};
 
         let mock_server = MockServer::start().await;
-        let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
+        let auth =
+            crate::test_utils::mock_auth::MockAuthenticator::new("test_token", &mock_server.uri());
         let client = builder().authenticate(auth).build().await.must();
 
         Mock::given(method("PATCH"))
             .and(path(
-                "/services/data/v60.0/sobjects/Account/ExternalId__c/ACME-003",
+                "/services/data/v67.0/sobjects/Account/ExternalId__c/ACME-003",
             ))
             .respond_with(ResponseTemplate::new(400).set_body_json(json!([{
                 "message": "Bad Request",
@@ -1075,12 +1144,13 @@ mod tests {
         use wiremock::{Mock, MockServer, ResponseTemplate};
 
         let mock_server = MockServer::start().await;
-        let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
+        let auth =
+            crate::test_utils::mock_auth::MockAuthenticator::new("test_token", &mock_server.uri());
         let client = builder().authenticate(auth).build().await.must();
 
         Mock::given(method("GET"))
             .and(path(
-                "/services/data/v60.0/sobjects/Account/001xx000003DHP0AAO",
+                "/services/data/v67.0/sobjects/Account/001xx000003DHP0AAO",
             ))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "Id": "001xx000003DHP0AAO",
@@ -1105,11 +1175,12 @@ mod tests {
         use wiremock::{Mock, MockServer, ResponseTemplate};
 
         let mock_server = MockServer::start().await;
-        let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
+        let auth =
+            crate::test_utils::mock_auth::MockAuthenticator::new("test_token", &mock_server.uri());
         let client = builder().authenticate(auth).build().await.must();
 
         Mock::given(method("POST"))
-            .and(path("/services/data/v60.0/sobjects/Account"))
+            .and(path("/services/data/v67.0/sobjects/Account"))
             .respond_with(ResponseTemplate::new(201).set_body_json(json!({
                 "id": "001xx000003DHP0AAO",
                 "success": true,
@@ -1138,12 +1209,13 @@ mod tests {
         use wiremock::{Mock, MockServer, ResponseTemplate};
 
         let mock_server = MockServer::start().await;
-        let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
+        let auth =
+            crate::test_utils::mock_auth::MockAuthenticator::new("test_token", &mock_server.uri());
         let client = builder().authenticate(auth).build().await.must();
 
         Mock::given(method("PATCH"))
             .and(path(
-                "/services/data/v60.0/sobjects/Account/001xx000003DHP0AAO",
+                "/services/data/v67.0/sobjects/Account/001xx000003DHP0AAO",
             ))
             .respond_with(ResponseTemplate::new(204))
             .expect(1)
@@ -1168,12 +1240,13 @@ mod tests {
         use wiremock::{Mock, MockServer, ResponseTemplate};
 
         let mock_server = MockServer::start().await;
-        let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
+        let auth =
+            crate::test_utils::mock_auth::MockAuthenticator::new("test_token", &mock_server.uri());
         let client = builder().authenticate(auth).build().await.must();
 
         Mock::given(method("DELETE"))
             .and(path(
-                "/services/data/v60.0/sobjects/Account/001xx000003DHP0AAO",
+                "/services/data/v67.0/sobjects/Account/001xx000003DHP0AAO",
             ))
             .respond_with(ResponseTemplate::new(204))
             .expect(1)
@@ -1195,12 +1268,13 @@ mod tests {
         use wiremock::{Mock, MockServer, ResponseTemplate};
 
         let mock_server = MockServer::start().await;
-        let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
+        let auth =
+            crate::test_utils::mock_auth::MockAuthenticator::new("test_token", &mock_server.uri());
         let client = builder().authenticate(auth).build().await.must();
 
         Mock::given(method("PATCH"))
             .and(path(
-                "/services/data/v60.0/sobjects/Account/ExternalId__c/ACME-005",
+                "/services/data/v67.0/sobjects/Account/ExternalId__c/ACME-005",
             ))
             .respond_with(ResponseTemplate::new(201).set_body_json(json!({
                 "id": "001xx000003DHP0AAO",
@@ -1235,7 +1309,8 @@ mod tests {
         use wiremock::{Mock, MockServer, ResponseTemplate};
 
         let mock_server = MockServer::start().await;
-        let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
+        let auth =
+            crate::test_utils::mock_auth::MockAuthenticator::new("test_token", &mock_server.uri());
         let client = builder().authenticate(auth).build().await.must();
 
         let global_describe_json: serde_json::Value = serde_json::from_str(
@@ -1275,7 +1350,7 @@ mod tests {
         .must();
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/sobjects"))
+            .and(path("/services/data/v67.0/sobjects"))
             .respond_with(ResponseTemplate::new(200).set_body_json(global_describe_json))
             .expect(1)
             .mount(&mock_server)
@@ -1289,13 +1364,15 @@ mod tests {
     }
 
     #[tokio::test]
+    #[allow(clippy::too_many_lines)]
     async fn test_describe_success_mock() {
         use crate::client::builder;
         use wiremock::matchers::{method, path};
         use wiremock::{Mock, MockServer, ResponseTemplate};
 
         let mock_server = MockServer::start().await;
-        let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
+        let auth =
+            crate::test_utils::mock_auth::MockAuthenticator::new("test_token", &mock_server.uri());
         let client = builder().authenticate(auth).build().await.must();
 
         let describe_json: serde_json::Value = serde_json::from_str(
@@ -1383,7 +1460,7 @@ mod tests {
         .must();
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/sobjects/Account/describe"))
+            .and(path("/services/data/v67.0/sobjects/Account/describe"))
             .respond_with(ResponseTemplate::new(200).set_body_json(describe_json))
             .expect(1)
             .mount(&mock_server)
@@ -1405,11 +1482,12 @@ mod tests {
         use wiremock::{Mock, MockServer, ResponseTemplate};
 
         let mock_server = MockServer::start().await;
-        let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
+        let auth =
+            crate::test_utils::mock_auth::MockAuthenticator::new("test_token", &mock_server.uri());
         let client = builder().authenticate(auth).build().await.must();
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/query"))
+            .and(path("/services/data/v67.0/query"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "totalSize": 1,
                 "done": true,
@@ -1439,11 +1517,12 @@ mod tests {
         use wiremock::{Mock, MockServer, ResponseTemplate};
 
         let mock_server = MockServer::start().await;
-        let auth = crate::test_support::MockAuthenticator::new("test_token", &mock_server.uri());
+        let auth =
+            crate::test_utils::mock_auth::MockAuthenticator::new("test_token", &mock_server.uri());
         let client = builder().authenticate(auth).build().await.must();
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/query/01g"))
+            .and(path("/services/data/v67.0/query/01g"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "totalSize": 2,
                 "done": true,
@@ -1455,7 +1534,7 @@ mod tests {
 
         let rest = client.rest();
         let result = rest
-            .query_more::<serde_json::Value>("/services/data/v60.0/query/01g")
+            .query_more::<serde_json::Value>("/services/data/v67.0/query/01g")
             .await
             .must();
 
@@ -1469,7 +1548,7 @@ mod tests {
     fn test_query_more_security_check_scheme_mismatch() {
         let result = resolve_next_records_url(
             "https://na1.salesforce.com",
-            "http://na1.salesforce.com/services/data/v60.0/query/01g",
+            "http://na1.salesforce.com/services/data/v67.0/query/01g",
         );
         let Err(err) = result else {
             panic!("Expected Err");
@@ -1481,7 +1560,7 @@ mod tests {
     fn test_query_more_security_check_port_mismatch() {
         let result = resolve_next_records_url(
             "https://na1.salesforce.com",
-            "https://na1.salesforce.com:8080/services/data/v60.0/query/01g",
+            "https://na1.salesforce.com:8080/services/data/v67.0/query/01g",
         );
         let Err(err) = result else {
             panic!("Expected Err");
@@ -1493,7 +1572,7 @@ mod tests {
     fn test_query_more_security_check_username_mismatch() {
         let result = resolve_next_records_url(
             "https://na1.salesforce.com",
-            "https://user@na1.salesforce.com/services/data/v60.0/query/01g",
+            "https://user@na1.salesforce.com/services/data/v67.0/query/01g",
         );
         let Err(err) = result else {
             panic!("Expected Err");
@@ -1505,7 +1584,7 @@ mod tests {
     fn test_query_more_security_check_password_mismatch() {
         let result = resolve_next_records_url(
             "https://na1.salesforce.com",
-            "https://:password@na1.salesforce.com/services/data/v60.0/query/01g",
+            "https://:password@na1.salesforce.com/services/data/v67.0/query/01g",
         );
         let Err(err) = result else {
             panic!("Expected Err");

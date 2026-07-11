@@ -168,7 +168,8 @@ impl<A: crate::auth::Authenticator> UiHandler<A> {
 mod tests {
 
     use crate::client::{ForceClient, builder};
-    use crate::test_support::{MockAuthenticator, Must, MustMsg};
+    use crate::test_utils::mock_auth::MockAuthenticator;
+    use crate::test_utils::must::{Must, MustMsg};
 
     async fn test_client() -> ForceClient<MockAuthenticator> {
         let auth = MockAuthenticator::new("test_token", "https://test.salesforce.com");
@@ -249,6 +250,6 @@ mod tests {
         let client = test_client().await;
         let handler = client.ui();
         let url = handler.resolve_ui_url("records/001test").await.must();
-        assert!(url.contains("v60.0"), "URL should contain API version");
+        assert!(url.contains("v67.0"), "URL should contain API version");
     }
 }

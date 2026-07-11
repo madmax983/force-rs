@@ -63,7 +63,7 @@ pub struct PlanNote {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_support::Must;
+    use crate::test_utils::must::Must;
 
     #[test]
     fn test_deserialize_explain_response() {
@@ -131,7 +131,8 @@ mod tests {
     #[tokio::test]
     async fn test_explain_api_call() {
         use crate::client::builder;
-        use crate::test_support::{MockAuthenticator, Must};
+        use crate::test_utils::mock_auth::MockAuthenticator;
+        use crate::test_utils::must::Must;
         use wiremock::matchers::{method, path, query_param};
         use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -156,7 +157,7 @@ mod tests {
         });
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/query"))
+            .and(path("/services/data/v67.0/query"))
             .and(query_param("explain", soql))
             .respond_with(ResponseTemplate::new(200).set_body_json(json_response))
             .mount(&mock_server)

@@ -16,7 +16,7 @@ use serde::Deserialize;
 #[derive(Debug, Clone, Deserialize)]
 pub struct TokenResponse {
     /// The access token string.
-    pub access_token: String,
+    pub access_token: SecretString,
 
     /// The instance URL for API requests.
     pub instance_url: String,
@@ -40,7 +40,7 @@ pub struct TokenResponse {
 
     /// Refresh token (optional, only for flows that support refresh).
     #[serde(default)]
-    pub refresh_token: Option<String>,
+    pub refresh_token: Option<SecretString>,
 }
 
 pub fn default_token_type() -> String {
@@ -95,10 +95,11 @@ impl AccessToken {
     pub fn from_response(response: TokenResponse) -> Self {
         let issued_at = parse_issued_at(&response.issued_at).unwrap_or_else(|_| Utc::now());
         let expires_at = calculate_expiration(issued_at, response.expires_in);
-        let auth_header = create_auth_header(&response.token_type, &response.access_token);
+        let auth_header =
+            create_auth_header(&response.token_type, response.access_token.expose_secret());
 
         Self {
-            token: SecretString::new(response.access_token.into()),
+            token: response.access_token,
             issued_at,
             expires_at,
             instance_url: response.instance_url,
@@ -223,8 +224,7 @@ fn calculate_expiration(
     expires_in: Option<u64>,
 ) -> Option<DateTime<Utc>> {
     expires_in.and_then(|seconds| {
-        // Cap duration to ~100 years (3B seconds) to prevent overflow in Duration::seconds
-        // Duration::seconds panics if value > i64::MAX / 1_000_000_000 (~9B seconds)
+        // Cap duration to ~100 years (3B seconds) to prevent overflow in Duration::try_seconds
         if seconds > 3_000_000_000 {
             return None;
         }
@@ -232,7 +232,7 @@ fn calculate_expiration(
         let Ok(seconds_i64) = i64::try_from(seconds) else {
             return None;
         };
-        let duration = Duration::seconds(seconds_i64);
+        let duration = Duration::try_seconds(seconds_i64)?;
         issued_at.checked_add_signed(duration)
     })
 }
@@ -266,7 +266,7 @@ fn parse_issued_at(issued_at: &str) -> Result<DateTime<Utc>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_support::Must;
+    use crate::test_utils::must::Must;
 
     #[test]
     fn test_token_response_deserialization() {
@@ -279,7 +279,7 @@ mod tests {
         }"#;
 
         let response: TokenResponse = serde_json::from_str(json).must();
-        assert_eq!(response.access_token, "00D123456789!token");
+        assert_eq!(response.access_token.expose_secret(), "00D123456789!token");
         assert_eq!(response.instance_url, "https://example.my.salesforce.com");
         assert_eq!(response.token_type, "Bearer");
     }
@@ -301,7 +301,7 @@ mod tests {
     #[test]
     fn test_access_token_from_response() {
         let response = TokenResponse {
-            access_token: "test_token".to_string(),
+            access_token: SecretString::new("test_token".to_string().into()),
             instance_url: "https://example.salesforce.com".to_string(),
             token_type: "Bearer".to_string(),
             issued_at: "1704067200000".to_string(),
@@ -456,7 +456,7 @@ mod tests {
     #[test]
     fn test_access_token_expires_in_overflow() {
         let response = TokenResponse {
-            access_token: "test_token".to_string(),
+            access_token: SecretString::new("test_token".to_string().into()),
             instance_url: "https://example.salesforce.com".to_string(),
             token_type: "Bearer".to_string(),
             issued_at: "1704067200000".to_string(),
@@ -475,7 +475,7 @@ mod tests {
         // Test value that fits in i64 but exceeds cap
         let large_seconds = 4_000_000_000_u64; // 4 billion > 3 billion
         let response = TokenResponse {
-            access_token: "test_token".to_string(),
+            access_token: SecretString::new("test_token".to_string().into()),
             instance_url: "https://example.salesforce.com".to_string(),
             token_type: "Bearer".to_string(),
             issued_at: "1704067200000".to_string(),
@@ -494,7 +494,7 @@ mod tests {
         // Test value that is exactly the cap (3 billion)
         let boundary_seconds = 3_000_000_000_u64;
         let response = TokenResponse {
-            access_token: "test_token".to_string(),
+            access_token: SecretString::new("test_token".to_string().into()),
             instance_url: "https://example.salesforce.com".to_string(),
             token_type: "Bearer".to_string(),
             issued_at: "1704067200000".to_string(),
@@ -521,7 +521,7 @@ mod tests {
     #[test]
     fn test_access_token_from_response_invalid_issued_at() {
         let response = TokenResponse {
-            access_token: "test_token".to_string(),
+            access_token: SecretString::new("test_token".to_string().into()),
             instance_url: "https://example.salesforce.com".to_string(),
             token_type: "Bearer".to_string(),
             issued_at: "garbage".to_string(),
@@ -543,7 +543,7 @@ mod tests {
     #[test]
     fn test_access_token_invalid_header_chars() {
         let response = TokenResponse {
-            access_token: "token\nwith\nnewlines".to_string(),
+            access_token: SecretString::new("token\nwith\nnewlines".to_string().into()),
             instance_url: "https://example.salesforce.com".to_string(),
             token_type: "Bearer".to_string(),
             issued_at: "1704067200000".to_string(),

@@ -30,6 +30,7 @@ futures = { workspace = true }
 deadpool-postgres = { workspace = true }
 tokio-postgres = { workspace = true }
 blake3 = { workspace = true }
+secrecy.workspace = true
 
 [dev-dependencies]
 anyhow = { workspace = true }

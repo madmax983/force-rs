@@ -62,7 +62,7 @@ impl<A: crate::auth::Authenticator> super::DataCloudHandler<A> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_support::Must;
+    use crate::test_utils::must::Must;
 
     #[test]
     fn test_sql_query_response_deserialization() {
@@ -130,7 +130,8 @@ mod tests {
     mod integration {
         use crate::auth::DataCloudConfig;
         use crate::client::builder;
-        use crate::test_support::{MockAuthenticator, Must};
+        use crate::test_utils::mock_auth::MockAuthenticator;
+        use crate::test_utils::must::Must;
         use wiremock::matchers::{method, path};
         use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -181,7 +182,7 @@ mod tests {
             });
 
             Mock::given(method("POST"))
-                .and(path("/services/data/v60.0/ssot/query"))
+                .and(path("/services/data/v67.0/ssot/query"))
                 .respond_with(ResponseTemplate::new(200).set_body_json(query_response))
                 .expect(1)
                 .mount(&mock_server)
@@ -213,7 +214,7 @@ mod tests {
             });
 
             Mock::given(method("POST"))
-                .and(path("/services/data/v60.0/ssot/query"))
+                .and(path("/services/data/v67.0/ssot/query"))
                 .respond_with(ResponseTemplate::new(200).set_body_json(query_response))
                 .mount(&mock_server)
                 .await;
@@ -231,7 +232,7 @@ mod tests {
             let mock_server = MockServer::start().await;
 
             Mock::given(method("POST"))
-                .and(path("/services/data/v60.0/ssot/query"))
+                .and(path("/services/data/v67.0/ssot/query"))
                 .respond_with(
                     ResponseTemplate::new(400).set_body_string(
                         r#"[{"message":"Invalid SQL","errorCode":"INVALID_QUERY"}]"#,
@@ -259,7 +260,7 @@ mod tests {
             });
 
             Mock::given(method("POST"))
-                .and(path("/services/data/v60.0/ssot/query"))
+                .and(path("/services/data/v67.0/ssot/query"))
                 .respond_with(ResponseTemplate::new(200).set_body_json(query_response))
                 .mount(&mock_server)
                 .await;

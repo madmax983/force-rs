@@ -244,7 +244,8 @@ impl<A: crate::auth::Authenticator> super::ToolingHandler<A> {
 mod tests {
     use super::*;
     use crate::client::builder;
-    use crate::test_support::{MockAuthenticator, Must};
+    use crate::test_utils::mock_auth::MockAuthenticator;
+    use crate::test_utils::must::Must;
     use wiremock::matchers::{body_json, method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -324,7 +325,7 @@ mod tests {
         });
 
         Mock::given(method("POST"))
-            .and(path("/services/data/v60.0/tooling/runTestsSynchronous"))
+            .and(path("/services/data/v67.0/tooling/runTestsSynchronous"))
             .and(body_json(&request_body))
             .respond_with(ResponseTemplate::new(200).set_body_json(response_body))
             .expect(1)
@@ -385,7 +386,7 @@ mod tests {
         });
 
         Mock::given(method("POST"))
-            .and(path("/services/data/v60.0/tooling/runTestsSynchronous"))
+            .and(path("/services/data/v67.0/tooling/runTestsSynchronous"))
             .respond_with(ResponseTemplate::new(200).set_body_json(response_body))
             .expect(1)
             .mount(&mock_server)
@@ -457,7 +458,7 @@ mod tests {
         });
 
         Mock::given(method("POST"))
-            .and(path("/services/data/v60.0/tooling/runTestsSynchronous"))
+            .and(path("/services/data/v67.0/tooling/runTestsSynchronous"))
             .respond_with(ResponseTemplate::new(200).set_body_json(response_body))
             .expect(1)
             .mount(&mock_server)
@@ -498,7 +499,7 @@ mod tests {
         let client = builder().authenticate(auth).build().await.must();
 
         Mock::given(method("POST"))
-            .and(path("/services/data/v60.0/tooling/runTestsAsynchronous"))
+            .and(path("/services/data/v67.0/tooling/runTestsAsynchronous"))
             .respond_with(
                 ResponseTemplate::new(200).set_body_json(serde_json::json!("707xx0000000001")),
             )
@@ -528,7 +529,7 @@ mod tests {
         let client = builder().authenticate(auth).build().await.must();
 
         Mock::given(method("POST"))
-            .and(path("/services/data/v60.0/tooling/runTestsSynchronous"))
+            .and(path("/services/data/v67.0/tooling/runTestsSynchronous"))
             .respond_with(
                 ResponseTemplate::new(500).set_body_json(serde_json::json!([{
                     "message": "Internal server error",
@@ -567,7 +568,7 @@ mod tests {
         let client = builder().authenticate(auth).build().await.must();
 
         Mock::given(method("POST"))
-            .and(path("/services/data/v60.0/tooling/runTestsAsynchronous"))
+            .and(path("/services/data/v67.0/tooling/runTestsAsynchronous"))
             .respond_with(
                 ResponseTemplate::new(500).set_body_json(serde_json::json!([{
                     "message": "Service unavailable",

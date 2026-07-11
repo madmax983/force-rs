@@ -220,7 +220,8 @@ mod tests {
 
     use super::*;
     use crate::client::builder;
-    use crate::test_support::{MockAuthenticator, Must};
+    use crate::test_utils::mock_auth::MockAuthenticator;
+    use crate::test_utils::must::Must;
     use serde_json::json;
     use wiremock::matchers::{method, path, query_param};
     use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -269,7 +270,7 @@ mod tests {
 
         Mock::given(method("GET"))
             .and(path(format!(
-                "/services/data/v60.0/ui-api/list-ui/{LIST_VIEW_ID}"
+                "/services/data/v67.0/ui-api/list-ui/{LIST_VIEW_ID}"
             )))
             .respond_with(ResponseTemplate::new(200).set_body_json(&response_body))
             .expect(1)
@@ -291,7 +292,7 @@ mod tests {
 
         Mock::given(method("GET"))
             .and(path(format!(
-                "/services/data/v60.0/ui-api/list-ui/{LIST_VIEW_ID}"
+                "/services/data/v67.0/ui-api/list-ui/{LIST_VIEW_ID}"
             )))
             .respond_with(ResponseTemplate::new(404).set_body_json(json!([{
                 "errorCode": "NOT_FOUND",
@@ -345,7 +346,7 @@ mod tests {
         });
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/ui-api/list-ui/Account"))
+            .and(path("/services/data/v67.0/ui-api/list-ui/Account"))
             .respond_with(ResponseTemplate::new(200).set_body_json(&response_body))
             .expect(1)
             .mount(&server)
@@ -374,7 +375,7 @@ mod tests {
         });
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/ui-api/list-ui/NoViews__c"))
+            .and(path("/services/data/v67.0/ui-api/list-ui/NoViews__c"))
             .respond_with(ResponseTemplate::new(200).set_body_json(&response_body))
             .expect(1)
             .mount(&server)
@@ -407,7 +408,7 @@ mod tests {
 
         Mock::given(method("GET"))
             .and(path(format!(
-                "/services/data/v60.0/ui-api/list-records/{LIST_VIEW_ID}"
+                "/services/data/v67.0/ui-api/list-records/{LIST_VIEW_ID}"
             )))
             .respond_with(ResponseTemplate::new(200).set_body_json(&response_body))
             .expect(1)
@@ -447,7 +448,7 @@ mod tests {
 
         Mock::given(method("GET"))
             .and(path(format!(
-                "/services/data/v60.0/ui-api/list-records/{LIST_VIEW_ID}"
+                "/services/data/v67.0/ui-api/list-records/{LIST_VIEW_ID}"
             )))
             .and(query_param("pageSize", "5"))
             .respond_with(ResponseTemplate::new(200).set_body_json(&response_body))
@@ -483,7 +484,7 @@ mod tests {
 
         Mock::given(method("GET"))
             .and(path(format!(
-                "/services/data/v60.0/ui-api/list-records/{LIST_VIEW_ID}"
+                "/services/data/v67.0/ui-api/list-records/{LIST_VIEW_ID}"
             )))
             .and(query_param("pageSize", "2"))
             .and(query_param("pageToken", "abc123"))
@@ -511,7 +512,7 @@ mod tests {
 
         Mock::given(method("GET"))
             .and(path(format!(
-                "/services/data/v60.0/ui-api/list-records/{LIST_VIEW_ID}"
+                "/services/data/v67.0/ui-api/list-records/{LIST_VIEW_ID}"
             )))
             .respond_with(ResponseTemplate::new(400).set_body_json(json!([{
                 "errorCode": "INVALID_PARAMETER_VALUE",
@@ -557,7 +558,7 @@ mod tests {
 
         Mock::given(method("GET"))
             .and(path(format!(
-                "/services/data/v60.0/ui-api/list-info/{LIST_VIEW_ID}"
+                "/services/data/v67.0/ui-api/list-info/{LIST_VIEW_ID}"
             )))
             .respond_with(ResponseTemplate::new(200).set_body_json(&response_body))
             .expect(1)
@@ -580,7 +581,7 @@ mod tests {
 
         Mock::given(method("GET"))
             .and(path(format!(
-                "/services/data/v60.0/ui-api/list-info/{LIST_VIEW_ID}"
+                "/services/data/v67.0/ui-api/list-info/{LIST_VIEW_ID}"
             )))
             .respond_with(ResponseTemplate::new(404).set_body_json(json!([{
                 "errorCode": "NOT_FOUND",

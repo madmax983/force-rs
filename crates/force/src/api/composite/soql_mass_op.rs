@@ -167,7 +167,8 @@ impl<'a, A: Authenticator> SoqlMassOp<'a, A> {
 mod tests {
     use super::*;
     use crate::client::builder;
-    use crate::test_support::{MockAuthenticator, Must};
+    use crate::test_utils::mock_auth::MockAuthenticator;
+    use crate::test_utils::must::Must;
     use serde_json::json;
     use wiremock::matchers::{method, path, query_param};
     use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -188,14 +189,14 @@ mod tests {
 
         // Mock the query response
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/query"))
+            .and(path("/services/data/v67.0/query"))
             .and(query_param("q", "SELECT Id FROM Account WHERE Name LIKE 'Test %'"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "totalSize": 2,
                 "done": true,
                 "records": [
-                    { "attributes": { "type": "Account", "url": "/services/data/v60.0/sobjects/Account/001000000000001AAA" }, "Id": "001000000000001AAA" },
-                    { "attributes": { "type": "Account", "url": "/services/data/v60.0/sobjects/Account/001000000000002AAA" }, "Id": "001000000000002AAA" }
+                    { "attributes": { "type": "Account", "url": "/services/data/v67.0/sobjects/Account/001000000000001AAA" }, "Id": "001000000000001AAA" },
+                    { "attributes": { "type": "Account", "url": "/services/data/v67.0/sobjects/Account/001000000000002AAA" }, "Id": "001000000000002AAA" }
                 ]
             })))
             .mount(&mock_server)
@@ -203,7 +204,7 @@ mod tests {
 
         // Mock the composite batch response
         Mock::given(method("POST"))
-            .and(path("/services/data/v60.0/composite/batch"))
+            .and(path("/services/data/v67.0/composite/batch"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "hasErrors": false,
                 "results": [
@@ -234,13 +235,13 @@ mod tests {
 
         // Mock the query response
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/query"))
+            .and(path("/services/data/v67.0/query"))
             .and(query_param("q", "SELECT Id FROM Contact WHERE Status = 'New'"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "totalSize": 1,
                 "done": true,
                 "records": [
-                    { "attributes": { "type": "Contact", "url": "/services/data/v60.0/sobjects/Contact/003000000000001AAA" }, "Id": "003000000000001AAA" }
+                    { "attributes": { "type": "Contact", "url": "/services/data/v67.0/sobjects/Contact/003000000000001AAA" }, "Id": "003000000000001AAA" }
                 ]
             })))
             .mount(&mock_server)
@@ -248,7 +249,7 @@ mod tests {
 
         // Mock the composite batch response
         Mock::given(method("POST"))
-            .and(path("/services/data/v60.0/composite/batch"))
+            .and(path("/services/data/v67.0/composite/batch"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "hasErrors": false,
                 "results": [
@@ -282,12 +283,12 @@ mod tests {
         let client = create_test_client(&mock_server).await;
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/query"))
+            .and(path("/services/data/v67.0/query"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "totalSize": 1,
                 "done": true,
                 "records": [
-                    { "attributes": { "type": "Account", "url": "/services/data/v60.0/sobjects/Account/001000000000001AAA" }, "Name": "Test" }
+                    { "attributes": { "type": "Account", "url": "/services/data/v67.0/sobjects/Account/001000000000001AAA" }, "Name": "Test" }
                 ]
             })))
             .mount(&mock_server)
@@ -306,12 +307,12 @@ mod tests {
         let client = create_test_client(&mock_server).await;
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/query"))
+            .and(path("/services/data/v67.0/query"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "totalSize": 1,
                 "done": true,
                 "records": [
-                    { "attributes": { "type": "Account", "url": "/services/data/v60.0/sobjects/Account/001000000000001AAA" }, "Name": "Test" }
+                    { "attributes": { "type": "Account", "url": "/services/data/v67.0/sobjects/Account/001000000000001AAA" }, "Name": "Test" }
                 ]
             })))
             .mount(&mock_server)
@@ -322,5 +323,35 @@ mod tests {
         let stats = op.update_all(json!({"Name": "Updated"})).await.must();
         assert_eq!(stats.ops_succeeded, 0);
         assert_eq!(stats.ops_failed, 0);
+    }
+
+    #[tokio::test]
+    async fn test_update_all_invalid_updates_is_err() {
+        let mock_server = create_mock_server().await;
+        let client = create_test_client(&mock_server).await;
+        let query = SoqlQueryBuilder::new().select(&["Id"]).from("Account");
+        let op = SoqlMassOp::new(&client, query);
+        let result = op.update_all(json!("not an object")).await;
+        assert!(matches!(result, Err(ForceError::InvalidInput(_))));
+    }
+
+    #[tokio::test]
+    async fn test_delete_all_invalid_query_is_err() {
+        let mock_server = create_mock_server().await;
+        let client = create_test_client(&mock_server).await;
+        let query = SoqlQueryBuilder::new().select(&["Id"]); // missing FROM
+        let op = SoqlMassOp::new(&client, query);
+        let result = op.delete_all().await;
+        assert!(matches!(result, Err(ForceError::InvalidInput(_))));
+    }
+
+    #[tokio::test]
+    async fn test_update_all_invalid_query_is_err() {
+        let mock_server = create_mock_server().await;
+        let client = create_test_client(&mock_server).await;
+        let query = SoqlQueryBuilder::new().select(&["Id"]); // missing FROM
+        let op = SoqlMassOp::new(&client, query);
+        let result = op.update_all(json!({"Name": "Updated"})).await;
+        assert!(matches!(result, Err(ForceError::InvalidInput(_))));
     }
 }

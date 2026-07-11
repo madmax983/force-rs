@@ -396,7 +396,8 @@ mod tests {
     use super::SmartIngest;
     use crate::api::bulk::types::{JobOperation, JobState};
     use crate::client::{ForceClient, builder};
-    use crate::test_support::{MockAuthenticator, Must, MustMsg};
+    use crate::test_utils::mock_auth::MockAuthenticator;
+    use crate::test_utils::must::{Must, MustMsg};
     use serde::Serialize;
     use wiremock::matchers::{body_string, header, method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -424,7 +425,7 @@ mod tests {
     ) {
         Mock::given(method("PUT"))
             .and(path(format!(
-                "/services/data/v60.0/jobs/ingest/{job_id}/batches"
+                "/services/data/v67.0/jobs/ingest/{job_id}/batches"
             )))
             .and(body_string(expected_csv.to_string()))
             .respond_with(ResponseTemplate::new(201))
@@ -433,7 +434,7 @@ mod tests {
             .await;
 
         Mock::given(method("PATCH"))
-            .and(path(format!("/services/data/v60.0/jobs/ingest/{job_id}")))
+            .and(path(format!("/services/data/v67.0/jobs/ingest/{job_id}")))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": job_id,
                 "state": "UploadComplete",
@@ -447,7 +448,7 @@ mod tests {
             .await;
 
         Mock::given(method("GET"))
-            .and(path(format!("/services/data/v60.0/jobs/ingest/{job_id}")))
+            .and(path(format!("/services/data/v67.0/jobs/ingest/{job_id}")))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": job_id,
                 "state": "JobComplete",
@@ -469,7 +470,7 @@ mod tests {
 
         // Mock: Create Job
         Mock::given(method("POST"))
-            .and(path("/services/data/v60.0/jobs/ingest"))
+            .and(path("/services/data/v67.0/jobs/ingest"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "JOB_ID",
                 "state": "Open",
@@ -484,7 +485,7 @@ mod tests {
 
         // Mock: Upload Batch (Expecting Headers)
         Mock::given(method("PUT"))
-            .and(path("/services/data/v60.0/jobs/ingest/JOB_ID/batches"))
+            .and(path("/services/data/v67.0/jobs/ingest/JOB_ID/batches"))
             .and(header("content-type", "text/csv"))
             .and(body_string("id,name\n001,Test\n"))
             .respond_with(ResponseTemplate::new(201))
@@ -494,7 +495,7 @@ mod tests {
 
         // Mock: Close Job
         Mock::given(method("PATCH"))
-            .and(path("/services/data/v60.0/jobs/ingest/JOB_ID"))
+            .and(path("/services/data/v67.0/jobs/ingest/JOB_ID"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "JOB_ID",
                 "state": "UploadComplete",
@@ -509,7 +510,7 @@ mod tests {
 
         // Mock: Poll (Complete)
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/jobs/ingest/JOB_ID"))
+            .and(path("/services/data/v67.0/jobs/ingest/JOB_ID"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "JOB_ID",
                 "state": "JobComplete",
@@ -553,7 +554,7 @@ mod tests {
 
         // Mock: Create Job
         Mock::given(method("POST"))
-            .and(path("/services/data/v60.0/jobs/ingest"))
+            .and(path("/services/data/v67.0/jobs/ingest"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "JOB_ID",
                 "state": "Open",
@@ -570,7 +571,7 @@ mod tests {
         // batch size only controls local buffering; it must not create
         // multiple PUTs against the same job.
         Mock::given(method("PUT"))
-            .and(path("/services/data/v60.0/jobs/ingest/JOB_ID/batches"))
+            .and(path("/services/data/v67.0/jobs/ingest/JOB_ID/batches"))
             .and(body_string("id,name\n001,Test1\n002,Test2\n"))
             .respond_with(ResponseTemplate::new(201))
             .expect(1)
@@ -579,7 +580,7 @@ mod tests {
 
         // Mock: Close Job
         Mock::given(method("PATCH"))
-            .and(path("/services/data/v60.0/jobs/ingest/JOB_ID"))
+            .and(path("/services/data/v67.0/jobs/ingest/JOB_ID"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "JOB_ID",
                 "state": "UploadComplete",
@@ -594,7 +595,7 @@ mod tests {
 
         // Mock: Poll (Complete)
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/jobs/ingest/JOB_ID"))
+            .and(path("/services/data/v67.0/jobs/ingest/JOB_ID"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "JOB_ID",
                 "state": "JobComplete",
@@ -639,7 +640,7 @@ mod tests {
         let create_job_call_count_for_mock = std::sync::Arc::clone(&create_job_call_count);
 
         Mock::given(method("POST"))
-            .and(path("/services/data/v60.0/jobs/ingest"))
+            .and(path("/services/data/v67.0/jobs/ingest"))
             .respond_with(move |_: &wiremock::Request| {
                 let call_index = create_job_call_count_for_mock
                     .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
@@ -698,7 +699,7 @@ mod tests {
         let mock_server = MockServer::start().await;
 
         Mock::given(method("POST"))
-            .and(path("/services/data/v60.0/jobs/ingest"))
+            .and(path("/services/data/v67.0/jobs/ingest"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "JOB_ID",
                 "state": "Open",
@@ -712,7 +713,7 @@ mod tests {
             .await;
 
         Mock::given(method("PATCH"))
-            .and(path("/services/data/v60.0/jobs/ingest/JOB_ID"))
+            .and(path("/services/data/v67.0/jobs/ingest/JOB_ID"))
             .and(body_string(r#"{"state":"Aborted"}"#))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "JOB_ID",
@@ -758,7 +759,7 @@ mod tests {
 
         // Mock: Create Job (Failure)
         Mock::given(method("POST"))
-            .and(path("/services/data/v60.0/jobs/ingest"))
+            .and(path("/services/data/v67.0/jobs/ingest"))
             .respond_with(
                 ResponseTemplate::new(400).set_body_json(serde_json::json!([{
                     "message": "Bad Request",
@@ -803,7 +804,7 @@ mod tests {
 
         // Mock: Create Job (Success)
         Mock::given(method("POST"))
-            .and(path("/services/data/v60.0/jobs/ingest"))
+            .and(path("/services/data/v67.0/jobs/ingest"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "JOB_ID",
                 "state": "Open",
@@ -818,7 +819,7 @@ mod tests {
 
         // Mock: Upload Batch (Failure)
         Mock::given(method("PUT"))
-            .and(path("/services/data/v60.0/jobs/ingest/JOB_ID/batches"))
+            .and(path("/services/data/v67.0/jobs/ingest/JOB_ID/batches"))
             .respond_with(
                 ResponseTemplate::new(500).set_body_json(serde_json::json!([{
                     "errorCode": "SERVER_ERROR",
@@ -831,7 +832,7 @@ mod tests {
 
         // Mock: Abort Job (Critical Check)
         Mock::given(method("PATCH"))
-            .and(path("/services/data/v60.0/jobs/ingest/JOB_ID"))
+            .and(path("/services/data/v67.0/jobs/ingest/JOB_ID"))
             .and(body_string(r#"{"state":"Aborted"}"#))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "JOB_ID",
@@ -875,7 +876,7 @@ mod tests {
 
         // Mock: Create Job (Success)
         Mock::given(method("POST"))
-            .and(path("/services/data/v60.0/jobs/ingest"))
+            .and(path("/services/data/v67.0/jobs/ingest"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "JOB_ID",
                 "state": "Open",
@@ -890,7 +891,7 @@ mod tests {
 
         // Mock: Upload Batch (Success)
         Mock::given(method("PUT"))
-            .and(path("/services/data/v60.0/jobs/ingest/JOB_ID/batches"))
+            .and(path("/services/data/v67.0/jobs/ingest/JOB_ID/batches"))
             .respond_with(ResponseTemplate::new(201))
             .expect(1)
             .mount(&mock_server)
@@ -898,7 +899,7 @@ mod tests {
 
         // Mock: Close Job (Failure)
         Mock::given(method("PATCH"))
-            .and(path("/services/data/v60.0/jobs/ingest/JOB_ID"))
+            .and(path("/services/data/v67.0/jobs/ingest/JOB_ID"))
             .respond_with(
                 ResponseTemplate::new(500).set_body_json(serde_json::json!([{
                     "errorCode": "SERVER_ERROR",
@@ -943,7 +944,7 @@ mod tests {
 
         // Mock: Create Job (Success)
         Mock::given(method("POST"))
-            .and(path("/services/data/v60.0/jobs/ingest"))
+            .and(path("/services/data/v67.0/jobs/ingest"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "JOB_ID",
                 "state": "Open",
@@ -958,7 +959,7 @@ mod tests {
 
         // Mock: Upload Batch (Success)
         Mock::given(method("PUT"))
-            .and(path("/services/data/v60.0/jobs/ingest/JOB_ID/batches"))
+            .and(path("/services/data/v67.0/jobs/ingest/JOB_ID/batches"))
             .respond_with(ResponseTemplate::new(201))
             .expect(1)
             .mount(&mock_server)
@@ -966,7 +967,7 @@ mod tests {
 
         // Mock: Close Job (Success)
         Mock::given(method("PATCH"))
-            .and(path("/services/data/v60.0/jobs/ingest/JOB_ID"))
+            .and(path("/services/data/v67.0/jobs/ingest/JOB_ID"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "JOB_ID",
                 "state": "UploadComplete",
@@ -981,7 +982,7 @@ mod tests {
 
         // Mock: Poll (Failed)
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/jobs/ingest/JOB_ID"))
+            .and(path("/services/data/v67.0/jobs/ingest/JOB_ID"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "JOB_ID",
                 "state": "Failed",
@@ -1020,7 +1021,7 @@ mod tests {
 
         // Mock: Create Job (Success)
         Mock::given(method("POST"))
-            .and(path("/services/data/v60.0/jobs/ingest"))
+            .and(path("/services/data/v67.0/jobs/ingest"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "JOB_ID",
                 "state": "Open",
@@ -1035,7 +1036,7 @@ mod tests {
 
         // Mock: Upload Batch (Success)
         Mock::given(method("PUT"))
-            .and(path("/services/data/v60.0/jobs/ingest/JOB_ID/batches"))
+            .and(path("/services/data/v67.0/jobs/ingest/JOB_ID/batches"))
             .respond_with(ResponseTemplate::new(201))
             .expect(1)
             .mount(&mock_server)
@@ -1043,7 +1044,7 @@ mod tests {
 
         // Mock: Close Job (Success)
         Mock::given(method("PATCH"))
-            .and(path("/services/data/v60.0/jobs/ingest/JOB_ID"))
+            .and(path("/services/data/v67.0/jobs/ingest/JOB_ID"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "JOB_ID",
                 "state": "UploadComplete",
@@ -1058,7 +1059,7 @@ mod tests {
 
         // Mock: Poll (Aborted)
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/jobs/ingest/JOB_ID"))
+            .and(path("/services/data/v67.0/jobs/ingest/JOB_ID"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "JOB_ID",
                 "state": "Aborted",
@@ -1096,7 +1097,7 @@ mod tests {
 
         // Mock: Create Job
         Mock::given(method("POST"))
-            .and(path("/services/data/v60.0/jobs/ingest"))
+            .and(path("/services/data/v67.0/jobs/ingest"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "JOB_ID",
                 "state": "Open",
@@ -1111,7 +1112,7 @@ mod tests {
 
         // Mock: Upload Batch (Should NOT be called for empty stream)
         Mock::given(method("PUT"))
-            .and(path("/services/data/v60.0/jobs/ingest/JOB_ID/batches"))
+            .and(path("/services/data/v67.0/jobs/ingest/JOB_ID/batches"))
             .respond_with(ResponseTemplate::new(200)) // Needed for type system even if expected 0
             .expect(0) // Should NOT be called
             .mount(&mock_server)
@@ -1119,7 +1120,7 @@ mod tests {
 
         // Mock: Close Job
         Mock::given(method("PATCH"))
-            .and(path("/services/data/v60.0/jobs/ingest/JOB_ID"))
+            .and(path("/services/data/v67.0/jobs/ingest/JOB_ID"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "JOB_ID",
                 "state": "UploadComplete",
@@ -1134,7 +1135,7 @@ mod tests {
 
         // Mock: Poll (Complete)
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/jobs/ingest/JOB_ID"))
+            .and(path("/services/data/v67.0/jobs/ingest/JOB_ID"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "JOB_ID",
                 "state": "JobComplete",

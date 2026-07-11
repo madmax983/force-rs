@@ -186,7 +186,8 @@ impl<A: Authenticator> AuthenticatedBuilder<A> {
 mod tests {
     use super::*;
     use crate::config::{ClientConfig, Environment};
-    use crate::test_support::{MockAuthenticator, Must};
+    use crate::test_utils::mock_auth::MockAuthenticator;
+    use crate::test_utils::must::Must;
 
     #[test]
     fn test_builder_new_creates_noauth() {
@@ -225,7 +226,7 @@ mod tests {
 
         // Verify client is configured with defaults
         let config = client.config();
-        assert_eq!(config.api_version, "v60.0");
+        assert_eq!(config.api_version, "v67.0");
         assert_eq!(config.environment, Environment::Production);
         assert_eq!(config.timeout, std::time::Duration::from_secs(30));
         assert_eq!(config.max_retries, 3);
@@ -234,7 +235,7 @@ mod tests {
     #[tokio::test]
     async fn test_full_builder_flow() {
         let config = ClientConfig {
-            api_version: "v60.0".to_string(),
+            api_version: "v67.0".to_string(),
             environment: Environment::Sandbox,
             timeout: std::time::Duration::from_secs(30),
             max_retries: 3,
@@ -250,7 +251,7 @@ mod tests {
             .await
             .must();
 
-        assert_eq!(client.config().api_version, "v60.0");
+        assert_eq!(client.config().api_version, "v67.0");
         assert_eq!(client.config().environment, Environment::Sandbox);
     }
 

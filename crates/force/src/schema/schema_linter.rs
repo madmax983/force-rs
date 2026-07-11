@@ -18,7 +18,7 @@ pub enum LintSeverity {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LintResult {
     /// The name of the rule that produced this finding.
-    pub rule_name: String,
+    pub rule_name: &'static str,
     /// The severity of the finding.
     pub severity: LintSeverity,
     /// A descriptive message explaining the finding.
@@ -48,7 +48,7 @@ impl LintRule for TooManyFieldsRule {
         let count = describe.fields.len();
         if count > self.max_fields {
             vec![LintResult {
-                rule_name: "TooManyFields".to_string(),
+                rule_name: "TooManyFields",
                 severity: LintSeverity::Warning,
                 message: format!(
                     "SObject '{}' has {} fields, which exceeds the recommended maximum of {}.",
@@ -73,7 +73,7 @@ impl LintRule for MissingCustomSuffixRule {
         for field in &describe.fields {
             if field.custom && !field.name.ends_with("__c") {
                 results.push(LintResult {
-                    rule_name: "MissingCustomSuffix".to_string(),
+                    rule_name: "MissingCustomSuffix",
                     severity: LintSeverity::Warning,
                     message: format!(
                         "Custom field '{}' in SObject '{}' does not end with '__c'.",
@@ -127,7 +127,7 @@ impl Default for SchemaLinter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_support::Must;
+    use crate::test_utils::must::Must;
     use serde_json::json;
 
     fn create_mock_describe(
@@ -225,8 +225,8 @@ mod tests {
             2,
             "God object should trigger multiple rules"
         );
-        let rule_names: Vec<String> = dirty_results.into_iter().map(|r| r.rule_name).collect();
-        assert!(rule_names.contains(&"TooManyFields".to_string()));
-        assert!(rule_names.contains(&"MissingCustomSuffix".to_string()));
+        let rule_names: Vec<&str> = dirty_results.into_iter().map(|r| r.rule_name).collect();
+        assert!(rule_names.contains(&"TooManyFields"));
+        assert!(rule_names.contains(&"MissingCustomSuffix"));
     }
 }

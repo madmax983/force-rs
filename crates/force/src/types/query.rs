@@ -23,7 +23,7 @@ use serde::{Deserialize, Serialize};
 ///         {
 ///             "attributes": {
 ///                 "type": "Account",
-///                 "url": "/services/data/v60.0/sobjects/Account/001"
+///                 "url": "/services/data/v67.0/sobjects/Account/001"
 ///             },
 ///             "Name": "Acme"
 ///         }
@@ -172,9 +172,9 @@ impl<T> IntoIterator for QueryResult<T> {
 /// ```
 /// use force::types::QueryLocator;
 ///
-/// let locator = QueryLocator::from_url("/services/data/v60.0/query/01gxx0000000001-2000");
+/// let locator = QueryLocator::from_url("/services/data/v67.0/query/01gxx0000000001-2000");
 /// assert!(!locator.is_initial());
-/// assert_eq!(locator.url(), "/services/data/v60.0/query/01gxx0000000001-2000");
+/// assert_eq!(locator.url(), "/services/data/v67.0/query/01gxx0000000001-2000");
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
@@ -312,7 +312,7 @@ impl<T> Iterator for QueryIterator<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_support::Must;
+    use crate::test_utils::must::Must;
     use serde_json::json;
 
     // RED PHASE - Write failing tests first
@@ -438,9 +438,9 @@ mod tests {
 
     #[test]
     fn test_query_locator_from_url() {
-        let locator = QueryLocator::from_url("/services/data/v60.0/query/01gxx-2000");
+        let locator = QueryLocator::from_url("/services/data/v67.0/query/01gxx-2000");
 
-        assert_eq!(locator.url(), "/services/data/v60.0/query/01gxx-2000");
+        assert_eq!(locator.url(), "/services/data/v67.0/query/01gxx-2000");
         assert!(locator.is_continuation());
         assert!(!locator.is_initial());
     }
@@ -474,7 +474,7 @@ mod tests {
 
     #[test]
     fn test_query_locator_deserialize() {
-        let json = "\"/services/data/v60.0/query/01gxx\"";
+        let json = "\"/services/data/v67.0/query/01gxx\"";
 
         let locator: QueryLocator = serde_json::from_str(json).must();
         assert!(locator.is_continuation());

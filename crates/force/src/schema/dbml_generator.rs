@@ -20,9 +20,7 @@ pub fn write_dbml(out: &mut String, describe: &SObjectDescribe) {
     let mut fields: Vec<&_> = describe.fields.iter().collect();
     fields.sort_by(|a, b| crate::schema::cmp_field_names(&a.name, &b.name));
 
-    let mut relationships = Vec::new();
-
-    for field in fields {
+    for field in &fields {
         let dbml_type = map_type(&field.type_);
         let _ = write!(out, "  {} {}", field.name, dbml_type);
 
@@ -55,21 +53,21 @@ pub fn write_dbml(out: &mut String, describe: &SObjectDescribe) {
         }
 
         let _ = writeln!(out);
-
-        if matches!(field.type_, FieldType::Reference) && !field.reference_to.is_empty() {
-            for ref_target in &field.reference_to {
-                relationships.push(format!(
-                    "Ref: {}.{} > {}.Id",
-                    describe.name, field.name, ref_target
-                ));
-            }
-        }
     }
 
     let _ = writeln!(out, "}}\n");
 
-    for rel in relationships {
-        let _ = writeln!(out, "{}", rel);
+    // ⚡ Bolt: Write relationships directly to the output buffer instead of allocating a `Vec<String>`.
+    for field in &fields {
+        if matches!(field.type_, FieldType::Reference) && !field.reference_to.is_empty() {
+            for ref_target in &field.reference_to {
+                let _ = writeln!(
+                    out,
+                    "Ref: {}.{} > {}.Id",
+                    describe.name, field.name, ref_target
+                );
+            }
+        }
     }
 }
 
@@ -91,7 +89,7 @@ fn map_type(ft: &FieldType) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_support::Must;
+    use crate::test_utils::must::Must;
     use crate::types::describe::SObjectDescribe;
 
     #[test]

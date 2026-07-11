@@ -632,7 +632,8 @@ mod tests {
     use super::*;
     use crate::api::bulk::types::JobState;
     use crate::client::{ForceClient, builder};
-    use crate::test_support::{MockAuthenticator, Must, MustMsg};
+    use crate::test_utils::mock_auth::MockAuthenticator;
+    use crate::test_utils::must::{Must, MustMsg};
     use wiremock::matchers::{
         bearer_token, body_string_contains, header, method, path, query_param,
         query_param_is_missing,
@@ -675,7 +676,7 @@ mod tests {
         let base_url = handler.query_base_url().await.must();
         assert!(base_url.contains(&mock_server.uri()));
         assert!(base_url.contains("/services/data/"));
-        assert!(base_url.ends_with("v60.0/jobs/query"));
+        assert!(base_url.ends_with("v67.0/jobs/query"));
     }
 
     #[tokio::test]
@@ -683,7 +684,7 @@ mod tests {
         let mock_server = MockServer::start().await;
 
         Mock::given(method("POST"))
-            .and(path("/services/data/v60.0/jobs/query"))
+            .and(path("/services/data/v67.0/jobs/query"))
             .and(bearer_token("test_token"))
             .and(header("content-type", "application/json"))
             .and(body_string_contains("SELECT Id FROM Account"))
@@ -713,7 +714,7 @@ mod tests {
         let mock_server = MockServer::start().await;
 
         Mock::given(method("POST"))
-            .and(path("/services/data/v60.0/jobs/query"))
+            .and(path("/services/data/v67.0/jobs/query"))
             .and(body_string_contains(
                 "SELECT Id, Name, (SELECT FirstName FROM Contacts)",
             ))
@@ -742,7 +743,7 @@ mod tests {
         let mock_server = MockServer::start().await;
 
         Mock::given(method("POST"))
-            .and(path("/services/data/v60.0/jobs/query"))
+            .and(path("/services/data/v67.0/jobs/query"))
             .respond_with(ResponseTemplate::new(400).set_body_json(serde_json::json!({
                 "message": "Invalid SOQL query",
                 "errorCode": "INVALID_QUERY"
@@ -767,7 +768,7 @@ mod tests {
         let mock_server = MockServer::start().await;
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/jobs/query/750xx0000000001AAA"))
+            .and(path("/services/data/v67.0/jobs/query/750xx0000000001AAA"))
             .and(bearer_token("test_token"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "750xx0000000001AAA",
@@ -793,7 +794,7 @@ mod tests {
         let mock_server = MockServer::start().await;
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/jobs/query/750xx0000000001AAA"))
+            .and(path("/services/data/v67.0/jobs/query/750xx0000000001AAA"))
             .and(bearer_token("test_token"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "750xx0000000001AAA",
@@ -822,7 +823,7 @@ mod tests {
         let mock_server = MockServer::start().await;
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/jobs/query/750xx0000000999AAA"))
+            .and(path("/services/data/v67.0/jobs/query/750xx0000000999AAA"))
             .respond_with(ResponseTemplate::new(404))
             .mount(&mock_server)
             .await;
@@ -842,7 +843,7 @@ mod tests {
         let mock_server = MockServer::start().await;
 
         Mock::given(method("PATCH"))
-            .and(path("/services/data/v60.0/jobs/query/750xx0000000001AAA"))
+            .and(path("/services/data/v67.0/jobs/query/750xx0000000001AAA"))
             .and(bearer_token("test_token"))
             .and(header("content-type", "application/json"))
             .and(body_string_contains("Aborted"))
@@ -869,7 +870,7 @@ mod tests {
         let mock_server = MockServer::start().await;
 
         Mock::given(method("PATCH"))
-            .and(path("/services/data/v60.0/jobs/query/750xx0000000001AAA"))
+            .and(path("/services/data/v67.0/jobs/query/750xx0000000001AAA"))
             .respond_with(ResponseTemplate::new(400).set_body_json(serde_json::json!({
                 "message": "Cannot abort completed job",
                 "errorCode": "INVALID_OPERATION"
@@ -892,7 +893,7 @@ mod tests {
         let mock_server = MockServer::start().await;
 
         Mock::given(method("DELETE"))
-            .and(path("/services/data/v60.0/jobs/query/750xx0000000001AAA"))
+            .and(path("/services/data/v67.0/jobs/query/750xx0000000001AAA"))
             .and(bearer_token("test_token"))
             .respond_with(ResponseTemplate::new(204))
             .mount(&mock_server)
@@ -910,7 +911,7 @@ mod tests {
         let mock_server = MockServer::start().await;
 
         Mock::given(method("DELETE"))
-            .and(path("/services/data/v60.0/jobs/query/750xx0000000999AAA"))
+            .and(path("/services/data/v67.0/jobs/query/750xx0000000999AAA"))
             .respond_with(ResponseTemplate::new(404))
             .mount(&mock_server)
             .await;
@@ -947,7 +948,7 @@ mod tests {
 
         Mock::given(method("GET"))
             .and(path(
-                "/services/data/v60.0/jobs/query/750xx0000000001AAA/results",
+                "/services/data/v67.0/jobs/query/750xx0000000001AAA/results",
             ))
             .and(bearer_token("test_token"))
             .respond_with(
@@ -979,7 +980,7 @@ mod tests {
 
         Mock::given(method("GET"))
             .and(path(
-                "/services/data/v60.0/jobs/query/750xx0000000001AAA/results",
+                "/services/data/v67.0/jobs/query/750xx0000000001AAA/results",
             ))
             .and(query_param_is_missing("locator"))
             .respond_with(
@@ -992,7 +993,7 @@ mod tests {
 
         Mock::given(method("GET"))
             .and(path(
-                "/services/data/v60.0/jobs/query/750xx0000000001AAA/results",
+                "/services/data/v67.0/jobs/query/750xx0000000001AAA/results",
             ))
             .and(query_param("locator", "page2"))
             .respond_with(
@@ -1025,7 +1026,7 @@ mod tests {
 
         Mock::given(method("GET"))
             .and(path(
-                "/services/data/v60.0/jobs/query/750xx0000000001AAA/results",
+                "/services/data/v67.0/jobs/query/750xx0000000001AAA/results",
             ))
             .and(query_param_is_missing("locator"))
             .respond_with(
@@ -1038,7 +1039,7 @@ mod tests {
 
         Mock::given(method("GET"))
             .and(path(
-                "/services/data/v60.0/jobs/query/750xx0000000001AAA/results",
+                "/services/data/v67.0/jobs/query/750xx0000000001AAA/results",
             ))
             .and(query_param("locator", "page2"))
             .respond_with(
@@ -1051,7 +1052,7 @@ mod tests {
 
         Mock::given(method("GET"))
             .and(path(
-                "/services/data/v60.0/jobs/query/750xx0000000001AAA/results",
+                "/services/data/v67.0/jobs/query/750xx0000000001AAA/results",
             ))
             .and(query_param("locator", "page3"))
             .respond_with(
@@ -1084,7 +1085,7 @@ mod tests {
 
         Mock::given(method("GET"))
             .and(path(
-                "/services/data/v60.0/jobs/query/750xx0000000001AAA/results",
+                "/services/data/v67.0/jobs/query/750xx0000000001AAA/results",
             ))
             .respond_with(ResponseTemplate::new(200).set_body_string("Id,Name\n"))
             .mount(&mock_server)
@@ -1108,7 +1109,7 @@ mod tests {
 
         Mock::given(method("GET"))
             .and(path(
-                "/services/data/v60.0/jobs/query/750xx0000000001AAA/results",
+                "/services/data/v67.0/jobs/query/750xx0000000001AAA/results",
             ))
             .respond_with(
                 ResponseTemplate::new(200)
@@ -1138,7 +1139,7 @@ mod tests {
 
         Mock::given(method("GET"))
             .and(path(
-                "/services/data/v60.0/jobs/query/750xx0000000001AAA/results",
+                "/services/data/v67.0/jobs/query/750xx0000000001AAA/results",
             ))
             .and(query_param_is_missing("locator"))
             .respond_with(
@@ -1152,7 +1153,7 @@ mod tests {
 
         Mock::given(method("GET"))
             .and(path(
-                "/services/data/v60.0/jobs/query/750xx0000000001AAA/results",
+                "/services/data/v67.0/jobs/query/750xx0000000001AAA/results",
             ))
             .and(query_param("locator", "next&page=2"))
             .respond_with(
@@ -1187,7 +1188,7 @@ mod tests {
             "createdById": "005xx0000000001AAA",
             "numberRecordsProcessed": 2500,
             "totalProcessingTime": 12000,
-            "apiVersion": "60.0"
+            "apiVersion": "67.0"
         }"#;
 
         let info: BulkQueryJobInfo = serde_json::from_str(json).must();
@@ -1196,7 +1197,7 @@ mod tests {
         assert_eq!(info.state, JobState::JobComplete);
         assert_eq!(info.number_records_processed, Some(2500));
         assert_eq!(info.total_processing_time, Some(12000));
-        assert_eq!(info.api_version, Some("60.0".to_string()));
+        assert_eq!(info.api_version, Some("67.0".to_string()));
     }
 
     #[tokio::test]
@@ -1209,11 +1210,11 @@ mod tests {
             "createdById": "005xx0000000001AAA",
             "numberRecordsProcessed": 2500,
             "totalProcessingTime": 12000,
-            "apiVersion": 60.0
+            "apiVersion": 67.0
         }"#;
 
         let info: BulkQueryJobInfo = serde_json::from_str(json).must();
-        assert_eq!(info.api_version, Some("60.0".to_string()));
+        assert_eq!(info.api_version, Some("67.0".to_string()));
     }
 
     #[tokio::test]
@@ -1224,7 +1225,7 @@ mod tests {
 
         Mock::given(method("GET"))
             .and(path(
-                "/services/data/v60.0/jobs/query/750xx0000000001AAA/results",
+                "/services/data/v67.0/jobs/query/750xx0000000001AAA/results",
             ))
             .respond_with(
                 ResponseTemplate::new(200)
@@ -1266,7 +1267,7 @@ mod tests {
 
         // Mock: Create query job
         Mock::given(method("POST"))
-            .and(path("/services/data/v60.0/jobs/query"))
+            .and(path("/services/data/v67.0/jobs/query"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "750xx0000000006AAA",
                 "operation": "query",
@@ -1279,7 +1280,7 @@ mod tests {
 
         // Mock: Poll query job
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/jobs/query/750xx0000000006AAA"))
+            .and(path("/services/data/v67.0/jobs/query/750xx0000000006AAA"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "750xx0000000006AAA",
                 "operation": "query",
@@ -1294,7 +1295,7 @@ mod tests {
         // Mock: Download results
         Mock::given(method("GET"))
             .and(path(
-                "/services/data/v60.0/jobs/query/750xx0000000006AAA/results",
+                "/services/data/v67.0/jobs/query/750xx0000000006AAA/results",
             ))
             .respond_with(ResponseTemplate::new(200).set_body_string(
                 "Id,Name\n001xx0000000001AAA,Acme Corp\n001xx0000000002AAA,Global Industries\n",
@@ -1331,7 +1332,7 @@ mod tests {
         let mock_server = MockServer::start().await;
 
         Mock::given(method("POST"))
-            .and(path("/services/data/v60.0/jobs/query"))
+            .and(path("/services/data/v67.0/jobs/query"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "750xx0000000007AAA",
                 "operation": "query",
@@ -1343,7 +1344,7 @@ mod tests {
             .await;
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/jobs/query/750xx0000000007AAA"))
+            .and(path("/services/data/v67.0/jobs/query/750xx0000000007AAA"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "750xx0000000007AAA",
                 "operation": "query",
@@ -1357,7 +1358,7 @@ mod tests {
 
         Mock::given(method("GET"))
             .and(path(
-                "/services/data/v60.0/jobs/query/750xx0000000007AAA/results",
+                "/services/data/v67.0/jobs/query/750xx0000000007AAA/results",
             ))
             .respond_with(ResponseTemplate::new(200).set_body_string("Id\n"))
             .mount(&mock_server)
@@ -1387,7 +1388,7 @@ mod tests {
         let mock_server = MockServer::start().await;
 
         Mock::given(method("POST"))
-            .and(path("/services/data/v60.0/jobs/query"))
+            .and(path("/services/data/v67.0/jobs/query"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "750xx0000000009AAA",
                 "operation": "query",
@@ -1400,7 +1401,7 @@ mod tests {
 
         // Query job fails
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/jobs/query/750xx0000000009AAA"))
+            .and(path("/services/data/v67.0/jobs/query/750xx0000000009AAA"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "750xx0000000009AAA",
                 "operation": "query",
@@ -1437,7 +1438,7 @@ mod tests {
         let mock_server = MockServer::start().await;
 
         Mock::given(method("POST"))
-            .and(path("/services/data/v60.0/jobs/query"))
+            .and(path("/services/data/v67.0/jobs/query"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "750xx0000000010AAA",
                 "operation": "query",
@@ -1449,7 +1450,7 @@ mod tests {
             .await;
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/jobs/query/750xx0000000010AAA"))
+            .and(path("/services/data/v67.0/jobs/query/750xx0000000010AAA"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "750xx0000000010AAA",
                 "operation": "query",
@@ -1462,7 +1463,7 @@ mod tests {
             .await;
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/jobs/query/750xx0000000010AAA"))
+            .and(path("/services/data/v67.0/jobs/query/750xx0000000010AAA"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "750xx0000000010AAA",
                 "operation": "query",
@@ -1477,7 +1478,7 @@ mod tests {
 
         Mock::given(method("GET"))
             .and(path(
-                "/services/data/v60.0/jobs/query/750xx0000000010AAA/results",
+                "/services/data/v67.0/jobs/query/750xx0000000010AAA/results",
             ))
             .respond_with(ResponseTemplate::new(200).set_body_string("Id\n001xx0000000001AAA\n"))
             .mount(&mock_server)
@@ -1510,7 +1511,7 @@ mod tests {
         let mock_server = MockServer::start().await;
 
         Mock::given(method("POST"))
-            .and(path("/services/data/v60.0/jobs/query"))
+            .and(path("/services/data/v67.0/jobs/query"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "750xx0000000011AAA",
                 "operation": "query",
@@ -1522,7 +1523,7 @@ mod tests {
             .await;
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/jobs/query/750xx0000000011AAA"))
+            .and(path("/services/data/v67.0/jobs/query/750xx0000000011AAA"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "750xx0000000011AAA",
                 "operation": "query",

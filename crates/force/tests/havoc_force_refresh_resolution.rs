@@ -32,7 +32,7 @@ mod tests {
             sleep(Duration::from_millis(50)).await;
 
             Ok(AccessToken::from_response(TokenResponse {
-                access_token: format!("token_{count}"),
+                access_token: secrecy::SecretString::new(format!("token_{count}").into()),
                 instance_url: "https://test.salesforce.com".to_string(),
                 token_type: "Bearer".to_string(),
                 // FIXED timestamp to simulate low resolution or same-millisecond refreshes

@@ -25,23 +25,21 @@ pub fn write_openapi_schema(out: &mut String, describe: &SObjectDescribe) {
     }
 
     // Find required fields for the required array
-    let required_fields: Vec<&str> = describe
-        .fields
-        .iter()
-        .filter(|f| {
-            !f.nillable
-                && !f.defaulted_on_create
-                && f.createable
-                && f.type_ != FieldType::Id
-                && f.type_ != FieldType::Boolean
-        })
-        .map(|f| f.name.as_str())
-        .collect();
+    // ⚡ Bolt: Avoid intermediate `Vec<&str>` allocation by using a two-pass approach.
+    let is_required = |f: &FieldDescribe| -> bool {
+        !f.nillable
+            && !f.defaulted_on_create
+            && f.createable
+            && f.type_ != FieldType::Id
+            && f.type_ != FieldType::Boolean
+    };
 
-    if !required_fields.is_empty() {
+    let has_required = describe.fields.iter().any(is_required);
+
+    if has_required {
         out.push_str("      required:\n");
-        for field in required_fields {
-            let _ = writeln!(out, "        - {}", field);
+        for field in describe.fields.iter().filter(|&f| is_required(f)) {
+            let _ = writeln!(out, "        - {}", field.name);
         }
     }
 
@@ -121,7 +119,7 @@ fn write_field_schema(out: &mut String, field: &FieldDescribe) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_support::{MockFieldDescribeBuilder, MockSObjectDescribeBuilder};
+    use crate::test_utils::mock_describe::{MockFieldDescribeBuilder, MockSObjectDescribeBuilder};
 
     #[test]
     fn test_openapi_generator_basic() {
@@ -162,5 +160,84 @@ mod tests {
         assert!(schema.contains("Id:"));
         assert!(schema.contains("readOnly: true"));
         assert!(schema.contains("maxLength: 18"));
+    }
+
+    #[test]
+    fn test_openapi_generator_all_types() {
+        let describe = MockSObjectDescribeBuilder::new("AllTypes")
+            .field(MockFieldDescribeBuilder::new("BoolField", FieldType::Boolean).build())
+            .field(MockFieldDescribeBuilder::new("IntField", FieldType::Int).build())
+            .field(MockFieldDescribeBuilder::new("DoubleField", FieldType::Double).build())
+            .field(MockFieldDescribeBuilder::new("PercentField", FieldType::Percent).build())
+            .field(MockFieldDescribeBuilder::new("CurrencyField", FieldType::Currency).build())
+            .field(MockFieldDescribeBuilder::new("DateField", FieldType::Date).build())
+            .field(MockFieldDescribeBuilder::new("DatetimeField", FieldType::Datetime).build())
+            .field(MockFieldDescribeBuilder::new("Base64Field", FieldType::Base64).build())
+            .field(MockFieldDescribeBuilder::new("TextareaField", FieldType::Textarea).build())
+            .field(
+                MockFieldDescribeBuilder::new("PicklistField", FieldType::Picklist)
+                    .picklist_values(vec![
+                        crate::types::describe::PicklistValue {
+                            active: true,
+                            default_value: false,
+                            label: "A".to_string(),
+                            valid_for: None,
+                            value: "A".to_string(),
+                        },
+                        crate::types::describe::PicklistValue {
+                            active: true,
+                            default_value: false,
+                            label: "B".to_string(),
+                            valid_for: None,
+                            value: "B".to_string(),
+                        },
+                    ])
+                    .build(),
+            )
+            .field(MockFieldDescribeBuilder::new("UnknownField", FieldType::AnyType).build())
+            .build();
+
+        let schema = generate_openapi_schema(&describe);
+
+        assert!(schema.contains("BoolField:"));
+        assert!(schema.contains("type: boolean"));
+
+        assert!(schema.contains("IntField:"));
+        assert!(schema.contains("type: integer"));
+
+        assert!(schema.contains("DoubleField:"));
+        assert!(schema.contains("type: number"));
+
+        assert!(schema.contains("PercentField:"));
+
+        assert!(schema.contains("CurrencyField:"));
+
+        assert!(schema.contains("DateField:"));
+        assert!(schema.contains(
+            "format: date
+"
+        ));
+
+        assert!(schema.contains("DatetimeField:"));
+        assert!(schema.contains(
+            "format: date-time
+"
+        ));
+
+        assert!(schema.contains("Base64Field:"));
+        assert!(schema.contains(
+            "format: byte
+"
+        ));
+
+        assert!(schema.contains("TextareaField:"));
+        assert!(schema.contains("type: string"));
+
+        assert!(schema.contains("PicklistField:"));
+        assert!(schema.contains("enum:"));
+        assert!(schema.contains("- A"));
+        assert!(schema.contains("- B"));
+
+        assert!(schema.contains("UnknownField:"));
     }
 }

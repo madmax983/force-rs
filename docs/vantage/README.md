@@ -32,6 +32,7 @@ Design backlog and product-spec notes for incubating `force-rs` capabilities. Th
 - [`typescript-interface-generator.md`](typescript-interface-generator.md): TypeScript interface generation.
 - [`zod-schema-generator.md`](zod-schema-generator.md): TypeScript Zod schema generation for runtime validation.
 - [`bigquery-schema-generator.md`](bigquery-schema-generator.md): Google BigQuery table schema generation.
+- [`prisma-schema-generator.md`](prisma-schema-generator.md): Prisma ORM schema generation for Node.js/TypeScript applications.
 
 ## Metadata and Tooling
 
@@ -51,3 +52,4 @@ Design backlog and product-spec notes for incubating `force-rs` capabilities. Th
 ## Authentication
 
 - [`saml-bearer-flow.md`](saml-bearer-flow.md): OAuth 2.0 SAML Bearer Assertion Flow for Salesforce authentication.
+- [`data-cloud-api.md`](data-cloud-api.md): Data Cloud API support.

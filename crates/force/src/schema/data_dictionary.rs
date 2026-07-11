@@ -120,7 +120,8 @@ impl<'a, A: Authenticator> DataDictionary<'a, A> {
 mod tests {
     use super::*;
     use crate::client::builder;
-    use crate::test_support::{MockAuthenticator, Must};
+    use crate::test_utils::mock_auth::MockAuthenticator;
+    use crate::test_utils::must::Must;
     use serde_json::json;
     use wiremock::matchers::{method, path, query_param};
     use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -173,7 +174,7 @@ mod tests {
         });
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/sobjects/Account/describe"))
+            .and(path("/services/data/v67.0/sobjects/Account/describe"))
             .respond_with(ResponseTemplate::new(200).set_body_json(describe_json))
             .mount(&mock_server)
             .await;
@@ -257,7 +258,7 @@ mod tests {
         });
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/sobjects/Account/describe"))
+            .and(path("/services/data/v67.0/sobjects/Account/describe"))
             .respond_with(ResponseTemplate::new(200).set_body_json(describe_json))
             .mount(&mock_server)
             .await;
@@ -271,7 +272,7 @@ mod tests {
         });
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/query"))
+            .and(path("/services/data/v67.0/query"))
             .and(query_param("q", "SELECT COUNT(Id) total, COUNT(Id) f0, COUNT(Name) f1, COUNT(ParentId) f2 FROM Account"))
             .respond_with(ResponseTemplate::new(200).set_body_json(query_json))
             .mount(&mock_server)

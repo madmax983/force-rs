@@ -120,7 +120,8 @@ mod tests {
 
     use crate::auth::DataCloudConfig;
     use crate::client::{ForceClient, builder};
-    use crate::test_support::{MockAuthenticator, Must, MustMsg};
+    use crate::test_utils::mock_auth::MockAuthenticator;
+    use crate::test_utils::must::{Must, MustMsg};
 
     async fn test_dc_client() -> ForceClient<MockAuthenticator> {
         let auth = MockAuthenticator::new("test_token", "https://test.salesforce.com");
@@ -189,7 +190,7 @@ mod tests {
     async fn test_builder_without_dc_still_works() {
         let client = test_client_no_dc().await;
         // Platform APIs should still work
-        assert_eq!(client.config().api_version, "v60.0");
+        assert_eq!(client.config().api_version, "v67.0");
     }
 
     #[tokio::test]
@@ -206,7 +207,7 @@ mod tests {
             .must();
 
         // Platform API version unchanged
-        assert_eq!(client.config().api_version, "v60.0");
+        assert_eq!(client.config().api_version, "v67.0");
         // DC handler exists
         assert!(client.data_cloud().is_ok());
     }

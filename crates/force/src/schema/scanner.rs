@@ -66,7 +66,7 @@ impl<'a, A: Authenticator> FieldUsageScanner<'a, A> {
         // 2. Filter scanable fields
         let scanable_fields: Vec<_> = describe
             .fields
-            .iter()
+            .into_iter()
             .filter(|f| is_scanable(&f.type_))
             .collect();
 
@@ -79,7 +79,16 @@ impl<'a, A: Authenticator> FieldUsageScanner<'a, A> {
         let mut results = Vec::with_capacity(scanable_fields.len());
 
         // 3. Batch fields to avoid SOQL character limits (safe chunk size: 20)
-        for chunk in scanable_fields.chunks(20) {
+        let mut chunk = Vec::with_capacity(20);
+        for field in scanable_fields {
+            chunk.push(field);
+            if chunk.len() == 20 {
+                let usage = self.scan_batch(sobject, chunk).await?;
+                results.extend(usage);
+                chunk = Vec::with_capacity(20);
+            }
+        }
+        if !chunk.is_empty() {
             let usage = self.scan_batch(sobject, chunk).await?;
             results.extend(usage);
         }
@@ -90,7 +99,7 @@ impl<'a, A: Authenticator> FieldUsageScanner<'a, A> {
     async fn scan_batch(
         &self,
         sobject: &str,
-        fields: &[&crate::types::describe::FieldDescribe],
+        fields: Vec<crate::types::describe::FieldDescribe>,
     ) -> Result<Vec<FieldUsage>> {
         use std::fmt::Write;
 
@@ -117,9 +126,9 @@ impl<'a, A: Authenticator> FieldUsageScanner<'a, A> {
             // Actually aggregate query always returns 1 row (unless grouped, which we aren't).
             // Wait, if table is empty, COUNT returns 0 in one row.
             return Ok(fields
-                .iter()
+                .into_iter()
                 .map(|f| FieldUsage {
-                    name: f.name.clone(),
+                    name: f.name,
                     type_: format!("{:?}", f.type_),
                     populated_count: 0,
                     total_count: 0,
@@ -133,7 +142,7 @@ impl<'a, A: Authenticator> FieldUsageScanner<'a, A> {
 
         let mut batch_results = Vec::with_capacity(fields.len());
 
-        for (i, field) in fields.iter().enumerate() {
+        for (i, field) in fields.into_iter().enumerate() {
             let alias = format!("f{}", i);
             let count = record.get(&alias).and_then(|v| v.as_u64()).unwrap_or(0);
 
@@ -144,7 +153,7 @@ impl<'a, A: Authenticator> FieldUsageScanner<'a, A> {
             };
 
             batch_results.push(FieldUsage {
-                name: field.name.clone(),
+                name: field.name,
                 type_: format!("{:?}", field.type_),
                 populated_count: count,
                 total_count: total,
@@ -171,7 +180,8 @@ fn is_scanable(field_type: &FieldType) -> bool {
 mod tests {
     use super::*;
     use crate::client::builder;
-    use crate::test_support::{MockAuthenticator, Must};
+    use crate::test_utils::mock_auth::MockAuthenticator;
+    use crate::test_utils::must::Must;
     use serde_json::json;
     use wiremock::matchers::{method, path, query_param};
     use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -269,7 +279,7 @@ mod tests {
         });
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/sobjects/Account/describe"))
+            .and(path("/services/data/v67.0/sobjects/Account/describe"))
             .respond_with(ResponseTemplate::new(200).set_body_json(describe_json))
             .mount(mock_server)
             .await;
@@ -285,7 +295,7 @@ mod tests {
                 {
                     "attributes": {
                         "type": "AggregateResult",
-                        "url": "/services/data/v60.0/sobjects/AggregateResult/row0"
+                        "url": "/services/data/v67.0/sobjects/AggregateResult/row0"
                     },
                     "total": 10,
                     "f0": 10, // Id
@@ -295,7 +305,7 @@ mod tests {
         });
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/query"))
+            .and(path("/services/data/v67.0/query"))
             .and(query_param(
                 "q",
                 "SELECT COUNT(Id) total, COUNT(Id) f0, COUNT(Name) f1 FROM Account",
@@ -351,7 +361,7 @@ mod tests {
         });
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/sobjects/Account/describe"))
+            .and(path("/services/data/v67.0/sobjects/Account/describe"))
             .respond_with(ResponseTemplate::new(200).set_body_json(describe_json))
             .mount(&mock_server)
             .await;
@@ -361,14 +371,14 @@ mod tests {
             "records": [{
                 "attributes": {
                     "type": "AggregateResult",
-                    "url": "/services/data/v60.0/sobjects/AggregateResult/row0"
+                    "url": "/services/data/v67.0/sobjects/AggregateResult/row0"
                 },
                 "total": 10, "f0": 10
             }]
         });
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/query"))
+            .and(path("/services/data/v67.0/query"))
             // Should ONLY query Id (f0), not BillingAddress
             .and(query_param(
                 "q",
@@ -399,14 +409,14 @@ mod tests {
             "records": [{
                 "attributes": {
                     "type": "AggregateResult",
-                    "url": "/services/data/v60.0/sobjects/AggregateResult/row0"
+                    "url": "/services/data/v67.0/sobjects/AggregateResult/row0"
                 },
                 "total": 0, "f0": 0
             }]
         });
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/query"))
+            .and(path("/services/data/v67.0/query"))
             .respond_with(ResponseTemplate::new(200).set_body_json(query_json))
             .mount(&mock_server)
             .await;
@@ -449,7 +459,7 @@ mod tests {
         });
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/sobjects/Account/describe"))
+            .and(path("/services/data/v67.0/sobjects/Account/describe"))
             .respond_with(ResponseTemplate::new(200).set_body_json(describe_json))
             .mount(mock_server)
             .await;
@@ -512,7 +522,7 @@ mod tests {
         });
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/sobjects/Account/describe"))
+            .and(path("/services/data/v67.0/sobjects/Account/describe"))
             .respond_with(ResponseTemplate::new(200).set_body_json(describe_json))
             .mount(&mock_server)
             .await;
@@ -523,7 +533,7 @@ mod tests {
 
         // We match strictly on the query param to verify batching
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/query"))
+            .and(path("/services/data/v67.0/query"))
             .and(QueryContains("Field0"))
             .and(QueryContains("Field19"))
             .and(QueryNotContains("Field20")) // Should NOT contain Field20
@@ -538,7 +548,7 @@ mod tests {
             .await;
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/query"))
+            .and(path("/services/data/v67.0/query"))
             .and(QueryContains("Field20"))
             .and(QueryContains("Field24"))
             .and(QueryNotContains("Field0")) // Should NOT contain Field0
@@ -566,7 +576,7 @@ mod tests {
 
         // 1. Describe failure
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/sobjects/Account/describe"))
+            .and(path("/services/data/v67.0/sobjects/Account/describe"))
             .respond_with(ResponseTemplate::new(404)) // Not Found
             .mount(&mock_server)
             .await;
@@ -584,7 +594,7 @@ mod tests {
         setup_mock_describe_simple(&mock_server).await;
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/query"))
+            .and(path("/services/data/v67.0/query"))
             .respond_with(ResponseTemplate::new(400).set_body_string("Bad Query"))
             .mount(&mock_server)
             .await;

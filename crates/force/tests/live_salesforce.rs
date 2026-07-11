@@ -106,7 +106,7 @@ struct EnvAuthenticator {
 impl Authenticator for EnvAuthenticator {
     async fn authenticate(&self) -> Result<AccessToken> {
         Ok(AccessToken::from_response(TokenResponse {
-            access_token: self.access_token.clone(),
+            access_token: secrecy::SecretString::new(self.access_token.clone().into()),
             instance_url: self.instance_url.clone(),
             token_type: "Bearer".to_string(),
             issued_at: chrono::Utc::now().timestamp_millis().to_string(),
@@ -1597,7 +1597,7 @@ mod bulk_roundtrip_tests {
             config.auth,
         );
 
-        let result: std::result::Result<(), ForceError> =
+        let result: force::error::Result<()> =
             tokio::time::timeout(config.runtime.test_timeout, async {
                 let client = create_live_client(&config).await?;
                 let accounts = generate_accounts(&prefix, record_count);
@@ -1716,7 +1716,7 @@ mod bulk_roundtrip_tests {
             config.auth,
         );
 
-        let result: std::result::Result<(), ForceError> =
+        let result: force::error::Result<()> =
             tokio::time::timeout(config.runtime.test_timeout, async {
                 let client = create_live_client(&config).await?;
                 let accounts = generate_accounts(&prefix, record_count);

@@ -134,7 +134,8 @@ mod tests {
 
     use super::*;
     use crate::client::builder;
-    use crate::test_support::{MockAuthenticator, Must};
+    use crate::test_utils::mock_auth::MockAuthenticator;
+    use crate::test_utils::must::Must;
     use serde_json::json;
     use wiremock::matchers::{method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -181,7 +182,7 @@ mod tests {
         });
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/ui-api/favorites"))
+            .and(path("/services/data/v67.0/ui-api/favorites"))
             .respond_with(ResponseTemplate::new(200).set_body_json(&response_body))
             .expect(1)
             .mount(&server)
@@ -205,7 +206,7 @@ mod tests {
         let response_body = json!({ "favorites": [] });
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/ui-api/favorites"))
+            .and(path("/services/data/v67.0/ui-api/favorites"))
             .respond_with(ResponseTemplate::new(200).set_body_json(&response_body))
             .expect(1)
             .mount(&server)
@@ -223,7 +224,7 @@ mod tests {
         let client = make_client(&server).await;
 
         Mock::given(method("POST"))
-            .and(path("/services/data/v60.0/ui-api/favorites"))
+            .and(path("/services/data/v67.0/ui-api/favorites"))
             .respond_with(
                 ResponseTemplate::new(200).set_body_json(favorite_json(FAV_ID, "My Account")),
             )
@@ -247,7 +248,7 @@ mod tests {
         let client = make_client(&server).await;
 
         Mock::given(method("POST"))
-            .and(path("/services/data/v60.0/ui-api/favorites"))
+            .and(path("/services/data/v67.0/ui-api/favorites"))
             .respond_with(ResponseTemplate::new(400).set_body_json(json!([{
                 "errorCode": "INVALID_INPUT",
                 "message": "target is required"
@@ -287,7 +288,7 @@ mod tests {
 
         Mock::given(method("PATCH"))
             .and(path(format!(
-                "/services/data/v60.0/ui-api/favorites/{FAV_ID}"
+                "/services/data/v67.0/ui-api/favorites/{FAV_ID}"
             )))
             .respond_with(ResponseTemplate::new(200).set_body_json(&updated))
             .expect(1)
@@ -315,7 +316,7 @@ mod tests {
 
         Mock::given(method("PATCH"))
             .and(path(format!(
-                "/services/data/v60.0/ui-api/favorites/{FAV_ID}"
+                "/services/data/v67.0/ui-api/favorites/{FAV_ID}"
             )))
             .respond_with(ResponseTemplate::new(404).set_body_json(json!([{
                 "errorCode": "NOT_FOUND",
@@ -347,7 +348,7 @@ mod tests {
 
         Mock::given(method("DELETE"))
             .and(path(format!(
-                "/services/data/v60.0/ui-api/favorites/{FAV_ID}"
+                "/services/data/v67.0/ui-api/favorites/{FAV_ID}"
             )))
             .respond_with(ResponseTemplate::new(204))
             .expect(1)
@@ -366,7 +367,7 @@ mod tests {
 
         Mock::given(method("DELETE"))
             .and(path(format!(
-                "/services/data/v60.0/ui-api/favorites/{FAV_ID}"
+                "/services/data/v67.0/ui-api/favorites/{FAV_ID}"
             )))
             .respond_with(ResponseTemplate::new(404).set_body_json(json!([{
                 "errorCode": "NOT_FOUND",

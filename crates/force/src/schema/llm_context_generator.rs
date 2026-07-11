@@ -45,6 +45,7 @@ impl Default for LlmContextOptions {
 ///
 /// A dense string formatted for LLM consumption.
 #[must_use]
+#[allow(clippy::too_many_lines)]
 pub fn generate_llm_context(describe: &SObjectDescribe, options: &LlmContextOptions) -> String {
     let mut context = String::with_capacity(1024);
 
@@ -55,7 +56,9 @@ pub fn generate_llm_context(describe: &SObjectDescribe, options: &LlmContextOpti
     );
     let _ = writeln!(context, "Fields:");
 
-    let mut sorted_fields = describe.fields.clone();
+    // ⚡ Bolt: Collecting references to fields into a Vec avoids the costly `describe.fields.clone()` heap allocation since we just need to sort them before iterating.
+    let mut sorted_fields: Vec<&crate::types::describe::FieldDescribe> =
+        describe.fields.iter().collect();
     sorted_fields.sort_by(|a, b| crate::schema::cmp_field_names(&a.name, &b.name));
 
     for field in sorted_fields {
@@ -128,12 +131,19 @@ pub fn generate_llm_context(describe: &SObjectDescribe, options: &LlmContextOpti
         };
 
         if options.include_relationships && field.type_ == FieldType::Reference {
-            let targets = field.reference_to.join(",");
-            let _ = writeln!(
-                context,
-                "  - {}: {} -> {}{}{}",
-                field.name, type_str, targets, modifiers_str, label_str
-            );
+            let _ = write!(context, "  - {}: {} -> ", field.name, type_str);
+
+            // ⚡ Bolt: Write reference targets directly to the `context` buffer, avoiding a temporary `.join(",")` String allocation.
+            let mut first = true;
+            for target in &field.reference_to {
+                if !first {
+                    context.push(',');
+                }
+                first = false;
+                context.push_str(target);
+            }
+
+            let _ = writeln!(context, "{}{}", modifiers_str, label_str);
         } else {
             let _ = writeln!(
                 context,
@@ -162,7 +172,7 @@ pub fn generate_llm_context(describe: &SObjectDescribe, options: &LlmContextOpti
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_support::Must;
+    use crate::test_utils::must::Must;
     use serde_json::json;
 
     fn mock_describe() -> SObjectDescribe {

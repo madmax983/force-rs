@@ -32,7 +32,7 @@ impl MockAuthenticator {
 impl Authenticator for MockAuthenticator {
     async fn authenticate(&self) -> Result<AccessToken> {
         Ok(AccessToken::from_response(TokenResponse {
-            access_token: self.token.clone(),
+            access_token: secrecy::SecretString::new(self.token.clone().into()),
             instance_url: self.instance_url.clone(),
             token_type: "Bearer".to_string(),
             issued_at: "1704067200000".to_string(),
@@ -81,7 +81,7 @@ async fn test_composite_batch_execution() {
     });
 
     Mock::given(method("POST"))
-        .and(path("/services/data/v60.0/composite/batch"))
+        .and(path("/services/data/v67.0/composite/batch"))
         .and(bearer_token("test_token"))
         .respond_with(ResponseTemplate::new(200).set_body_json(response_body))
         .mount(&mock_server)
@@ -143,7 +143,7 @@ async fn test_composite_batch_failure_handling() {
     });
 
     Mock::given(method("POST"))
-        .and(path("/services/data/v60.0/composite/batch"))
+        .and(path("/services/data/v67.0/composite/batch"))
         .respond_with(ResponseTemplate::new(200).set_body_json(response_body))
         .mount(&mock_server)
         .await;

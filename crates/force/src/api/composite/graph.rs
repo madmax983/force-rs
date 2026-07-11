@@ -369,7 +369,8 @@ pub struct GraphSubResponse {
 mod tests {
     use super::*;
     use crate::client::builder as client_builder;
-    use crate::test_support::{MockAuthenticator, Must};
+    use crate::test_utils::mock_auth::MockAuthenticator;
+    use crate::test_utils::must::Must;
     use serde_json::json;
     use wiremock::matchers::{method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -468,7 +469,7 @@ mod tests {
         });
 
         Mock::given(method("POST"))
-            .and(path("/services/data/v60.0/composite/graph"))
+            .and(path("/services/data/v67.0/composite/graph"))
             .respond_with(ResponseTemplate::new(200).set_body_json(response_json))
             .mount(&mock_server)
             .await;

@@ -1,3 +1,4 @@
+#![allow(clippy::redundant_pub_crate)]
 //! Correctness-first bidirectional Salesforce and Postgres sync engine.
 
 #![forbid(unsafe_code)]
@@ -14,7 +15,7 @@ pub(crate) mod error;
 /// Canonical identity types for synced records.
 pub(crate) mod identity;
 /// Change envelope and cursor types for sync events.
-pub mod model;
+pub(crate) mod model;
 /// Pure planner and merge logic for sync envelopes.
 pub(crate) mod plan;
 /// Reconciliation helpers for drift detection and repair.

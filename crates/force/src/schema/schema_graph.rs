@@ -183,7 +183,8 @@ fn mermaid_type_str(field_type: &FieldType) -> &'static str {
 mod tests {
     use super::*;
     use crate::client::builder;
-    use crate::test_support::{MockAuthenticator, Must};
+    use crate::test_utils::mock_auth::MockAuthenticator;
+    use crate::test_utils::must::Must;
     use serde_json::json;
     use wiremock::matchers::{method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -235,7 +236,7 @@ mod tests {
         });
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/sobjects/Account/describe"))
+            .and(path("/services/data/v67.0/sobjects/Account/describe"))
             .respond_with(ResponseTemplate::new(200).set_body_json(describe_json))
             .mount(mock_server)
             .await;
@@ -288,7 +289,7 @@ mod tests {
         });
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/sobjects/Contact/describe"))
+            .and(path("/services/data/v67.0/sobjects/Contact/describe"))
             .respond_with(ResponseTemplate::new(200).set_body_json(describe_json))
             .mount(mock_server)
             .await;

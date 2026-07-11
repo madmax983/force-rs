@@ -34,7 +34,7 @@ impl MockAuthenticator {
 impl Authenticator for MockAuthenticator {
     async fn authenticate(&self) -> ForceResult<AccessToken> {
         Ok(AccessToken::from_response(TokenResponse {
-            access_token: self.token.clone(),
+            access_token: secrecy::SecretString::new(self.token.clone().into()),
             instance_url: self.instance_url.clone(),
             token_type: "Bearer".to_string(),
             issued_at: "1704067200000".to_string(),
@@ -70,7 +70,7 @@ async fn apply_rest_upsert_create_returns_created_id() {
 
     Mock::given(method("PATCH"))
         .and(path(
-            "/services/data/v60.0/sobjects/Account/ExternalId__c/ACME-001",
+            "/services/data/v67.0/sobjects/Account/ExternalId__c/ACME-001",
         ))
         .and(header("Authorization", "Bearer test_token"))
         .and(body_json(json!({"Name": "Acme Corp"})))
@@ -111,7 +111,7 @@ async fn apply_rest_upsert_update_204_fails_when_lookup_finds_no_row() {
 
     Mock::given(method("PATCH"))
         .and(path(
-            "/services/data/v60.0/sobjects/Account/ExternalId__c/ACME-002",
+            "/services/data/v67.0/sobjects/Account/ExternalId__c/ACME-002",
         ))
         .and(header("Authorization", "Bearer test_token"))
         .and(body_json(json!({"Name": "Acme Updated"})))
@@ -121,7 +121,7 @@ async fn apply_rest_upsert_update_204_fails_when_lookup_finds_no_row() {
         .await;
 
     Mock::given(method("GET"))
-        .and(path("/services/data/v60.0/query"))
+        .and(path("/services/data/v67.0/query"))
         .and(query_param(
             "q",
             "SELECT Id FROM Account WHERE ExternalId__c = 'ACME-002' LIMIT 1",
@@ -165,7 +165,7 @@ async fn apply_rest_upsert_update_204_resolves_salesforce_id_when_link_missing()
 
     Mock::given(method("PATCH"))
         .and(path(
-            "/services/data/v60.0/sobjects/Account/ExternalId__c/ACME-003",
+            "/services/data/v67.0/sobjects/Account/ExternalId__c/ACME-003",
         ))
         .and(header("Authorization", "Bearer test_token"))
         .and(body_json(json!({"Name": "Acme Updated"})))
@@ -175,7 +175,7 @@ async fn apply_rest_upsert_update_204_resolves_salesforce_id_when_link_missing()
         .await;
 
     Mock::given(method("GET"))
-        .and(path("/services/data/v60.0/query"))
+        .and(path("/services/data/v67.0/query"))
         .and(query_param(
             "q",
             "SELECT Id FROM Account WHERE ExternalId__c = 'ACME-003' LIMIT 1",
@@ -187,7 +187,7 @@ async fn apply_rest_upsert_update_204_resolves_salesforce_id_when_link_missing()
             "records": [{
                 "attributes": {
                     "type": "Account",
-                    "url": "/services/data/v60.0/sobjects/Account/001000000000003AAA"
+                    "url": "/services/data/v67.0/sobjects/Account/001000000000003AAA"
                 },
                 "Id": "001000000000003AAA"
             }]
@@ -224,7 +224,7 @@ async fn apply_rest_delete_uses_salesforce_id() {
 
     Mock::given(method("DELETE"))
         .and(path(
-            "/services/data/v60.0/sobjects/Account/001000000000001AAA",
+            "/services/data/v67.0/sobjects/Account/001000000000001AAA",
         ))
         .and(header("Authorization", "Bearer test_token"))
         .respond_with(ResponseTemplate::new(204))
@@ -247,7 +247,7 @@ async fn apply_rest_delete_404_is_idempotent_success() {
 
     Mock::given(method("DELETE"))
         .and(path(
-            "/services/data/v60.0/sobjects/Account/001000000000004AAA",
+            "/services/data/v67.0/sobjects/Account/001000000000004AAA",
         ))
         .and(header("Authorization", "Bearer test_token"))
         .respond_with(ResponseTemplate::new(404).set_body_string("not found"))
@@ -269,7 +269,7 @@ async fn transient_rest_upsert_failure_is_retryable() {
 
     Mock::given(method("PATCH"))
         .and(path(
-            "/services/data/v60.0/sobjects/Account/ExternalId__c/ACME-503",
+            "/services/data/v67.0/sobjects/Account/ExternalId__c/ACME-503",
         ))
         .respond_with(ResponseTemplate::new(503).set_body_string("temporary outage"))
         .mount(&mock_server)
@@ -301,7 +301,7 @@ async fn apply_rest_delete_server_error_is_retryable() {
 
     Mock::given(method("DELETE"))
         .and(path(
-            "/services/data/v60.0/sobjects/Account/001000000000005AAA",
+            "/services/data/v67.0/sobjects/Account/001000000000005AAA",
         ))
         .and(header("Authorization", "Bearer test_token"))
         .respond_with(ResponseTemplate::new(503).set_body_string("service unavailable"))
@@ -326,7 +326,7 @@ async fn apply_rest_delete_bad_request_is_permanent() {
 
     Mock::given(method("DELETE"))
         .and(path(
-            "/services/data/v60.0/sobjects/Account/001000000000006AAA",
+            "/services/data/v67.0/sobjects/Account/001000000000006AAA",
         ))
         .and(header("Authorization", "Bearer test_token"))
         .respond_with(ResponseTemplate::new(400).set_body_string("bad request"))
@@ -350,7 +350,7 @@ async fn apply_rest_upsert_permanent_400_classified_correctly() {
 
     Mock::given(method("PATCH"))
         .and(path(
-            "/services/data/v60.0/sobjects/Account/ExternalId__c/ACME-400",
+            "/services/data/v67.0/sobjects/Account/ExternalId__c/ACME-400",
         ))
         .respond_with(ResponseTemplate::new(400).set_body_json(json!([{
             "message": "FIELD_INTEGRITY_EXCEPTION",
@@ -385,7 +385,7 @@ async fn apply_rest_upsert_update_204_fails_when_id_field_is_null_in_query_resul
     // Upsert returns 204 (update, no body)
     Mock::given(method("PATCH"))
         .and(path(
-            "/services/data/v60.0/sobjects/Account/ExternalId__c/ACME-NULL",
+            "/services/data/v67.0/sobjects/Account/ExternalId__c/ACME-NULL",
         ))
         .and(header("Authorization", "Bearer test_token"))
         .respond_with(ResponseTemplate::new(204))
@@ -395,7 +395,7 @@ async fn apply_rest_upsert_update_204_fails_when_id_field_is_null_in_query_resul
 
     // Follow-up query returns a record but the Id field is null
     Mock::given(method("GET"))
-        .and(path("/services/data/v60.0/query"))
+        .and(path("/services/data/v67.0/query"))
         .and(query_param(
             "q",
             "SELECT Id FROM Account WHERE ExternalId__c = 'ACME-NULL' LIMIT 1",
@@ -407,7 +407,7 @@ async fn apply_rest_upsert_update_204_fails_when_id_field_is_null_in_query_resul
             "records": [{
                 "attributes": {
                     "type": "Account",
-                    "url": "/services/data/v60.0/sobjects/Account/001000000000099AAA"
+                    "url": "/services/data/v67.0/sobjects/Account/001000000000099AAA"
                 },
                 "Id": null
             }]

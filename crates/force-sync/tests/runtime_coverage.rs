@@ -44,7 +44,7 @@ impl MockAuthenticator {
 impl Authenticator for MockAuthenticator {
     async fn authenticate(&self) -> ForceResult<AccessToken> {
         Ok(AccessToken::from_response(TokenResponse {
-            access_token: self.token.clone(),
+            access_token: secrecy::SecretString::new(self.token.clone().into()),
             instance_url: self.instance_url.clone(),
             token_type: "Bearer".to_owned(),
             issued_at: "1704067200000".to_owned(),
@@ -177,7 +177,7 @@ async fn runtime_coverage_combined_tests() -> Result<(), ForceSyncError> {
     {
         Mock::given(method("DELETE"))
             .and(path(
-                "/services/data/v60.0/sobjects/Account/001000000000001AAA",
+                "/services/data/v67.0/sobjects/Account/001000000000001AAA",
             ))
             .and(header("Authorization", "Bearer test_token"))
             .respond_with(ResponseTemplate::new(204))
@@ -241,7 +241,7 @@ async fn runtime_coverage_combined_tests() -> Result<(), ForceSyncError> {
         // 503 triggers the HTTP retry logic, so the mock may be called multiple times
         Mock::given(method("PATCH"))
             .and(path(
-                "/services/data/v60.0/sobjects/Account/ExternalId__c/retry-1",
+                "/services/data/v67.0/sobjects/Account/ExternalId__c/retry-1",
             ))
             .respond_with(ResponseTemplate::new(503).set_body_string("Service Unavailable"))
             .named("upsert-503")
@@ -275,7 +275,7 @@ async fn runtime_coverage_combined_tests() -> Result<(), ForceSyncError> {
     {
         Mock::given(method("PATCH"))
             .and(path(
-                "/services/data/v60.0/sobjects/Account/ExternalId__c/perm-1",
+                "/services/data/v67.0/sobjects/Account/ExternalId__c/perm-1",
             ))
             .respond_with(ResponseTemplate::new(400).set_body_json(json!([{
                 "errorCode": "INVALID_FIELD",
@@ -309,7 +309,7 @@ async fn runtime_coverage_combined_tests() -> Result<(), ForceSyncError> {
         // 500 triggers the HTTP retry logic, so the mock may be called multiple times
         Mock::given(method("DELETE"))
             .and(path(
-                "/services/data/v60.0/sobjects/Account/001000000000002AAA",
+                "/services/data/v67.0/sobjects/Account/001000000000002AAA",
             ))
             .respond_with(ResponseTemplate::new(500).set_body_string("Internal Server Error"))
             .named("delete-500")

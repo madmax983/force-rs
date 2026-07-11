@@ -48,7 +48,8 @@ pub fn generate_bigquery_schema(describe: &SObjectDescribe) -> Value {
 #[cfg(feature = "schema")]
 mod tests {
     use super::*;
-    use crate::test_support::{MockFieldDescribeBuilder, MockSObjectDescribeBuilder, MustMsg};
+    use crate::test_utils::mock_describe::{MockFieldDescribeBuilder, MockSObjectDescribeBuilder};
+    use crate::test_utils::must::MustMsg;
 
     #[test]
     fn test_generate_bigquery_schema() {

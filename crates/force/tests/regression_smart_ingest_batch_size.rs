@@ -57,7 +57,7 @@ mod tests {
     impl Authenticator for MockAuthenticator {
         async fn authenticate(&self) -> ForceResult<AccessToken> {
             Ok(AccessToken::from_response(TokenResponse {
-                access_token: self.token.clone(),
+                access_token: secrecy::SecretString::new(self.token.clone().into()),
                 instance_url: self.instance_url.clone(),
                 token_type: "Bearer".to_string(),
                 issued_at: "1704067200000".to_string(),
@@ -86,7 +86,7 @@ mod tests {
         let mock_server = MockServer::start().await;
 
         Mock::given(method("POST"))
-            .and(path("/services/data/v60.0/jobs/ingest"))
+            .and(path("/services/data/v67.0/jobs/ingest"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "JOB_ID",
                 "state": "Open",
@@ -99,7 +99,7 @@ mod tests {
             .await;
 
         Mock::given(method("PATCH"))
-            .and(path("/services/data/v60.0/jobs/ingest/JOB_ID"))
+            .and(path("/services/data/v67.0/jobs/ingest/JOB_ID"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "JOB_ID",
                 "state": "UploadComplete",
@@ -112,7 +112,7 @@ mod tests {
             .await;
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/jobs/ingest/JOB_ID"))
+            .and(path("/services/data/v67.0/jobs/ingest/JOB_ID"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "JOB_ID",
                 "state": "JobComplete",

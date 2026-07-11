@@ -54,7 +54,7 @@ pub fn generate_mock_record(describe: &SObjectDescribe) -> DynamicSObject {
     // but DynamicSObject requires Attributes to initialize.
     // We'll use a valid-looking 18 character dummy ID.
     let dummy_id = SalesforceId::new("001000000000000AAA").unwrap_or_else(|_| unreachable!());
-    let attrs = Attributes::new(describe.name.clone(), &dummy_id, "v60.0");
+    let attrs = Attributes::new(describe.name.clone(), &dummy_id, "v67.0");
     let mut record = DynamicSObject::new(attrs);
 
     for field in &describe.fields {
@@ -131,7 +131,7 @@ pub fn generate_mock_record(describe: &SObjectDescribe) -> DynamicSObject {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_support::Must;
+    use crate::test_utils::must::Must;
     use serde_json::json;
 
     fn create_mock_describe(fields_json: &serde_json::Value) -> SObjectDescribe {
@@ -372,7 +372,7 @@ pub fn generate_mock_query(describe: &SObjectDescribe) -> String {
 #[cfg(test)]
 mod additional_tests {
     use super::*;
-    use crate::test_support::Must;
+    use crate::test_utils::must::Must;
     use crate::types::describe::SObjectDescribe;
     use serde_json::json;
 

@@ -200,7 +200,7 @@ impl LimitInfo {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_support::Must;
+    use crate::test_utils::must::Must;
 
     // RED PHASE - Write failing tests first
 
@@ -456,6 +456,58 @@ mod tests {
 
         assert_eq!(original, deserialized);
     }
+
+    #[test]
+    #[allow(clippy::float_cmp)]
+    fn test_percentage_used_boundary_conditions() {
+        // Test < vs <= for lowest cost logic
+        let l1 = LimitInfo {
+            max: 100,
+            remaining: 25,
+            used: None,
+        };
+        assert_eq!(l1.percentage_used(), 75.0);
+        let l0 = LimitInfo {
+            max: 0,
+            remaining: 0,
+            used: None,
+        };
+        assert_eq!(l0.percentage_used(), 0.0);
+        let l2 = LimitInfo {
+            max: 100,
+            remaining: 0,
+            used: None,
+        };
+        assert_eq!(l2.percentage_used(), 100.0);
+        assert!(l2.is_at_limit());
+        let l3 = LimitInfo {
+            max: 100,
+            remaining: 100,
+            used: None,
+        };
+        assert_eq!(l3.percentage_used(), 0.0);
+        assert!(!l3.is_at_limit());
+
+        let l4 = LimitInfo {
+            max: 100,
+            remaining: 25,
+            used: None,
+        };
+        assert!(l4.is_above_threshold(70.0));
+        assert!(!l4.is_above_threshold(80.0));
+        assert!(!l4.is_above_threshold(75.0)); // Exact match should return false
+    }
+
+    #[cfg(feature = "mock")]
+    #[test]
+    fn test_sample_limits_response_is_valid() {
+        let resp = super::integration_tests::sample_limits_response();
+        assert!(resp.is_object());
+        let Some(obj) = resp.as_object() else {
+            panic!("Expected JSON Object");
+        };
+        assert!(!obj.is_empty());
+    }
 }
 
 // Integration tests with wiremock
@@ -463,11 +515,12 @@ mod tests {
 mod integration_tests {
     use crate::client::builder;
     use crate::config::ClientConfig;
-    use crate::test_support::{MockAuthenticator, Must, MustMsg};
+    use crate::test_utils::mock_auth::MockAuthenticator;
+    use crate::test_utils::must::{Must, MustMsg};
     use wiremock::matchers::{bearer_token, header, method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
-    fn sample_limits_response() -> serde_json::Value {
+    pub fn sample_limits_response() -> serde_json::Value {
         serde_json::json!({
             "DailyApiRequests": {
                 "Max": 15000,
@@ -564,7 +617,7 @@ mod integration_tests {
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/limits"))
+            .and(path("/services/data/v67.0/limits"))
             .and(bearer_token("test_token"))
             .respond_with(ResponseTemplate::new(200).set_body_json(sample_limits_response()))
             .mount(&mock_server)
@@ -626,7 +679,7 @@ mod integration_tests {
         let auth = MockAuthenticator::new("invalid_token", &mock_server.uri());
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/limits"))
+            .and(path("/services/data/v67.0/limits"))
             .respond_with(ResponseTemplate::new(401))
             .mount(&mock_server)
             .await;
@@ -650,7 +703,7 @@ mod integration_tests {
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/limits"))
+            .and(path("/services/data/v67.0/limits"))
             .respond_with(ResponseTemplate::new(500))
             .mount(&mock_server)
             .await;
@@ -674,7 +727,7 @@ mod integration_tests {
         let auth = MockAuthenticator::new("header_test_token", &mock_server.uri());
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/limits"))
+            .and(path("/services/data/v67.0/limits"))
             .and(header("Authorization", "Bearer header_test_token"))
             .respond_with(ResponseTemplate::new(200).set_body_json(sample_limits_response()))
             .expect(1)
@@ -729,7 +782,7 @@ mod integration_tests {
         });
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/limits"))
+            .and(path("/services/data/v67.0/limits"))
             .respond_with(ResponseTemplate::new(200).set_body_json(at_limit_response))
             .mount(&mock_server)
             .await;
@@ -761,7 +814,7 @@ mod integration_tests {
         );
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/limits"))
+            .and(path("/services/data/v67.0/limits"))
             .respond_with(ResponseTemplate::new(200).set_body_json(response))
             .mount(&mock_server)
             .await;
@@ -815,7 +868,7 @@ mod integration_tests {
         });
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/limits"))
+            .and(path("/services/data/v67.0/limits"))
             .respond_with(ResponseTemplate::new(200).set_body_json(high_usage_response))
             .mount(&mock_server)
             .await;
@@ -841,7 +894,7 @@ mod integration_tests {
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/limits"))
+            .and(path("/services/data/v67.0/limits"))
             .respond_with(ResponseTemplate::new(200).set_body_json(sample_limits_response()))
             .expect(3)
             .mount(&mock_server)
@@ -870,7 +923,7 @@ mod integration_tests {
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/limits"))
+            .and(path("/services/data/v67.0/limits"))
             .respond_with(ResponseTemplate::new(200).set_body_json(sample_limits_response()))
             .expect(2)
             .mount(&mock_server)

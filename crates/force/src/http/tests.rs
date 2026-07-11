@@ -7,7 +7,8 @@ mod integration_tests {
     use crate::http::{
         HttpExecutor, RequestErrorKind, RequestRetryClass, RetryEvent, RetryPolicy, TelemetryHooks,
     };
-    use crate::test_support::Must;
+    use crate::test_utils::must::Must;
+    use secrecy::SecretString;
     use std::sync::Arc;
     use std::sync::Mutex;
     use std::sync::atomic::{AtomicU32, Ordering};
@@ -27,7 +28,7 @@ mod integration_tests {
 
     fn create_test_token() -> AccessToken {
         let response = TokenResponse {
-            access_token: "test_token_123".to_string(),
+            access_token: SecretString::new("test_token_123".to_string().into()),
             instance_url: "https://test.salesforce.com".to_string(),
             token_type: "Bearer".to_string(),
             issued_at: "1640000000000".to_string(), // 2021-12-20
@@ -45,7 +46,7 @@ mod integration_tests {
         let token = create_test_token();
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v60.0/sobjects"))
+            .and(path("/services/data/v67.0/sobjects"))
             .and(header("Authorization", "Bearer test_token_123"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "sobjects": []
@@ -54,7 +55,7 @@ mod integration_tests {
             .await;
 
         // Act
-        let url = format!("{}/services/data/v60.0/sobjects", mock_server.uri());
+        let url = format!("{}/services/data/v67.0/sobjects", mock_server.uri());
         let request = reqwest::Client::new().get(&url).build().must();
 
         let result = executor
@@ -106,7 +107,7 @@ mod integration_tests {
                 async move {
                     count.fetch_add(1, Ordering::SeqCst);
                     let response = TokenResponse {
-                        access_token: "new_token_456".to_string(),
+                        access_token: SecretString::new("new_token_456".to_string().into()),
                         instance_url: "https://test.salesforce.com".to_string(),
                         token_type: "Bearer".to_string(),
                         issued_at: "1640000000000".to_string(),
@@ -491,7 +492,7 @@ mod integration_tests {
         let url = format!("{}/test", mock_server.uri());
         let request = reqwest::Client::new().get(&url).build().must();
 
-        let result: Result<TestResponse, ForceError> = executor
+        let result: crate::error::Result<TestResponse> = executor
             .execute_json(request, &token, || async { panic!("Should not refresh") })
             .await;
 
@@ -518,7 +519,7 @@ mod integration_tests {
         let url = format!("{}/test", mock_server.uri());
         let request = reqwest::Client::new().get(&url).build().must();
 
-        let result: Result<IdOnlyResponse, ForceError> = executor
+        let result: crate::error::Result<IdOnlyResponse> = executor
             .execute_json(request, &token, || async { panic!("Should not refresh") })
             .await;
 
@@ -549,7 +550,7 @@ mod integration_tests {
         let result = executor
             .execute(request, &token, || async {
                 let response = TokenResponse {
-                    access_token: "new_token".to_string(),
+                    access_token: SecretString::new("new_token".to_string().into()),
                     instance_url: "https://test.salesforce.com".to_string(),
                     token_type: "Bearer".to_string(),
                     issued_at: "1640000000000".to_string(),

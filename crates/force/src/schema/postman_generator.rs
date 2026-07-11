@@ -68,14 +68,14 @@ pub fn generate_postman_collection(describe: &SObjectDescribe) -> Value {
                         "raw": create_body_str
                     },
                     "url": {
-                        "raw": format!("{{{{_endpoint}}}}/services/data/v60.0/sobjects/{}", name),
+                        "raw": format!("{{{{_endpoint}}}}/services/data/v67.0/sobjects/{}", name),
                         "host": [
                             "{{_endpoint}}"
                         ],
                         "path": [
                             "services",
                             "data",
-                            "v60.0",
+                            "v67.0",
                             "sobjects",
                             name
                         ]
@@ -88,14 +88,14 @@ pub fn generate_postman_collection(describe: &SObjectDescribe) -> Value {
                     "method": "GET",
                     "header": [],
                     "url": {
-                        "raw": format!("{{{{_endpoint}}}}/services/data/v60.0/sobjects/{}/{{{{recordId}}}}", name),
+                        "raw": format!("{{{{_endpoint}}}}/services/data/v67.0/sobjects/{}/{{{{recordId}}}}", name),
                         "host": [
                             "{{_endpoint}}"
                         ],
                         "path": [
                             "services",
                             "data",
-                            "v60.0",
+                            "v67.0",
                             "sobjects",
                             name,
                             "{{recordId}}"
@@ -118,14 +118,14 @@ pub fn generate_postman_collection(describe: &SObjectDescribe) -> Value {
                         "raw": update_body_str
                     },
                     "url": {
-                        "raw": format!("{{{{_endpoint}}}}/services/data/v60.0/sobjects/{}/{{{{recordId}}}}", name),
+                        "raw": format!("{{{{_endpoint}}}}/services/data/v67.0/sobjects/{}/{{{{recordId}}}}", name),
                         "host": [
                             "{{_endpoint}}"
                         ],
                         "path": [
                             "services",
                             "data",
-                            "v60.0",
+                            "v67.0",
                             "sobjects",
                             name,
                             "{{recordId}}"
@@ -139,14 +139,14 @@ pub fn generate_postman_collection(describe: &SObjectDescribe) -> Value {
                     "method": "DELETE",
                     "header": [],
                     "url": {
-                        "raw": format!("{{{{_endpoint}}}}/services/data/v60.0/sobjects/{}/{{{{recordId}}}}", name),
+                        "raw": format!("{{{{_endpoint}}}}/services/data/v67.0/sobjects/{}/{{{{recordId}}}}", name),
                         "host": [
                             "{{_endpoint}}"
                         ],
                         "path": [
                             "services",
                             "data",
-                            "v60.0",
+                            "v67.0",
                             "sobjects",
                             name,
                             "{{recordId}}"
@@ -162,7 +162,8 @@ pub fn generate_postman_collection(describe: &SObjectDescribe) -> Value {
 #[cfg(feature = "schema")]
 mod tests {
     use super::*;
-    use crate::test_support::{MockFieldDescribeBuilder, MockSObjectDescribeBuilder, MustMsg};
+    use crate::test_utils::mock_describe::{MockFieldDescribeBuilder, MockSObjectDescribeBuilder};
+    use crate::test_utils::must::MustMsg;
     use crate::types::describe::FieldType;
 
     #[test]

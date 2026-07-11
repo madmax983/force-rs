@@ -53,7 +53,7 @@ impl<A: crate::auth::Authenticator> BulkHandler<A> {
     ///
     /// ```ignore
     /// let base = handler.base_url().await?;
-    /// // Returns: "https://na1.salesforce.com/services/data/v60.0/jobs/ingest"
+    /// // Returns: "https://na1.salesforce.com/services/data/v67.0/jobs/ingest"
     /// ```
     pub async fn base_url(&self) -> Result<String> {
         self.inner.resolve_url("jobs/ingest").await
@@ -64,7 +64,8 @@ impl<A: crate::auth::Authenticator> BulkHandler<A> {
 mod tests {
     use crate::client::{ForceClient, builder};
     use crate::config::ClientConfig;
-    use crate::test_support::{MockAuthenticator, Must, MustMsg};
+    use crate::test_utils::mock_auth::MockAuthenticator;
+    use crate::test_utils::must::{Must, MustMsg};
     use wiremock::MockServer;
 
     async fn create_test_client(mock_server_url: String) -> ForceClient<MockAuthenticator> {
@@ -109,7 +110,7 @@ mod tests {
         let base_url = handler.base_url().await.must();
         assert!(base_url.contains(&mock_server.uri()));
         assert!(base_url.contains("/services/data/"));
-        assert!(base_url.ends_with("v60.0/jobs/ingest")); // Default API version
+        assert!(base_url.ends_with("v67.0/jobs/ingest")); // Default API version
     }
 
     #[cfg(feature = "bulk")]

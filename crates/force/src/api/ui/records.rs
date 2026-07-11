@@ -341,12 +341,12 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
 
 #[cfg(test)]
 mod tests {
-    use crate::test_support::Must;
+    use crate::test_utils::must::Must;
 
     use super::*;
     use crate::api::ui::types::{LayoutType, Mode};
     use crate::client::builder;
-    use crate::test_support::MockAuthenticator;
+    use crate::test_utils::mock_auth::MockAuthenticator;
     use serde_json::json;
     use wiremock::matchers::{method, path, query_param};
     use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -393,7 +393,7 @@ mod tests {
 
         Mock::given(method("GET"))
             .and(path(format!(
-                "/services/data/v60.0/ui-api/record-ui/{VALID_ID}"
+                "/services/data/v67.0/ui-api/record-ui/{VALID_ID}"
             )))
             .respond_with(ResponseTemplate::new(200).set_body_json(&response_body))
             .expect(1)
@@ -421,7 +421,7 @@ mod tests {
 
         Mock::given(method("GET"))
             .and(path(format!(
-                "/services/data/v60.0/ui-api/record-ui/{VALID_ID}"
+                "/services/data/v67.0/ui-api/record-ui/{VALID_ID}"
             )))
             .and(query_param("layoutTypes", "Full"))
             .and(query_param("modes", "View"))
@@ -457,7 +457,7 @@ mod tests {
 
         Mock::given(method("GET"))
             .and(path(format!(
-                "/services/data/v60.0/ui-api/record-ui/{joined}"
+                "/services/data/v67.0/ui-api/record-ui/{joined}"
             )))
             .respond_with(ResponseTemplate::new(200).set_body_json(&response_body))
             .expect(1)
@@ -480,7 +480,7 @@ mod tests {
 
         Mock::given(method("GET"))
             .and(path(format!(
-                "/services/data/v60.0/ui-api/record-ui/{VALID_ID}"
+                "/services/data/v67.0/ui-api/record-ui/{VALID_ID}"
             )))
             .respond_with(ResponseTemplate::new(404).set_body_json(json!([{
                 "errorCode": "NOT_FOUND",
@@ -512,7 +512,7 @@ mod tests {
 
         Mock::given(method("GET"))
             .and(path(format!(
-                "/services/data/v60.0/ui-api/records/{VALID_ID}"
+                "/services/data/v67.0/ui-api/records/{VALID_ID}"
             )))
             .respond_with(ResponseTemplate::new(200).set_body_json(minimal_record_json(VALID_ID)))
             .expect(1)
@@ -531,7 +531,7 @@ mod tests {
 
         Mock::given(method("GET"))
             .and(path(format!(
-                "/services/data/v60.0/ui-api/records/{VALID_ID}"
+                "/services/data/v67.0/ui-api/records/{VALID_ID}"
             )))
             .and(query_param("fields", "Account.Name,Account.Phone"))
             .respond_with(ResponseTemplate::new(200).set_body_json(minimal_record_json(VALID_ID)))
@@ -554,7 +554,7 @@ mod tests {
 
         Mock::given(method("GET"))
             .and(path(format!(
-                "/services/data/v60.0/ui-api/records/{VALID_ID}"
+                "/services/data/v67.0/ui-api/records/{VALID_ID}"
             )))
             .respond_with(ResponseTemplate::new(404).set_body_json(json!([{
                 "errorCode": "NOT_FOUND",
@@ -595,7 +595,7 @@ mod tests {
 
         Mock::given(method("GET"))
             .and(path(format!(
-                "/services/data/v60.0/ui-api/records/batch/{joined}"
+                "/services/data/v67.0/ui-api/records/batch/{joined}"
             )))
             .respond_with(ResponseTemplate::new(200).set_body_json(&response_body))
             .expect(1)
@@ -624,7 +624,7 @@ mod tests {
 
         Mock::given(method("GET"))
             .and(path(format!(
-                "/services/data/v60.0/ui-api/records/batch/{VALID_ID}"
+                "/services/data/v67.0/ui-api/records/batch/{VALID_ID}"
             )))
             .and(query_param("fields", "Account.Name"))
             .respond_with(ResponseTemplate::new(200).set_body_json(&response_body))
@@ -649,7 +649,7 @@ mod tests {
         let client = make_client(&server).await;
 
         Mock::given(method("POST"))
-            .and(path("/services/data/v60.0/ui-api/records"))
+            .and(path("/services/data/v67.0/ui-api/records"))
             .respond_with(ResponseTemplate::new(200).set_body_json(minimal_record_json(VALID_ID)))
             .expect(1)
             .mount(&server)
@@ -674,7 +674,7 @@ mod tests {
         let client = make_client(&server).await;
 
         Mock::given(method("POST"))
-            .and(path("/services/data/v60.0/ui-api/records"))
+            .and(path("/services/data/v67.0/ui-api/records"))
             .respond_with(ResponseTemplate::new(400).set_body_json(json!([{
                 "errorCode": "REQUIRED_FIELD_MISSING",
                 "message": "Required fields are missing: [Name]"
@@ -710,7 +710,7 @@ mod tests {
 
         Mock::given(method("PATCH"))
             .and(path(format!(
-                "/services/data/v60.0/ui-api/records/{VALID_ID}"
+                "/services/data/v67.0/ui-api/records/{VALID_ID}"
             )))
             .respond_with(ResponseTemplate::new(200).set_body_json(minimal_record_json(VALID_ID)))
             .expect(1)
@@ -736,7 +736,7 @@ mod tests {
 
         Mock::given(method("PATCH"))
             .and(path(format!(
-                "/services/data/v60.0/ui-api/records/{VALID_ID}"
+                "/services/data/v67.0/ui-api/records/{VALID_ID}"
             )))
             .respond_with(ResponseTemplate::new(404).set_body_json(json!([{
                 "errorCode": "NOT_FOUND",
@@ -772,7 +772,7 @@ mod tests {
 
         Mock::given(method("DELETE"))
             .and(path(format!(
-                "/services/data/v60.0/ui-api/records/{VALID_ID}"
+                "/services/data/v67.0/ui-api/records/{VALID_ID}"
             )))
             .respond_with(ResponseTemplate::new(204))
             .expect(1)
@@ -789,7 +789,7 @@ mod tests {
 
         Mock::given(method("DELETE"))
             .and(path(format!(
-                "/services/data/v60.0/ui-api/records/{VALID_ID}"
+                "/services/data/v67.0/ui-api/records/{VALID_ID}"
             )))
             .respond_with(ResponseTemplate::new(404).set_body_json(json!([{
                 "errorCode": "NOT_FOUND",
@@ -837,7 +837,7 @@ mod tests {
 
         Mock::given(method("GET"))
             .and(path(
-                "/services/data/v60.0/ui-api/record-defaults/create/Account",
+                "/services/data/v67.0/ui-api/record-defaults/create/Account",
             ))
             .respond_with(ResponseTemplate::new(200).set_body_json(&response))
             .expect(1)
@@ -855,7 +855,7 @@ mod tests {
 
         Mock::given(method("GET"))
             .and(path(
-                "/services/data/v60.0/ui-api/record-defaults/create/NoSuchObject",
+                "/services/data/v67.0/ui-api/record-defaults/create/NoSuchObject",
             ))
             .respond_with(ResponseTemplate::new(404).set_body_json(json!([{
                 "errorCode": "NOT_FOUND",
@@ -907,7 +907,7 @@ mod tests {
 
         Mock::given(method("GET"))
             .and(path(format!(
-                "/services/data/v60.0/ui-api/record-defaults/clone/{VALID_ID}"
+                "/services/data/v67.0/ui-api/record-defaults/clone/{VALID_ID}"
             )))
             .respond_with(ResponseTemplate::new(200).set_body_json(&response))
             .expect(1)
@@ -926,7 +926,7 @@ mod tests {
 
         Mock::given(method("GET"))
             .and(path(format!(
-                "/services/data/v60.0/ui-api/record-defaults/clone/{VALID_ID}"
+                "/services/data/v67.0/ui-api/record-defaults/clone/{VALID_ID}"
             )))
             .respond_with(ResponseTemplate::new(404).set_body_json(json!([{
                 "errorCode": "NOT_FOUND",

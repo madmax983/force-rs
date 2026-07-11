@@ -79,7 +79,7 @@ impl Authenticator for EnvAuthenticator {
         );
 
         Ok(AccessToken::from_response(TokenResponse {
-            access_token: self.access_token.clone(),
+            access_token: secrecy::SecretString::new(self.access_token.clone().into()),
             instance_url: self.instance_url.clone(),
             token_type: "Bearer".to_string(),
             issued_at,

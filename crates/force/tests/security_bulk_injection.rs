@@ -30,7 +30,7 @@ impl MockAuthenticator {
 impl Authenticator for MockAuthenticator {
     async fn authenticate(&self) -> Result<AccessToken> {
         Ok(AccessToken::from_response(TokenResponse {
-            access_token: self.token.clone(),
+            access_token: secrecy::SecretString::new(self.token.clone().into()),
             instance_url: self.instance_url.clone(),
             token_type: "Bearer".to_string(),
             issued_at: "1704067200000".to_string(),
@@ -57,7 +57,7 @@ async fn test_create_job_rejects_invalid_object_name() {
 
     // The client should reject the invalid object name BEFORE sending the request.
     Mock::given(method("POST"))
-        .and(path("/services/data/v60.0/jobs/ingest"))
+        .and(path("/services/data/v67.0/jobs/ingest"))
         .respond_with(ResponseTemplate::new(200))
         .expect(0)
         .mount(&mock_server)
@@ -94,7 +94,7 @@ async fn test_create_job_rejects_invalid_external_id_field() {
 
     // Client should reject invalid field name (with dots)
     Mock::given(method("POST"))
-        .and(path("/services/data/v60.0/jobs/ingest"))
+        .and(path("/services/data/v67.0/jobs/ingest"))
         .respond_with(ResponseTemplate::new(200))
         .expect(0)
         .mount(&mock_server)

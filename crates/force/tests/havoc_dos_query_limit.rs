@@ -25,7 +25,7 @@ mod tests {
     impl Authenticator for MockAuthenticator {
         async fn authenticate(&self) -> Result<AccessToken> {
             Ok(AccessToken::from_response(TokenResponse {
-                access_token: "token".to_string(),
+                access_token: secrecy::SecretString::new("token".to_string().into()),
                 instance_url: self.0.clone(),
                 token_type: "Bearer".to_string(),
                 issued_at: "1704067200000".to_string(),
@@ -111,7 +111,7 @@ mod tests {
             .unwrap_or_else(|_| panic!("Failed to build client"));
 
         // 1. Exact limit
-        let max_url = format!("/services/data/v60.0/query/{}", "A".repeat(100_000 - 32));
+        let max_url = format!("/services/data/v67.0/query/{}", "A".repeat(100_000 - 32));
         let result = client.rest().query_more::<Dummy>(&max_url).await;
         if let Err(ForceError::InvalidInput(msg)) = &result {
             assert!(
