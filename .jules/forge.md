@@ -98,3 +98,6 @@
 **[Flatten Match With Original Error Context]**
 **Learning:** When flattening nested `match` statements handling `Result` outputs, rewriting them with `let Ok(...) = result else` guard clauses can lead to silently swallowing the underlying original error if not passed through explicitly, which breaks observability and changes runtime behavior. Using `.map_err(...)?` provides a flatter structure while preserving the exact error mappings natively.
 **Action:** When acting as 'Forge', never drop the original underlying error variable (e.g., `e`). To flatten `Result` mapping, use `.map_err(|e| { ... })?` with the `?` operator instead of verbose `match` statements or dropping context inside `else` guards, ensuring the error propagates cleanly without over-nesting.
+**[Consolidate Match Arms and Flatten Nested IFs]
+**Learning:** In complex HTTP request execution loops (e.g., `execute_response_with_retry_class`), nested `if/else` and duplicated match arms create a "Pyramid of Doom" that obscures the core retry logic.
+**Action:** Consolidate `Err` match arms using guard clauses (e.g. `if retry_attempt < max_retries && Self::is_retryable_error(&e)`) and flatten subsequent `if` blocks (e.g. combining `status == StatusCode::UNAUTHORIZED && !refreshed`) to reduce indentation and improve top-to-bottom readability.
