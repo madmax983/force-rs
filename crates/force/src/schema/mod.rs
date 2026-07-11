@@ -79,3 +79,6 @@ pub use llm_context_generator::{LlmContextOptions, generate_llm_context};
 pub(crate) mod dbt_generator;
 #[cfg(feature = "schema")]
 pub use dbt_generator::{generate_dbt_source_yml, generate_dbt_staging_model};
+pub(crate) mod apex_test_generator;
+#[cfg(feature = "schema")]
+pub use apex_test_generator::{generate_apex_test_factory, write_apex_test_factory};
