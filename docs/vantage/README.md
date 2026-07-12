@@ -45,6 +45,7 @@ Design backlog and product-spec notes for incubating `force-rs` capabilities. Th
 
 ## Data Utilities
 
+- [`local-soql-emulator.md`](local-soql-emulator.md): local execution emulator for SOQL.
 - [`soql-query-builder.md`](soql-query-builder.md): SOQL query builder for type-safe query construction.
 - [`data-faker.md`](data-faker.md): synthetic Salesforce-shaped data generation.
 - [`data-seeder.md`](data-seeder.md): repeatable fixture and seed workflows.
