@@ -1,4 +1,4 @@
-// Requires the "bulk" feature: force = { version = "0.1", features = ["bulk"] }
+// Requires the "bulk" feature: force = { version = "0.3", features = ["bulk"] }
 #![allow(missing_docs)]
 
 #[cfg(feature = "bulk")]

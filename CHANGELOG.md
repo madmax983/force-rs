@@ -5,6 +5,39 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-07-11
+
+### Added
+
+#### `force`
+- Added `ApiVersion` constants for Salesforce API versions v61.0 through v67.0.
+- Added a `DataValidator` (feature `data_utility`) for schema-aware validation of record payloads.
+- Added a `RelationalSeeder` (features `data_utility` + `composite_graph`) for generating relationally consistent seed data across related objects.
+
+### Changed
+
+#### `force`
+- Bumped the default Salesforce API version from v60.0 to v67.0.
+- Unified error handling into a single central error enum for a more consistent, exhaustive error surface.
+- Consolidated upsert handling into the shared `RestOperation` trait so REST and Tooling operations share one implementation.
+- Reduced allocations and improved throughput across REST query batching, Composite batch execution, search field handling, schema diffing, DBML/OpenAPI/LLM-context generation, and data masking.
+
+#### `force-sync`
+- Tightened public module boundaries so internal sync details stay behind stable facade APIs.
+
+### Security
+
+#### `force`
+- Restored SSRF- and token-leak-safe resolution of `nextRecordsUrl`, preventing query pagination from being redirected to an attacker-controlled host or leaking the access token.
+- Prevented URL-encoded path traversal in `validate_url_path`.
+- Fixed an integer-overflow denial-of-service in API error parsing and added checked arithmetic to schema complexity scoring.
+- Fixed an `AccessToken` expiration overflow, a TOCTOU race in `TokenManager`, and a hard-refresh path that could overwrite a newer token.
+- Guarded Bulk API batch handling against limit and overflow panics.
+
+### Documentation
+
+- Added a Vantage spec for the Data Cloud API and refreshed ADRs and release-facing documentation.
+
 ## [0.2.0] - 2026-04-23
 
 ### Added
@@ -66,5 +99,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Refreshed workspace docs and examples for the final published crate layout.
 - Moved Vantage specs out of the repository root into `docs/vantage/` to keep release-facing docs focused on shipped crates.
 
+[0.3.0]: https://github.com/madmax983/force-rs/releases/tag/v0.3.0
 [0.2.0]: https://github.com/madmax983/force-rs/releases/tag/v0.2.0
 [0.1.0]: https://github.com/madmax983/force-rs/releases/tag/v0.1.0

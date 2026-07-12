@@ -1,5 +1,5 @@
 //! Preview schema utility: Struct Generator
-//! Requires the `schema` feature: `force = { version = "0.1", features = ["schema"] }`
+//! Requires the `schema` feature: `force = { version = "0.3", features = ["schema"] }`
 
 #![allow(clippy::too_many_lines)]
 
