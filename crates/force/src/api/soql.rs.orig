@@ -496,7 +496,7 @@ impl SoqlQueryBuilder {
     /// ```
     pub fn try_order_by_desc(mut self, field: &str) -> crate::error::Result<Self> {
         validate_field_name(field).map_err(|e| ForceError::InvalidInput(e.to_string()))?;
-        // ⚡ Bolt: Avoid intermediate `format!` allocation and string heap overhead.
+        /// ⚡ Bolt: Avoid intermediate `format!` allocation and string heap overhead.
         let mut s = String::with_capacity(field.len() + 5);
         s.push_str(field);
         s.push_str(" DESC");
