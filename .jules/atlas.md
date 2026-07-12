@@ -16,3 +16,6 @@
 **[Unify error handling]
 **Tangle:** Inconsistent error handling across modules where Result was used with explicit types.
 **Blueprint:** Standardized error types across all modules to enforce domain boundaries.
+**ApiVersion Domain Boundary**
+**Tangle:** ClientConfig and DataCloudConfig used weakly-typed Strings for API versions, allowing invalid data and tight coupling across tests and features.
+**Blueprint:** Replaced String with the strongly-typed crate::types::ApiVersion newtype, enforcing the domain boundary at configuration time and letting the compiler validate API version formatting everywhere.

@@ -119,7 +119,7 @@ mod tests {
         let mock_server = MockServer::start().await;
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
         let config = ClientConfig {
-            api_version: "v59.0".into(),
+            api_version: "v59.0".parse().expect("valid version"),
             ..Default::default()
         };
         let client = builder()

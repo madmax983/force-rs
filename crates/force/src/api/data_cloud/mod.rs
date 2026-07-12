@@ -199,7 +199,7 @@ mod tests {
         let client = builder()
             .authenticate(auth)
             .with_data_cloud(DataCloudConfig {
-                api_version: Some("v64.0".into()),
+                api_version: Some("v64.0".parse().expect("valid version")),
                 ..Default::default()
             })
             .build()

@@ -270,7 +270,7 @@ mod tests {
     async fn test_base_url_with_custom_api_version() {
         let auth = MockAuthenticator::new("test_token", "https://custom.salesforce.com");
         let config = ClientConfig {
-            api_version: "v59.0".into(),
+            api_version: "v59.0".parse().expect("valid version"),
             ..Default::default()
         };
         let client = builder()
@@ -304,7 +304,7 @@ mod tests {
     async fn test_rest_handler_shares_client_config() {
         let auth = MockAuthenticator::new("token", "https://shared.salesforce.com");
         let config = ClientConfig {
-            api_version: "v58.0".into(),
+            api_version: "v58.0".parse().expect("valid version"),
             ..Default::default()
         };
         let client = builder()

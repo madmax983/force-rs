@@ -1257,7 +1257,7 @@ mod integration_tests {
             .await;
 
         let config = ClientConfig {
-            api_version: "v59.0".into(),
+            api_version: "v59.0".parse().expect("valid version"),
             ..Default::default()
         };
         let client = builder()

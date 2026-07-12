@@ -98,10 +98,10 @@ mod tests {
         #[test]
         fn test_custom_api_version() {
             let config = ClientConfig {
-                api_version: "v61.0".into(),
+                api_version: "v61.0".parse().expect("valid version"),
                 ..Default::default()
             };
-            assert_eq!(config.api_version, "v61.0");
+            assert_eq!(config.api_version.to_string(), "v61.0");
         }
 
         #[test]
@@ -134,13 +134,13 @@ mod tests {
         #[test]
         fn test_all_custom() {
             let config = ClientConfig {
-                api_version: "v59.0".into(),
+                api_version: "v59.0".parse().expect("valid version"),
                 environment: Environment::Custom("https://my.salesforce.com".to_string()),
                 timeout: Duration::from_secs(45),
                 max_retries: 2,
             };
 
-            assert_eq!(config.api_version, "v59.0");
+            assert_eq!(config.api_version.to_string(), "v59.0");
             assert_eq!(
                 config.environment,
                 Environment::Custom("https://my.salesforce.com".to_string())

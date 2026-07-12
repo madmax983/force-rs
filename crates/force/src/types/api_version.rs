@@ -138,6 +138,8 @@ impl ApiVersion {
     }
 }
 
+impl ApiVersion {}
+
 impl fmt::Display for ApiVersion {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "v{}.0", self.major)
