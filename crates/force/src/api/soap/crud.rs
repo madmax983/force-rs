@@ -107,24 +107,38 @@ impl<A: crate::auth::Authenticator> SoapHandler<A> {
         fields: &[F],
         ids: &[I],
     ) -> Result<Vec<SObject>> {
-        let field_list = fields
-            .iter()
-            .map(AsRef::as_ref)
-            .collect::<Vec<_>>()
-            .join(", ");
-        let mut body = String::new();
-        body.push_str("<urn:retrieve><urn:fieldList>");
-        body.push_str(&envelope::escape_text(&field_list));
-        body.push_str("</urn:fieldList><urn:sObjectType>");
-        body.push_str(&envelope::escape_text(sobject_type));
-        body.push_str("</urn:sObjectType>");
-        for id in ids {
-            body.push_str("<urn:ids>");
-            body.push_str(&envelope::escape_text(id.as_ref()));
-            body.push_str("</urn:ids>");
-        }
-        body.push_str("</urn:retrieve>");
+        let body = build_retrieve_body(sobject_type, fields, ids);
         let xml = self.send(&body).await?;
         parse::parse_retrieve(&xml)
     }
+}
+
+/// Builds the `<urn:retrieve>` operation body for the given type, fields, and Ids.
+///
+/// Extracted so both the untyped [`retrieve`](SoapHandler::retrieve) and the
+/// typed [`retrieve_typed`](SoapHandler::retrieve_typed) paths share one body
+/// builder rather than duplicating the markup assembly.
+pub(super) fn build_retrieve_body<F: AsRef<str>, I: AsRef<str>>(
+    sobject_type: &str,
+    fields: &[F],
+    ids: &[I],
+) -> String {
+    let field_list = fields
+        .iter()
+        .map(AsRef::as_ref)
+        .collect::<Vec<_>>()
+        .join(", ");
+    let mut body = String::new();
+    body.push_str("<urn:retrieve><urn:fieldList>");
+    body.push_str(&envelope::escape_text(&field_list));
+    body.push_str("</urn:fieldList><urn:sObjectType>");
+    body.push_str(&envelope::escape_text(sobject_type));
+    body.push_str("</urn:sObjectType>");
+    for id in ids {
+        body.push_str("<urn:ids>");
+        body.push_str(&envelope::escape_text(id.as_ref()));
+        body.push_str("</urn:ids>");
+    }
+    body.push_str("</urn:retrieve>");
+    body
 }

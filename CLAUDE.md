@@ -280,6 +280,7 @@ crates/force/src/
     │   ├── crud.rs        # create/update/upsert/delete/retrieve
     │   ├── query.rs       # query/query_more/query_all/search
     │   ├── describe.rs    # describe_sobject/describe_sobjects/describe_global
+    │   ├── typed.rs       # serde bridge: *_typed::<T> (query/retrieve/create/update/upsert)
     │   └── misc.rs        # get_user_info/get_server_timestamp
     └── ...                # Other API surfaces
 ```
@@ -520,6 +521,7 @@ use force::testing::{MockForceClient, MockAuthenticator};
   - [x] CRUD: create, update, upsert (external-id), delete, retrieve
   - [x] Query: query, query_more, query_all, search (SOSL)
   - [x] Describe: describe_sobject, describe_sobjects, describe_global
+  - [x] Serde-typed convenience layer over the generic `SObject` (`*_typed::<T>`): `query_typed` (auto-paginates), `query_typed_page`/`query_more_typed_page`, `retrieve_typed` (`Vec<Option<T>>`), `create_typed`/`update_typed`/`upsert_typed`; stringly-typed fields, null → `fieldsToNull`
   - [x] Utility: get_user_info, get_server_timestamp
   - [x] OAuth token reused in `SessionHeader` (no `login()`; retiring Summer '27)
   - [x] `SoapFault` → `ForceError::Soap`; per-record errors in result structs

@@ -267,6 +267,26 @@ pub fn parse_retrieve(xml: &str) -> Result<Vec<SObject>> {
         .collect())
 }
 
+/// Parses a `retrieveResponse` body while preserving not-found slots.
+///
+/// Unlike [`parse_retrieve`], which drops the nil (not-found) entries, this
+/// returns one positional [`Option`] per requested Id: `None` for a nil slot and
+/// `Some(record)` otherwise. This preserves the caller's Id-to-result alignment,
+/// which the typed retrieve relies on.
+pub fn parse_retrieve_optional(xml: &str) -> Result<Vec<Option<SObject>>> {
+    let root = parse_document(xml)?;
+    Ok(operation_result_nodes(&root)
+        .into_iter()
+        .map(|node| {
+            if node.nil {
+                None
+            } else {
+                Some(parse_record(node))
+            }
+        })
+        .collect())
+}
+
 /// Parses a `query`/`queryMore`/`queryAll` response body into a [`QueryResult`].
 pub fn parse_query_result(xml: &str) -> Result<QueryResult> {
     let root = parse_document(xml)?;

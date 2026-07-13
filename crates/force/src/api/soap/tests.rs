@@ -624,3 +624,245 @@ async fn test_invalid_session_twice_returns_error() {
     let result = client.soap().query("SELECT Id FROM Account").await;
     assert!(matches!(result, Err(crate::error::ForceError::Soap(_))));
 }
+
+// ── typed convenience layer ──────────────────────────────────────────
+
+#[derive(Debug, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
+struct TypedAccount {
+    #[serde(rename = "Id", skip_serializing_if = "Option::is_none", default)]
+    id: Option<String>,
+    #[serde(rename = "Name")]
+    name: String,
+    // No `skip_serializing_if`: a `None` serializes to JSON null, which the
+    // bridge maps to an explicit `fieldsToNull` entry.
+    #[serde(rename = "Website", default)]
+    website: Option<String>,
+}
+
+#[tokio::test]
+async fn test_query_typed_auto_paginates_two_pages() {
+    let (server, client) = setup().await;
+
+    // Page 1 (query): done=false with a locator, one record.
+    Mock::given(method("POST"))
+        .and(path("/services/Soap/u/67.0"))
+        .and(body_string_contains("<urn:query>"))
+        .respond_with(ResponseTemplate::new(200).set_body_string(envelope(
+            r#"<queryResponse><result>
+                <done>false</done>
+                <queryLocator>01gLOC-PAGE2</queryLocator>
+                <records xsi:type="sf:sObject"><sf:type>Account</sf:type><sf:Id>001AAA</sf:Id><sf:Name>Acme</sf:Name></records>
+                <size>2</size>
+            </result></queryResponse>"#,
+        )))
+        .mount(&server)
+        .await;
+
+    // Page 2 (queryMore): done=true, one record.
+    Mock::given(method("POST"))
+        .and(path("/services/Soap/u/67.0"))
+        .and(body_string_contains(
+            "<urn:queryMore><urn:queryLocator>01gLOC-PAGE2</urn:queryLocator>",
+        ))
+        .respond_with(ResponseTemplate::new(200).set_body_string(envelope(
+            r#"<queryMoreResponse><result>
+                <done>true</done>
+                <records xsi:type="sf:sObject"><sf:type>Account</sf:type><sf:Id>001BBB</sf:Id><sf:Name>Beta</sf:Name></records>
+                <size>2</size>
+            </result></queryMoreResponse>"#,
+        )))
+        .mount(&server)
+        .await;
+
+    let accounts: Vec<TypedAccount> = client
+        .soap()
+        .query_typed("SELECT Id, Name FROM Account")
+        .await
+        .must();
+
+    // Both pages are combined into one typed vector.
+    assert_eq!(accounts.len(), 2);
+    assert_eq!(accounts[0].id.as_deref(), Some("001AAA"));
+    assert_eq!(accounts[0].name, "Acme");
+    assert_eq!(accounts[1].id.as_deref(), Some("001BBB"));
+    assert_eq!(accounts[1].name, "Beta");
+}
+
+#[tokio::test]
+async fn test_query_typed_page_returns_first_page_and_locator() {
+    let (server, client) = setup().await;
+    let inner = r#"<queryResponse><result>
+        <done>false</done>
+        <queryLocator>01gLOC-2000</queryLocator>
+        <records xsi:type="sf:sObject"><sf:type>Account</sf:type><sf:Id>001AAA</sf:Id><sf:Name>Acme</sf:Name></records>
+        <size>500</size>
+    </result></queryResponse>"#;
+    mount_soap(&server, 200, &envelope(inner)).await;
+
+    let (accounts, done, locator): (Vec<TypedAccount>, bool, Option<String>) = client
+        .soap()
+        .query_typed_page("SELECT Id, Name FROM Account")
+        .await
+        .must();
+
+    assert!(!done);
+    assert_eq!(locator.as_deref(), Some("01gLOC-2000"));
+    assert_eq!(accounts.len(), 1);
+    assert_eq!(accounts[0].name, "Acme");
+}
+
+#[tokio::test]
+async fn test_query_more_typed_page_returns_records() {
+    let (server, client) = setup().await;
+    let inner = r#"<queryMoreResponse><result>
+        <done>true</done>
+        <records xsi:type="sf:sObject"><sf:type>Account</sf:type><sf:Id>001CCC</sf:Id><sf:Name>Gamma</sf:Name></records>
+        <size>1</size>
+    </result></queryMoreResponse>"#;
+    mount_soap(&server, 200, &envelope(inner)).await;
+
+    let (accounts, done, locator): (Vec<TypedAccount>, bool, Option<String>) = client
+        .soap()
+        .query_more_typed_page("01gLOC-2000")
+        .await
+        .must();
+
+    assert!(done);
+    assert_eq!(locator, None);
+    assert_eq!(accounts.len(), 1);
+    assert_eq!(accounts[0].name, "Gamma");
+}
+
+#[tokio::test]
+async fn test_create_typed_null_field_becomes_fields_to_null() {
+    let (server, client) = setup().await;
+    Mock::given(method("POST"))
+        .and(path("/services/Soap/u/67.0"))
+        .and(body_string_contains(
+            "<urn:create><urn:sObjects><sf:type>Account</sf:type>",
+        ))
+        .and(body_string_contains("<sf:Name>Acme</sf:Name>"))
+        // A serialized null maps to an explicit fieldsToNull element.
+        .and(body_string_contains("<sf:fieldsToNull>Website</sf:fieldsToNull>"))
+        .respond_with(ResponseTemplate::new(200).set_body_string(envelope(
+            r#"<createResponse><result><id>001AAA</id><success>true</success></result></createResponse>"#,
+        )))
+        .mount(&server)
+        .await;
+
+    let records = vec![TypedAccount {
+        id: None,
+        name: "Acme".to_string(),
+        website: None,
+    }];
+    let results = client.soap().create_typed("Account", &records).await.must();
+    assert!(results[0].success);
+    assert_eq!(results[0].id.as_deref(), Some("001AAA"));
+}
+
+#[tokio::test]
+async fn test_update_typed_sends_id() {
+    let (server, client) = setup().await;
+    Mock::given(method("POST"))
+        .and(path("/services/Soap/u/67.0"))
+        .and(body_string_contains(
+            "<urn:update><urn:sObjects><sf:type>Account</sf:type>",
+        ))
+        .and(body_string_contains("<sf:Id>001AAA</sf:Id>"))
+        .and(body_string_contains("<sf:Name>Renamed</sf:Name>"))
+        .respond_with(ResponseTemplate::new(200).set_body_string(envelope(
+            r#"<updateResponse><result><id>001AAA</id><success>true</success></result></updateResponse>"#,
+        )))
+        .mount(&server)
+        .await;
+
+    let records = vec![TypedAccount {
+        id: Some("001AAA".to_string()),
+        name: "Renamed".to_string(),
+        website: None,
+    }];
+    let results = client.soap().update_typed("Account", &records).await.must();
+    assert!(results[0].success);
+}
+
+#[tokio::test]
+async fn test_upsert_typed_delegates() {
+    let (server, client) = setup().await;
+    Mock::given(method("POST"))
+        .and(path("/services/Soap/u/67.0"))
+        .and(body_string_contains(
+            "<urn:externalIDFieldName>Ext__c</urn:externalIDFieldName>",
+        ))
+        .and(body_string_contains("<sf:Name>Acme</sf:Name>"))
+        .respond_with(ResponseTemplate::new(200).set_body_string(envelope(
+            r#"<upsertResponse><result><created>true</created><id>001NEW</id><success>true</success></result></upsertResponse>"#,
+        )))
+        .mount(&server)
+        .await;
+
+    let records = vec![TypedAccount {
+        id: None,
+        name: "Acme".to_string(),
+        website: None,
+    }];
+    let results = client
+        .soap()
+        .upsert_typed("Account", "Ext__c", &records)
+        .await
+        .must();
+    assert!(results[0].created);
+    assert_eq!(results[0].id.as_deref(), Some("001NEW"));
+}
+
+#[tokio::test]
+async fn test_retrieve_typed_missing_id_yields_none() {
+    let (server, client) = setup().await;
+    let inner = r#"<retrieveResponse>
+        <result xsi:type="sf:sObject"><sf:type>Account</sf:type><sf:Id>001AAA</sf:Id><sf:Name>Acme</sf:Name></result>
+        <result xsi:nil="true"/>
+    </retrieveResponse>"#;
+    mount_soap(&server, 200, &envelope(inner)).await;
+
+    let records: Vec<Option<TypedAccount>> = client
+        .soap()
+        .retrieve_typed("Account", &["Id", "Name"], &["001AAA", "001MISSING"])
+        .await
+        .must();
+
+    // Positional: found record then a None for the missing Id.
+    assert_eq!(records.len(), 2);
+    let found = records[0].as_ref().must();
+    assert_eq!(found.id.as_deref(), Some("001AAA"));
+    assert_eq!(found.name, "Acme");
+    assert!(records[1].is_none());
+}
+
+#[tokio::test]
+async fn test_create_typed_nested_field_is_error() {
+    #[derive(serde::Serialize)]
+    struct Nested {
+        inner: String,
+    }
+    #[derive(serde::Serialize)]
+    struct BadRecord {
+        #[serde(rename = "Name")]
+        name: String,
+        // A nested object cannot map into the flat Partner field bag.
+        #[serde(rename = "Nested")]
+        nested: Nested,
+    }
+
+    let (_server, client) = setup().await;
+    let records = vec![BadRecord {
+        name: "Acme".to_string(),
+        nested: Nested {
+            inner: "x".to_string(),
+        },
+    }];
+    // Serialization fails before any request is dispatched (no mock needed).
+    let result = client.soap().create_typed("Account", &records).await;
+    let Err(crate::error::ForceError::InvalidInput(msg)) = result else {
+        panic!("expected InvalidInput error, got {result:?}");
+    };
+    assert!(msg.contains("Nested"), "message was: {msg}");
+}

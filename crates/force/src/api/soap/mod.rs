@@ -33,6 +33,16 @@
 //! assert!(saves[0].success);
 //! ```
 //!
+//! # Typed convenience layer
+//!
+//! For callers who prefer their own structs over the generic [`SObject`] field
+//! bag, the `*_typed` methods ([`query_typed`](SoapHandler::query_typed),
+//! [`retrieve_typed`](SoapHandler::retrieve_typed),
+//! [`create_typed`](SoapHandler::create_typed),
+//! [`update_typed`](SoapHandler::update_typed), and
+//! [`upsert_typed`](SoapHandler::upsert_typed)) bridge serde types to and from
+//! `SObject` and delegate to the untyped calls.
+//!
 //! # Error model
 //!
 //! Whole-call failures (a `<soapenv:Fault>`, an `INVALID_SESSION_ID`, or an XML
@@ -50,6 +60,7 @@ pub(crate) mod fault;
 pub(crate) mod misc;
 pub(crate) mod parse;
 pub(crate) mod query;
+pub(crate) mod typed;
 pub(crate) mod types;
 
 pub use fault::SoapFault;

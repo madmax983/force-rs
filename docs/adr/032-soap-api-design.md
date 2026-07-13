@@ -143,11 +143,67 @@ other first-class surfaces — it belongs in `full` (and therefore transitively 
 `query_all`, `search`, `describe_sobject`, `describe_sobjects`,
 `describe_global`, `get_user_info`, and `get_server_timestamp`.
 
+Typed convenience wrappers: `query_typed`, `query_typed_page`,
+`query_more_typed_page`, `retrieve_typed`, `create_typed`, `update_typed`, and
+`upsert_typed`.
+
+## Typed Convenience Layer
+
+On top of the generic untyped `SObject` API, `SoapHandler` exposes a serde-typed
+convenience layer (`query_typed`, `query_typed_page`, `query_more_typed_page`,
+`retrieve_typed`, `create_typed`, `update_typed`, `upsert_typed`). Each method is
+a thin adapter that bridges caller structs to and from the `SObject` field bag
+via `serde_json` and then delegates to the existing untyped method — the XML and
+transport logic is never duplicated.
+
+### Why serde-over-generic (not Enterprise-WSDL codegen)
+
+The Enterprise WSDL yields strongly-typed, per-org sObject definitions, but it
+requires a codegen/build step and re-generation whenever the org schema changes.
+That directly contradicts this ADR's core decision to ship one generic client
+with no build step. Bridging the *caller's own* `#[derive(Serialize,
+Deserialize)]` structs against the generic field bag keeps the zero-codegen
+property while still giving callers typed ergonomics parity with the REST
+`query_typed` path. Callers who want typing opt in per struct; nothing is forced
+on the untyped API.
+
+### Stringly-typed field caveat
+
+The Partner API returns **every** field value as a string. Deserialization
+therefore assembles a JSON object whose values are all strings (nil fields become
+JSON `null`) before handing it to `serde_json`. Target types should model fields
+as `String` / `Option<String>`, or supply `#[serde(deserialize_with = "…")]` to
+parse a string into another type. On serialization, scalar JSON numbers and
+booleans are rendered to their plain string forms (`100`, `true`) to match the
+wire; a value that serializes to a nested array/object is rejected with a clear
+`ForceError::InvalidInput`, because the flat Partner field bag cannot represent
+it. Serialization/deserialization failures surface as
+`ForceError::Serialization`.
+
+### Null → `fieldsToNull` mapping
+
+A JSON `null` in a serialized record maps to a `fieldsToNull` entry rather than an
+empty field element, matching the Partner API's explicit-null semantics for
+`update`/`upsert` (an empty element is silently ignored by Salesforce).
+
+### Pagination choice for `query_typed`
+
+`query_typed` **auto-follows** `queryMore` locators and returns every page's
+records combined into a single `Vec<T>`, mirroring `query_all`-style
+convenience. For incremental / page-at-a-time consumption, `query_typed_page`
+returns `(Vec<T>, done, Option<locator>)` for a single page, and
+`query_more_typed_page` continues from a locator — leaving pagination control in
+the caller's hands. `retrieve_typed` returns `Vec<Option<T>>` (positional, one
+entry per requested Id, `None` for a not-found Id) rather than dropping missing
+records, which is more honest than the untyped `retrieve`.
+
 ## Consequences
 
 ### Positive
 
 - **No WSDL codegen / build step** — one generic client covers every object.
+- **Typed ergonomics without codegen** — the serde bridge gives callers typed
+  round-trips over the same generic transport, parity with REST `query_typed`.
 - **Reuses the OAuth token** — no `login()`, no separate auth flow; forward-
   compatible with the SOAP `login()` retirement.
 - **Robust parsing** — local-name, prefix-agnostic DOM tolerates real-world
