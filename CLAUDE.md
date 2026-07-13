@@ -97,11 +97,12 @@ Only compile what you use. Each API surface is behind a feature flag:
 - `models` - Agentforce Models API (Einstein LLM gateway: text/chat/embeddings on `api.salesforce.com`)
 - `agent_api` - Agentforce Agent API (headless agent sessions on `api.salesforce.com`)
 - `agentforce` - Umbrella feature (models + agent_api)
+- `account_engagement` - Account Engagement (Pardot) API v5 (separate `pi.pardot.com` host, business-unit-scoped prospects/lists/campaigns/etc.)
 - `jwt` - JWT Bearer authentication flow
 - `auth_code` - OAuth 2.0 Authorization Code + PKCE flow (interactive/browser-based clients)
 - `username_password` - Username-password flow (deprecated by Salesforce, feature-gated as speed bump)
 - `pub_sub` - gRPC Pub/Sub API (separate `force-pubsub` crate)
-- `full` - All common features (rest + tooling + bulk + composite + jwt + auth_code + ui + graphql + data_cloud + apex_rest)
+- `full` - All common features (rest + tooling + bulk + composite + jwt + auth_code + ui + graphql + data_cloud + apex_rest + consent + models + agent_api + account_engagement)
 - `all` - Everything including specialized APIs (+ cpq)
 
 ### 2. Compile-Time Auth Safety (Phantom Type State Pattern)
@@ -254,6 +255,15 @@ crates/force/src/
     ├── agent_api/         # Feature: agent_api (Agentforce Agent API, api.salesforce.com host)
     │   ├── mod.rs         # AgentHandler + start/send/end session (sync; streaming is follow-up)
     │   └── types.rs       # StartSessionRequest, SendMessageRequest, AgentMessage, SessionEndReason
+    ├── account_engagement/ # Feature: account_engagement (Pardot API v5)
+    │   ├── mod.rs         # AccountEngagementHandler + host selection + BU header + escape hatch
+    │   ├── types.rs       # QueryResponse<T> ({values, nextPageToken, nextPageUrl})
+    │   ├── prospects.rs   # Prospect (full CRUD)
+    │   ├── lists.rs       # List + ListMembership (full CRUD)
+    │   ├── campaigns.rs   # Campaign (query/get/create)
+    │   ├── custom_fields.rs # CustomField (full CRUD)
+    │   ├── forms.rs       # Form (query/get/create/delete)
+    │   └── emails.rs      # Email (query/get/send)
     └── ...                # Other API surfaces
 ```
 
@@ -465,6 +475,17 @@ use force::testing::{MockForceClient, MockAuthenticator};
   - [x] end_session with `x-session-end-reason` header (DELETE sessions/{sessionId}, 204)
   - [x] Polymorphic AgentMessage (open String type), SessionEndReason enum
   - [ ] Streaming SSE endpoint (documented follow-up)
+- [x] Account Engagement (Pardot) API v5 (feature: account_engagement) - See [ADR-029](docs/adr/029-account-engagement-api-design.md)
+  - [x] AccountEngagementHandler on separate host (pi.pardot.com / pi.demo.pardot.com), env-derived + `with_host` override
+  - [x] Required `Pardot-Business-Unit-Id` header + `pardot_api` scope; mandatory `fields` param
+  - [x] Prospects (full CRUD)
+  - [x] Lists + List Memberships (full CRUD)
+  - [x] Campaigns (query/get/create)
+  - [x] Custom Fields (full CRUD)
+  - [x] Forms (query/get/create/delete)
+  - [x] Emails (query/get/send)
+  - [x] Generic escape hatch (get_raw/post_raw/patch_raw/delete_raw) for un-modeled objects
+  - [x] QueryResponse<T> pagination envelope; integer IDs; errors surface as ForceError::Http
 
 ### Phase 5: Specialized Features
 - [ ] Pub/Sub API via gRPC (feature: pub_sub)
@@ -705,6 +726,7 @@ Significant architectural decisions are documented in `docs/adr/`:
 - [ADR-027](docs/adr/027-marketing-cloud-engagement-crate.md) - Standalone `force-marketingcloud` crate for Marketing Cloud Engagement
 - [ADR-028](docs/adr/028-agentforce-api-design.md) - Agentforce Models + Agent API design (api.salesforce.com host, permissive typing)
 - [ADR-030](docs/adr/030-force-lake-crate.md) - Salesforce → Iceberg analytics snapshot sink (force-lake crate)
+- [ADR-029](docs/adr/029-account-engagement-api-design.md) - Account Engagement (Pardot) API v5 separate-host design
 
 ## Contributing
 
