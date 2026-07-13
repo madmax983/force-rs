@@ -1,4 +1,4 @@
-# ADR-028: Create `force-lake` as a Salesforce → Iceberg Snapshot Sink
+# ADR-030: Create `force-lake` as a Salesforce → Iceberg Snapshot Sink
 
 **Status:** Accepted
 **Date:** 2026-07-13
@@ -163,21 +163,25 @@ assigned monotonically from 1 in a stable `Id`-first order; `required = !nillabl
   is an out-of-band Athena step.
 - **Pre-1.0 dependency churn.** iceberg-rust and its pinned Arrow major version
   will move; versions are pinned to contain the blast radius.
-- **Deferred concrete S3 Tables catalog binding.** See Risks.
+- **Workspace MSRV bump.** Wiring the real S3 Tables catalog raised the workspace
+  MSRV to rustc 1.92 (from 1.85). See Risks.
 
 ## Risks and Mitigations
 
-- **iceberg-rust pre-1.0 API churn.** Pin exact versions (`iceberg = 0.6.0`,
-  which dictates `arrow-* = 55` and `parquet = 55`). Upgrades are deliberate.
+- **iceberg-rust pre-1.0 API churn.** Pin exact versions (`iceberg = 0.9.1`,
+  which dictates `arrow-* = 57` and `parquet = 57`). Upgrades are deliberate.
 - **`iceberg-catalog-s3tables` MSRV.** The dedicated S3 Tables catalog crate
-  currently requires rustc 1.92, beyond this workspace's 1.85 MSRV, so it is
-  **not** a dependency. `S3TablesCatalog` is written against the generic
-  `iceberg::Catalog` trait: `ensure_table` creates the namespace + table for
-  real, and `commit_snapshot` performs the real physical Parquet staging write
-  via the table's `FileIO`. Constructing the Iceberg `DataFile` manifest entry
-  and issuing the `fast_append` metadata commit is the **documented final wiring
-  step**, completed once the concrete catalog builder is available on the pinned
-  toolchain. This is the only stubbed seam; everything else is real.
+  requires rustc 1.92, so the workspace MSRV was bumped from 1.85 to 1.92 to
+  adopt it. `S3TablesCatalog::from_config` now builds the real
+  `iceberg_catalog_s3tables::S3TablesCatalog` (SigV4-signed S3 Tables REST) and
+  drives it through the generic `iceberg::Catalog` trait: `ensure_table` creates
+  the namespace + table, and `commit_snapshot` stages the Parquet payload via the
+  table's `FileIO`, then builds the Iceberg `DataFile` manifest entry and issues a
+  real `Transaction::fast_append(...).commit(catalog)` metadata commit. There is
+  no stubbed seam; the commit path is fully wired (exercised against a live AWS
+  backend, not the offline unit tests). Snapshots remain **append /
+  full-partition overwrite only** — iceberg-rust 0.9 offers no row-level delete
+  path here, so per-row deletes stay out of scope.
 - **S3 Tables REST quirks.** Single-level namespaces (enforced in `LakeConfig`
   and `S3TablesCatalog::new`), no `CREATE TABLE AS SELECT` (tables are created
   explicitly then appended), and a metadata.json size ceiling (>50 MB rejected) —

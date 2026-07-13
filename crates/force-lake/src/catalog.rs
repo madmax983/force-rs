@@ -6,29 +6,40 @@
 //!
 //! * [`MockCatalog`] — an in-memory double that records every call, used by the
 //!   snapshot orchestration tests.
-//! * [`S3TablesCatalog`] — a real catalog binding built on iceberg-rust's generic
-//!   [`iceberg::Catalog`] trait.
+//! * [`S3TablesCatalog`] — a real catalog binding backed by the dedicated
+//!   `iceberg-catalog-s3tables` crate (SigV4-signed Amazon S3 Tables REST).
 //!
-//! # S3 Tables and the deferred append seam
+//! # S3 Tables and the append commit
 //!
-//! The dedicated `iceberg-catalog-s3tables` crate currently requires rustc 1.92,
-//! which is beyond this workspace's 1.85 MSRV, so it is not a dependency here.
-//! [`S3TablesCatalog`] is therefore written against the generic
-//! [`iceberg::Catalog`] trait: [`S3TablesCatalog::ensure_table`] creates the
-//! (single-level) namespace and table for real, and
-//! [`S3TablesCatalog::commit_snapshot`] performs the physical Parquet staging
-//! write via the table's [`iceberg::io::FileIO`]. Constructing the Iceberg
-//! `DataFile` manifest entry and issuing the `fast_append` metadata commit is the
-//! documented final wiring step, completed once the concrete S3 Tables catalog
-//! builder is available on the pinned toolchain (see ADR-028).
+//! [`S3TablesCatalog::from_config`] builds the real
+//! [`iceberg_catalog_s3tables::S3TablesCatalog`] from a [`LakeConfig`]
+//! (table-bucket ARN + single-level namespace), and [`S3TablesCatalog`] drives it
+//! through iceberg-rust's generic [`iceberg::Catalog`] trait so the rest of the
+//! pipeline stays catalog-agnostic. [`S3TablesCatalog::ensure_table`] creates the
+//! (single-level) namespace and table, and [`S3TablesCatalog::commit_snapshot`]
+//! stages the Parquet payload to the table's data location via
+//! [`iceberg::io::FileIO`], then builds the Iceberg [`iceberg::spec::DataFile`]
+//! manifest entry and issues a `fast_append` metadata commit through the catalog.
+//!
+//! Enabling the real S3 Tables catalog required bumping the workspace MSRV to
+//! rustc 1.92 (see ADR-030).
+//!
+//! Snapshots are **append / full-partition overwrite** only: iceberg-rust 0.9 has
+//! no row-level (positional / equality) delete support here, so per-row deletes
+//! are out of scope and deletes are modelled as full-partition rewrites.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
-use iceberg::spec::Schema as IcebergSchema;
-use iceberg::{Catalog, NamespaceIdent, TableCreation, TableIdent};
+use iceberg::spec::{
+    DataContentType, DataFileBuilder, DataFileFormat, Schema as IcebergSchema, Struct,
+};
+use iceberg::transaction::{ApplyTransactionAction, Transaction};
+use iceberg::{Catalog, CatalogBuilder, NamespaceIdent, TableCreation, TableIdent};
+use iceberg_catalog_s3tables::{S3TABLES_CATALOG_PROP_TABLE_BUCKET_ARN, S3TablesCatalogBuilder};
 
+use crate::config::LakeConfig;
 use crate::error::{LakeError, Result};
 
 /// A staged snapshot payload ready to be committed to a table.
@@ -142,10 +153,11 @@ impl LakeCatalog for MockCatalog {
 
 /// Real Iceberg catalog binding for Amazon S3 Tables.
 ///
-/// Built on the generic [`iceberg::Catalog`] trait so it works with any
-/// iceberg-rust catalog implementation (including the future
-/// `iceberg-catalog-s3tables` builder). All tables live in a single-level
-/// namespace, matching the S3 Tables constraint.
+/// Backed by the dedicated `iceberg-catalog-s3tables` crate and driven through
+/// the generic [`iceberg::Catalog`] trait. Build one from a [`LakeConfig`] with
+/// [`S3TablesCatalog::from_config`], or wrap an arbitrary catalog with
+/// [`S3TablesCatalog::new`]. All tables live in a single-level namespace,
+/// matching the S3 Tables constraint.
 #[derive(Clone)]
 pub struct S3TablesCatalog {
     catalog: Arc<dyn Catalog>,
@@ -179,6 +191,27 @@ impl S3TablesCatalog {
             catalog,
             namespace: NamespaceIdent::new(namespace.to_owned()),
         })
+    }
+
+    /// Builds a live Amazon S3 Tables catalog binding from a [`LakeConfig`].
+    ///
+    /// Constructs the real [`iceberg_catalog_s3tables::S3TablesCatalog`] from the
+    /// configured table-bucket ARN and single-level namespace. AWS credentials
+    /// and region are resolved from the ambient environment by the AWS SDK.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`LakeError::Config`] if the namespace is empty or multi-level, or
+    /// [`LakeError::Iceberg`] if the S3 Tables catalog cannot be initialised.
+    pub async fn from_config(config: &LakeConfig) -> Result<Self> {
+        let props = HashMap::from([(
+            S3TABLES_CATALOG_PROP_TABLE_BUCKET_ARN.to_owned(),
+            config.table_bucket_arn().to_owned(),
+        )]);
+        let catalog = S3TablesCatalogBuilder::default()
+            .load("s3tables", props)
+            .await?;
+        Self::new(Arc::new(catalog), config.namespace())
     }
 
     fn table_ident(&self, table: &str) -> TableIdent {
@@ -215,33 +248,51 @@ impl LakeCatalog for S3TablesCatalog {
         // Physical staging: write the Parquet payload into the table's data
         // directory via the table's configured FileIO. This is real I/O.
         let location = table.metadata().location();
-        let data_path = format!("{location}/data/{}.parquet", uuid_like(data));
+        let data_path = format!("{location}/data/{}.parquet", data_file_name(data));
         let output = table.file_io().new_output(&data_path)?;
         output
             .write(bytes::Bytes::from(data.parquet.clone()))
             .await?;
 
-        // Deferred final wiring step (see ADR-028 and module docs): construct the
-        // Iceberg DataFile manifest entry for `data_path` and issue a
-        // `Transaction::fast_append(...).commit(catalog)`. This binds to the
-        // concrete S3 Tables catalog builder, which requires a newer toolchain
-        // than this workspace's MSRV.
-        tracing::warn!(
-            table = %data.table,
-            path = %data_path,
-            record_count = data.record_count,
-            "staged Parquet snapshot to table data location; Iceberg manifest \
-             append is the deferred final wiring step (see ADR-028)"
-        );
+        // Build the Iceberg DataFile manifest entry for the staged Parquet file.
+        // The table is unpartitioned at v0.1, so the partition tuple is empty;
+        // record count and file size are the metrics S3 Tables requires. Richer
+        // per-column stats (bounds / null counts) are left empty for now.
+        let record_count = u64::try_from(data.record_count).unwrap_or(u64::MAX);
+        let file_size = u64::try_from(data.parquet.len()).unwrap_or(u64::MAX);
+        let data_file = DataFileBuilder::default()
+            .content(DataContentType::Data)
+            .file_path(data_path)
+            .file_format(DataFileFormat::Parquet)
+            .partition(Struct::empty())
+            .partition_spec_id(table.metadata().default_partition_spec_id())
+            .record_count(record_count)
+            .file_size_in_bytes(file_size)
+            .build()
+            .map_err(|e| {
+                iceberg::Error::new(
+                    iceberg::ErrorKind::DataInvalid,
+                    format!("failed to build Iceberg data file: {e}"),
+                )
+            })?;
+
+        // Append-only commit: fast_append writes a new manifest + snapshot
+        // referencing the staged data file, then commits the metadata update
+        // through the S3 Tables catalog. No existing data files are rewritten.
+        let tx = Transaction::new(&table);
+        let action = tx.fast_append().add_data_files(vec![data_file]);
+        let tx = action.apply(tx)?;
+        tx.commit(self.catalog.as_ref()).await?;
         Ok(())
     }
 }
 
-/// Derives a stable-ish file discriminator from the payload without pulling in a
-/// UUID dependency. Uses the record count and payload length; collisions are
-/// avoided in practice by the catalog appending its own commit UUID.
-fn uuid_like(data: &SnapshotData) -> String {
-    format!("{}-{}", data.record_count, data.parquet.len())
+/// Derives a unique-per-commit Parquet file name for the staged snapshot without
+/// pulling in a UUID dependency. Combines the current wall-clock time (nanos)
+/// with the record count and payload length to avoid collisions across commits.
+fn data_file_name(data: &SnapshotData) -> String {
+    let nanos = chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default();
+    format!("{nanos}-{}-{}", data.record_count, data.parquet.len())
 }
 
 #[cfg(test)]

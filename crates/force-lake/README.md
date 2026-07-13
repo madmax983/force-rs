@@ -18,7 +18,7 @@ one way, Salesforce → lake, and the lake is never read back to drive Salesforc
 - **No row-level deletes.** Deletes are handled by full-partition overwrite, not
   Iceberg delete files.
 
-See [ADR-028](../../docs/adr/028-force-lake-crate.md) for the full design.
+See [ADR-030](../../docs/adr/030-force-lake-crate.md) for the full design.
 
 ## Pipeline
 
@@ -56,12 +56,11 @@ println!("wrote {} records in {} batch(es)", report.record_count, report.batch_c
 ## Catalog implementations
 
 - `MockCatalog` — in-memory test double that records every call.
-- `S3TablesCatalog` — real binding on iceberg-rust's generic `iceberg::Catalog`
-  trait. `ensure_table` creates the namespace + table; `commit_snapshot` stages
-  the Parquet payload to the table's data location via `FileIO`. Wiring the
-  Iceberg `DataFile` manifest append is the documented final step (the dedicated
-  `iceberg-catalog-s3tables` crate currently exceeds this workspace's MSRV — see
-  ADR-028).
+- `S3TablesCatalog` — real binding on the dedicated `iceberg-catalog-s3tables`
+  crate (SigV4-signed S3 Tables REST). `ensure_table` creates the namespace +
+  table; `commit_snapshot` stages the Parquet payload to the table's data
+  location via `FileIO`, then builds the Iceberg `DataFile` manifest entry and
+  issues a `fast_append` metadata commit (see ADR-030).
 
 ## License
 
