@@ -160,6 +160,16 @@ async fn soap_crud_body(
     id: &str,
     last_name: &str,
 ) -> anyhow::Result<()> {
+    // Typed row for the typed-layer smoke below. Hoisted to the top of the
+    // scope so it precedes all statements (clippy::items_after_statements).
+    #[derive(serde::Deserialize)]
+    struct Contact {
+        #[serde(rename = "Id")]
+        id: String,
+        #[serde(rename = "LastName")]
+        last_name: String,
+    }
+
     // RETRIEVE by Id and confirm the round-tripped LastName.
     let retrieved = client
         .soap()
@@ -178,13 +188,6 @@ async fn soap_crud_body(
     anyhow::ensure!(!queried.records.is_empty(), "query did not find the record");
 
     // Smoke the typed layer with the same query.
-    #[derive(serde::Deserialize)]
-    struct Contact {
-        #[serde(rename = "Id")]
-        id: String,
-        #[serde(rename = "LastName")]
-        last_name: String,
-    }
     let typed: Vec<Contact> = client.soap().query_typed(&soql).await?;
     anyhow::ensure!(
         typed.iter().any(|c| c.id == id && c.last_name == last_name),
