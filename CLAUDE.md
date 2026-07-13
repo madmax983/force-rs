@@ -480,6 +480,17 @@ use force::testing::{MockForceClient, MockAuthenticator};
   - [x] Journeys / Interaction (list, fire entry event)
   - [x] Raw escape hatch; SOAP deferred as a follow-up
 
+### Phase 6: Analytics Sink (force-lake crate) - See [ADR-028](docs/adr/028-force-lake-crate.md)
+- [x] Iceberg schema generator in `force` (feature: schema) - `generate_iceberg_schema`
+- [x] `force-lake` snapshot sink (Salesforce → S3 Tables / Apache Iceberg)
+  - [x] Describe → Iceberg + Arrow schema mapping (schema_map)
+  - [x] Arrow RecordBatch assembly from Bulk records (record_batch)
+  - [x] In-memory Parquet encoding (parquet_writer)
+  - [x] `LakeCatalog` trait with `MockCatalog` + `S3TablesCatalog`
+  - [x] `SnapshotSink` orchestration (append / full-partition overwrite)
+- [ ] CDC ingestion via force-pubsub (documented follow-up)
+- [ ] Row-level upsert via Athena `MERGE` (documented follow-up)
+
 ## Configuration
 
 ### Environment-Based Config
@@ -668,6 +679,11 @@ This crate integrates with the Mark's Rust ecosystem:
 - **vangoh** - AI-native CRM built on AletheiaDB
 - **thorp** - Quant trading platform using Salesforce data
 
+Sibling workspace crates:
+- **force-pubsub** - Salesforce Pub/Sub API (gRPC) client
+- **force-sync** - Correctness-first bidirectional Salesforce ↔ Postgres sync engine (see [ADR-026](docs/adr/026-force-sync-crate.md))
+- **force-lake** - One-way Salesforce → S3 Tables / Apache Iceberg analytics snapshot sink (see [ADR-028](docs/adr/028-force-lake-crate.md))
+
 ## ADRs (Architecture Decision Records)
 
 Significant architectural decisions are documented in `docs/adr/`:
@@ -684,8 +700,10 @@ Significant architectural decisions are documented in `docs/adr/`:
 - [ADR-022](docs/adr/022-data-cloud-api-design.md) - Data Cloud API decorator authenticator and token exchange design
 - [ADR-023](docs/adr/023-apex-rest-cpq-design.md) - Apex REST and CPQ API layered design
 - [ADR-025](docs/adr/025-username-password-auth.md) - Username-password authentication with refresh token support
-- [ADR-027](docs/adr/027-marketing-cloud-engagement-crate.md) - Standalone `force-marketingcloud` crate for Marketing Cloud Engagement
+- [ADR-026](docs/adr/026-force-sync-crate.md) - Postgres-first bidirectional sync engine (force-sync crate)
 - [ADR-027](docs/adr/027-authorization-code-pkce-auth.md) - OAuth 2.0 Authorization Code flow with PKCE
+- [ADR-027](docs/adr/027-marketing-cloud-engagement-crate.md) - Standalone `force-marketingcloud` crate for Marketing Cloud Engagement
+- [ADR-028](docs/adr/028-force-lake-crate.md) - Salesforce → Iceberg analytics snapshot sink (force-lake crate)
 - [ADR-028](docs/adr/028-agentforce-api-design.md) - Agentforce Models + Agent API design (api.salesforce.com host, permissive typing)
 
 ## Contributing

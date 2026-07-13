@@ -132,6 +132,11 @@ impl MockFieldDescribeBuilder {
     }
 
     #[must_use]
+    pub fn scale(mut self, scale: i32) -> Self {
+        self.field.scale = scale;
+        self
+    }
+
     pub fn digits(mut self, digits: i32) -> Self {
         self.field.digits = digits;
         self
