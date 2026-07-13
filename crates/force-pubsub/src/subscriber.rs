@@ -78,6 +78,11 @@ impl<A: Authenticator> SubscribeState<A> {
 
     /// Fetch a schema by ID from the cache or from the GetSchema RPC on miss.
     async fn fetch_schema(&self, schema_id: &str) -> Result<apache_avro::Schema> {
+        // Fast path: a lock-free cache hit needs neither a token nor gRPC
+        // metadata. Only build them when we actually have to call GetSchema.
+        if let Some(schema) = self.schema_cache.get(schema_id) {
+            return Ok(schema);
+        }
         let token = self.get_token().await?;
         let meta = interceptor::build_metadata(&token, token.instance_url(), &self.tenant_id)?;
         self.schema_cache
@@ -332,15 +337,23 @@ where
         while let Some(item) = stream.next().await {
             let mapped = item.and_then(|event| match event {
                 PubSubEvent::Event(msg) => {
-                    // Re-decode the Value to T — schema already applied; just re-deserialize.
-                    serde_json::from_value::<T>(msg.payload.clone())
+                    // Re-decode the Value to T — schema already applied; just
+                    // re-deserialize. `msg` is owned, so move the payload out
+                    // rather than cloning it.
+                    let EventMessage {
+                        payload,
+                        replay_id,
+                        schema_id,
+                        event_id,
+                    } = msg;
+                    serde_json::from_value::<T>(payload)
                         .map_err(|e| PubSubError::Avro(e.to_string()))
                         .map(|typed_payload| {
                             PubSubEvent::Event(EventMessage {
                                 payload: typed_payload,
-                                replay_id: msg.replay_id,
-                                schema_id: msg.schema_id,
-                                event_id: msg.event_id,
+                                replay_id,
+                                schema_id,
+                                event_id,
                             })
                         })
                 }
