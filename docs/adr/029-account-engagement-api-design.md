@@ -1,4 +1,4 @@
-# ADR-028: Account Engagement (Pardot) API v5 Design
+# ADR-029: Account Engagement (Pardot) API v5 Design
 
 **Date:** 2026-07-13
 **Status:** Accepted

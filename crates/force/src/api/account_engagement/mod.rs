@@ -36,7 +36,7 @@
 //! }
 //! ```
 //!
-//! See [ADR-028](../../../docs/adr/028-account-engagement-api-design.md).
+//! See [ADR-029](../../../docs/adr/029-account-engagement-api-design.md).
 #![allow(clippy::doc_markdown)]
 
 pub(crate) mod campaigns;

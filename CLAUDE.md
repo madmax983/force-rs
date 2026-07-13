@@ -475,7 +475,7 @@ use force::testing::{MockForceClient, MockAuthenticator};
   - [x] end_session with `x-session-end-reason` header (DELETE sessions/{sessionId}, 204)
   - [x] Polymorphic AgentMessage (open String type), SessionEndReason enum
   - [ ] Streaming SSE endpoint (documented follow-up)
-- [x] Account Engagement (Pardot) API v5 (feature: account_engagement) - See [ADR-028](docs/adr/028-account-engagement-api-design.md)
+- [x] Account Engagement (Pardot) API v5 (feature: account_engagement) - See [ADR-029](docs/adr/029-account-engagement-api-design.md)
   - [x] AccountEngagementHandler on separate host (pi.pardot.com / pi.demo.pardot.com), env-derived + `with_host` override
   - [x] Required `Pardot-Business-Unit-Id` header + `pardot_api` scope; mandatory `fields` param
   - [x] Prospects (full CRUD)
@@ -726,7 +726,7 @@ Significant architectural decisions are documented in `docs/adr/`:
 - [ADR-027](docs/adr/027-marketing-cloud-engagement-crate.md) - Standalone `force-marketingcloud` crate for Marketing Cloud Engagement
 - [ADR-028](docs/adr/028-force-lake-crate.md) - Salesforce → Iceberg analytics snapshot sink (force-lake crate)
 - [ADR-028](docs/adr/028-agentforce-api-design.md) - Agentforce Models + Agent API design (api.salesforce.com host, permissive typing)
-- [ADR-028](docs/adr/028-account-engagement-api-design.md) - Account Engagement (Pardot) API v5 separate-host design
+- [ADR-029](docs/adr/029-account-engagement-api-design.md) - Account Engagement (Pardot) API v5 separate-host design
 
 ## Contributing
 
