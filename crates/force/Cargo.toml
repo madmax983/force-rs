@@ -98,8 +98,11 @@ agentforce = ["models", "agent_api"]
 # Account Engagement (Pardot) API v5 surface
 account_engagement = []
 
+# Reports & Dashboards (Analytics) REST API surface
+analytics = []
+
 # Meta features
-full = ["rest", "files", "bulk", "composite", "tooling", "jwt", "auth_code", "ui", "graphql", "data_cloud", "apex_rest", "consent", "models", "agent_api", "account_engagement"]
+full = ["rest", "files", "bulk", "composite", "tooling", "jwt", "auth_code", "ui", "graphql", "data_cloud", "apex_rest", "consent", "models", "agent_api", "account_engagement", "analytics"]
 all = ["full", "schema", "data_utility", "composite_graph", "cpq"]
 
 [[example]]
