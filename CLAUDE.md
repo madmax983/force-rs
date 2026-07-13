@@ -85,9 +85,13 @@ graph TB
 ### 1. Feature-Gated Zero-Cost Abstractions
 Only compile what you use. Each API surface is behind a feature flag:
 - `rest` (default) - REST API
+- `files` - Files/ContentVersion helpers (depends on `rest`)
 - `tooling` - Tooling API (independent of `rest`)
 - `bulk` - Bulk API 2.0
 - `composite` - Composite API
+- `composite_graph` - Composite Graph API (depends on `composite`)
+- `data_utility` - Data utility helpers (depends on `composite`)
+- `schema` - Iceberg schema generation (`generate_iceberg_schema`, depends on `rest`)
 - `ui` - UI API (layout-aware records, metadata, list views, favorites)
 - `graphql` - GraphQL API (queries, mutations, variables)
 - `data_cloud` - Data Cloud REST Connect API (SQL queries, two-step token exchange)
@@ -103,6 +107,11 @@ Only compile what you use. Each API surface is behind a feature flag:
 - `jwt` - JWT Bearer authentication flow
 - `auth_code` - OAuth 2.0 Authorization Code + PKCE flow (interactive/browser-based clients)
 - `username_password` - Username-password flow (deprecated by Salesforce, feature-gated as speed bump)
+- `mock` - Testing utilities (wiremock-backed test doubles)
+- `full` - All common features (rest + files + tooling + bulk + composite + jwt + auth_code + ui + graphql + data_cloud + apex_rest + consent + models + agent_api + account_engagement + analytics)
+- `all` - Everything: `full` plus specialized APIs (schema + data_utility + composite_graph + cpq)
+
+> **Note:** Pub/Sub is **not** a `force` feature. The gRPC Pub/Sub API lives in the separate `force-pubsub` sibling crate (see [ADR-018](docs/adr/018-force-pubsub-crate.md)).
 - `pub_sub` - gRPC Pub/Sub API (separate `force-pubsub` crate)
 - `full` - All common features (rest + tooling + bulk + composite + jwt + auth_code + ui + graphql + data_cloud + apex_rest + consent + models + agent_api + account_engagement + analytics + soap)
 - `all` - Everything including specialized APIs (+ cpq)
@@ -184,34 +193,41 @@ fn query(id: SalesforceId, version: ApiVersion) -> Result<()>
 ```
 crates/force/src/
 ├── lib.rs                  # Public API surface
+├── config.rs              # ClientConfig, Environment
+├── session.rs             # Session (resolved auth + config + base URL resolution)
+├── error.rs               # Error hierarchy (single file, thiserror)
+├── types.rs               # types module root (re-exports)
 ├── types/
-│   ├── mod.rs
 │   ├── salesforce_id.rs   # SalesforceId newtype (15/18 char validation)
-│   └── api_version.rs     # ApiVersion newtype (v67.0 format)
-├── error/
-│   ├── mod.rs             # Error hierarchy
-│   ├── auth_error.rs
-│   ├── http_error.rs
-│   └── api_error.rs
+│   ├── api_version.rs     # ApiVersion newtype (v67.0 format)
+│   ├── query.rs           # QueryResult, DynamicSObject
+│   ├── sobject.rs
+│   ├── describe.rs
+│   ├── explain.rs
+│   ├── common.rs
+│   └── validator.rs
 ├── auth/
 │   ├── mod.rs
-│   ├── traits.rs          # Authenticator trait
-│   ├── token.rs           # AccessToken, TokenManager
+│   ├── authenticator.rs   # Authenticator trait
+│   ├── token.rs           # AccessToken, TokenResponse
+│   ├── token_manager.rs   # TokenManager
 │   ├── client_credentials.rs
 │   ├── jwt_bearer.rs      # Feature-gated: jwt
 │   ├── auth_code.rs       # Feature-gated: auth_code (Authorization Code + PKCE)
-│   └── saml_bearer.rs     # Feature-gated: jwt
+│   ├── username_password.rs # Feature-gated: username_password
+│   └── data_cloud.rs      # Feature-gated: data_cloud (decorator authenticator)
 ├── http/
 │   ├── mod.rs
-│   ├── client.rs          # HTTP layer with middleware
-│   ├── retry.rs           # Exponential backoff
-│   ├── rate_limit.rs      # 429 handling
-│   └── middleware.rs      # 401 token refresh
+│   ├── executor.rs        # HttpExecutor: HTTP layer with middleware (retry + 401 refresh)
+│   ├── retry.rs           # Exponential backoff + 429/Retry-After handling
+│   ├── telemetry.rs       # Request telemetry hooks
+│   ├── error.rs           # HTTP error mapping
+│   └── tests.rs
 ├── client/
-│   ├── mod.rs
-│   ├── force_client.rs    # ForceClient<Auth>
-│   ├── builder.rs         # ForceClientBuilder
-│   └── config.rs          # ClientConfig, Environment
+│   ├── mod.rs             # ForceClient<Auth>
+│   └── builder.rs         # ForceClientBuilder
+├── schema/                # Feature: schema (Iceberg/Avro/dbt/DBML/... generators + analyzers)
+├── data/                  # Data tooling (faker, masker, seeder, validator, archiver)
 └── api/
     ├── rest/              # Feature: rest (default)
     ├── bulk/              # Feature: bulk
@@ -479,14 +495,14 @@ use force::testing::{MockForceClient, MockAuthenticator};
   - [x] Consent reads: read_consent (single action), read_consent_multi (multiple actions)
   - [x] Portability: request_portability, check_portability_status
   - [x] Typed ConsentValue enum (Yes/No/Unknown) with fail-safe deserialization
-- [x] Agentforce Models API (feature: models) - See [ADR-027](docs/adr/027-agentforce-api-design.md)
+- [x] Agentforce Models API (feature: models) - See [ADR-028](docs/adr/028-agentforce-api-design.md)
   - [x] ModelsHandler on fixed `api.salesforce.com` host with `with_host` override (Gov Cloud/testing)
   - [x] generate_text (POST /einstein/platform/v1/models/{model}/generations)
   - [x] generate_chat (POST .../chat-generations)
   - [x] generate_embeddings (POST .../embeddings)
   - [x] Required `x-sfdc-app-context` + `x-client-feature-id` headers
   - [x] ModelName open newtype with common-model constants; permissive Trust Layer typing
-- [x] Agentforce Agent API (feature: agent_api) - See [ADR-027](docs/adr/027-agentforce-api-design.md)
+- [x] Agentforce Agent API (feature: agent_api) - See [ADR-028](docs/adr/028-agentforce-api-design.md)
   - [x] AgentHandler on fixed `api.salesforce.com` host with `with_host` override
   - [x] start_session + start_session_default (POST /einstein/ai-agent/v1/agents/{agentId}/sessions)
   - [x] send_message + send_text (POST sessions/{sessionId}/messages)
@@ -516,6 +532,8 @@ use force::testing::{MockForceClient, MockAuthenticator};
 ### Phase 5: Specialized Features
 - [ ] Pub/Sub API via gRPC (feature: pub_sub)
 - [ ] Streaming API (feature: streaming)
+- [ ] SOAP API (feature: soap)
+- [x] Marketing Cloud Engagement REST API (sibling crate: `force-marketingcloud`) - See [ADR-034](docs/adr/034-marketing-cloud-engagement-crate.md)
 - [x] SOAP Partner API (feature: soap) - See [ADR-032](docs/adr/032-soap-api-design.md)
   - [x] Untyped generic `SObject` model (Partner WSDL; no per-org codegen)
   - [x] CRUD: create, update, upsert (external-id), delete, retrieve
@@ -730,7 +748,7 @@ async fn main() -> anyhow::Result<()> {
 Sibling crates in this workspace:
 - **force-pubsub** - Salesforce Pub/Sub API (gRPC) client
 - **force-sync** - Postgres-first bidirectional Salesforce/Postgres sync engine
-- **force-marketingcloud** - Standalone Salesforce Marketing Cloud Engagement REST API client (see [ADR-027](docs/adr/027-marketing-cloud-engagement-crate.md))
+- **force-marketingcloud** - Standalone Salesforce Marketing Cloud Engagement REST API client (see [ADR-034](docs/adr/034-marketing-cloud-engagement-crate.md))
 
 This crate integrates with the Mark's Rust ecosystem:
 - **aletheiadb** - Bi-temporal graph database for Salesforce data models
@@ -760,11 +778,13 @@ Significant architectural decisions are documented in `docs/adr/`:
 - [ADR-025](docs/adr/025-username-password-auth.md) - Username-password authentication with refresh token support
 - [ADR-026](docs/adr/026-force-sync-crate.md) - Postgres-first bidirectional sync engine (force-sync crate)
 - [ADR-027](docs/adr/027-authorization-code-pkce-auth.md) - OAuth 2.0 Authorization Code flow with PKCE
-- [ADR-027](docs/adr/027-marketing-cloud-engagement-crate.md) - Standalone `force-marketingcloud` crate for Marketing Cloud Engagement
 - [ADR-028](docs/adr/028-agentforce-api-design.md) - Agentforce Models + Agent API design (api.salesforce.com host, permissive typing)
 - [ADR-030](docs/adr/030-force-lake-crate.md) - Salesforce → Iceberg analytics snapshot sink (force-lake crate)
 - [ADR-029](docs/adr/029-account-engagement-api-design.md) - Account Engagement (Pardot) API v5 separate-host design
 - [ADR-031](docs/adr/031-reports-dashboards-api-design.md) - Reports & Dashboards (Analytics) API handler design
+- ADR-032 - SOAP API design (RESERVED - pending in PR #1205, branch `soap-api`, not yet on trunk-dev)
+- [ADR-033](docs/adr/033-live-contract-test-harness.md) - Tiered, env-gated live-contract test harness
+- [ADR-034](docs/adr/034-marketing-cloud-engagement-crate.md) - Standalone `force-marketingcloud` crate for Marketing Cloud Engagement
 - [ADR-032](docs/adr/032-soap-api-design.md) - SOAP Partner API design (untyped generic client, OAuth in SessionHeader, INVALID_SESSION retry)
 
 ## Contributing

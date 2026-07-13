@@ -7,7 +7,7 @@ It is intentionally decoupled from the core `force` crate: Marketing Cloud uses 
 wholly separate authentication model (a per-tenant auth subdomain, Installed
 Package JSON client credentials, ~20-minute tokens with **no refresh token**, and
 business-unit / MID tenancy), so it does not share the core client's session or
-auth types. See [ADR-027](../../docs/adr/027-marketing-cloud-engagement-crate.md).
+auth types. See [ADR-034](../../docs/adr/034-marketing-cloud-engagement-crate.md).
 
 ## Scope
 

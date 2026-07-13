@@ -60,6 +60,16 @@ ADRs follow this structure:
 | [024](024-consent-portability-api-design.md) | Consent & Portability API Design | Accepted | 2026-03-21 |
 | [025](025-username-password-auth.md) | Username-Password Authentication Flow | Accepted | 2026-03-22 |
 | [026](026-force-sync-crate.md) | Create `force-sync` as a Postgres-First Sync Engine | Accepted | 2026-03-25 |
+| [027](027-authorization-code-pkce-auth.md) | OAuth 2.0 Authorization Code Flow with PKCE | Accepted | 2026-07-13 |
+| [028](028-agentforce-api-design.md) | Agentforce API Design (Models + Agent) | Accepted | 2026-07-12 |
+| [029](029-account-engagement-api-design.md) | Account Engagement (Pardot) API v5 Design | Accepted | 2026-07-13 |
+| [030](030-force-lake-crate.md) | Create `force-lake` as a Salesforce → Iceberg Snapshot Sink | Accepted | 2026-07-13 |
+| [031](031-reports-dashboards-api-design.md) | Reports & Dashboards (Analytics) API Design | Accepted | 2026-07-13 |
+| 032 | SOAP API Design | Reserved — ships in PR #1205 (branch `soap-api`), not yet on trunk-dev | — |
+| [033](033-live-contract-test-harness.md) | Tiered, Env-Gated Live-Contract Test Harness | Accepted | 2026-07-13 |
+| [034](034-marketing-cloud-engagement-crate.md) | Create `force-marketingcloud` as a Standalone Engagement Crate | Accepted | 2026-07-12 |
+
+> **Note:** ADR-032 is intentionally reserved for the SOAP API design and is not yet on trunk-dev; it lands with PR #1205 (branch `soap-api`). The gap between 031 and 033 is deliberate.
 
 ## Decision Process
 
