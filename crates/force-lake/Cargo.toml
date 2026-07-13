@@ -26,10 +26,10 @@ thiserror = { workspace = true }
 tracing = { workspace = true }
 futures = { workspace = true }
 async-trait = { workspace = true }
-iceberg = "0.6.0"
-arrow-array = "55"
-arrow-schema = "55"
-parquet = "55"
+iceberg = "0.9.1"
+arrow-array = "57.3.1"
+arrow-schema = "57.3.1"
+parquet = "57.3.1"
 bytes.workspace = true
 
 [dev-dependencies]
