@@ -46,6 +46,10 @@ secrecy = { version = "0.10", features = ["serde"] }
 base64 = "0.22"
 url = "2.5"
 
+# Cryptography (feature-gated: auth_code PKCE)
+sha2 = "0.10"
+getrandom = "0.2"
+
 # Logging
 tracing = "0.1"
 

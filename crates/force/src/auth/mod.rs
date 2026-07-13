@@ -5,13 +5,18 @@
 //!
 //! - Client Credentials (machine-to-machine)
 //! - JWT Bearer (server-to-server with certificates)
+//! - Authorization Code + PKCE (interactive/browser-based clients)
 //! - Username-Password (legacy, not recommended)
 //! - Refresh Token (session extension)
 //!
 //! # Features
 //!
 //! - `jwt`: Enables JWT bearer token flow (requires `jsonwebtoken` dependency)
+//! - `auth_code`: Enables the OAuth 2.0 Authorization Code + PKCE flow
+//!   (requires `sha2` and `getrandom` dependencies)
 
+#[cfg(feature = "auth_code")]
+pub(crate) mod auth_code;
 pub(crate) mod authenticator;
 pub(crate) mod client_credentials;
 #[cfg(feature = "data_cloud")]
@@ -23,6 +28,8 @@ pub(crate) mod token_manager;
 #[cfg(feature = "username_password")]
 pub(crate) mod username_password;
 
+#[cfg(feature = "auth_code")]
+pub use auth_code::{AuthorizationCode, AuthorizeUrlBuilder, PkceChallenge};
 pub use authenticator::Authenticator;
 pub use client_credentials::ClientCredentials;
 #[cfg(feature = "data_cloud")]

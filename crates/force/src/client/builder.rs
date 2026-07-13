@@ -66,6 +66,60 @@ impl ForceClientBuilder<NoAuth> {
             dc_config: None,
         }
     }
+
+    /// Configures authentication using the OAuth 2.0 Authorization Code + PKCE flow.
+    ///
+    /// This is a convenience entry point over [`Self::authenticate`] for the
+    /// [`AuthorizationCode`](crate::auth::AuthorizationCode) authenticator. It is
+    /// called *after* the user has authorized the app and the browser has been
+    /// redirected back with a single-use authorization `code`.
+    ///
+    /// # Arguments
+    ///
+    /// * `client_id` - OAuth client ID (Connected App consumer key)
+    /// * `client_secret` - Optional client secret; `None` for public/PKCE-only
+    ///   clients, `Some(secret)` for confidential clients
+    /// * `redirect_uri` - Redirect URI matching the authorize request
+    /// * `code` - Single-use authorization code from the redirect callback
+    /// * `code_verifier` - PKCE `code_verifier` matching the challenge sent to
+    ///   `/authorize`
+    /// * `token_url` - Token endpoint URL
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// let client = ForceClient::builder()
+    ///     .with_authorization_code(
+    ///         "client_id",
+    ///         None,
+    ///         "https://app.example.com/callback",
+    ///         received_code,
+    ///         pkce.verifier(),
+    ///         "https://login.salesforce.com/services/oauth2/token",
+    ///     )
+    ///     .build()
+    ///     .await?;
+    /// ```
+    #[cfg(feature = "auth_code")]
+    pub fn with_authorization_code(
+        self,
+        client_id: impl Into<String>,
+        client_secret: Option<String>,
+        redirect_uri: impl Into<String>,
+        code: impl Into<String>,
+        code_verifier: impl Into<String>,
+        token_url: impl Into<String>,
+    ) -> AuthenticatedBuilder<crate::auth::AuthorizationCode> {
+        let authenticator = crate::auth::AuthorizationCode::new(
+            client_id,
+            client_secret,
+            redirect_uri,
+            code,
+            code_verifier,
+            token_url,
+        );
+        self.authenticate(authenticator)
+    }
 }
 
 impl Default for ForceClientBuilder<NoAuth> {
