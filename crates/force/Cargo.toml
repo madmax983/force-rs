@@ -36,6 +36,8 @@ percent-encoding = { workspace = true }
 jsonwebtoken = { workspace = true, optional = true }
 csv = { workspace = true, optional = true }
 wiremock = { workspace = true, optional = true }
+sha2 = { workspace = true, optional = true }
+getrandom = { workspace = true, optional = true }
 
 [dev-dependencies]
 loom = "0.7"
@@ -63,6 +65,8 @@ data_utility = ["composite"]
 # Auth flows
 jwt = ["dep:jsonwebtoken"]
 username_password = []
+# OAuth 2.0 Authorization Code + PKCE flow
+auth_code = ["dep:sha2", "dep:getrandom"]
 
 # Testing utilities
 mock = ["dep:wiremock"]
@@ -86,7 +90,7 @@ cpq = ["apex_rest"]
 consent = []
 
 # Meta features
-full = ["rest", "files", "bulk", "composite", "tooling", "jwt", "ui", "graphql", "data_cloud", "apex_rest", "consent"]
+full = ["rest", "files", "bulk", "composite", "tooling", "jwt", "auth_code", "ui", "graphql", "data_cloud", "apex_rest", "consent"]
 all = ["full", "schema", "data_utility", "composite_graph", "cpq"]
 
 [[example]]
@@ -116,3 +120,7 @@ required-features = ["ui"]
 [[example]]
 name = "graphql"
 required-features = ["graphql"]
+
+[[example]]
+name = "auth_code_pkce"
+required-features = ["auth_code"]

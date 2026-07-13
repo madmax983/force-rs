@@ -95,9 +95,10 @@ Only compile what you use. Each API surface is behind a feature flag:
 - `cpq` - Salesforce CPQ API (quote lifecycle, product config, documents, amendments)
 - `consent` - Consent & Portability API (GDPR/CCPA consent checks, data export)
 - `jwt` - JWT Bearer authentication flow
+- `auth_code` - OAuth 2.0 Authorization Code + PKCE flow (interactive/browser-based clients)
 - `username_password` - Username-password flow (deprecated by Salesforce, feature-gated as speed bump)
 - `pub_sub` - gRPC Pub/Sub API (separate `force-pubsub` crate)
-- `full` - All common features (rest + tooling + bulk + composite + jwt + ui + graphql + data_cloud + apex_rest)
+- `full` - All common features (rest + tooling + bulk + composite + jwt + auth_code + ui + graphql + data_cloud + apex_rest)
 - `all` - Everything including specialized APIs (+ cpq)
 
 ### 2. Compile-Time Auth Safety (Phantom Type State Pattern)
@@ -192,6 +193,7 @@ crates/force/src/
 │   ├── token.rs           # AccessToken, TokenManager
 │   ├── client_credentials.rs
 │   ├── jwt_bearer.rs      # Feature-gated: jwt
+│   ├── auth_code.rs       # Feature-gated: auth_code (Authorization Code + PKCE)
 │   └── saml_bearer.rs     # Feature-gated: jwt
 ├── http/
 │   ├── mod.rs
@@ -364,6 +366,12 @@ use force::testing::{MockForceClient, MockAuthenticator};
 ### Phase 2: Core Auth Flows
 - [x] Client credentials flow (OAuth 2.0)
 - [x] JWT bearer flow (feature: jwt)
+- [x] Authorization Code + PKCE flow (feature: auth_code) - See [ADR-027](docs/adr/027-authorization-code-pkce-auth.md)
+  - [x] PKCE helpers (code_verifier generation, S256 code_challenge derivation)
+  - [x] Authorize URL builder (AuthorizeUrlBuilder)
+  - [x] Authorization code → token exchange (public + confidential clients)
+  - [x] Refresh token storage, rotation, and graceful fallback
+  - [x] Token revocation (/services/oauth2/revoke)
 - [x] Username-password flow (feature: username_password) - See [ADR-025](docs/adr/025-username-password-auth.md)
   - [x] Password grant with security_token concatenation
   - [x] Refresh token storage and rotation
@@ -639,6 +647,7 @@ Significant architectural decisions are documented in `docs/adr/`:
 - [ADR-022](docs/adr/022-data-cloud-api-design.md) - Data Cloud API decorator authenticator and token exchange design
 - [ADR-023](docs/adr/023-apex-rest-cpq-design.md) - Apex REST and CPQ API layered design
 - [ADR-025](docs/adr/025-username-password-auth.md) - Username-password authentication with refresh token support
+- [ADR-027](docs/adr/027-authorization-code-pkce-auth.md) - OAuth 2.0 Authorization Code flow with PKCE
 
 ## Contributing
 
