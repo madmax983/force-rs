@@ -439,6 +439,15 @@ use force::testing::{MockForceClient, MockAuthenticator};
 - [ ] Pub/Sub API via gRPC (feature: pub_sub)
 - [ ] Streaming API (feature: streaming)
 - [ ] SOAP API (feature: soap)
+- [x] Marketing Cloud Engagement REST API (sibling crate: `force-marketingcloud`) - See [ADR-027](docs/adr/027-marketing-cloud-engagement-crate.md)
+  - [x] Installed-Package server-to-server (JSON client credentials) auth
+  - [x] Proactive, per-business-unit (MID) token cache with single-flight refresh
+  - [x] Transactional Messaging (email/SMS send + status)
+  - [x] Content Builder Assets (create/get/update/delete/list)
+  - [x] Contacts (create, delete by key)
+  - [x] Data Extensions (sync rowset upsert, async insert, row query)
+  - [x] Journeys / Interaction (list, fire entry event)
+  - [x] Raw escape hatch; SOAP deferred as a follow-up
 
 ## Configuration
 
@@ -618,6 +627,11 @@ async fn main() -> anyhow::Result<()> {
 
 ## Related Projects
 
+Sibling crates in this workspace:
+- **force-pubsub** - Salesforce Pub/Sub API (gRPC) client
+- **force-sync** - Postgres-first bidirectional Salesforce/Postgres sync engine
+- **force-marketingcloud** - Standalone Salesforce Marketing Cloud Engagement REST API client (see [ADR-027](docs/adr/027-marketing-cloud-engagement-crate.md))
+
 This crate integrates with the Mark's Rust ecosystem:
 - **aletheiadb** - Bi-temporal graph database for Salesforce data models
 - **vangoh** - AI-native CRM built on AletheiaDB
@@ -639,6 +653,7 @@ Significant architectural decisions are documented in `docs/adr/`:
 - [ADR-022](docs/adr/022-data-cloud-api-design.md) - Data Cloud API decorator authenticator and token exchange design
 - [ADR-023](docs/adr/023-apex-rest-cpq-design.md) - Apex REST and CPQ API layered design
 - [ADR-025](docs/adr/025-username-password-auth.md) - Username-password authentication with refresh token support
+- [ADR-027](docs/adr/027-marketing-cloud-engagement-crate.md) - Standalone `force-marketingcloud` crate for Marketing Cloud Engagement
 
 ## Contributing
 
