@@ -23,6 +23,7 @@ auth flows.
 | **Models** — `live_special` | core + `SF_MODELS_MODEL` | `generate_text` on `api.salesforce.com` | live-tested |
 | **Agent API** — `live_special` | core + `SF_AGENT_ID` | `start_session_default` + `end_session` (best-effort teardown) | live-tested |
 | **CPQ** — `live_special` | core + `SF_CPQ_QUOTE_ID` | `read_quote` | live-tested |
+| **SOAP** — `live_soap` | core creds | `get_server_timestamp`, `get_user_info`, describe (global + object), `query` read-only smokes + create→delete `Contact` round-trip (retrieve + `query_typed`) | live-tested |
 | **Account Engagement** — `live_account_engagement` | core + `SF_AE_BUSINESS_UNIT_ID` | `query_lists` (Pardot v5, separate host + BU header) | live-tested |
 | **Marketing Cloud** — `force-marketingcloud`/`live_marketingcloud` | `MC_TENANT_SUBDOMAIN` + `MC_CLIENT_ID` + `MC_CLIENT_SECRET` (opt: `MC_ACCOUNT_ID`, `MC_SCOPE`, `MC_AUTH_URL`) | Installed-Package auth + `assets().list()` | live-tested |
 
@@ -32,8 +33,9 @@ Optional extra for `live_core` upsert: set `SF_UPSERT_SOBJECT`,
 
 ## Core credential resolution
 
-`live_core`, `live_special`, and `live_account_engagement` share one loader
-(`tests/common/mod.rs`) that mirrors `live_salesforce.rs`. It tries, in order:
+`live_core`, `live_special`, `live_soap`, and `live_account_engagement` share
+one loader (`tests/common/mod.rs`) that mirrors `live_salesforce.rs`. It tries,
+in order:
 
 1. **JWT Bearer** (feature `jwt`): `SF_JWT_CLIENT_ID`, `SF_JWT_USERNAME`,
    `SF_JWT_PRIVATE_KEY_PATH`, optional `SF_JWT_LOGIN_URL`.
