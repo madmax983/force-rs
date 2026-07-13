@@ -16,8 +16,12 @@ const NS_SOBJECT: &str = "urn:sobject.partner.soap.sforce.com";
 const NS_XSI: &str = "http://www.w3.org/2001/XMLSchema-instance";
 
 /// XML-escapes a caller-supplied text value for safe inclusion as element content.
-pub fn escape_text(value: &str) -> String {
-    quick_xml::escape::escape(value).into_owned()
+///
+/// Returns a borrowed [`Cow`](std::borrow::Cow) when the value contains no
+/// characters that require escaping, avoiding an allocation on the common
+/// fast path (identifiers, Ids, plain field values).
+pub fn escape_text(value: &str) -> std::borrow::Cow<'_, str> {
+    quick_xml::escape::escape(value)
 }
 
 /// Wraps an operation body in a full SOAP envelope with a `SessionHeader`.
@@ -37,11 +41,11 @@ pub fn build_envelope(session_id: &str, client: Option<&str>, body: &str) -> Str
     out.push_str("\" xmlns:xsi=\"");
     out.push_str(NS_XSI);
     out.push_str("\"><soapenv:Header><urn:SessionHeader><urn:sessionId>");
-    out.push_str(&escape_text(session_id));
+    out.push_str(escape_text(session_id).as_ref());
     out.push_str("</urn:sessionId></urn:SessionHeader>");
     if let Some(client) = client {
         out.push_str("<urn:CallOptions><urn:client>");
-        out.push_str(&escape_text(client));
+        out.push_str(escape_text(client).as_ref());
         out.push_str("</urn:client></urn:CallOptions>");
     }
     out.push_str("</soapenv:Header><soapenv:Body>");
@@ -57,7 +61,7 @@ pub fn build_envelope(session_id: &str, client: Option<&str>, body: &str) -> Str
 /// element names and are assumed to be valid Salesforce identifiers.
 pub fn serialize_sobject(out: &mut String, obj: &SObject) {
     out.push_str("<urn:sObjects><sf:type>");
-    out.push_str(&escape_text(&obj.sobject_type));
+    out.push_str(escape_text(&obj.sobject_type).as_ref());
     out.push_str("</sf:type>");
     for (name, value) in &obj.fields {
         let Some(value) = value else {
@@ -66,14 +70,14 @@ pub fn serialize_sobject(out: &mut String, obj: &SObject) {
         out.push_str("<sf:");
         out.push_str(name);
         out.push('>');
-        out.push_str(&escape_text(value));
+        out.push_str(escape_text(value).as_ref());
         out.push_str("</sf:");
         out.push_str(name);
         out.push('>');
     }
     for field in &obj.fields_to_null {
         out.push_str("<sf:fieldsToNull>");
-        out.push_str(&escape_text(field));
+        out.push_str(escape_text(field).as_ref());
         out.push_str("</sf:fieldsToNull>");
     }
     out.push_str("</urn:sObjects>");

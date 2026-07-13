@@ -14,7 +14,7 @@ impl<A: crate::auth::Authenticator> SoapHandler<A> {
     pub async fn describe_sobject(&self, sobject_type: &str) -> Result<DescribeSObjectResult> {
         let mut body = String::new();
         body.push_str("<urn:describeSObject><urn:sObjectType>");
-        body.push_str(&envelope::escape_text(sobject_type));
+        body.push_str(envelope::escape_text(sobject_type).as_ref());
         body.push_str("</urn:sObjectType></urn:describeSObject>");
         let xml = self.send(&body).await?;
         parse::parse_describe_sobject(&xml)
@@ -34,7 +34,7 @@ impl<A: crate::auth::Authenticator> SoapHandler<A> {
         body.push_str("<urn:describeSObjects>");
         for sobject_type in sobject_types {
             body.push_str("<urn:sObjectType>");
-            body.push_str(&envelope::escape_text(sobject_type.as_ref()));
+            body.push_str(envelope::escape_text(sobject_type.as_ref()).as_ref());
             body.push_str("</urn:sObjectType>");
         }
         body.push_str("</urn:describeSObjects>");

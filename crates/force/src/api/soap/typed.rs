@@ -24,7 +24,8 @@
 use super::{SObject, SaveResult, SoapHandler, UpsertResult, crud, parse};
 use crate::error::{ForceError, Result, SerializationError};
 use serde::Serialize;
-use serde::de::DeserializeOwned;
+use serde::de::value::{Error as ValueError, MapDeserializer};
+use serde::de::{DeserializeOwned, Deserializer, IntoDeserializer, Visitor};
 
 /// Converts a serializable record into an [`SObject`] of the given type.
 ///
@@ -56,21 +57,100 @@ fn sobject_from_serializable<T: Serialize>(sobject_type: &str, record: &T) -> Re
     Ok(obj)
 }
 
+/// A borrowing deserializer for a single SOAP field value.
+///
+/// A `Some(&str)` field deserializes as a string; a `None` field (an `xsi:nil`
+/// response value) deserializes as null — yielding `None` for an `Option<_>`
+/// target and an error for a required scalar. This matches the semantics of the
+/// prior `serde_json::Value::{String, Null}` bridge while borrowing the field
+/// value instead of cloning it.
+#[derive(Clone, Copy)]
+enum FieldDeserializer<'a> {
+    Str(&'a str),
+    Null,
+}
+
+impl<'de> IntoDeserializer<'de, ValueError> for FieldDeserializer<'de> {
+    type Deserializer = Self;
+    fn into_deserializer(self) -> Self {
+        self
+    }
+}
+
+impl<'de> Deserializer<'de> for FieldDeserializer<'de> {
+    type Error = ValueError;
+
+    fn deserialize_any<V>(self, visitor: V) -> std::result::Result<V::Value, ValueError>
+    where
+        V: Visitor<'de>,
+    {
+        match self {
+            Self::Str(s) => visitor.visit_borrowed_str(s),
+            Self::Null => visitor.visit_unit(),
+        }
+    }
+
+    fn deserialize_option<V>(self, visitor: V) -> std::result::Result<V::Value, ValueError>
+    where
+        V: Visitor<'de>,
+    {
+        match self {
+            Self::Str(_) => visitor.visit_some(self),
+            Self::Null => visitor.visit_none(),
+        }
+    }
+
+    fn deserialize_newtype_struct<V>(
+        self,
+        _name: &'static str,
+        visitor: V,
+    ) -> std::result::Result<V::Value, ValueError>
+    where
+        V: Visitor<'de>,
+    {
+        visitor.visit_newtype_struct(self)
+    }
+
+    fn deserialize_enum<V>(
+        self,
+        name: &'static str,
+        variants: &'static [&'static str],
+        visitor: V,
+    ) -> std::result::Result<V::Value, ValueError>
+    where
+        V: Visitor<'de>,
+    {
+        match self {
+            // A string value selects a unit variant, exactly as a JSON string
+            // does through `serde_json`.
+            Self::Str(s) => serde::de::value::BorrowedStrDeserializer::new(s)
+                .deserialize_enum(name, variants, visitor),
+            Self::Null => self.deserialize_any(visitor),
+        }
+    }
+
+    serde::forward_to_deserialize_any! {
+        bool i8 i16 i32 i64 i128 u8 u16 u32 u64 u128 f32 f64 char str string
+        bytes byte_buf unit unit_struct seq tuple tuple_struct map struct
+        identifier ignored_any
+    }
+}
+
 /// Deserializes an [`SObject`]'s field map into a caller type.
 ///
-/// Non-null fields become JSON strings and nil fields become JSON `null`, then
-/// the assembled object is handed to `serde_json`.
+/// Non-null fields deserialize as (borrowed) strings and nil fields as `null`,
+/// fed directly through a [`MapDeserializer`] — with no intermediate
+/// `serde_json::Value`, no field-name/value clones, and no map allocation.
 fn sobject_into_typed<T: DeserializeOwned>(obj: &SObject) -> Result<T> {
-    let mut map = serde_json::Map::with_capacity(obj.fields.len());
-    for (name, value) in &obj.fields {
-        let json_value = match value {
-            Some(s) => serde_json::Value::String(s.clone()),
-            None => serde_json::Value::Null,
+    let entries = obj.fields.iter().map(|(name, value)| {
+        let field = match value {
+            Some(s) => FieldDeserializer::Str(s.as_str()),
+            None => FieldDeserializer::Null,
         };
-        map.insert(name.clone(), json_value);
-    }
-    serde_json::from_value(serde_json::Value::Object(map))
-        .map_err(|e| ForceError::from(SerializationError::from(e)))
+        (name.as_str(), field)
+    });
+    T::deserialize(MapDeserializer::new(entries))
+        .map_err(|e: ValueError| ForceError::from(SerializationError::InvalidFormat(e.to_string())))
 }
 
 /// Deserializes a slice of records into a vector of caller types, short-circuiting
