@@ -1,0 +1,34 @@
+[package]
+name = "force-marketingcloud"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version = "1.85"
+description = "Salesforce Marketing Cloud Engagement REST API client for Rust"
+keywords = ["salesforce", "marketing-cloud", "api-client", "rest", "engagement"]
+categories = ["api-bindings", "web-programming::http-client"]
+documentation = "https://docs.rs/force-marketingcloud"
+homepage = "https://github.com/madmax983/force-rs"
+readme = "README.md"
+
+[dependencies]
+tokio = { workspace = true }
+reqwest = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+secrecy = { workspace = true }
+tracing = { workspace = true }
+chrono = { workspace = true }
+url = { workspace = true }
+async-trait = { workspace = true }
+
+[dev-dependencies]
+wiremock = { workspace = true }
+anyhow = { workspace = true }
+tokio = { workspace = true }
+
+[lints]
+workspace = true
