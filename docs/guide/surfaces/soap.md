@@ -1,8 +1,7 @@
 # SOAP Partner API
 
-> **Status:** this surface ships in **PR #1205** (branch `soap-api`), **not yet merged** to
-> `trunk-dev` as of this writing. Feature gate `soap`; design in
-> [ADR-032](../../adr/032-soap-api-design.md).
+Available behind the `soap` feature gate; design in
+[ADR-032](../../adr/032-soap-api-design.md).
 
 Classic untyped SOAP **Partner** API: generic records (no per-org WSDL codegen), CRUD, query,
 search, describe, and utility calls. There is no SOAP `login()` — the handler reuses the client's
@@ -186,7 +185,7 @@ An expired session surfaces as an HTTP 500 fault (not a 401), so the shared 401-
 middleware never fires. The handler detects `INVALID_SESSION_ID`, force-refreshes the token, and
 retries **exactly once**; a second session fault returns `ForceError::Soap`.
 
-## Not in v1
+## Out of scope
 
 Nested relationship records / child subqueries (flat record model), `merge`, `convertLead`,
 `setPassword`, streaming `queryMore` ergonomics, and `LimitInfoHeader` surfacing are documented
