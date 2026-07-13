@@ -1,0 +1,12 @@
+# Codecov configuration
+#
+# The live_* test binaries and the shared tests/common harness are #[ignore]
+# and cannot run in hermetic CI without live org credentials. Tarpaulin still
+# reports their lines as source, so they are excluded from coverage here.
+ignore:
+  - "crates/force/tests/common/mod.rs"
+  - "crates/force/tests/live_salesforce.rs"
+  - "crates/force/tests/live_core.rs"
+  - "crates/force/tests/live_special.rs"
+  - "crates/force/tests/live_account_engagement.rs"
+  - "crates/force-marketingcloud/tests/live_marketingcloud.rs"
