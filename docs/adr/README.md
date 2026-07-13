@@ -159,6 +159,11 @@ graph TD
 - **Rationale**: Resolve circular dependencies and improve build times
 - **Impact**: Modular architecture but increased complexity
 
+### ADR-033: Tiered, Env-Gated Live-Contract Test Harness
+- **Decision**: Add sibling live-test binaries (`live_core`, `live_special`, `live_account_engagement`, and the MC crate's `live_marketingcloud`) plus a shared `tests/common/mod.rs`, leaving `live_salesforce.rs` untouched
+- **Rationale**: Broader live coverage with per-surface env tiers, skip-not-fail, and a single credential contract, without editing the contention-prone existing file
+- **Impact**: More live coverage and clean partial-credential CI runs, at the cost of a duplicated auth loader between the two harnesses
+
 ## Contributing ADRs
 
 When adding a new ADR:
