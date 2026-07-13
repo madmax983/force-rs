@@ -175,6 +175,16 @@ impl<A: crate::auth::authenticator::Authenticator> ForceClient<A> {
         pub fn analytics -> crate::api::analytics::AnalyticsHandler<A>
     }
 
+    handler_accessor! {
+        /// Creates a SOAP Partner API handler for this client.
+        ///
+        /// Provides the classic untyped SOAP calls (CRUD, query, search,
+        /// describe, and utility calls) reusing the client's OAuth token in the
+        /// SOAP `SessionHeader`.
+        #[cfg(feature = "soap")]
+        pub fn soap -> crate::api::soap::SoapHandler<A>
+    }
+
     /// Creates a Data Cloud API handler for this client.
     ///
     /// The Data Cloud handler provides access to the Salesforce Data Cloud

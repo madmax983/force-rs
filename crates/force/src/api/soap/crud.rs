@@ -1,0 +1,130 @@
+//! CRUD calls for the SOAP Partner API: `create`, `update`, `upsert`,
+//! `delete`, and `retrieve`.
+
+use super::{DeleteResult, SObject, SaveResult, SoapHandler, UpsertResult, envelope, parse};
+use crate::error::Result;
+
+impl<A: crate::auth::Authenticator> SoapHandler<A> {
+    /// Creates one or more records (up to 200 per call).
+    ///
+    /// Returns one [`SaveResult`] per input record, in order. A record that
+    /// fails to save is reported with `success = false` and a populated
+    /// `errors` list — it is not an error for this call.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ForceError`](crate::error::ForceError) on a transport failure,
+    /// a SOAP fault, or an XML parse error.
+    pub async fn create(&self, records: &[SObject]) -> Result<Vec<SaveResult>> {
+        let mut body = String::new();
+        body.push_str("<urn:create>");
+        for record in records {
+            envelope::serialize_sobject(&mut body, record);
+        }
+        body.push_str("</urn:create>");
+        let xml = self.send(&body).await?;
+        parse::parse_save_results(&xml)
+    }
+
+    /// Updates one or more records (up to 200 per call).
+    ///
+    /// Each record must include its `Id` field. Returns one [`SaveResult`] per
+    /// input record, in order.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ForceError`](crate::error::ForceError) on a transport failure,
+    /// a SOAP fault, or an XML parse error.
+    pub async fn update(&self, records: &[SObject]) -> Result<Vec<SaveResult>> {
+        let mut body = String::new();
+        body.push_str("<urn:update>");
+        for record in records {
+            envelope::serialize_sobject(&mut body, record);
+        }
+        body.push_str("</urn:update>");
+        let xml = self.send(&body).await?;
+        parse::parse_save_results(&xml)
+    }
+
+    /// Creates or updates records keyed on an external ID field (up to 200 per call).
+    ///
+    /// Returns one [`UpsertResult`] per input record, in order; each reports
+    /// whether the record was `created`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ForceError`](crate::error::ForceError) on a transport failure,
+    /// a SOAP fault, or an XML parse error.
+    pub async fn upsert(
+        &self,
+        external_id_field: &str,
+        records: &[SObject],
+    ) -> Result<Vec<UpsertResult>> {
+        let mut body = String::new();
+        body.push_str("<urn:upsert><urn:externalIDFieldName>");
+        body.push_str(&envelope::escape_text(external_id_field));
+        body.push_str("</urn:externalIDFieldName>");
+        for record in records {
+            envelope::serialize_sobject(&mut body, record);
+        }
+        body.push_str("</urn:upsert>");
+        let xml = self.send(&body).await?;
+        parse::parse_upsert_results(&xml)
+    }
+
+    /// Deletes records by Id (up to 200 per call).
+    ///
+    /// Returns one [`DeleteResult`] per input Id, in order.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ForceError`](crate::error::ForceError) on a transport failure,
+    /// a SOAP fault, or an XML parse error.
+    pub async fn delete<S: AsRef<str> + Sync>(&self, ids: &[S]) -> Result<Vec<DeleteResult>> {
+        let mut body = String::new();
+        body.push_str("<urn:delete>");
+        for id in ids {
+            body.push_str("<urn:ids>");
+            body.push_str(&envelope::escape_text(id.as_ref()));
+            body.push_str("</urn:ids>");
+        }
+        body.push_str("</urn:delete>");
+        let xml = self.send(&body).await?;
+        parse::parse_delete_results(&xml)
+    }
+
+    /// Retrieves records of a single type by Id, returning the requested fields.
+    ///
+    /// Not-found Ids are omitted from the returned vector.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ForceError`](crate::error::ForceError) on a transport failure,
+    /// a SOAP fault, or an XML parse error.
+    pub async fn retrieve<F: AsRef<str> + Sync, I: AsRef<str> + Sync>(
+        &self,
+        sobject_type: &str,
+        fields: &[F],
+        ids: &[I],
+    ) -> Result<Vec<SObject>> {
+        let field_list = fields
+            .iter()
+            .map(AsRef::as_ref)
+            .collect::<Vec<_>>()
+            .join(", ");
+        let mut body = String::new();
+        body.push_str("<urn:retrieve><urn:fieldList>");
+        body.push_str(&envelope::escape_text(&field_list));
+        body.push_str("</urn:fieldList><urn:sObjectType>");
+        body.push_str(&envelope::escape_text(sobject_type));
+        body.push_str("</urn:sObjectType>");
+        for id in ids {
+            body.push_str("<urn:ids>");
+            body.push_str(&envelope::escape_text(id.as_ref()));
+            body.push_str("</urn:ids>");
+        }
+        body.push_str("</urn:retrieve>");
+        let xml = self.send(&body).await?;
+        parse::parse_retrieve(&xml)
+    }
+}

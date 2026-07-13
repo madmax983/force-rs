@@ -54,6 +54,11 @@ pub enum ForceError {
     #[cfg(feature = "cpq")]
     #[error("CPQ error: {0}")]
     Cpq(#[from] crate::api::cpq::CpqErrorResponse),
+
+    /// SOAP Partner API faults (feature-gated).
+    #[cfg(feature = "soap")]
+    #[error("SOAP fault: {0}")]
+    Soap(#[from] crate::api::soap::SoapFault),
 }
 
 /// Authentication-related errors.
