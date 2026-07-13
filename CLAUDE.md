@@ -98,11 +98,12 @@ Only compile what you use. Each API surface is behind a feature flag:
 - `agent_api` - Agentforce Agent API (headless agent sessions on `api.salesforce.com`)
 - `agentforce` - Umbrella feature (models + agent_api)
 - `account_engagement` - Account Engagement (Pardot) API v5 (separate `pi.pardot.com` host, business-unit-scoped prospects/lists/campaigns/etc.)
+- `analytics` - Reports & Dashboards REST API (report runs/instances/describe, dashboard results/refresh/status)
 - `jwt` - JWT Bearer authentication flow
 - `auth_code` - OAuth 2.0 Authorization Code + PKCE flow (interactive/browser-based clients)
 - `username_password` - Username-password flow (deprecated by Salesforce, feature-gated as speed bump)
 - `pub_sub` - gRPC Pub/Sub API (separate `force-pubsub` crate)
-- `full` - All common features (rest + tooling + bulk + composite + jwt + auth_code + ui + graphql + data_cloud + apex_rest + consent + models + agent_api + account_engagement)
+- `full` - All common features (rest + tooling + bulk + composite + jwt + auth_code + ui + graphql + data_cloud + apex_rest + consent + models + agent_api + account_engagement + analytics)
 - `all` - Everything including specialized APIs (+ cpq)
 
 ### 2. Compile-Time Auth Safety (Phantom Type State Pattern)
@@ -264,6 +265,11 @@ crates/force/src/
     │   ├── custom_fields.rs # CustomField (full CRUD)
     │   ├── forms.rs       # Form (query/get/create/delete)
     │   └── emails.rs      # Email (query/get/send)
+    ├── analytics/         # Feature: analytics (Reports & Dashboards REST API)
+    │   ├── mod.rs         # AnalyticsHandler + analytics/ URL resolver + HTTP helpers
+    │   ├── types.rs       # ReportResults, FactMapEntry, ReportMetadata, ReportInstance, Dashboard* types
+    │   ├── reports.rs     # run_report(_async/_with_metadata), instances, describe, list, query, report types
+    │   └── dashboards.rs  # list/describe/get_results/refresh/status
     └── ...                # Other API surfaces
 ```
 
@@ -486,6 +492,14 @@ use force::testing::{MockForceClient, MockAuthenticator};
   - [x] Emails (query/get/send)
   - [x] Generic escape hatch (get_raw/post_raw/patch_raw/delete_raw) for un-modeled objects
   - [x] QueryResponse<T> pagination envelope; integer IDs; errors surface as ForceError::Http
+- [x] Reports & Dashboards REST API (feature: analytics) - See [ADR-031](docs/adr/031-reports-dashboards-api-design.md)
+  - [x] AnalyticsHandler with `analytics/` URL resolution (one gate for reports + dashboards)
+  - [x] Report runs: run_report, run_report_with_metadata, query_report (ad-hoc)
+  - [x] Async instances: run_report_async(_with_metadata), list/get/delete_report_instance
+  - [x] Report metadata: describe_report, list_reports, list_report_types, describe_report_type
+  - [x] Dashboards: list_dashboards, describe_dashboard, get_dashboard_results, refresh_dashboard, get_dashboard_status
+  - [x] Typed core (ReportResults/factMap/groupings/ReportMetadata) with serde_json::Value escape hatches
+  - [x] Round-trip ReportMetadata + fail-safe ReportFormat/InstanceStatus/FilterOperator enums
 
 ### Phase 5: Specialized Features
 - [ ] Pub/Sub API via gRPC (feature: pub_sub)
@@ -727,6 +741,7 @@ Significant architectural decisions are documented in `docs/adr/`:
 - [ADR-028](docs/adr/028-agentforce-api-design.md) - Agentforce Models + Agent API design (api.salesforce.com host, permissive typing)
 - [ADR-030](docs/adr/030-force-lake-crate.md) - Salesforce → Iceberg analytics snapshot sink (force-lake crate)
 - [ADR-029](docs/adr/029-account-engagement-api-design.md) - Account Engagement (Pardot) API v5 separate-host design
+- [ADR-031](docs/adr/031-reports-dashboards-api-design.md) - Reports & Dashboards (Analytics) API handler design
 
 ## Contributing
 

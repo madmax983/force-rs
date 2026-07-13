@@ -166,6 +166,15 @@ impl<A: crate::auth::authenticator::Authenticator> ForceClient<A> {
         pub fn agents -> crate::api::agent_api::AgentHandler<A>
     }
 
+    handler_accessor! {
+        /// Creates an Analytics (Reports & Dashboards) API handler for this client.
+        ///
+        /// Provides report execution/metadata and dashboard operations via
+        /// `/services/data/vXX.X/analytics/`.
+        #[cfg(feature = "analytics")]
+        pub fn analytics -> crate::api::analytics::AnalyticsHandler<A>
+    }
+
     /// Creates a Data Cloud API handler for this client.
     ///
     /// The Data Cloud handler provides access to the Salesforce Data Cloud

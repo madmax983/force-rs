@@ -42,6 +42,9 @@ pub mod agent_api;
 #[cfg(feature = "account_engagement")]
 pub mod account_engagement;
 
+#[cfg(feature = "analytics")]
+pub mod analytics;
+
 pub(crate) mod query_stream;
 pub(crate) mod rest_operation;
 pub(crate) mod soql;
