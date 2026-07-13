@@ -5,7 +5,7 @@ edition.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
-rust-version = "1.85"
+rust-version = "1.92"
 description = "One-way Salesforce to S3 Tables / Apache Iceberg analytics snapshot sink"
 keywords = ["salesforce", "iceberg", "s3tables", "analytics", "parquet"]
 categories = ["api-bindings", "database"]
@@ -26,10 +26,11 @@ thiserror = { workspace = true }
 tracing = { workspace = true }
 futures = { workspace = true }
 async-trait = { workspace = true }
-iceberg = "0.6.0"
-arrow-array = "55"
-arrow-schema = "55"
-parquet = "55"
+iceberg = "0.9.1"
+iceberg-catalog-s3tables = "0.9.1"
+arrow-array = "57"
+arrow-schema = "57"
+parquet = "57"
 bytes.workspace = true
 
 [dev-dependencies]

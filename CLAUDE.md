@@ -300,7 +300,7 @@ sequenceDiagram
 
 ### Prerequisites
 ```bash
-rustc 1.85+ (edition 2024)
+rustc 1.92+ (edition 2024)
 cargo-watch
 cargo-nextest (recommended)
 ```
@@ -480,7 +480,7 @@ use force::testing::{MockForceClient, MockAuthenticator};
   - [x] Journeys / Interaction (list, fire entry event)
   - [x] Raw escape hatch; SOAP deferred as a follow-up
 
-### Phase 6: Analytics Sink (force-lake crate) - See [ADR-028](docs/adr/028-force-lake-crate.md)
+### Phase 6: Analytics Sink (force-lake crate) - See [ADR-030](docs/adr/030-force-lake-crate.md)
 - [x] Iceberg schema generator in `force` (feature: schema) - `generate_iceberg_schema`
 - [x] `force-lake` snapshot sink (Salesforce → S3 Tables / Apache Iceberg)
   - [x] Describe → Iceberg + Arrow schema mapping (schema_map)
@@ -682,7 +682,7 @@ This crate integrates with the Mark's Rust ecosystem:
 Sibling workspace crates:
 - **force-pubsub** - Salesforce Pub/Sub API (gRPC) client
 - **force-sync** - Correctness-first bidirectional Salesforce ↔ Postgres sync engine (see [ADR-026](docs/adr/026-force-sync-crate.md))
-- **force-lake** - One-way Salesforce → S3 Tables / Apache Iceberg analytics snapshot sink (see [ADR-028](docs/adr/028-force-lake-crate.md))
+- **force-lake** - One-way Salesforce → S3 Tables / Apache Iceberg analytics snapshot sink (see [ADR-030](docs/adr/030-force-lake-crate.md))
 
 ## ADRs (Architecture Decision Records)
 
@@ -703,8 +703,8 @@ Significant architectural decisions are documented in `docs/adr/`:
 - [ADR-026](docs/adr/026-force-sync-crate.md) - Postgres-first bidirectional sync engine (force-sync crate)
 - [ADR-027](docs/adr/027-authorization-code-pkce-auth.md) - OAuth 2.0 Authorization Code flow with PKCE
 - [ADR-027](docs/adr/027-marketing-cloud-engagement-crate.md) - Standalone `force-marketingcloud` crate for Marketing Cloud Engagement
-- [ADR-028](docs/adr/028-force-lake-crate.md) - Salesforce → Iceberg analytics snapshot sink (force-lake crate)
 - [ADR-028](docs/adr/028-agentforce-api-design.md) - Agentforce Models + Agent API design (api.salesforce.com host, permissive typing)
+- [ADR-030](docs/adr/030-force-lake-crate.md) - Salesforce → Iceberg analytics snapshot sink (force-lake crate)
 
 ## Contributing
 
