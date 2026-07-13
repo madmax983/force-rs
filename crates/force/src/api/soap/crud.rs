@@ -123,9 +123,8 @@ pub(super) fn build_retrieve_body<F: AsRef<str>, I: AsRef<str>>(
     fields: &[F],
     ids: &[I],
 ) -> String {
-    let mut body = String::with_capacity(
-        fields.len().saturating_mul(24) + ids.len().saturating_mul(48) + 64,
-    );
+    let mut body =
+        String::with_capacity(fields.len().saturating_mul(24) + ids.len().saturating_mul(48) + 64);
     body.push_str("<urn:retrieve><urn:fieldList>");
     // Write the comma-separated, escaped field list directly into the body,
     // avoiding a `Vec` + `join` intermediate allocation.

@@ -8,7 +8,13 @@
 //! Measures `build_record_batch` over 1000 rows of a wide (~15-field, mixed
 //! type) object. The function signature is stable across the perf sweep, so
 //! this compiles against both the pre- and post-optimization versions.
-#![allow(clippy::unwrap_used, clippy::expect_used, missing_docs)]
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::cast_possible_wrap,
+    clippy::cast_precision_loss,
+    missing_docs
+)]
 
 use std::sync::Arc;
 

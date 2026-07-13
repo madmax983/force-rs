@@ -28,9 +28,9 @@ fn query_success_body(records: usize) -> String {
         body.push_str(&i.to_string());
         body.push_str("</sf:Name><sf:Industry>Technology</sf:Industry>");
     }
-    body.push_str(&format!(
-        "</records><size>{records}</size></result></queryResponse></soapenv:Body></soapenv:Envelope>"
-    ));
+    body.push_str("</records><size>");
+    body.push_str(&records.to_string());
+    body.push_str("</size></result></queryResponse></soapenv:Body></soapenv:Envelope>");
     body
 }
 
@@ -95,8 +95,7 @@ fn bench_records_to_typed(c: &mut Criterion) {
     let records = typed_records(50, 10);
     c.bench_function("records_to_typed/50x10", |b| {
         b.iter(|| {
-            let out: Vec<WideRecord> =
-                bench_hooks::records_to_typed(black_box(&records)).unwrap();
+            let out: Vec<WideRecord> = bench_hooks::records_to_typed(black_box(&records)).unwrap();
             black_box(out.len())
         });
     });
