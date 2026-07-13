@@ -19,6 +19,12 @@ workspace = true
 force = { path = "../force", version = "0.3.0" }
 reqwest = { workspace = true }
 tonic = { workspace = true, features = ["tls-webpki-roots"] }
+# Pin the rustls `ring` crypto provider. The unified workspace dep graph enables
+# both `ring` (here/tonic) and `aws-lc-rs` (via the AWS SDK pulled in by
+# force-lake), so rustls cannot auto-select a provider; we install `ring`
+# explicitly in `PubSubHandler::connect`. default-features = false keeps this dep
+# from adding aws-lc-rs itself.
+rustls = { version = "0.23", default-features = false, features = ["ring"] }
 prost = { workspace = true }
 apache-avro = { workspace = true }
 tokio = { workspace = true }

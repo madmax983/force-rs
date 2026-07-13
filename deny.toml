@@ -11,6 +11,19 @@ ignore = [
     # rustls-pemfile is unmaintained but still pulled transitively by tonic 0.12.x.
     # Track this until force-pubsub moves off the dependency chain.
     "RUSTSEC-2025-0134",
+    # `paste` is unmaintained with no safe upgrade available. Pulled transitively via
+    # parquet -> iceberg / iceberg-catalog-s3tables (Apache Iceberg + AWS S3 Tables tree).
+    # Informational (unmaintained) advisory; drop once the Iceberg tree moves off `paste`.
+    "RUSTSEC-2024-0436",
+    # quick-xml < 0.41 denial-of-service advisories (CPU-quadratic duplicate-attribute
+    # check and unbounded NsReader namespace-declaration allocation). The fix requires
+    # quick-xml >= 0.41, which is pinned out by the Iceberg 0.9 tree: opendal 0.55
+    # requires quick-xml ^0.38 and reqsign 0.16 requires ^0.37 (both transitive via
+    # iceberg-catalog-s3tables). No upstream fix until those crates relax the pin. In
+    # force-lake the XML parsed is AWS S3 responses over TLS, not attacker-controlled
+    # untrusted input. Remove these once quick-xml >= 0.41 is unified in the tree.
+    "RUSTSEC-2026-0194",
+    "RUSTSEC-2026-0195",
 ]
 
 [licenses]
@@ -28,6 +41,10 @@ allow = [
     "Unicode-3.0",
     "CDLA-Permissive-2.0",
     "Zlib",
+    # CC0-1.0 is a public-domain dedication (permissive, no copyleft). Pulled
+    # transitively via tiny-keccak <- reqsign <- iceberg-catalog-s3tables (AWS S3
+    # Tables tree).
+    "CC0-1.0",
 ]
 
 # Allow specific crates with unusual license situations

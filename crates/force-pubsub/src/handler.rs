@@ -2,7 +2,22 @@
 
 use std::pin::Pin;
 use std::sync::Arc;
+use std::sync::Once;
 use tonic::transport::{Channel, ClientTlsConfig};
+
+/// Ensures rustls has a process-level [`CryptoProvider`](rustls::crypto::CryptoProvider).
+///
+/// The unified workspace dependency graph enables both the `ring` and `aws-lc-rs`
+/// rustls providers (the latter is pulled in transitively by the AWS SDK in
+/// `force-lake`), so rustls cannot automatically pick one and panics when tonic
+/// builds its TLS config. We install `ring` as the default once, deterministically.
+fn ensure_crypto_provider() {
+    static INSTALL: Once = Once::new();
+    INSTALL.call_once(|| {
+        // Ignore the error: another provider may already be installed, which is fine.
+        let _ = rustls::crypto::ring::default_provider().install_default();
+    });
+}
 
 use force::auth::Authenticator;
 use force::session::Session;
@@ -122,6 +137,7 @@ impl<A: Authenticator> PubSubHandler<A> {
         let endpoint = Channel::from_shared(config.endpoint.clone())
             .map_err(|e| PubSubError::Config(format!("invalid endpoint: {e}")))?;
         let endpoint = if endpoint.uri().scheme_str() == Some("https") {
+            ensure_crypto_provider();
             endpoint.tls_config(ClientTlsConfig::new().with_webpki_roots())?
         } else {
             endpoint
