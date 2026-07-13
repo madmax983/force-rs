@@ -118,6 +118,9 @@ jobs:
       - name: Run force special-surface live tests
         run: cargo test -p force --all-features --test live_special -- --ignored --test-threads=1
 
+      - name: Run force SOAP live tests
+        run: cargo test -p force --all-features --test live_soap -- --ignored --test-threads=1
+
       - name: Run force Account Engagement live tests
         run: cargo test -p force --all-features --test live_account_engagement -- --ignored --test-threads=1
 

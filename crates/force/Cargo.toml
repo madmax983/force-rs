@@ -39,6 +39,7 @@ wiremock = { workspace = true, optional = true }
 sha2 = { workspace = true, optional = true }
 getrandom = { workspace = true, optional = true }
 uuid = { version = "1", features = ["v4"], optional = true }
+quick-xml = { workspace = true, optional = true }
 
 [dev-dependencies]
 loom = "0.7"
@@ -101,8 +102,11 @@ account_engagement = []
 # Reports & Dashboards (Analytics) REST API surface
 analytics = []
 
+# SOAP Partner API surface
+soap = ["dep:quick-xml"]
+
 # Meta features
-full = ["rest", "files", "bulk", "composite", "tooling", "jwt", "auth_code", "ui", "graphql", "data_cloud", "apex_rest", "consent", "models", "agent_api", "account_engagement", "analytics"]
+full = ["rest", "files", "bulk", "composite", "tooling", "jwt", "auth_code", "ui", "graphql", "data_cloud", "apex_rest", "consent", "models", "agent_api", "account_engagement", "analytics", "soap"]
 all = ["full", "schema", "data_utility", "composite_graph", "cpq"]
 
 [[example]]

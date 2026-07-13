@@ -103,6 +103,7 @@ Only compile what you use. Each API surface is behind a feature flag:
 - `agentforce` - Umbrella feature (models + agent_api)
 - `account_engagement` - Account Engagement (Pardot) API v5 (separate `pi.pardot.com` host, business-unit-scoped prospects/lists/campaigns/etc.)
 - `analytics` - Reports & Dashboards REST API (report runs/instances/describe, dashboard results/refresh/status)
+- `soap` - Classic SOAP Partner API (untyped generic CRUD/query/search/describe over `/services/Soap/u/`, OAuth token in `SessionHeader`)
 - `jwt` - JWT Bearer authentication flow
 - `auth_code` - OAuth 2.0 Authorization Code + PKCE flow (interactive/browser-based clients)
 - `username_password` - Username-password flow (deprecated by Salesforce, feature-gated as speed bump)
@@ -111,6 +112,9 @@ Only compile what you use. Each API surface is behind a feature flag:
 - `all` - Everything: `full` plus specialized APIs (schema + data_utility + composite_graph + cpq)
 
 > **Note:** Pub/Sub is **not** a `force` feature. The gRPC Pub/Sub API lives in the separate `force-pubsub` sibling crate (see [ADR-018](docs/adr/018-force-pubsub-crate.md)).
+- `pub_sub` - gRPC Pub/Sub API (separate `force-pubsub` crate)
+- `full` - All common features (rest + tooling + bulk + composite + jwt + auth_code + ui + graphql + data_cloud + apex_rest + consent + models + agent_api + account_engagement + analytics + soap)
+- `all` - Everything including specialized APIs (+ cpq)
 
 ### 2. Compile-Time Auth Safety (Phantom Type State Pattern)
 The builder uses phantom types to enforce authentication at compile time:
@@ -283,6 +287,17 @@ crates/force/src/
     │   ├── types.rs       # ReportResults, FactMapEntry, ReportMetadata, ReportInstance, Dashboard* types
     │   ├── reports.rs     # run_report(_async/_with_metadata), instances, describe, list, query, report types
     │   └── dashboards.rs  # list/describe/get_results/refresh/status
+    ├── soap/              # Feature: soap (classic SOAP Partner API)
+    │   ├── mod.rs         # SoapHandler + send/dispatch + fault-retry + endpoint URL
+    │   ├── envelope.rs    # SOAP envelope + SessionHeader/CallOptions + sObject serialization + escaping
+    │   ├── types.rs       # SObject, SaveResult/UpsertResult/DeleteResult, QueryResult, UserInfo, describe types
+    │   ├── fault.rs       # SoapFault (ForceError::Soap) + fault parsing
+    │   ├── parse.rs       # Namespace-prefix-agnostic DOM + per-call response parsers
+    │   ├── crud.rs        # create/update/upsert/delete/retrieve
+    │   ├── query.rs       # query/query_more/query_all/search
+    │   ├── describe.rs    # describe_sobject/describe_sobjects/describe_global
+    │   ├── typed.rs       # serde bridge: *_typed::<T> (query/retrieve/create/update/upsert)
+    │   └── misc.rs        # get_user_info/get_server_timestamp
     └── ...                # Other API surfaces
 ```
 
@@ -519,6 +534,19 @@ use force::testing::{MockForceClient, MockAuthenticator};
 - [ ] Streaming API (feature: streaming)
 - [ ] SOAP API (feature: soap)
 - [x] Marketing Cloud Engagement REST API (sibling crate: `force-marketingcloud`) - See [ADR-034](docs/adr/034-marketing-cloud-engagement-crate.md)
+- [x] SOAP Partner API (feature: soap) - See [ADR-032](docs/adr/032-soap-api-design.md)
+  - [x] Untyped generic `SObject` model (Partner WSDL; no per-org codegen)
+  - [x] CRUD: create, update, upsert (external-id), delete, retrieve
+  - [x] Query: query, query_more, query_all, search (SOSL)
+  - [x] Describe: describe_sobject, describe_sobjects, describe_global
+  - [x] Serde-typed convenience layer over the generic `SObject` (`*_typed::<T>`): `query_typed` (auto-paginates), `query_typed_page`/`query_more_typed_page`, `retrieve_typed` (`Vec<Option<T>>`), `create_typed`/`update_typed`/`upsert_typed`; stringly-typed fields, null → `fieldsToNull`
+  - [x] Utility: get_user_info, get_server_timestamp
+  - [x] OAuth token reused in `SessionHeader` (no `login()`; retiring Summer '27)
+  - [x] `SoapFault` → `ForceError::Soap`; per-record errors in result structs
+  - [x] `INVALID_SESSION_ID` (HTTP 500) manual refresh-and-retry once
+  - [x] quick-xml parsing on patched 0.41.0 (RUSTSEC-2026-0194/0195)
+  - [ ] merge, convert_lead, set_password, nested relationship records (follow-ups)
+- [x] Marketing Cloud Engagement REST API (sibling crate: `force-marketingcloud`) - See [ADR-027](docs/adr/027-marketing-cloud-engagement-crate.md)
   - [x] Installed-Package server-to-server (JSON client credentials) auth
   - [x] Proactive, per-business-unit (MID) token cache with single-flight refresh
   - [x] Transactional Messaging (email/SMS send + status)
@@ -757,6 +785,7 @@ Significant architectural decisions are documented in `docs/adr/`:
 - ADR-032 - SOAP API design (RESERVED - pending in PR #1205, branch `soap-api`, not yet on trunk-dev)
 - [ADR-033](docs/adr/033-live-contract-test-harness.md) - Tiered, env-gated live-contract test harness
 - [ADR-034](docs/adr/034-marketing-cloud-engagement-crate.md) - Standalone `force-marketingcloud` crate for Marketing Cloud Engagement
+- [ADR-032](docs/adr/032-soap-api-design.md) - SOAP Partner API design (untyped generic client, OAuth in SessionHeader, INVALID_SESSION retry)
 
 ## Contributing
 
