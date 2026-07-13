@@ -201,6 +201,37 @@ impl<A: crate::auth::authenticator::Authenticator> ForceClient<A> {
             dc,
         )))
     }
+
+    /// Access the Account Engagement (Pardot) API v5 for the given business unit.
+    ///
+    /// `business_unit_id` is the 18-char `0Uv…` Account Engagement Business Unit ID,
+    /// sent as the required `Pardot-Business-Unit-Id` header on every request.
+    ///
+    /// The handler targets `https://pi.pardot.com` (production/training) or
+    /// `https://pi.demo.pardot.com` (sandbox/demo/developer), derived from the
+    /// client [`Environment`](crate::config::Environment). Use
+    /// [`AccountEngagementHandler::with_host`](crate::api::account_engagement::AccountEngagementHandler::with_host)
+    /// to override the host for a custom domain or a mock server.
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// let ae = client.account_engagement("0Uv000000000001AAA");
+    /// let prospects = ae
+    ///     .query_prospects("id,email,firstName,lastName", &[("limit", "50")])
+    ///     .await?;
+    /// ```
+    #[cfg(feature = "account_engagement")]
+    #[must_use]
+    pub fn account_engagement(
+        &self,
+        business_unit_id: impl Into<String>,
+    ) -> crate::api::account_engagement::AccountEngagementHandler<A> {
+        crate::api::account_engagement::AccountEngagementHandler::new(
+            Arc::clone(&self.inner),
+            business_unit_id.into(),
+        )
+    }
 }
 
 #[cfg(test)]
