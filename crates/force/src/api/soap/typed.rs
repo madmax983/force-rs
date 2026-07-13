@@ -75,7 +75,7 @@ fn sobject_into_typed<T: DeserializeOwned>(obj: &SObject) -> Result<T> {
 
 /// Deserializes a slice of records into a vector of caller types, short-circuiting
 /// on the first deserialization failure.
-fn records_to_typed<T: DeserializeOwned>(records: &[SObject]) -> Result<Vec<T>> {
+pub(super) fn records_to_typed<T: DeserializeOwned>(records: &[SObject]) -> Result<Vec<T>> {
     records.iter().map(sobject_into_typed).collect()
 }
 
