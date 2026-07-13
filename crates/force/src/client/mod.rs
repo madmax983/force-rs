@@ -154,6 +154,18 @@ impl<A: crate::auth::authenticator::Authenticator> ForceClient<A> {
         pub fn consent -> crate::api::consent::ConsentHandler<A>
     }
 
+    handler_accessor! {
+        /// Creates a Models API handler (Einstein Models / LLM gateway on api.salesforce.com).
+        #[cfg(feature = "models")]
+        pub fn models -> crate::api::models::ModelsHandler<A>
+    }
+
+    handler_accessor! {
+        /// Creates an Agentforce Agent API handler (api.salesforce.com/einstein/ai-agent).
+        #[cfg(feature = "agent_api")]
+        pub fn agents -> crate::api::agent_api::AgentHandler<A>
+    }
+
     /// Creates a Data Cloud API handler for this client.
     ///
     /// The Data Cloud handler provides access to the Salesforce Data Cloud

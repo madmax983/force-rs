@@ -94,6 +94,9 @@ Only compile what you use. Each API surface is behind a feature flag:
 - `apex_rest` - Generic Apex REST API (custom `/services/apexrest/` endpoints)
 - `cpq` - Salesforce CPQ API (quote lifecycle, product config, documents, amendments)
 - `consent` - Consent & Portability API (GDPR/CCPA consent checks, data export)
+- `models` - Agentforce Models API (Einstein LLM gateway: text/chat/embeddings on `api.salesforce.com`)
+- `agent_api` - Agentforce Agent API (headless agent sessions on `api.salesforce.com`)
+- `agentforce` - Umbrella feature (models + agent_api)
 - `jwt` - JWT Bearer authentication flow
 - `auth_code` - OAuth 2.0 Authorization Code + PKCE flow (interactive/browser-based clients)
 - `username_password` - Username-password flow (deprecated by Salesforce, feature-gated as speed bump)
@@ -245,6 +248,12 @@ crates/force/src/
     │   ├── types.rs       # ConsentValue, ConsentRecord, PortabilityRequest/Response
     │   ├── action.rs      # read_consent, read_consent_multi
     │   └── portability.rs # request_portability, check_portability_status
+    ├── models/            # Feature: models (Agentforce Models API, api.salesforce.com host)
+    │   ├── mod.rs         # ModelsHandler + AI_PLATFORM_HOST + with_host + Models headers
+    │   └── types.rs       # ModelName, GenerateText/ChatGeneration/Embedding req+resp
+    ├── agent_api/         # Feature: agent_api (Agentforce Agent API, api.salesforce.com host)
+    │   ├── mod.rs         # AgentHandler + start/send/end session (sync; streaming is follow-up)
+    │   └── types.rs       # StartSessionRequest, SendMessageRequest, AgentMessage, SessionEndReason
     └── ...                # Other API surfaces
 ```
 
@@ -442,6 +451,20 @@ use force::testing::{MockForceClient, MockAuthenticator};
   - [x] Consent reads: read_consent (single action), read_consent_multi (multiple actions)
   - [x] Portability: request_portability, check_portability_status
   - [x] Typed ConsentValue enum (Yes/No/Unknown) with fail-safe deserialization
+- [x] Agentforce Models API (feature: models) - See [ADR-027](docs/adr/027-agentforce-api-design.md)
+  - [x] ModelsHandler on fixed `api.salesforce.com` host with `with_host` override (Gov Cloud/testing)
+  - [x] generate_text (POST /einstein/platform/v1/models/{model}/generations)
+  - [x] generate_chat (POST .../chat-generations)
+  - [x] generate_embeddings (POST .../embeddings)
+  - [x] Required `x-sfdc-app-context` + `x-client-feature-id` headers
+  - [x] ModelName open newtype with common-model constants; permissive Trust Layer typing
+- [x] Agentforce Agent API (feature: agent_api) - See [ADR-027](docs/adr/027-agentforce-api-design.md)
+  - [x] AgentHandler on fixed `api.salesforce.com` host with `with_host` override
+  - [x] start_session + start_session_default (POST /einstein/ai-agent/v1/agents/{agentId}/sessions)
+  - [x] send_message + send_text (POST sessions/{sessionId}/messages)
+  - [x] end_session with `x-session-end-reason` header (DELETE sessions/{sessionId}, 204)
+  - [x] Polymorphic AgentMessage (open String type), SessionEndReason enum
+  - [ ] Streaming SSE endpoint (documented follow-up)
 
 ### Phase 5: Specialized Features
 - [ ] Pub/Sub API via gRPC (feature: pub_sub)
@@ -648,6 +671,7 @@ Significant architectural decisions are documented in `docs/adr/`:
 - [ADR-023](docs/adr/023-apex-rest-cpq-design.md) - Apex REST and CPQ API layered design
 - [ADR-025](docs/adr/025-username-password-auth.md) - Username-password authentication with refresh token support
 - [ADR-027](docs/adr/027-authorization-code-pkce-auth.md) - OAuth 2.0 Authorization Code flow with PKCE
+- [ADR-028](docs/adr/028-agentforce-api-design.md) - Agentforce Models + Agent API design (api.salesforce.com host, permissive typing)
 
 ## Contributing
 

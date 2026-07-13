@@ -38,6 +38,7 @@ csv = { workspace = true, optional = true }
 wiremock = { workspace = true, optional = true }
 sha2 = { workspace = true, optional = true }
 getrandom = { workspace = true, optional = true }
+uuid = { version = "1", features = ["v4"], optional = true }
 
 [dev-dependencies]
 loom = "0.7"
@@ -89,8 +90,13 @@ cpq = ["apex_rest"]
 # Consent & Portability API surface (GDPR/CCPA)
 consent = []
 
+# Agentforce API surfaces (api.salesforce.com host)
+models = []
+agent_api = ["dep:uuid"]
+agentforce = ["models", "agent_api"]
+
 # Meta features
-full = ["rest", "files", "bulk", "composite", "tooling", "jwt", "auth_code", "ui", "graphql", "data_cloud", "apex_rest", "consent"]
+full = ["rest", "files", "bulk", "composite", "tooling", "jwt", "auth_code", "ui", "graphql", "data_cloud", "apex_rest", "consent", "models", "agent_api"]
 all = ["full", "schema", "data_utility", "composite_graph", "cpq"]
 
 [[example]]

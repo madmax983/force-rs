@@ -33,6 +33,12 @@ pub mod cpq;
 #[cfg(feature = "consent")]
 pub mod consent;
 
+#[cfg(feature = "models")]
+pub mod models;
+
+#[cfg(feature = "agent_api")]
+pub mod agent_api;
+
 pub(crate) mod query_stream;
 pub(crate) mod rest_operation;
 pub(crate) mod soql;
