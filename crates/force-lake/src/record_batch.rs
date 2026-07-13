@@ -42,25 +42,32 @@ const MICROS_PER_SECOND: i64 = 1_000_000;
 /// fail Arrow's batch validation.
 pub fn build_record_batch(schema: &SchemaRef, records: &[Value]) -> Result<RecordBatch> {
     let mut columns: Vec<ArrayRef> = Vec::with_capacity(schema.fields().len());
+    let rows = records.len();
 
     for field in schema.fields() {
         let name = field.name();
         let cells = records.iter().map(|record| record.get(name));
-        let array = build_column(name, field.data_type(), cells)?;
+        let array = build_column(name, field.data_type(), rows, cells)?;
         columns.push(array);
     }
 
     RecordBatch::try_new(Arc::clone(schema), columns).map_err(LakeError::from)
 }
 
+/// Cheap per-row byte estimate for variable-length string/binary buffers.
+const AVG_VALUE_LEN: usize = 16;
+
 /// Builds a single Arrow column array from the JSON cells for one field.
-fn build_column<'a, I>(name: &str, data_type: &DataType, cells: I) -> Result<ArrayRef>
+///
+/// `rows` is the number of records being assembled; it pre-sizes each builder's
+/// buffers so no reallocation/copy occurs as values are appended.
+fn build_column<'a, I>(name: &str, data_type: &DataType, rows: usize, cells: I) -> Result<ArrayRef>
 where
     I: Iterator<Item = Option<&'a Value>>,
 {
     match data_type {
         DataType::Utf8 => {
-            let mut builder = StringBuilder::new();
+            let mut builder = StringBuilder::with_capacity(rows, rows * AVG_VALUE_LEN);
             for cell in cells {
                 match non_null(cell) {
                     None => builder.append_null(),
@@ -71,7 +78,7 @@ where
             Ok(Arc::new(builder.finish()))
         }
         DataType::Int32 => {
-            let mut builder = Int32Builder::new();
+            let mut builder = Int32Builder::with_capacity(rows);
             for cell in cells {
                 match non_null(cell) {
                     None => builder.append_null(),
@@ -81,7 +88,7 @@ where
             Ok(Arc::new(builder.finish()))
         }
         DataType::Float64 => {
-            let mut builder = Float64Builder::new();
+            let mut builder = Float64Builder::with_capacity(rows);
             for cell in cells {
                 match non_null(cell) {
                     None => builder.append_null(),
@@ -91,7 +98,7 @@ where
             Ok(Arc::new(builder.finish()))
         }
         DataType::Boolean => {
-            let mut builder = BooleanBuilder::new();
+            let mut builder = BooleanBuilder::with_capacity(rows);
             for cell in cells {
                 match non_null(cell) {
                     None => builder.append_null(),
@@ -107,7 +114,7 @@ where
             Ok(Arc::new(builder.finish()))
         }
         DataType::Decimal128(precision, scale) => {
-            let mut builder = Decimal128Builder::new()
+            let mut builder = Decimal128Builder::with_capacity(rows)
                 .with_precision_and_scale(*precision, *scale)
                 .map_err(LakeError::from)?;
             for cell in cells {
@@ -121,7 +128,7 @@ where
             Ok(Arc::new(builder.finish()))
         }
         DataType::Date32 => {
-            let mut builder = Date32Builder::new();
+            let mut builder = Date32Builder::with_capacity(rows);
             for cell in cells {
                 match non_null(cell) {
                     None => builder.append_null(),
@@ -131,7 +138,7 @@ where
             Ok(Arc::new(builder.finish()))
         }
         DataType::Time64(TimeUnit::Microsecond) => {
-            let mut builder = Time64MicrosecondBuilder::new();
+            let mut builder = Time64MicrosecondBuilder::with_capacity(rows);
             for cell in cells {
                 match non_null(cell) {
                     None => builder.append_null(),
@@ -141,7 +148,7 @@ where
             Ok(Arc::new(builder.finish()))
         }
         DataType::Timestamp(TimeUnit::Microsecond, tz) => {
-            let mut builder = TimestampMicrosecondBuilder::new();
+            let mut builder = TimestampMicrosecondBuilder::with_capacity(rows);
             for cell in cells {
                 match non_null(cell) {
                     None => builder.append_null(),
@@ -155,7 +162,7 @@ where
             Ok(Arc::new(array))
         }
         DataType::Binary => {
-            let mut builder = BinaryBuilder::new();
+            let mut builder = BinaryBuilder::with_capacity(rows, rows * AVG_VALUE_LEN);
             for cell in cells {
                 match non_null(cell) {
                     None => builder.append_null(),
@@ -197,9 +204,14 @@ fn parse_f64(name: &str, value: &Value) -> Result<f64> {
 ///
 /// Avoids floating-point conversion by shifting the decimal point directly.
 fn parse_decimal(name: &str, value: &Value, scale: i32) -> Result<i128> {
-    let text = match value {
-        Value::String(s) => s.clone(),
-        Value::Number(n) => n.to_string(),
+    // Borrow the string directly; only stringify the numeric case.
+    let owned;
+    let text: &str = match value {
+        Value::String(s) => s,
+        Value::Number(n) => {
+            owned = n.to_string();
+            &owned
+        }
         other => {
             return Err(LakeError::record_mapping(
                 name,
@@ -207,7 +219,7 @@ fn parse_decimal(name: &str, value: &Value, scale: i32) -> Result<i128> {
             ));
         }
     };
-    parse_decimal_str(&text, scale)
+    parse_decimal_str(text, scale)
         .ok_or_else(|| LakeError::record_mapping(name, format!("invalid decimal `{text}`")))
 }
 
