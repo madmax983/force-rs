@@ -6,6 +6,9 @@
 #[cfg(feature = "rest")]
 pub mod rest;
 
+#[cfg(feature = "files")]
+pub mod files;
+
 #[cfg(feature = "bulk")]
 pub mod bulk;
 
