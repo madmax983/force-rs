@@ -782,7 +782,6 @@ Significant architectural decisions are documented in `docs/adr/`:
 - [ADR-030](docs/adr/030-force-lake-crate.md) - Salesforce → Iceberg analytics snapshot sink (force-lake crate)
 - [ADR-029](docs/adr/029-account-engagement-api-design.md) - Account Engagement (Pardot) API v5 separate-host design
 - [ADR-031](docs/adr/031-reports-dashboards-api-design.md) - Reports & Dashboards (Analytics) API handler design
-- ADR-032 - SOAP API design (RESERVED - pending in PR #1205, branch `soap-api`, not yet on trunk-dev)
 - [ADR-033](docs/adr/033-live-contract-test-harness.md) - Tiered, env-gated live-contract test harness
 - [ADR-034](docs/adr/034-marketing-cloud-engagement-crate.md) - Standalone `force-marketingcloud` crate for Marketing Cloud Engagement
 - [ADR-032](docs/adr/032-soap-api-design.md) - SOAP Partner API design (untyped generic client, OAuth in SessionHeader, INVALID_SESSION retry)

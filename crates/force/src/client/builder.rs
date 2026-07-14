@@ -88,7 +88,7 @@ impl ForceClientBuilder<NoAuth> {
     /// # Examples
     ///
     /// ```ignore
-    /// let client = ForceClient::builder()
+    /// let client = ForceClientBuilder::new()
     ///     .with_authorization_code(
     ///         "client_id",
     ///         None,
@@ -146,7 +146,7 @@ impl<A: Authenticator> AuthenticatedBuilder<A> {
     /// ```ignore
     /// use force::auth::DataCloudConfig;
     ///
-    /// let client = ForceClient::builder()
+    /// let client = ForceClientBuilder::new()
     ///     .authenticate(auth)
     ///     .with_data_cloud(DataCloudConfig::default())
     ///     .build()
