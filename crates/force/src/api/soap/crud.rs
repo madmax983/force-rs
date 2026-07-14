@@ -16,7 +16,7 @@ impl<A: crate::auth::Authenticator> SoapHandler<A> {
     /// Returns [`ForceError`](crate::error::ForceError) on a transport failure,
     /// a SOAP fault, or an XML parse error.
     pub async fn create(&self, records: &[SObject]) -> Result<Vec<SaveResult>> {
-        let mut body = String::new();
+        let mut body = String::with_capacity(records.len().saturating_mul(128) + 32);
         body.push_str("<urn:create>");
         for record in records {
             envelope::serialize_sobject(&mut body, record);
@@ -36,7 +36,7 @@ impl<A: crate::auth::Authenticator> SoapHandler<A> {
     /// Returns [`ForceError`](crate::error::ForceError) on a transport failure,
     /// a SOAP fault, or an XML parse error.
     pub async fn update(&self, records: &[SObject]) -> Result<Vec<SaveResult>> {
-        let mut body = String::new();
+        let mut body = String::with_capacity(records.len().saturating_mul(128) + 32);
         body.push_str("<urn:update>");
         for record in records {
             envelope::serialize_sobject(&mut body, record);
@@ -60,9 +60,9 @@ impl<A: crate::auth::Authenticator> SoapHandler<A> {
         external_id_field: &str,
         records: &[SObject],
     ) -> Result<Vec<UpsertResult>> {
-        let mut body = String::new();
+        let mut body = String::with_capacity(records.len().saturating_mul(128) + 64);
         body.push_str("<urn:upsert><urn:externalIDFieldName>");
-        body.push_str(&envelope::escape_text(external_id_field));
+        body.push_str(envelope::escape_text(external_id_field).as_ref());
         body.push_str("</urn:externalIDFieldName>");
         for record in records {
             envelope::serialize_sobject(&mut body, record);
@@ -81,11 +81,11 @@ impl<A: crate::auth::Authenticator> SoapHandler<A> {
     /// Returns [`ForceError`](crate::error::ForceError) on a transport failure,
     /// a SOAP fault, or an XML parse error.
     pub async fn delete<S: AsRef<str> + Sync>(&self, ids: &[S]) -> Result<Vec<DeleteResult>> {
-        let mut body = String::new();
+        let mut body = String::with_capacity(ids.len().saturating_mul(48) + 32);
         body.push_str("<urn:delete>");
         for id in ids {
             body.push_str("<urn:ids>");
-            body.push_str(&envelope::escape_text(id.as_ref()));
+            body.push_str(envelope::escape_text(id.as_ref()).as_ref());
             body.push_str("</urn:ids>");
         }
         body.push_str("</urn:delete>");
@@ -123,20 +123,23 @@ pub(super) fn build_retrieve_body<F: AsRef<str>, I: AsRef<str>>(
     fields: &[F],
     ids: &[I],
 ) -> String {
-    let field_list = fields
-        .iter()
-        .map(AsRef::as_ref)
-        .collect::<Vec<_>>()
-        .join(", ");
-    let mut body = String::new();
+    let mut body =
+        String::with_capacity(fields.len().saturating_mul(24) + ids.len().saturating_mul(48) + 64);
     body.push_str("<urn:retrieve><urn:fieldList>");
-    body.push_str(&envelope::escape_text(&field_list));
+    // Write the comma-separated, escaped field list directly into the body,
+    // avoiding a `Vec` + `join` intermediate allocation.
+    for (i, field) in fields.iter().enumerate() {
+        if i > 0 {
+            body.push_str(", ");
+        }
+        body.push_str(envelope::escape_text(field.as_ref()).as_ref());
+    }
     body.push_str("</urn:fieldList><urn:sObjectType>");
-    body.push_str(&envelope::escape_text(sobject_type));
+    body.push_str(envelope::escape_text(sobject_type).as_ref());
     body.push_str("</urn:sObjectType>");
     for id in ids {
         body.push_str("<urn:ids>");
-        body.push_str(&envelope::escape_text(id.as_ref()));
+        body.push_str(envelope::escape_text(id.as_ref()).as_ref());
         body.push_str("</urn:ids>");
     }
     body.push_str("</urn:retrieve>");

@@ -128,20 +128,21 @@ impl HttpExecutor {
         F: Fn() -> Fut,
         Fut: std::future::Future<Output = Result<AccessToken>>,
     {
-        let method_str = request.method().as_str().to_string();
-        let path_str = request.url().path().to_string();
-
+        // Borrow the method and path straight from the request rather than
+        // allocating an owned `String` for each: the tracing span copies the
+        // `&str` into its own storage, and `TelemetryContext::new` only retains
+        // owned copies when telemetry hooks are actually registered.
         let ctx = TelemetryContext::new(
-            &method_str,
-            &path_str,
+            request.method().as_str(),
+            request.url().path(),
             request_class,
             self.telemetry_hooks.has_hooks(),
         );
 
         let request_span = tracing::info_span!(
             "force_http_request",
-            http.method = method_str.as_str(),
-            http.path = path_str.as_str(),
+            http.method = request.method().as_str(),
+            http.path = request.url().path(),
             request.class = ctx.request_class
         );
         let _request_span_guard = request_span.enter();

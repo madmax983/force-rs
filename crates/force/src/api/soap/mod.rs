@@ -64,6 +64,24 @@ pub(crate) mod typed;
 pub(crate) mod types;
 
 pub use fault::SoapFault;
+
+/// Internal benchmark hooks. Gated behind the non-default `bench-internals`
+/// feature so criterion benches can reach crate-private hot-path functions.
+/// Not part of the public API.
+#[cfg(feature = "bench-internals")]
+#[doc(hidden)]
+pub mod bench_hooks {
+    pub use super::envelope::escape_text;
+    pub use super::fault::parse_fault;
+
+    /// Deserializes a slice of [`SObject`](super::SObject) records into `T`.
+    pub fn records_to_typed<T: serde::de::DeserializeOwned>(
+        records: &[super::SObject],
+    ) -> crate::error::Result<Vec<T>> {
+        super::typed::records_to_typed(records)
+    }
+}
+
 pub use types::{
     DeleteResult, DescribeGlobalResult, DescribeGlobalSObject, DescribeSObjectResult,
     FieldDescribe, PicklistEntry, QueryResult, SObject, SaveResult, SearchResult, SoapError,

@@ -37,3 +37,8 @@ bytes.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 force = { path = "../force", version = "0.3.0", features = ["rest", "bulk", "schema"] }
 bytes.workspace = true
+criterion = { workspace = true }
+
+[[bench]]
+name = "record_batch_bench"
+harness = false

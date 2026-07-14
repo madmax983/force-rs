@@ -16,9 +16,9 @@ impl<A: crate::auth::Authenticator> SoapHandler<A> {
     /// Returns [`ForceError`](crate::error::ForceError) on a transport failure,
     /// a SOAP fault (for example a malformed query), or an XML parse error.
     pub async fn query(&self, soql: &str) -> Result<QueryResult> {
-        let mut body = String::new();
+        let mut body = String::with_capacity(256);
         body.push_str("<urn:query><urn:queryString>");
-        body.push_str(&envelope::escape_text(soql));
+        body.push_str(envelope::escape_text(soql).as_ref());
         body.push_str("</urn:queryString></urn:query>");
         let xml = self.send(&body).await?;
         parse::parse_query_result(&xml)
@@ -31,9 +31,9 @@ impl<A: crate::auth::Authenticator> SoapHandler<A> {
     /// Returns [`ForceError`](crate::error::ForceError) on a transport failure,
     /// a SOAP fault, or an XML parse error.
     pub async fn query_more(&self, query_locator: &str) -> Result<QueryResult> {
-        let mut body = String::new();
+        let mut body = String::with_capacity(256);
         body.push_str("<urn:queryMore><urn:queryLocator>");
-        body.push_str(&envelope::escape_text(query_locator));
+        body.push_str(envelope::escape_text(query_locator).as_ref());
         body.push_str("</urn:queryLocator></urn:queryMore>");
         let xml = self.send(&body).await?;
         parse::parse_query_result(&xml)
@@ -46,9 +46,9 @@ impl<A: crate::auth::Authenticator> SoapHandler<A> {
     /// Returns [`ForceError`](crate::error::ForceError) on a transport failure,
     /// a SOAP fault, or an XML parse error.
     pub async fn query_all(&self, soql: &str) -> Result<QueryResult> {
-        let mut body = String::new();
+        let mut body = String::with_capacity(256);
         body.push_str("<urn:queryAll><urn:queryString>");
-        body.push_str(&envelope::escape_text(soql));
+        body.push_str(envelope::escape_text(soql).as_ref());
         body.push_str("</urn:queryString></urn:queryAll>");
         let xml = self.send(&body).await?;
         parse::parse_query_result(&xml)
@@ -61,9 +61,9 @@ impl<A: crate::auth::Authenticator> SoapHandler<A> {
     /// Returns [`ForceError`](crate::error::ForceError) on a transport failure,
     /// a SOAP fault, or an XML parse error.
     pub async fn search(&self, sosl: &str) -> Result<SearchResult> {
-        let mut body = String::new();
+        let mut body = String::with_capacity(256);
         body.push_str("<urn:search><urn:searchString>");
-        body.push_str(&envelope::escape_text(sosl));
+        body.push_str(envelope::escape_text(sosl).as_ref());
         body.push_str("</urn:searchString></urn:search>");
         let xml = self.send(&body).await?;
         parse::parse_search_result(&xml)

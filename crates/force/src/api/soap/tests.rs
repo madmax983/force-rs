@@ -110,6 +110,80 @@ fn test_serialize_sobject_skips_none_fields() {
     assert!(out.contains("<sf:LastName>Doe</sf:LastName>"));
 }
 
+// ── escape_text (unit) ───────────────────────────────────────────────
+
+#[test]
+fn test_escape_text_no_escape_borrows() {
+    // The common fast path (identifiers/Ids/plain values) must not allocate:
+    // `escape` returns a borrowed Cow when nothing needs escaping.
+    assert!(matches!(
+        envelope::escape_text("001xx0000000001AAA"),
+        std::borrow::Cow::Borrowed(_)
+    ));
+    assert!(matches!(
+        envelope::escape_text("Plain Name 123"),
+        std::borrow::Cow::Borrowed(_)
+    ));
+}
+
+#[test]
+fn test_escape_text_escapes_all_markup_chars() {
+    // Each character that carries XML meaning must be escaped, and the escaping
+    // path returns an owned Cow.
+    let escaped = envelope::escape_text(r#"< > & ' ""#);
+    assert!(matches!(escaped, std::borrow::Cow::Owned(_)));
+    assert_eq!(escaped.as_ref(), "&lt; &gt; &amp; &apos; &quot;");
+}
+
+// ── parse_fault (unit) ───────────────────────────────────────────────
+
+#[test]
+fn test_parse_fault_none_on_query_success() {
+    // A normal, fault-free query response must short-circuit to None without
+    // reporting a spurious fault.
+    let body = envelope(
+        r#"<queryResponse><result xsi:type="QueryResult">
+            <done>true</done>
+            <records xsi:type="sf:sObject">
+                <sf:type>Account</sf:type>
+                <sf:Id>001xx0000000001AAA</sf:Id>
+                <sf:Name>Acme</sf:Name>
+            </records>
+            <size>1</size>
+        </result></queryResponse>"#,
+    );
+    assert!(fault::parse_fault(&body).is_none());
+}
+
+#[test]
+fn test_parse_fault_still_parses_a_real_fault() {
+    let body = envelope(
+        r#"<soapenv:Fault>
+            <faultcode>sf:INVALID_SESSION_ID</faultcode>
+            <faultstring>INVALID_SESSION_ID: Invalid Session</faultstring>
+            <detail><sf:UnexpectedErrorFault>
+                <sf:exceptionCode>INVALID_SESSION_ID</sf:exceptionCode>
+            </sf:UnexpectedErrorFault></detail>
+        </soapenv:Fault>"#,
+    );
+    let fault = fault::parse_fault(&body).must();
+    assert!(fault.is_invalid_session());
+    assert_eq!(fault.exception_code.as_deref(), Some("INVALID_SESSION_ID"));
+}
+
+// ── build_retrieve_body (unit) ───────────────────────────────────────
+
+#[test]
+fn test_build_retrieve_body_matches_known_good() {
+    let body = crud::build_retrieve_body("Account", &["Name", "Industry"], &["001AAA", "001BBB"]);
+    assert_eq!(
+        body,
+        "<urn:retrieve><urn:fieldList>Name, Industry</urn:fieldList>\
+<urn:sObjectType>Account</urn:sObjectType>\
+<urn:ids>001AAA</urn:ids><urn:ids>001BBB</urn:ids></urn:retrieve>"
+    );
+}
+
 // ── query ────────────────────────────────────────────────────────────
 
 #[tokio::test]

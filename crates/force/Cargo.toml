@@ -48,6 +48,7 @@ anyhow = { workspace = true }
 wiremock = { workspace = true }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 proptest = "1.5"
+criterion = { workspace = true }
 
 [features]
 default = ["rest"]
@@ -105,6 +106,10 @@ analytics = []
 # SOAP Partner API surface
 soap = ["dep:quick-xml"]
 
+# Internal-only: exposes crate-private hot-path functions to benchmarks.
+# Not part of the public API; never enable in downstream builds.
+bench-internals = ["soap"]
+
 # Meta features
 full = ["rest", "files", "bulk", "composite", "tooling", "jwt", "auth_code", "ui", "graphql", "data_cloud", "apex_rest", "consent", "models", "agent_api", "account_engagement", "analytics", "soap"]
 all = ["full", "schema", "data_utility", "composite_graph", "cpq"]
@@ -140,3 +145,8 @@ required-features = ["graphql"]
 [[example]]
 name = "auth_code_pkce"
 required-features = ["auth_code"]
+
+[[bench]]
+name = "soap_bench"
+harness = false
+required-features = ["soap", "bench-internals"]

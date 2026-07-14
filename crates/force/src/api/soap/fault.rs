@@ -52,6 +52,15 @@ impl std::error::Error for SoapFault {}
 /// Returns `None` when the body does not contain a fault (so the caller can
 /// fall through to parsing a normal operation response).
 pub fn parse_fault(xml: &str) -> Option<SoapFault> {
+    // Fast path: a `<...:Fault>` element cannot exist without the substring
+    // "Fault" appearing in the body. Successful operation responses never
+    // contain it, so we skip building the DOM entirely for them. This is
+    // behavior-preserving: `parse_document` only ever yields a fault when a
+    // Fault element is present, which requires this substring.
+    if !xml.contains("Fault") {
+        return None;
+    }
+
     let root = super::parse::parse_document(xml).ok()?;
     let fault = root.find_descendant("Fault")?;
 

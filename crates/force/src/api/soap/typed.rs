@@ -24,7 +24,8 @@
 use super::{SObject, SaveResult, SoapHandler, UpsertResult, crud, parse};
 use crate::error::{ForceError, Result, SerializationError};
 use serde::Serialize;
-use serde::de::DeserializeOwned;
+use serde::de::value::{Error as ValueError, MapDeserializer};
+use serde::de::{DeserializeOwned, Deserializer, IntoDeserializer, Visitor};
 
 /// Converts a serializable record into an [`SObject`] of the given type.
 ///
@@ -56,26 +57,105 @@ fn sobject_from_serializable<T: Serialize>(sobject_type: &str, record: &T) -> Re
     Ok(obj)
 }
 
+/// A borrowing deserializer for a single SOAP field value.
+///
+/// A `Some(&str)` field deserializes as a string; a `None` field (an `xsi:nil`
+/// response value) deserializes as null — yielding `None` for an `Option<_>`
+/// target and an error for a required scalar. This matches the semantics of the
+/// prior `serde_json::Value::{String, Null}` bridge while borrowing the field
+/// value instead of cloning it.
+#[derive(Clone, Copy)]
+enum FieldDeserializer<'a> {
+    Str(&'a str),
+    Null,
+}
+
+impl<'de> IntoDeserializer<'de, ValueError> for FieldDeserializer<'de> {
+    type Deserializer = Self;
+    fn into_deserializer(self) -> Self {
+        self
+    }
+}
+
+impl<'de> Deserializer<'de> for FieldDeserializer<'de> {
+    type Error = ValueError;
+
+    fn deserialize_any<V>(self, visitor: V) -> std::result::Result<V::Value, ValueError>
+    where
+        V: Visitor<'de>,
+    {
+        match self {
+            Self::Str(s) => visitor.visit_borrowed_str(s),
+            Self::Null => visitor.visit_unit(),
+        }
+    }
+
+    fn deserialize_option<V>(self, visitor: V) -> std::result::Result<V::Value, ValueError>
+    where
+        V: Visitor<'de>,
+    {
+        match self {
+            Self::Str(_) => visitor.visit_some(self),
+            Self::Null => visitor.visit_none(),
+        }
+    }
+
+    fn deserialize_newtype_struct<V>(
+        self,
+        _name: &'static str,
+        visitor: V,
+    ) -> std::result::Result<V::Value, ValueError>
+    where
+        V: Visitor<'de>,
+    {
+        visitor.visit_newtype_struct(self)
+    }
+
+    fn deserialize_enum<V>(
+        self,
+        name: &'static str,
+        variants: &'static [&'static str],
+        visitor: V,
+    ) -> std::result::Result<V::Value, ValueError>
+    where
+        V: Visitor<'de>,
+    {
+        match self {
+            // A string value selects a unit variant, exactly as a JSON string
+            // does through `serde_json`.
+            Self::Str(s) => serde::de::value::BorrowedStrDeserializer::new(s)
+                .deserialize_enum(name, variants, visitor),
+            Self::Null => self.deserialize_any(visitor),
+        }
+    }
+
+    serde::forward_to_deserialize_any! {
+        bool i8 i16 i32 i64 i128 u8 u16 u32 u64 u128 f32 f64 char str string
+        bytes byte_buf unit unit_struct seq tuple tuple_struct map struct
+        identifier ignored_any
+    }
+}
+
 /// Deserializes an [`SObject`]'s field map into a caller type.
 ///
-/// Non-null fields become JSON strings and nil fields become JSON `null`, then
-/// the assembled object is handed to `serde_json`.
+/// Non-null fields deserialize as (borrowed) strings and nil fields as `null`,
+/// fed directly through a [`MapDeserializer`] — with no intermediate
+/// `serde_json::Value`, no field-name/value clones, and no map allocation.
 fn sobject_into_typed<T: DeserializeOwned>(obj: &SObject) -> Result<T> {
-    let mut map = serde_json::Map::with_capacity(obj.fields.len());
-    for (name, value) in &obj.fields {
-        let json_value = match value {
-            Some(s) => serde_json::Value::String(s.clone()),
-            None => serde_json::Value::Null,
+    let entries = obj.fields.iter().map(|(name, value)| {
+        let field = match value {
+            Some(s) => FieldDeserializer::Str(s.as_str()),
+            None => FieldDeserializer::Null,
         };
-        map.insert(name.clone(), json_value);
-    }
-    serde_json::from_value(serde_json::Value::Object(map))
-        .map_err(|e| ForceError::from(SerializationError::from(e)))
+        (name.as_str(), field)
+    });
+    T::deserialize(MapDeserializer::new(entries))
+        .map_err(|e: ValueError| ForceError::from(SerializationError::InvalidFormat(e.to_string())))
 }
 
 /// Deserializes a slice of records into a vector of caller types, short-circuiting
 /// on the first deserialization failure.
-fn records_to_typed<T: DeserializeOwned>(records: &[SObject]) -> Result<Vec<T>> {
+pub(super) fn records_to_typed<T: DeserializeOwned>(records: &[SObject]) -> Result<Vec<T>> {
     records.iter().map(sobject_into_typed).collect()
 }
 
@@ -288,5 +368,92 @@ impl<A: crate::auth::Authenticator> SoapHandler<A> {
             .map(|record| sobject_from_serializable(sobject_type, record))
             .collect::<Result<Vec<_>>>()?;
         self.upsert(external_id_field, &objects).await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{records_to_typed, sobject_into_typed};
+    use crate::api::soap::SObject;
+    use crate::test_utils::must::Must;
+
+    /// A newtype wrapper, to exercise `FieldDeserializer::deserialize_newtype_struct`.
+    #[derive(Debug, serde::Deserialize, PartialEq, Eq)]
+    struct Wrapper(String);
+
+    /// A unit-variant enum, to exercise `FieldDeserializer::deserialize_enum`.
+    #[derive(Debug, serde::Deserialize, PartialEq, Eq)]
+    enum Status {
+        Active,
+        Inactive,
+    }
+
+    /// A target with mixed field shapes, so several `FieldDeserializer` methods
+    /// are exercised by a single deserialize:
+    /// - `name`    → borrowed-string path (`deserialize_any` → `visit_borrowed_str`)
+    /// - `website` → present-but-null option (`deserialize_option` → `visit_none`)
+    /// - `wrapped` → newtype struct (`deserialize_newtype_struct`)
+    /// - `status`  → unit enum from a string (`deserialize_enum`, `Str` arm)
+    /// - `extra`   → null via `deserialize_any` → `visit_unit`
+    #[derive(Debug, serde::Deserialize, PartialEq, Eq)]
+    struct Mixed {
+        name: String,
+        website: Option<String>,
+        wrapped: Wrapper,
+        status: Status,
+        extra: serde_json::Value,
+    }
+
+    #[test]
+    fn sobject_into_typed_covers_field_deserializer_paths() {
+        // Build an SObject whose field bag mixes non-null and explicit-nil values.
+        let mut obj = SObject::new("Account");
+        obj.fields
+            .push(("name".to_string(), Some("Acme".to_string())));
+        // A present-but-null field must deserialize as absent (`None`), driving
+        // the `deserialize_option` → `visit_none` branch (not `serde(default)`).
+        obj.fields.push(("website".to_string(), None));
+        obj.fields
+            .push(("wrapped".to_string(), Some("boxed".to_string())));
+        obj.fields
+            .push(("status".to_string(), Some("Active".to_string())));
+        // A null fed to `deserialize_any` yields a unit → `Value::Null`.
+        obj.fields.push(("extra".to_string(), None));
+
+        let parsed: Mixed = sobject_into_typed(&obj).must();
+
+        assert_eq!(parsed.name, "Acme");
+        assert_eq!(parsed.website, None);
+        assert_eq!(parsed.wrapped, Wrapper("boxed".to_string()));
+        assert_eq!(parsed.status, Status::Active);
+        assert_eq!(parsed.extra, serde_json::Value::Null);
+    }
+
+    #[test]
+    fn sobject_into_typed_present_string_option_is_some() {
+        // Drives the `deserialize_option` → `visit_some` (borrowed str) branch.
+        #[derive(Debug, serde::Deserialize, PartialEq, Eq)]
+        struct OnlyWebsite {
+            website: Option<String>,
+        }
+        let obj = SObject::new("Account").with_field("website", "https://example.test");
+        let parsed: OnlyWebsite = sobject_into_typed(&obj).must();
+        assert_eq!(parsed.website.as_deref(), Some("https://example.test"));
+    }
+
+    #[test]
+    fn records_to_typed_maps_each_record() {
+        #[derive(Debug, serde::Deserialize, PartialEq, Eq)]
+        struct Named {
+            name: String,
+        }
+        let records = vec![
+            SObject::new("Account").with_field("name", "Acme"),
+            SObject::new("Account").with_field("name", "Beta"),
+        ];
+        let parsed: Vec<Named> = records_to_typed(&records).must();
+        assert_eq!(parsed.len(), 2);
+        assert_eq!(parsed[0].name, "Acme");
+        assert_eq!(parsed[1].name, "Beta");
     }
 }
