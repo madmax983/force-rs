@@ -144,8 +144,9 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
     ///
     /// ```ignore
     /// let limits = client.rest().limits().await?;
-    /// let api_limit = &limits.daily_api_requests;
-    /// println!("API calls: {}/{}", api_limit.used.unwrap_or(0), api_limit.max);
+    /// if let Some(api_limit) = &limits.daily_api_requests {
+    ///     println!("API calls: {}/{}", api_limit.used.unwrap_or(0), api_limit.max);
+    /// }
     /// ```
     pub async fn limits(&self) -> Result<limits::OrgLimits> {
         self.execute_get("limits", None, "Limits API request failed")
@@ -155,6 +156,15 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
     /// Executes a SOSL (Salesforce Object Search Language) search.
     ///
     /// SOSL allows you to search across multiple objects and fields simultaneously.
+    ///
+    /// This method sends the raw SOSL string through unchanged: the caller owns
+    /// the query and is responsible for escaping SOSL-reserved characters
+    /// (`? & | ! { } [ ] ( ) ^ ~ * : \ " ' + -`) in the search term. In
+    /// particular, an unescaped `-` in the `FIND { ... }` clause is treated as an
+    /// operator and produces a `MALFORMED_SEARCH` error. To have the search term
+    /// escaped for you, build the query with [`search::SearchQueryBuilder`],
+    /// whose [`find`](search::SearchQueryBuilder::find) method escapes reserved
+    /// characters automatically.
     ///
     /// # Arguments
     ///

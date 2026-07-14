@@ -988,6 +988,30 @@ mod tests {
     }
 
     #[test]
+    fn test_escape_sosl_escapes_hyphen() {
+        // `-` is a SOSL-reserved operator; it must be backslash-escaped.
+        let escaped = escape_sosl("force-rs-live-test");
+        assert!(matches!(escaped, std::borrow::Cow::Owned(_)));
+        assert_eq!(escaped, r"force\-rs\-live\-test");
+    }
+
+    #[test]
+    fn test_builder_find_escapes_hyphenated_term() {
+        // Mirrors the live-search test: a hyphenated prefix must be escaped so the
+        // resulting SOSL is accepted by the org rather than MALFORMED_SEARCH.
+        let query = SearchQueryBuilder::new()
+            .find("force-rs-live-test")
+            .in_all_fields()
+            .returning("Contact", &["Id"])
+            .build();
+
+        assert_eq!(
+            query,
+            r"FIND {force\-rs\-live\-test} IN ALL FIELDS RETURNING Contact(Id)"
+        );
+    }
+
+    #[test]
     fn test_escape_sosl_cow_optimization() {
         // Case 1: No special characters -> Cow::Borrowed
         let safe_text = "SimpleSearch";

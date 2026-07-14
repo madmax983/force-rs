@@ -102,9 +102,22 @@ impl<A: Authenticator> CompositeGraphRequest<A> {
         // Construct the composite graph URL
         let url = self.handler.inner.resolve_url("composite/graph").await?;
 
-        let request_body = GraphRequestBody {
-            graphs: self.graphs,
-        };
+        // Normalize each sub-request URL the same way the Batch path does:
+        // Salesforce rejects bare URLs like `query?q=...` with a
+        // `PROCESSING_HALTED: "... is not a valid url"` error, so we prefix the
+        // configured API version (e.g. `v62.0/query?q=...`) when it is absent.
+        let api_version = self.handler.inner.config.api_version.as_str();
+        let mut graphs = self.graphs;
+        for graph in &mut graphs {
+            for request in &mut graph.composite_request {
+                request.url = super::batch::normalize_subrequest_url(
+                    std::mem::take(&mut request.url),
+                    api_version,
+                );
+            }
+        }
+
+        let request_body = GraphRequestBody { graphs };
 
         let request = self
             .handler
@@ -482,6 +495,66 @@ mod tests {
             response.graphs[0].composite_response[0].reference_id,
             "acc1"
         );
+    }
+
+    #[tokio::test]
+    async fn test_graph_execute_prefixes_api_version_on_subrequest_urls() {
+        use wiremock::matchers::body_json;
+
+        let mock_server = MockServer::start().await;
+        let auth = MockAuthenticator::new("token", &mock_server.uri());
+        let client = client_builder().authenticate(auth).build().await.must();
+
+        // A SOQL query builder yields a bare `query?q=...` URL that Salesforce
+        // rejects unless it is prefixed with the API version.
+        let account_query = crate::api::soql::SoqlQueryBuilder::new()
+            .select(&["Id"])
+            .from("Account")
+            .limit(1);
+        let graph = Graph::new("graph1")
+            .query(account_query, "acctQuery")
+            .must();
+
+        let builder = client.composite().graph().add_graph(graph).must();
+
+        Mock::given(method("POST"))
+            .and(path("/services/data/v67.0/composite/graph"))
+            .and(body_json(json!({
+                "graphs": [
+                    {
+                        "graphId": "graph1",
+                        "compositeRequest": [
+                            {
+                                "method": "GET",
+                                "url": "v67.0/query?q=SELECT+Id+FROM+Account+LIMIT+1",
+                                "referenceId": "acctQuery"
+                            }
+                        ]
+                    }
+                ]
+            })))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "graphs": [
+                    {
+                        "graphId": "graph1",
+                        "isSuccessful": true,
+                        "compositeResponse": [
+                            {
+                                "body": {"records": []},
+                                "httpHeaders": {},
+                                "httpStatusCode": 200,
+                                "referenceId": "acctQuery"
+                            }
+                        ]
+                    }
+                ]
+            })))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let response = builder.execute().await.must();
+        assert!(response.graphs[0].is_successful);
     }
 
     #[tokio::test]

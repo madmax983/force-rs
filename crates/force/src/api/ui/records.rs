@@ -73,13 +73,19 @@ pub struct BatchResultRepresentation {
 /// Default field values for a new or cloned record.
 ///
 /// Returned by `create_defaults()` and `clone_defaults()`.
+///
+/// The UI API "Get Record Defaults for Create/Clone" response mirrors the
+/// `record-ui` shape: it carries `objectInfos` (a **plural** map of
+/// objectApiName → object metadata), not a singular `objectInfo`.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RecordDefaultsRepresentation {
     /// Layout information relevant to the create/clone context.
+    #[serde(default)]
     pub layout: Value,
-    /// Object metadata for the target SObject type.
-    pub object_info: Value,
+    /// Object metadata keyed by object API name (target plus any referenced objects).
+    #[serde(default)]
+    pub object_infos: HashMap<String, crate::api::ui::object_info::ObjectInfoRepresentation>,
     /// A record representation pre-populated with default values.
     pub record: RecordRepresentation,
     /// Any additional fields returned by the API.
@@ -372,6 +378,28 @@ mod tests {
             "childRelationships": {},
             "recordTypeId": null,
             "systemModstamp": null
+        })
+    }
+
+    /// Minimal but real-shaped `ObjectInfoRepresentation` for use as an
+    /// `objectInfos` map value in record-defaults responses.
+    fn minimal_object_info_json(api_name: &str) -> serde_json::Value {
+        json!({
+            "apiName": api_name,
+            "label": api_name,
+            "labelPlural": format!("{api_name}s"),
+            "keyPrefix": "001",
+            "fields": {
+                "Name": {
+                    "apiName": "Name",
+                    "label": "Name",
+                    "dataType": "String",
+                    "required": true,
+                    "updateable": true,
+                    "createable": true,
+                    "referenceToInfos": []
+                }
+            }
         })
     }
 
@@ -831,7 +859,9 @@ mod tests {
 
         let response = json!({
             "layout": {},
-            "objectInfo": {},
+            "objectInfos": {
+                "Account": minimal_object_info_json("Account")
+            },
             "record": defaults_record
         });
 
@@ -846,6 +876,9 @@ mod tests {
 
         let result = client.ui().create_defaults("Account").await.must();
         assert_eq!(result.record.api_name, "Account");
+        // The plural `objectInfos` map is populated and keyed by API name.
+        assert!(result.object_infos.contains_key("Account"));
+        assert_eq!(result.object_infos["Account"].api_name, "Account");
     }
 
     #[tokio::test]
@@ -901,7 +934,9 @@ mod tests {
 
         let response = json!({
             "layout": {},
-            "objectInfo": {},
+            "objectInfos": {
+                "Account": minimal_object_info_json("Account")
+            },
             "record": clone_record
         });
 
@@ -1005,6 +1040,49 @@ mod tests {
         let result: BatchResultRepresentation = serde_json::from_str(json_str).must();
         assert!(!result.has_errors);
         assert!(result.results.is_empty());
+    }
+
+    #[test]
+    fn test_record_defaults_representation_deserialize_plural_object_infos() {
+        // Real "Get Record Defaults for Create" shape: `objectInfos` (plural map),
+        // `layout`, and `record`. The old singular `objectInfo` key is gone.
+        let json_str = r#"{
+            "layout": {"sections": []},
+            "objectInfos": {
+                "Contact": {
+                    "apiName": "Contact",
+                    "label": "Contact",
+                    "labelPlural": "Contacts",
+                    "keyPrefix": "003",
+                    "fields": {
+                        "LastName": {
+                            "apiName": "LastName",
+                            "label": "Last Name",
+                            "dataType": "String",
+                            "required": true,
+                            "updateable": true,
+                            "createable": true,
+                            "referenceToInfos": []
+                        }
+                    }
+                }
+            },
+            "record": {
+                "apiName": "Contact",
+                "id": null,
+                "fields": {},
+                "childRelationships": {},
+                "recordTypeId": null,
+                "systemModstamp": null
+            }
+        }"#;
+
+        let defaults: RecordDefaultsRepresentation = serde_json::from_str(json_str).must();
+        assert_eq!(defaults.record.api_name, "Contact");
+        assert!(defaults.object_infos.contains_key("Contact"));
+        let info = &defaults.object_infos["Contact"];
+        assert_eq!(info.api_name, "Contact");
+        assert!(info.fields.contains_key("LastName"));
     }
 
     #[test]

@@ -29,7 +29,10 @@ mod example {
 
     fn print_api_usage(limits: &OrgLimits) {
         println!("=== API USAGE ===");
-        let api = &limits.daily_api_requests;
+        let Some(api) = &limits.daily_api_requests else {
+            println!("Daily API Requests: not reported by this org");
+            return;
+        };
         println!(
             "Daily API Requests: {}/{} ({:.1}% used)",
             api.used.unwrap_or(api.max - api.remaining),
@@ -48,70 +51,78 @@ mod example {
     fn print_storage(limits: &OrgLimits) {
         println!("\n=== STORAGE ===");
 
-        let data_storage = &limits.data_storage_mb;
-        println!(
-            "Data Storage: {}/{} MB ({:.1}% used)",
-            data_storage.max - data_storage.remaining,
-            data_storage.max,
-            data_storage.percentage_used()
-        );
+        if let Some(data_storage) = &limits.data_storage_mb {
+            println!(
+                "Data Storage: {}/{} MB ({:.1}% used)",
+                data_storage.max - data_storage.remaining,
+                data_storage.max,
+                data_storage.percentage_used()
+            );
+        }
 
-        let file_storage = &limits.file_storage_mb;
-        println!(
-            "File Storage: {}/{} MB ({:.1}% used)",
-            file_storage.max - file_storage.remaining,
-            file_storage.max,
-            file_storage.percentage_used()
-        );
+        if let Some(file_storage) = &limits.file_storage_mb {
+            println!(
+                "File Storage: {}/{} MB ({:.1}% used)",
+                file_storage.max - file_storage.remaining,
+                file_storage.max,
+                file_storage.percentage_used()
+            );
+        }
     }
 
     fn print_email_limits(limits: &OrgLimits) {
         println!("\n=== EMAIL LIMITS ===");
 
-        let workflow_email = &limits.daily_workflow_emails;
-        println!(
-            "Daily Workflow Emails: {}/{} ({:.1}% used)",
-            workflow_email
-                .used
-                .unwrap_or(workflow_email.max - workflow_email.remaining),
-            workflow_email.max,
-            workflow_email.percentage_used()
-        );
+        if let Some(workflow_email) = &limits.daily_workflow_emails {
+            println!(
+                "Daily Workflow Emails: {}/{} ({:.1}% used)",
+                workflow_email
+                    .used
+                    .unwrap_or(workflow_email.max - workflow_email.remaining),
+                workflow_email.max,
+                workflow_email.percentage_used()
+            );
+        }
 
-        let mass_email = &limits.mass_email;
-        println!(
-            "Mass Emails: {}/{} remaining",
-            mass_email.remaining, mass_email.max
-        );
+        if let Some(mass_email) = &limits.mass_email {
+            println!(
+                "Mass Emails: {}/{} remaining",
+                mass_email.remaining, mass_email.max
+            );
+        }
 
-        let single_email = &limits.single_email;
-        println!(
-            "Single Emails: {}/{} remaining",
-            single_email.remaining, single_email.max
-        );
+        if let Some(single_email) = &limits.single_email {
+            println!(
+                "Single Emails: {}/{} remaining",
+                single_email.remaining, single_email.max
+            );
+        }
     }
 
     fn print_batch_and_streaming_limits(limits: &OrgLimits) {
         println!("\n=== BATCH & ASYNC ===");
 
-        let batch_apex = &limits.daily_batch_apex_executions;
-        println!(
-            "Daily Batch Apex: {}/{} remaining",
-            batch_apex.remaining, batch_apex.max
-        );
+        if let Some(batch_apex) = &limits.daily_batch_apex_executions {
+            println!(
+                "Daily Batch Apex: {}/{} remaining",
+                batch_apex.remaining, batch_apex.max
+            );
+        }
 
-        let async_apex = &limits.daily_async_apex_executions;
-        println!(
-            "Daily Async Apex: {}/{} remaining",
-            async_apex.remaining, async_apex.max
-        );
+        if let Some(async_apex) = &limits.daily_async_apex_executions {
+            println!(
+                "Daily Async Apex: {}/{} remaining",
+                async_apex.remaining, async_apex.max
+            );
+        }
 
         println!("\n=== STREAMING API ===");
-        let streaming = &limits.daily_streaming_api_events;
-        println!(
-            "Daily Streaming Events: {}/{} remaining",
-            streaming.remaining, streaming.max
-        );
+        if let Some(streaming) = &limits.daily_streaming_api_events {
+            println!(
+                "Daily Streaming Events: {}/{} remaining",
+                streaming.remaining, streaming.max
+            );
+        }
     }
 
     fn print_additional_limits(limits: &OrgLimits) {
@@ -134,28 +145,30 @@ mod example {
     fn print_summary(limits: &OrgLimits) {
         println!("\n=== SUMMARY ===");
 
-        let api = &limits.daily_api_requests;
-        let data_storage = &limits.data_storage_mb;
-        let file_storage = &limits.file_storage_mb;
-
         let mut warnings = Vec::new();
 
-        if api.is_above_threshold(90.0) {
-            warnings.push("API usage critical (>90%)");
-        } else if api.is_above_threshold(75.0) {
-            warnings.push("API usage high (>75%)");
+        if let Some(api) = &limits.daily_api_requests {
+            if api.is_above_threshold(90.0) {
+                warnings.push("API usage critical (>90%)");
+            } else if api.is_above_threshold(75.0) {
+                warnings.push("API usage high (>75%)");
+            }
         }
 
-        if data_storage.is_above_threshold(90.0) {
-            warnings.push("Data storage critical (>90%)");
-        } else if data_storage.is_above_threshold(75.0) {
-            warnings.push("Data storage high (>75%)");
+        if let Some(data_storage) = &limits.data_storage_mb {
+            if data_storage.is_above_threshold(90.0) {
+                warnings.push("Data storage critical (>90%)");
+            } else if data_storage.is_above_threshold(75.0) {
+                warnings.push("Data storage high (>75%)");
+            }
         }
 
-        if file_storage.is_above_threshold(90.0) {
-            warnings.push("File storage critical (>90%)");
-        } else if file_storage.is_above_threshold(75.0) {
-            warnings.push("File storage high (>75%)");
+        if let Some(file_storage) = &limits.file_storage_mb {
+            if file_storage.is_above_threshold(90.0) {
+                warnings.push("File storage critical (>90%)");
+            } else if file_storage.is_above_threshold(75.0) {
+                warnings.push("File storage high (>75%)");
+            }
         }
 
         if warnings.is_empty() {
