@@ -1,0 +1,30 @@
+--- crates/force-sync/src/runtime.rs
++++ crates/force-sync/src/runtime.rs
+@@ -341,18 +341,11 @@
+                     )
+                     .await;
+
+-                match result {
+-                    Ok(result) => {
+-                        let link = project_sync_link(
+-                            existing_link,
+-                            envelope,
+-                            result.salesforce_id.as_ref(),
+-                            false,
+-                        );
+-                        self.store.put_link(&link).await?;
+-                        self.store
+-                            .ack_task_for_worker(&self.worker_id, task.task_id)
+-                            .await?;
+-                        Ok(true)
+-                    }
+-                    Err(error) => self.handle_apply_error(task, error).await,
+-                }
++                let result = match result {
++                    Ok(r) => r,
++                    Err(e) => return self.handle_apply_error(task, e).await,
++                };
++                let link = project_sync_link(existing_link, envelope, result.salesforce_id.as_ref(), false);
++                self.store.put_link(&link).await?;
++                self.store.ack_task_for_worker(&self.worker_id, task.task_id).await?;
++                Ok(true)
