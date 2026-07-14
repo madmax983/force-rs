@@ -36,6 +36,40 @@ fn validate_graph_id(id: &str) -> Result<()> {
     Ok(())
 }
 
+/// Normalizes a Composite Graph sub-request URL to a full absolute API path.
+///
+/// The Composite Graph API resolves sub-request URLs as absolute paths from the
+/// API root, so every URL must start with `/services/data/vNN.N/`. This differs
+/// from the Batch API, whose [`normalize_subrequest_url`](super::batch::normalize_subrequest_url)
+/// emits version-relative URLs (`vNN.N/...`) that Salesforce resolves against
+/// `/services/data/`.
+///
+/// Behavior:
+/// - Absolute URLs (`http://`, `https://`) are left untouched.
+/// - URLs already rooted at `/services/` (with or without a leading slash) are
+///   normalized to a single leading slash and otherwise left untouched.
+/// - Version-prefixed URLs (`vNN.N/...`) get the `/services/data/` prefix.
+/// - Bare relative URLs (`query?q=...`, `sobjects/Account`) get the full
+///   `/services/data/{api_version}/` prefix.
+fn normalize_graph_subrequest_url(url: &str, api_version: &str) -> String {
+    let trimmed = url.trim_start_matches('/');
+
+    if trimmed.starts_with("http://") || trimmed.starts_with("https://") {
+        return url.to_string();
+    }
+
+    if trimmed.starts_with("services/") {
+        return format!("/{trimmed}");
+    }
+
+    if super::batch::is_api_version_prefixed(trimmed) {
+        return format!("/services/data/{trimmed}");
+    }
+
+    let api_ver = api_version.trim_matches('/');
+    format!("/services/data/{api_ver}/{trimmed}")
+}
+
 /// Constructs a Composite Graph request.
 ///
 /// Use this request object to add one or more graphs and execute them atomically.
@@ -102,18 +136,17 @@ impl<A: Authenticator> CompositeGraphRequest<A> {
         // Construct the composite graph URL
         let url = self.handler.inner.resolve_url("composite/graph").await?;
 
-        // Normalize each sub-request URL the same way the Batch path does:
-        // Salesforce rejects bare URLs like `query?q=...` with a
-        // `PROCESSING_HALTED: "... is not a valid url"` error, so we prefix the
-        // configured API version (e.g. `v62.0/query?q=...`) when it is absent.
+        // Normalize each sub-request URL to a FULL absolute API path. Unlike the
+        // Batch API — which resolves version-relative URLs (`v62.0/query?...`)
+        // against `/services/data/` — the Composite Graph API requires each
+        // sub-request URL to be the absolute path from the API root
+        // (`/services/data/v62.0/query?...`). A bare `query?q=...` is otherwise
+        // rejected with `PROCESSING_HALTED: "... is not a valid url"`.
         let api_version = self.handler.inner.config.api_version.as_str();
         let mut graphs = self.graphs;
         for graph in &mut graphs {
             for request in &mut graph.composite_request {
-                request.url = super::batch::normalize_subrequest_url(
-                    std::mem::take(&mut request.url),
-                    api_version,
-                );
+                request.url = normalize_graph_subrequest_url(&request.url, api_version);
             }
         }
 
@@ -498,15 +531,16 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_graph_execute_prefixes_api_version_on_subrequest_urls() {
+    async fn test_graph_execute_uses_full_services_data_subrequest_urls() {
         use wiremock::matchers::body_json;
 
         let mock_server = MockServer::start().await;
         let auth = MockAuthenticator::new("token", &mock_server.uri());
         let client = client_builder().authenticate(auth).build().await.must();
 
-        // A SOQL query builder yields a bare `query?q=...` URL that Salesforce
-        // rejects unless it is prefixed with the API version.
+        // A SOQL query builder yields a bare `query?q=...` URL that the Composite
+        // Graph API rejects unless it is the full absolute `/services/data/vNN.N/`
+        // path (unlike the Batch API, which resolves version-relative URLs).
         let account_query = crate::api::soql::SoqlQueryBuilder::new()
             .select(&["Id"])
             .from("Account")
@@ -526,7 +560,7 @@ mod tests {
                         "compositeRequest": [
                             {
                                 "method": "GET",
-                                "url": "v67.0/query?q=SELECT+Id+FROM+Account+LIMIT+1",
+                                "url": "/services/data/v67.0/query?q=SELECT+Id+FROM+Account+LIMIT+1",
                                 "referenceId": "acctQuery"
                             }
                         ]
@@ -589,6 +623,47 @@ mod tests {
         let expected_url =
             "query?q=SELECT+Id%2C+Name+FROM+Account+WHERE+Name+%3D+%27Acme+%26+Co.%27";
         assert_eq!(req.url, expected_url);
+    }
+
+    #[test]
+    fn test_normalize_graph_subrequest_url() {
+        // Bare relative URLs get the full /services/data/{version}/ prefix.
+        assert_eq!(
+            normalize_graph_subrequest_url("query?q=SELECT+Id+FROM+Account", "v62.0"),
+            "/services/data/v62.0/query?q=SELECT+Id+FROM+Account"
+        );
+        assert_eq!(
+            normalize_graph_subrequest_url("sobjects/Account", "v62.0"),
+            "/services/data/v62.0/sobjects/Account"
+        );
+
+        // Version-prefixed URLs only need /services/data/.
+        assert_eq!(
+            normalize_graph_subrequest_url("v62.0/query?q=SELECT+Id", "v67.0"),
+            "/services/data/v62.0/query?q=SELECT+Id"
+        );
+
+        // Already-rooted /services/ paths are left untouched (single leading slash).
+        assert_eq!(
+            normalize_graph_subrequest_url("/services/data/v62.0/sobjects/Account", "v67.0"),
+            "/services/data/v62.0/sobjects/Account"
+        );
+        assert_eq!(
+            normalize_graph_subrequest_url("services/data/v62.0/sobjects/Account", "v67.0"),
+            "/services/data/v62.0/sobjects/Account"
+        );
+
+        // Absolute URLs are left untouched.
+        assert_eq!(
+            normalize_graph_subrequest_url("https://example.com/foo", "v62.0"),
+            "https://example.com/foo"
+        );
+
+        // API version separators are trimmed so we never emit a double slash.
+        assert_eq!(
+            normalize_graph_subrequest_url("query?q=SELECT+Id", "/v62.0/"),
+            "/services/data/v62.0/query?q=SELECT+Id"
+        );
     }
 
     #[test]
