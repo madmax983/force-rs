@@ -19,79 +19,125 @@ use std::collections::HashMap;
 ///
 /// ```ignore
 /// let limits = client.rest().limits().await?;
-/// let api_limit = &limits.daily_api_requests;
-/// println!("API calls used: {}/{}", api_limit.used, api_limit.max);
+/// if let Some(api_limit) = &limits.daily_api_requests {
+///     println!("API calls remaining: {}/{}", api_limit.remaining, api_limit.max);
+/// }
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+///
+/// # Optional fields
+///
+/// Not every Salesforce org edition returns every named limit (for example,
+/// some editions omit `DailyBatchApexExecutions`). Each named field is therefore
+/// an `Option<LimitInfo>` that is `None` when the org did not return it. Any
+/// limit not modelled here is still captured in [`additional_limits`].
+///
+/// [`additional_limits`]: OrgLimits::additional_limits
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "PascalCase")]
 pub struct OrgLimits {
     /// Daily API request limit and usage.
-    pub daily_api_requests: LimitInfo,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub daily_api_requests: Option<LimitInfo>,
 
     /// Daily asynchronous Apex executions limit.
-    pub daily_async_apex_executions: LimitInfo,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub daily_async_apex_executions: Option<LimitInfo>,
 
     /// Daily batch Apex executions limit.
-    pub daily_batch_apex_executions: LimitInfo,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub daily_batch_apex_executions: Option<LimitInfo>,
 
     /// Daily durable generic streaming API events limit.
-    pub daily_durable_generic_streaming_api_events: LimitInfo,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub daily_durable_generic_streaming_api_events: Option<LimitInfo>,
 
     /// Daily durable streaming API events limit.
-    pub daily_durable_streaming_api_events: LimitInfo,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub daily_durable_streaming_api_events: Option<LimitInfo>,
 
     /// Daily generic streaming API events limit.
-    pub daily_generic_streaming_api_events: LimitInfo,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub daily_generic_streaming_api_events: Option<LimitInfo>,
 
     /// Daily streaming API events limit.
-    pub daily_streaming_api_events: LimitInfo,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub daily_streaming_api_events: Option<LimitInfo>,
 
     /// Daily workflow emails limit.
-    pub daily_workflow_emails: LimitInfo,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub daily_workflow_emails: Option<LimitInfo>,
 
     /// Data storage (MB).
-    #[serde(rename = "DataStorageMB")]
-    pub data_storage_mb: LimitInfo,
+    #[serde(
+        rename = "DataStorageMB",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub data_storage_mb: Option<LimitInfo>,
 
     /// File storage (MB).
-    #[serde(rename = "FileStorageMB")]
-    pub file_storage_mb: LimitInfo,
+    #[serde(
+        rename = "FileStorageMB",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub file_storage_mb: Option<LimitInfo>,
 
     /// Hourly asynchronous report runs limit.
-    pub hourly_async_report_runs: LimitInfo,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hourly_async_report_runs: Option<LimitInfo>,
 
     /// Hourly dashboard refreshes limit.
-    pub hourly_dashboard_refreshes: LimitInfo,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hourly_dashboard_refreshes: Option<LimitInfo>,
 
     /// Hourly dashboard results limit.
-    pub hourly_dashboard_results: LimitInfo,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hourly_dashboard_results: Option<LimitInfo>,
 
     /// Hourly dashboard status limit.
-    pub hourly_dashboard_statuses: LimitInfo,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hourly_dashboard_statuses: Option<LimitInfo>,
 
     /// Hourly long-term ID mapping limit.
-    #[serde(rename = "HourlyLongTermIdMapping")]
-    pub hourly_long_term_id_mapping: LimitInfo,
+    #[serde(
+        rename = "HourlyLongTermIdMapping",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub hourly_long_term_id_mapping: Option<LimitInfo>,
 
     /// Hourly managed content public requests limit.
-    pub hourly_managed_content_public_requests: LimitInfo,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hourly_managed_content_public_requests: Option<LimitInfo>,
 
     /// Hourly OData callout limit.
-    #[serde(rename = "HourlyODataCallout")]
-    pub hourly_o_data_callout: LimitInfo,
+    #[serde(
+        rename = "HourlyODataCallout",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub hourly_o_data_callout: Option<LimitInfo>,
 
     /// Hourly short-term ID mapping limit.
-    #[serde(rename = "HourlyShortTermIdMapping")]
-    pub hourly_short_term_id_mapping: LimitInfo,
+    #[serde(
+        rename = "HourlyShortTermIdMapping",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub hourly_short_term_id_mapping: Option<LimitInfo>,
 
     /// Hourly time-based workflow limit.
-    pub hourly_time_based_workflow: LimitInfo,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hourly_time_based_workflow: Option<LimitInfo>,
 
     /// Mass email limit.
-    pub mass_email: LimitInfo,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mass_email: Option<LimitInfo>,
 
     /// Single email limit.
-    pub single_email: LimitInfo,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub single_email: Option<LimitInfo>,
 
     /// Additional limits returned by Salesforce.
     ///
@@ -385,11 +431,39 @@ mod tests {
         }"#;
 
         let limits: OrgLimits = serde_json::from_str(json).must();
-        assert_eq!(limits.daily_api_requests.max, 15000);
-        assert_eq!(limits.daily_api_requests.remaining, 14850);
-        assert_eq!(limits.daily_api_requests.used, Some(150));
-        assert_eq!(limits.data_storage_mb.max, 5120);
-        assert_eq!(limits.file_storage_mb.max, 20480);
+        let api = limits.daily_api_requests.as_ref().must();
+        assert_eq!(api.max, 15000);
+        assert_eq!(api.remaining, 14850);
+        assert_eq!(api.used, Some(150));
+        assert_eq!(limits.data_storage_mb.as_ref().must().max, 5120);
+        assert_eq!(limits.file_storage_mb.as_ref().must().max, 20480);
+    }
+
+    #[test]
+    fn test_org_limits_deserialize_missing_named_limits() {
+        // Not every org edition returns every named limit. A payload that omits
+        // DailyBatchApexExecutions (and a couple of others) must still
+        // deserialize, leaving the omitted fields as `None`.
+        let json = r#"{
+            "DailyApiRequests": {"Max": 15000, "Remaining": 14850, "Used": 150},
+            "DataStorageMB": {"Max": 5120, "Remaining": 4800},
+            "FutureLimit": {"Max": 999, "Remaining": 888}
+        }"#;
+
+        let limits: OrgLimits = serde_json::from_str(json).must();
+
+        // Present named limit parses.
+        assert_eq!(limits.daily_api_requests.as_ref().must().max, 15000);
+        assert_eq!(limits.data_storage_mb.as_ref().must().max, 5120);
+
+        // Omitted named limits are None instead of a deserialization error.
+        assert!(limits.daily_batch_apex_executions.is_none());
+        assert!(limits.daily_async_apex_executions.is_none());
+        assert!(limits.single_email.is_none());
+
+        // Unknown limits still land in the flatten map.
+        assert!(limits.additional_limits.contains_key("FutureLimit"));
+        assert_eq!(limits.additional_limits["FutureLimit"].max, 999);
     }
 
     #[test]
@@ -427,27 +501,27 @@ mod tests {
     #[test]
     fn test_org_limits_roundtrip() {
         let original = OrgLimits {
-            daily_api_requests: LimitInfo::new(15000, 14850, Some(150)),
-            daily_async_apex_executions: LimitInfo::new(250_000, 250_000, None),
-            daily_batch_apex_executions: LimitInfo::new(250_000, 250_000, None),
-            daily_durable_generic_streaming_api_events: LimitInfo::new(10000, 10000, None),
-            daily_durable_streaming_api_events: LimitInfo::new(10000, 10000, None),
-            daily_generic_streaming_api_events: LimitInfo::new(10000, 10000, None),
-            daily_streaming_api_events: LimitInfo::new(10000, 10000, None),
-            daily_workflow_emails: LimitInfo::new(1000, 1000, None),
-            data_storage_mb: LimitInfo::new(5120, 4800, None),
-            file_storage_mb: LimitInfo::new(20480, 20000, None),
-            hourly_async_report_runs: LimitInfo::new(1200, 1200, None),
-            hourly_dashboard_refreshes: LimitInfo::new(200, 200, None),
-            hourly_dashboard_results: LimitInfo::new(5000, 5000, None),
-            hourly_dashboard_statuses: LimitInfo::new(999_999_999, 999_999_999, None),
-            hourly_long_term_id_mapping: LimitInfo::new(100_000, 100_000, None),
-            hourly_managed_content_public_requests: LimitInfo::new(50000, 50000, None),
-            hourly_o_data_callout: LimitInfo::new(10000, 10000, None),
-            hourly_short_term_id_mapping: LimitInfo::new(100_000, 100_000, None),
-            hourly_time_based_workflow: LimitInfo::new(1000, 1000, None),
-            mass_email: LimitInfo::new(10, 10, None),
-            single_email: LimitInfo::new(15, 15, None),
+            daily_api_requests: Some(LimitInfo::new(15000, 14850, Some(150))),
+            daily_async_apex_executions: Some(LimitInfo::new(250_000, 250_000, None)),
+            daily_batch_apex_executions: Some(LimitInfo::new(250_000, 250_000, None)),
+            daily_durable_generic_streaming_api_events: Some(LimitInfo::new(10000, 10000, None)),
+            daily_durable_streaming_api_events: Some(LimitInfo::new(10000, 10000, None)),
+            daily_generic_streaming_api_events: Some(LimitInfo::new(10000, 10000, None)),
+            daily_streaming_api_events: Some(LimitInfo::new(10000, 10000, None)),
+            daily_workflow_emails: Some(LimitInfo::new(1000, 1000, None)),
+            data_storage_mb: Some(LimitInfo::new(5120, 4800, None)),
+            file_storage_mb: Some(LimitInfo::new(20480, 20000, None)),
+            hourly_async_report_runs: Some(LimitInfo::new(1200, 1200, None)),
+            hourly_dashboard_refreshes: Some(LimitInfo::new(200, 200, None)),
+            hourly_dashboard_results: Some(LimitInfo::new(5000, 5000, None)),
+            hourly_dashboard_statuses: Some(LimitInfo::new(999_999_999, 999_999_999, None)),
+            hourly_long_term_id_mapping: Some(LimitInfo::new(100_000, 100_000, None)),
+            hourly_managed_content_public_requests: Some(LimitInfo::new(50000, 50000, None)),
+            hourly_o_data_callout: Some(LimitInfo::new(10000, 10000, None)),
+            hourly_short_term_id_mapping: Some(LimitInfo::new(100_000, 100_000, None)),
+            hourly_time_based_workflow: Some(LimitInfo::new(1000, 1000, None)),
+            mass_email: Some(LimitInfo::new(10, 10, None)),
+            single_email: Some(LimitInfo::new(15, 15, None)),
             additional_limits: HashMap::new(),
         };
 
@@ -635,11 +709,12 @@ mod integration_tests {
             .await
             .must_msg("Failed to get limits");
 
-        assert_eq!(limits.daily_api_requests.max, 15000);
-        assert_eq!(limits.daily_api_requests.remaining, 14850);
-        assert_eq!(limits.daily_api_requests.used, Some(150));
-        assert_eq!(limits.daily_workflow_emails.used, Some(5));
-        assert_eq!(limits.data_storage_mb.max, 5120);
+        let api = limits.daily_api_requests.as_ref().must();
+        assert_eq!(api.max, 15000);
+        assert_eq!(api.remaining, 14850);
+        assert_eq!(api.used, Some(150));
+        assert_eq!(limits.daily_workflow_emails.as_ref().must().used, Some(5));
+        assert_eq!(limits.data_storage_mb.as_ref().must().max, 5120);
     }
 
     #[tokio::test]
@@ -670,7 +745,7 @@ mod integration_tests {
             .limits()
             .await
             .must_msg("Failed to get limits");
-        assert_eq!(limits.daily_api_requests.max, 15000);
+        assert_eq!(limits.daily_api_requests.as_ref().must().max, 15000);
     }
 
     #[tokio::test]
@@ -798,8 +873,9 @@ mod integration_tests {
             .limits()
             .await
             .must_msg("Failed to get limits");
-        assert!(limits.daily_api_requests.is_at_limit());
-        assert!((limits.daily_api_requests.percentage_used() - 100.0).abs() < f64::EPSILON);
+        let api = limits.daily_api_requests.as_ref().must();
+        assert!(api.is_at_limit());
+        assert!((api.percentage_used() - 100.0).abs() < f64::EPSILON);
     }
 
     #[tokio::test]
@@ -884,8 +960,9 @@ mod integration_tests {
             .limits()
             .await
             .must_msg("Failed to get limits");
-        assert!(limits.daily_api_requests.is_above_threshold(80.0));
-        assert!((limits.daily_api_requests.percentage_used() - 90.0).abs() < f64::EPSILON);
+        let api = limits.daily_api_requests.as_ref().must();
+        assert!(api.is_above_threshold(80.0));
+        assert!((api.percentage_used() - 90.0).abs() < f64::EPSILON);
     }
 
     #[tokio::test]
@@ -913,7 +990,7 @@ mod integration_tests {
                 .limits()
                 .await
                 .must_msg("Failed to get limits");
-            assert_eq!(limits.daily_api_requests.max, 15000);
+            assert_eq!(limits.daily_api_requests.as_ref().must().max, 15000);
         }
     }
 
@@ -943,8 +1020,8 @@ mod integration_tests {
         let limits2 = handler2.limits().await.must_msg("Failed with handler2");
 
         assert_eq!(
-            limits1.daily_api_requests.max,
-            limits2.daily_api_requests.max
+            limits1.daily_api_requests.as_ref().must().max,
+            limits2.daily_api_requests.as_ref().must().max
         );
     }
 }

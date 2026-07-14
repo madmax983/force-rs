@@ -181,7 +181,14 @@ async fn live_core_rest_search() -> anyhow::Result<()> {
     };
 
     let client = common::create_client(&cfg).await?;
-    let sosl = format!("FIND {{{LIVE_TEST_PREFIX}}} IN ALL FIELDS RETURNING Contact(Id)");
+    // Build SOSL via the builder so the search term is escaped. `LIVE_TEST_PREFIX`
+    // contains `-`, a SOSL-reserved operator that produces MALFORMED_SEARCH when
+    // interpolated raw into `FIND { ... }`.
+    let sosl = force::api::rest::SearchQueryBuilder::new()
+        .find(LIVE_TEST_PREFIX)
+        .in_all_fields()
+        .returning("Contact", &["Id"])
+        .build();
     let _ = client.rest().search(&sosl).await?;
     Ok(())
 }

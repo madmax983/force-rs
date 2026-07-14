@@ -150,17 +150,35 @@ impl<A: crate::auth::Authenticator> GraphqlHandler<A> {
 
     /// Convenience method: executes a raw GraphQL query string.
     ///
-    /// Returns the `data` field as `serde_json::Value`.
+    /// Returns the inner `data` field as `serde_json::Value`.
+    ///
+    /// Unlike [`query`](Self::query), which returns `data` on partial success,
+    /// `query_raw` treats any non-empty `errors` array as a failure and returns
+    /// [`ForceError::GraphQL`](crate::error::ForceError::GraphQL). This prevents
+    /// silently handing back a `data` document whose requested fields are `null`
+    /// because the server reported errors alongside it. Use
+    /// [`query_with_errors`](Self::query_with_errors) when you need to inspect
+    /// partial-success data and errors together.
     ///
     /// # Errors
     ///
-    /// Returns an error if the query fails or the response contains only errors.
+    /// Returns an error if the query fails, the response contains a non-empty
+    /// `errors` array, or the response contains neither data nor errors.
     pub async fn query_raw(&self, query: &str, variables: Option<Value>) -> Result<Value> {
         let mut request = GraphqlRequest::new(query);
         if let Some(vars) = variables {
             request = request.with_variables(vars);
         }
-        self.query(&request).await
+
+        let envelope: GraphqlResponse<Value> = self.query_with_errors(&request).await?;
+
+        match (envelope.data, envelope.errors) {
+            (_, Some(errors)) if !errors.is_empty() => Err(GraphqlErrorResponse(errors).into()),
+            (Some(data), _) => Ok(data),
+            (None, _) => Err(crate::error::ForceError::InvalidInput(
+                "GraphQL response contained neither data nor errors".to_string(),
+            )),
+        }
     }
 }
 
@@ -491,6 +509,104 @@ mod integration_tests {
 
         let data = handler.query_raw("{ count }", None).await.must();
         assert_eq!(data["count"], 42);
+    }
+
+    #[tokio::test]
+    async fn test_query_raw_returns_inner_data_uiapi_shape() {
+        let (mock_server, handler) = setup().await;
+
+        // Real-shaped Salesforce UI API GraphQL success envelope.
+        Mock::given(method("POST"))
+            .and(path("/services/data/v67.0/graphql"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "data": {
+                    "uiapi": {
+                        "query": {
+                            "Account": {
+                                "edges": [
+                                    {"node": {"Id": {"value": "001xx000003DHP0AAA"}}}
+                                ]
+                            }
+                        }
+                    }
+                }
+            })))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let data = handler
+            .query_raw(
+                "{ uiapi { query { Account(first: 1) { edges { node { Id { value } } } } } } }",
+                None,
+            )
+            .await
+            .must();
+
+        // query_raw returns the INNER data object, so `uiapi` is directly addressable.
+        let account = &data["uiapi"]["query"]["Account"];
+        assert!(
+            account.is_object(),
+            "expected Account object, got {account:?}"
+        );
+        assert!(account["edges"].is_array());
+        assert_eq!(
+            account["edges"][0]["node"]["Id"]["value"],
+            "001xx000003DHP0AAA"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_query_raw_surfaces_graphql_errors() {
+        let (mock_server, handler) = setup().await;
+
+        // data:null with a non-empty errors array must become Err, not a null value.
+        Mock::given(method("POST"))
+            .and(path("/services/data/v67.0/graphql"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "data": null,
+                "errors": [
+                    {
+                        "message": "Cannot query field 'Bogus' on type 'Account'",
+                        "extensions": {"errorCode": "INVALID_FIELD"}
+                    }
+                ]
+            })))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let result = handler.query_raw("{ bad }", None).await;
+        let Err(err) = result else {
+            panic!("Expected an error when the envelope carries GraphQL errors");
+        };
+        assert!(
+            err.to_string().contains("Cannot query field 'Bogus'"),
+            "Error should contain the GraphQL error message, got: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_query_raw_surfaces_errors_even_with_partial_data() {
+        let (mock_server, handler) = setup().await;
+
+        // Partial success: data present but a non-empty errors array. query_raw
+        // must fail rather than silently returning a document with null fields.
+        Mock::given(method("POST"))
+            .and(path("/services/data/v67.0/graphql"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "data": {"uiapi": {"query": {"Account": null}}},
+                "errors": [{"message": "Insufficient access to Account"}]
+            })))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let result = handler.query_raw("{ partial }", None).await;
+        let Err(err) = result else {
+            panic!("Expected an error for partial-success with errors");
+        };
+        assert!(err.to_string().contains("Insufficient access to Account"));
     }
 
     #[tokio::test]
