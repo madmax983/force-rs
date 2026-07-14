@@ -288,6 +288,56 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_upload_refreshes_on_401_and_retries() {
+        let mock_server = MockServer::start().await;
+
+        // First multipart POST with the stale token is rejected with 401. This
+        // exercises the non-clonable factory path: the executor must rebuild the
+        // multipart body from scratch (via `make_request`) for the retry.
+        Mock::given(method("POST"))
+            .and(path("/services/data/v67.0/sobjects/ContentVersion"))
+            .and(header("Authorization", "Bearer expired_token"))
+            .respond_with(ResponseTemplate::new(401).set_body_json(json!([{
+                "message": "Session expired or invalid",
+                "errorCode": "INVALID_SESSION_ID"
+            }])))
+            .up_to_n_times(1)
+            .mount(&mock_server)
+            .await;
+
+        // Second POST with the refreshed token succeeds, returning the new id.
+        Mock::given(method("POST"))
+            .and(path("/services/data/v67.0/sobjects/ContentVersion"))
+            .and(header("Authorization", "Bearer fresh_token"))
+            .respond_with(ResponseTemplate::new(201).set_body_json(json!({
+                "id": "068000000000001AAA",
+                "success": true
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let refresh_calls = Arc::new(AtomicUsize::new(0));
+        let auth = RefreshingAuthenticator {
+            instance_url: mock_server.uri(),
+            refresh_calls: Arc::clone(&refresh_calls),
+        };
+        let client = builder().authenticate(auth).build().await.must();
+
+        let id = client
+            .files()
+            .upload("Test Title", "test.pdf", vec![1, 2, 3])
+            .await
+            .must_msg("upload should refresh on 401 and retry");
+
+        assert_eq!(id, "068000000000001AAA");
+        assert_eq!(
+            refresh_calls.load(Ordering::SeqCst),
+            1,
+            "expected exactly one token refresh triggered by the 401"
+        );
+    }
+
+    #[tokio::test]
     async fn test_upload_file() {
         let mock_server = MockServer::start().await;
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
