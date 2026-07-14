@@ -16,3 +16,9 @@
 **[Unify error handling]
 **Tangle:** Inconsistent error handling across modules where Result was used with explicit types.
 **Blueprint:** Standardized error types across all modules to enforce domain boundaries.
+**[Encapsulate test_utils submodules]
+**Tangle:** The internal `test_utils` module in the `force` crate defined its submodules (`mock_auth`, `mock_describe`, `must`) as fully `pub`, which broke the "Encapsulate" rule by unnecessarily exposing internal testing tools beyond their intended crate-internal scope.
+**Blueprint:** Modified the submodule declarations in `crates/force/src/test_utils/mod.rs` to use `pub(crate) mod` instead of `pub mod`, properly restricting their visibility to the crate boundary and preventing accidental external dependencies.
+**[Acknowledge Visibility Bounds]
+**Tangle:** Attempted to "fix" internal test_utils visibility by changing `pub mod` to `pub(crate) mod`, despite the parent `test_utils` module already being strictly `pub(crate)`.
+**Blueprint:** Acknowledged that in Rust, a child module's maximum visibility is bound by its parent. Using `pub(crate)` inside an already restricted `pub(crate)` module is not only redundant but triggers clippy lints. No architecture change was necessary as the system was already sound.

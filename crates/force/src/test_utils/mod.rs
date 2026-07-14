@@ -1,3 +1,4 @@
-pub mod mock_auth;
-pub mod mock_describe;
-pub mod must;
+#![allow(clippy::redundant_pub_crate)]
+pub(crate) mod mock_auth;
+pub(crate) mod mock_describe;
+pub(crate) mod must;
