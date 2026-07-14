@@ -24,6 +24,7 @@ tracing = { workspace = true }
 chrono = { workspace = true }
 url = { workspace = true }
 async-trait = { workspace = true }
+force = { version = "0.3.0", path = "../force" }
 
 [dev-dependencies]
 wiremock = { workspace = true }

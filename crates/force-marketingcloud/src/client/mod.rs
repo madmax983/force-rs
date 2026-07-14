@@ -156,7 +156,7 @@ impl MarketingCloudClient {
 
         let response = request.send().await.map_err(MarketingCloudError::Http)?;
         let status = response.status();
-        let bytes = response.bytes().await.map_err(MarketingCloudError::Http)?;
+        let bytes = force::http::read_capped_body_bytes(response, 100 * 1024 * 1024).await.map_err(|e| MarketingCloudError::Api { status: status.as_u16(), message: format!("Failed to stream response: {e}"), error_code: None, documentation: None, request_id: None })?;
 
         if !status.is_success() {
             let text = String::from_utf8_lossy(&bytes);

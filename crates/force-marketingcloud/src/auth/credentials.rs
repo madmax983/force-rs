@@ -127,7 +127,7 @@ impl Authenticator for InstalledPackageCredentials {
             ));
         }
 
-        let bytes = response.bytes().await.map_err(MarketingCloudError::Http)?;
+        let bytes = force::http::read_capped_body_bytes(response, 1024 * 1024).await.map_err(|e| MarketingCloudError::Auth(format!("token response body exceeded the maximum accepted size or failed to stream: {e}")))?;
         if bytes.len() > MAX_TOKEN_BODY_BYTES {
             return Err(MarketingCloudError::Auth(
                 "token response body exceeded the maximum accepted size".to_string(),

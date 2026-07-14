@@ -60,3 +60,6 @@
 **2026-04-09 - [Capped Responses for CSV Parsing]
 **Threat:** [Unbounded memory allocation during CSV and bytes fetching causing DoS attacks]
 **Defense:** [Replaced unbounded .bytes().await with read_capped_body_bytes(response, 100 * 1024 * 1024) inside bulk query and ingest functions]
+**2026-04-10 - [DoS / Deserialization Bomb in Marketing Cloud Engagement]
+**Threat:** A Denial of Service (DoS) vulnerability via memory exhaustion. In the `force-marketingcloud` client and `InstalledPackageCredentials` authenticator, the `response.bytes().await` call unbounded memory allocations reading error payloads. A maliciously large response payload could exhaust available memory and lead to an Out-Of-Memory (OOM) Denial of Service (DoS).
+**Defense:** Replaced unbounded `.bytes().await` calls with `force::http::read_capped_body_bytes`, enforcing a strict 1MB limit for auth requests and a 100MB limit for general API responses. This mitigates memory exhaustion by safely capping response sizes.
