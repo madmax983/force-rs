@@ -23,6 +23,8 @@ pub(crate) mod client_credentials;
 pub(crate) mod data_cloud;
 #[cfg(feature = "jwt")]
 pub(crate) mod jwt_bearer;
+#[cfg(feature = "saml")]
+pub(crate) mod saml_bearer;
 pub(crate) mod token;
 pub(crate) mod token_manager;
 #[cfg(feature = "username_password")]
@@ -36,6 +38,8 @@ pub use client_credentials::ClientCredentials;
 pub use data_cloud::{DataCloudAuthenticator, DataCloudConfig};
 #[cfg(feature = "jwt")]
 pub use jwt_bearer::JwtBearerFlow;
+#[cfg(feature = "saml")]
+pub use saml_bearer::SamlBearerFlow;
 pub use token::{AccessToken, TokenResponse};
 pub use token_manager::TokenManager;
 #[cfg(feature = "username_password")]

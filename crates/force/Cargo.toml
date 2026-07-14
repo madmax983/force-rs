@@ -66,6 +66,7 @@ data_utility = ["composite"]
 
 # Auth flows
 jwt = ["dep:jsonwebtoken"]
+saml = []
 username_password = []
 # OAuth 2.0 Authorization Code + PKCE flow
 auth_code = ["dep:sha2", "dep:getrandom"]
@@ -106,7 +107,7 @@ analytics = []
 soap = ["dep:quick-xml"]
 
 # Meta features
-full = ["rest", "files", "bulk", "composite", "tooling", "jwt", "auth_code", "ui", "graphql", "data_cloud", "apex_rest", "consent", "models", "agent_api", "account_engagement", "analytics", "soap"]
+full = ["rest", "files", "bulk", "composite", "tooling", "jwt", "auth_code", "saml", "ui", "graphql", "data_cloud", "apex_rest", "consent", "models", "agent_api", "account_engagement", "analytics", "soap"]
 all = ["full", "schema", "data_utility", "composite_graph", "cpq"]
 
 [[example]]
