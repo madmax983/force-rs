@@ -90,6 +90,15 @@ impl<A: crate::auth::authenticator::Authenticator> ForceClient<A> {
     }
 
     handler_accessor! {
+        /// Creates a Files API handler for this client.
+        ///
+        /// Provides upload/download of `ContentVersion` binaries and linking
+        /// documents to records via `ContentDocumentLink`.
+        #[cfg(feature = "files")]
+        pub fn files -> crate::api::files::FilesHandler<A>
+    }
+
+    handler_accessor! {
         /// Creates a Bulk API 2.0 handler for this client.
         ///
         /// Provides high-volume data operations and bulk queries.

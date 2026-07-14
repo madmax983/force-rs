@@ -52,7 +52,7 @@ criterion = { workspace = true }
 
 [features]
 default = ["rest"]
-files = ["rest"]
+files = ["rest", "reqwest/multipart"]
 
 # Platform API surfaces
 rest = []
