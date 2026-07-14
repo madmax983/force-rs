@@ -395,6 +395,45 @@ mod tests {
     }
 
     #[test]
+    fn builds_float_column_and_numeric_decimal() {
+        use arrow_array::Float64Array;
+
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("Score", DataType::Float64, true),
+            // Same Decimal column, but fed a JSON number (not a string) below,
+            // exercising the `Value::Number` borrow path in `parse_decimal`.
+            Field::new("Amount", DataType::Decimal128(18, 2), true),
+        ]));
+
+        let records = vec![
+            json!({ "Score": 2.5, "Amount": 12.34 }),
+            json!({ "Score": null, "Amount": "56.78" }),
+        ];
+
+        let batch = build_record_batch(&schema, &records).expect("batch builds");
+        assert_eq!(batch.num_rows(), 2);
+        assert_eq!(batch.num_columns(), 2);
+
+        let scores = batch
+            .column(0)
+            .as_any()
+            .downcast_ref::<Float64Array>()
+            .expect("float column");
+        assert!((scores.value(0) - 2.5).abs() < f64::EPSILON);
+        assert!(scores.is_null(1));
+
+        let amounts = batch
+            .column(1)
+            .as_any()
+            .downcast_ref::<Decimal128Array>()
+            .expect("decimal column");
+        // 12.34 (JSON number) scaled by 10^2 = 1234
+        assert_eq!(amounts.value(0), 1_234_i128);
+        // 56.78 (JSON string) scaled by 10^2 = 5678
+        assert_eq!(amounts.value(1), 5_678_i128);
+    }
+
+    #[test]
     fn negative_decimal_parses() {
         assert_eq!(parse_decimal_str("-12.5", 2), Some(-1250));
         assert_eq!(parse_decimal_str("0.01", 2), Some(1));

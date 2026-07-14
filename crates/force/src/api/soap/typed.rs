@@ -370,3 +370,90 @@ impl<A: crate::auth::Authenticator> SoapHandler<A> {
         self.upsert(external_id_field, &objects).await
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{records_to_typed, sobject_into_typed};
+    use crate::api::soap::SObject;
+    use crate::test_utils::must::Must;
+
+    /// A newtype wrapper, to exercise `FieldDeserializer::deserialize_newtype_struct`.
+    #[derive(Debug, serde::Deserialize, PartialEq, Eq)]
+    struct Wrapper(String);
+
+    /// A unit-variant enum, to exercise `FieldDeserializer::deserialize_enum`.
+    #[derive(Debug, serde::Deserialize, PartialEq, Eq)]
+    enum Status {
+        Active,
+        Inactive,
+    }
+
+    /// A target with mixed field shapes, so several `FieldDeserializer` methods
+    /// are exercised by a single deserialize:
+    /// - `name`    → borrowed-string path (`deserialize_any` → `visit_borrowed_str`)
+    /// - `website` → present-but-null option (`deserialize_option` → `visit_none`)
+    /// - `wrapped` → newtype struct (`deserialize_newtype_struct`)
+    /// - `status`  → unit enum from a string (`deserialize_enum`, `Str` arm)
+    /// - `extra`   → null via `deserialize_any` → `visit_unit`
+    #[derive(Debug, serde::Deserialize, PartialEq, Eq)]
+    struct Mixed {
+        name: String,
+        website: Option<String>,
+        wrapped: Wrapper,
+        status: Status,
+        extra: serde_json::Value,
+    }
+
+    #[test]
+    fn sobject_into_typed_covers_field_deserializer_paths() {
+        // Build an SObject whose field bag mixes non-null and explicit-nil values.
+        let mut obj = SObject::new("Account");
+        obj.fields
+            .push(("name".to_string(), Some("Acme".to_string())));
+        // A present-but-null field must deserialize as absent (`None`), driving
+        // the `deserialize_option` → `visit_none` branch (not `serde(default)`).
+        obj.fields.push(("website".to_string(), None));
+        obj.fields
+            .push(("wrapped".to_string(), Some("boxed".to_string())));
+        obj.fields
+            .push(("status".to_string(), Some("Active".to_string())));
+        // A null fed to `deserialize_any` yields a unit → `Value::Null`.
+        obj.fields.push(("extra".to_string(), None));
+
+        let parsed: Mixed = sobject_into_typed(&obj).must();
+
+        assert_eq!(parsed.name, "Acme");
+        assert_eq!(parsed.website, None);
+        assert_eq!(parsed.wrapped, Wrapper("boxed".to_string()));
+        assert_eq!(parsed.status, Status::Active);
+        assert_eq!(parsed.extra, serde_json::Value::Null);
+    }
+
+    #[test]
+    fn sobject_into_typed_present_string_option_is_some() {
+        // Drives the `deserialize_option` → `visit_some` (borrowed str) branch.
+        #[derive(Debug, serde::Deserialize, PartialEq, Eq)]
+        struct OnlyWebsite {
+            website: Option<String>,
+        }
+        let obj = SObject::new("Account").with_field("website", "https://example.test");
+        let parsed: OnlyWebsite = sobject_into_typed(&obj).must();
+        assert_eq!(parsed.website.as_deref(), Some("https://example.test"));
+    }
+
+    #[test]
+    fn records_to_typed_maps_each_record() {
+        #[derive(Debug, serde::Deserialize, PartialEq, Eq)]
+        struct Named {
+            name: String,
+        }
+        let records = vec![
+            SObject::new("Account").with_field("name", "Acme"),
+            SObject::new("Account").with_field("name", "Beta"),
+        ];
+        let parsed: Vec<Named> = records_to_typed(&records).must();
+        assert_eq!(parsed.len(), 2);
+        assert_eq!(parsed[0].name, "Acme");
+        assert_eq!(parsed[1].name, "Beta");
+    }
+}
