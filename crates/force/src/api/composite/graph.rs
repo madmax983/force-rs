@@ -170,6 +170,14 @@ impl<A: Authenticator> CompositeGraphRequest<A> {
 /// A single graph within a Composite Graph request.
 ///
 /// A graph is a collection of dependent subrequests.
+///
+/// # Supported nodes
+///
+/// The Composite Graph API only accepts sObject **record** operations as nodes:
+/// `sobjects/{type}` (POST), `sobjects/{type}/{id}` (GET/PATCH/DELETE), and
+/// `sobjects/{type}/{externalIdField}/{externalId}` (GET/PATCH/POST/DELETE). The
+/// SOQL `/query` resource is **not** a supported node (see [`Graph::query`]);
+/// prefer [`Graph::get`]/[`Graph::post`]/[`Graph::patch`]/[`Graph::delete`].
 #[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Graph {
@@ -295,6 +303,21 @@ impl Graph {
     ///
     /// The query will be properly URL-encoded according to form-urlencoded rules
     /// (e.g., spaces become `+`, `%` becomes `%25`).
+    ///
+    /// # ⚠️ Not supported by the Composite Graph API
+    ///
+    /// The Salesforce Composite Graph API does **not** support the SOQL `/query`
+    /// (or `/queryAll`) resource as a graph node. Only sObject record operations
+    /// are valid nodes — `sobjects/{type}` (POST), `sobjects/{type}/{id}`
+    /// (GET/PATCH/DELETE), and `sobjects/{type}/{externalIdField}/{externalId}`.
+    /// A query node is rejected by the org with
+    /// `404 OPERATION_NOT_ALLOWED: "Endpoint not supported in Composite Graph API"`.
+    /// See the [supported subrequest URLs](https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/resources_composite_graph_composite_subrequest.htm).
+    ///
+    /// This method is retained for API completeness and to build sub-request
+    /// bodies for other tooling, but a graph containing a `query` node will fail
+    /// when executed against a live org. Use [`Graph::get`], [`Graph::post`],
+    /// [`Graph::patch`], or [`Graph::delete`] for real graph nodes.
     ///
     /// # Arguments
     ///
@@ -676,6 +699,65 @@ mod tests {
             .execute()
             .await
             .must();
+        assert!(response.graphs[0].is_successful);
+    }
+
+    /// Mirrors the redesigned `tests/live_core.rs::live_core_composite_graph`,
+    /// which drives a **supported** sObject-GET graph node (the SOQL `/query`
+    /// resource is not a valid Composite Graph node). Asserts the emitted
+    /// sub-request URL is the full absolute
+    /// `/services/data/{version}/sobjects/Account/{id}` path.
+    #[tokio::test]
+    async fn test_graph_collection_execute_emits_full_services_data_sobject_get_url() {
+        use wiremock::matchers::body_json;
+
+        let mock_server = MockServer::start().await;
+        let auth = MockAuthenticator::new("token", &mock_server.uri());
+        let client = client_builder().authenticate(auth).build().await.must();
+
+        let graph = Graph::new("live-graph")
+            .get("Account", "001000000000001AAA", "acctGet")
+            .must();
+
+        let builder = client.composite().graph().add_graph(graph).must();
+
+        Mock::given(method("POST"))
+            .and(path("/services/data/v67.0/composite/graph"))
+            .and(body_json(json!({
+                "graphs": [
+                    {
+                        "graphId": "live-graph",
+                        "compositeRequest": [
+                            {
+                                "method": "GET",
+                                "url": "/services/data/v67.0/sobjects/Account/001000000000001AAA",
+                                "referenceId": "acctGet"
+                            }
+                        ]
+                    }
+                ]
+            })))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "graphs": [
+                    {
+                        "graphId": "live-graph",
+                        "isSuccessful": true,
+                        "compositeResponse": [
+                            {
+                                "body": {"Id": "001000000000001AAA", "Name": "Acme"},
+                                "httpHeaders": {},
+                                "httpStatusCode": 200,
+                                "referenceId": "acctGet"
+                            }
+                        ]
+                    }
+                ]
+            })))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let response = builder.execute().await.must();
         assert!(response.graphs[0].is_successful);
     }
 

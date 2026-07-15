@@ -273,13 +273,31 @@ async fn live_core_composite_graph() -> anyhow::Result<()> {
     };
 
     let client = common::create_client(&cfg).await?;
-    let account_query = force::api::SoqlQueryBuilder::new()
-        .select(&["Id"])
-        .from("Account")
-        .limit(1);
+
+    // The Composite Graph API does NOT support the SOQL `/query` resource as a
+    // graph node — only sObject record operations (`sobjects/{type}[/{id}]`) are
+    // allowed (the org rejects a query node with 404 OPERATION_NOT_ALLOWED). So
+    // first fetch a real Account Id via a plain REST query, then drive the graph
+    // with a supported, non-mutating sObject GET node for that record.
+    let accounts = client
+        .rest()
+        .query::<DynamicSObject>("SELECT Id FROM Account LIMIT 1")
+        .await?;
+    let Some(account_id) = accounts
+        .records
+        .first()
+        .and_then(|r| r.get_field("Id"))
+        .and_then(|v| v.as_str())
+    else {
+        common::skip(
+            "live_core_composite_graph",
+            "no Account records in org to build a supported sObject-GET graph node",
+        );
+        return Ok(());
+    };
 
     let graph =
-        force::api::composite::Graph::new("live-graph").query(account_query, "acctQuery")?;
+        force::api::composite::Graph::new("live-graph").get("Account", account_id, "acctGet")?;
 
     let response = client
         .composite()

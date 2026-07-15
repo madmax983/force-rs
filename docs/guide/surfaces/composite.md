@@ -36,6 +36,11 @@ Builder also offers `.halt_on_error(bool)`, `.query(SoqlQueryBuilder)`,
 
 ## Graph & mass ops
 
+> **Graph nodes must be sObject record operations.** The Composite Graph API
+> only supports `sobjects/{type}[/{id}]` nodes (via `Graph::get`/`post`/`patch`/`delete`);
+> the SOQL `/query` resource is **not** a valid graph node and the org rejects it
+> with `OPERATION_NOT_ALLOWED`. `Graph::query` is retained for API completeness only.
+
 ```rust
 // Dependent request graph (feature: composite_graph)
 let graph = client.composite().graph();
