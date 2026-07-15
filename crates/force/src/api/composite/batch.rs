@@ -325,7 +325,7 @@ pub fn normalize_subrequest_url(mut url: String, api_version: &str) -> String {
     new_url
 }
 
-fn is_api_version_prefixed(url: &str) -> bool {
+pub(super) fn is_api_version_prefixed(url: &str) -> bool {
     let Some(rest) = url.strip_prefix('v') else {
         return false;
     };

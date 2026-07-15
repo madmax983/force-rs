@@ -515,7 +515,9 @@ mod integration_tests {
     async fn test_query_raw_returns_inner_data_uiapi_shape() {
         let (mock_server, handler) = setup().await;
 
-        // Real-shaped Salesforce UI API GraphQL success envelope.
+        // Real-shaped Salesforce UI API GraphQL success envelope. `Id` is a plain
+        // `ID!` scalar leaf, so it is returned as a bare string (queried as
+        // `node { Id }`), unlike regular fields which are `{ value }` objects.
         Mock::given(method("POST"))
             .and(path("/services/data/v67.0/graphql"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
@@ -524,7 +526,7 @@ mod integration_tests {
                         "query": {
                             "Account": {
                                 "edges": [
-                                    {"node": {"Id": {"value": "001xx000003DHP0AAA"}}}
+                                    {"node": {"Id": "001xx000003DHP0AAA"}}
                                 ]
                             }
                         }
@@ -537,7 +539,7 @@ mod integration_tests {
 
         let data = handler
             .query_raw(
-                "{ uiapi { query { Account(first: 1) { edges { node { Id { value } } } } } } }",
+                "{ uiapi { query { Account(first: 1) { edges { node { Id } } } } } }",
                 None,
             )
             .await
@@ -551,8 +553,8 @@ mod integration_tests {
         );
         assert!(account["edges"].is_array());
         assert_eq!(
-            account["edges"][0]["node"]["Id"]["value"],
-            "001xx000003DHP0AAA"
+            account["edges"][0]["node"]["Id"], "001xx000003DHP0AAA",
+            "Id is a scalar leaf, returned as a bare string"
         );
     }
 
