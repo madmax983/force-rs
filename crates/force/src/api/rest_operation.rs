@@ -48,7 +48,7 @@ const MAX_QUERY_INPUT_BYTES: usize = 100_000;
 /// 1. [`resolve_api_path()`](Self::resolve_api_path) prepends the path prefix
 ///    (e.g., `"sobjects/Account"` becomes `"tooling/sobjects/Account"` for
 ///    the Tooling API).
-/// 2. [`Session::resolve_url()`] constructs the full URL:
+/// 2. `Session::resolve_url()` constructs the full URL:
 ///    `{instance_url}/services/data/{api_version}/{path}`.
 ///
 /// # Examples
@@ -81,7 +81,7 @@ pub trait RestOperation<A: Authenticator> {
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```text
     /// // REST (prefix = ""):  "sobjects/Account" → "sobjects/Account"
     /// // Tooling (prefix = "tooling"):  "sobjects/Account" → "tooling/sobjects/Account"
     /// ```

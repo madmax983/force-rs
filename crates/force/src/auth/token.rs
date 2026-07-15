@@ -151,7 +151,7 @@ impl AccessToken {
         &self.token_type
     }
 
-    /// Checks if the token is expired (alias for [`is_soft_expired`]).
+    /// Checks if the token is expired (alias for `is_soft_expired`).
     ///
     /// Prefer using `is_soft_expired()` or `is_hard_expired()` for clarity.
     #[must_use]

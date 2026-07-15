@@ -5,6 +5,62 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-07-15
+
+This release adds five new Salesforce API surfaces and two new workspace crates, raises the workspace MSRV to Rust 1.92, and includes API-shape corrections driven by live-org contract testing (see Changed).
+
+### Added
+
+#### `force`
+- OAuth 2.0 Authorization Code + PKCE authentication flow (feature `auth_code`): PKCE helpers, authorize-URL builder, code-to-token exchange for public and confidential clients, refresh-token rotation, and token revocation.
+- Agentforce Models API (feature `models`): text, chat, and embedding generation through the Einstein LLM gateway on `api.salesforce.com`.
+- Agentforce Agent API (feature `agent_api`): headless agent sessions (start/send/end) on `api.salesforce.com`.
+- Account Engagement (Pardot) API v5 (feature `account_engagement`): business-unit-scoped prospects, lists, campaigns, custom fields, forms, and emails on the `pi.pardot.com` host, with a generic escape hatch for un-modeled objects.
+- Reports & Dashboards REST API (feature `analytics`): report runs (sync and async), instances, describe, and dashboard results/refresh/status.
+- SOAP Partner API (feature `soap`): untyped generic CRUD, query, search, and describe over `/services/Soap/u/` with the OAuth token carried in `SessionHeader`, plus a serde-typed convenience layer.
+- Tiered, env-gated live-contract test harness (ADR-033), verified against a real org.
+
+#### `force-lake`
+- New crate: one-way Salesforce to S3 Tables / Apache Iceberg analytics snapshot sink, with Describe-to-Iceberg/Arrow schema mapping, Arrow RecordBatch assembly, in-memory Parquet encoding, and a `LakeCatalog` trait with `MockCatalog` and `S3TablesCatalog` (iceberg-rust 0.9).
+
+#### `force-marketingcloud`
+- New crate: standalone Marketing Cloud Engagement REST API client, with installed-package server-to-server auth, a per-business-unit token cache, transactional messaging, Content Builder assets, contacts, data extensions, and journeys.
+
+### Changed
+
+#### workspace
+- Raised the minimum supported Rust version (MSRV) to 1.92 (edition 2024).
+
+#### `force`
+- API-shape corrections (semver-breaking). These change public types, so downstream code may need to be recompiled or lightly updated, but the previous shapes could not successfully round-trip against a live org:
+  - `OrgLimits` numeric fields are now `Option`-wrapped, because real org responses omit some limits and previously failed to deserialize.
+  - `RecordDefaultsRepresentation.object_info` (a single value) was replaced by `object_infos` (a map), matching the actual UI API payload.
+  - GraphQL `query_raw` now returns an error when the response carries GraphQL errors, instead of returning null-filled data.
+- Files API now routes through the shared HTTP executor, so it participates in the 401 token-refresh and retry middleware; previously it bypassed the middleware stack.
+
+### Fixed
+
+#### `force`
+- Composite Graph now supports sObject graph nodes with the full `/services/data` sub-request path and GraphQL Id leaf queries, and normalizes graph URLs; live-contract deserialization was made resilient to real-org response variation.
+
+### Performance
+
+#### `force`
+- SOAP: borrow-based XML escaping and short-circuit fault parsing (fault-parse latency down ~99.4%), and dropped the intermediate typed `Value` round-trip in typed deserialization (down ~61.5%). See `docs/perf/2026-07-perf-sweep.md`.
+- HTTP: borrow the request method and path when emitting telemetry.
+
+#### `force-lake`
+- Pre-sized Arrow builders and borrowed decimal text during RecordBatch assembly.
+
+#### `force-pubsub`
+- Skip the token and metadata fetch on a schema-cache hit.
+
+### Documentation
+
+- Added a 22-page operator's guide under `docs/guide/`.
+- Added the July 2026 performance sweep report (`docs/perf/2026-07-perf-sweep.md`).
+- Added ADRs for the new surfaces and crates: ADR-027 (Authorization Code + PKCE), ADR-028 (Agentforce), ADR-029 (Account Engagement), ADR-030 (force-lake), ADR-031 (Reports & Dashboards), ADR-032 (SOAP), ADR-033 (live-contract harness), ADR-034 (force-marketingcloud).
+
 ## [0.3.0] - 2026-07-11
 
 ### Added
@@ -99,6 +155,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Refreshed workspace docs and examples for the final published crate layout.
 - Moved Vantage specs out of the repository root into `docs/vantage/` to keep release-facing docs focused on shipped crates.
 
+[0.4.0]: https://github.com/madmax983/force-rs/releases/tag/v0.4.0
 [0.3.0]: https://github.com/madmax983/force-rs/releases/tag/v0.3.0
 [0.2.0]: https://github.com/madmax983/force-rs/releases/tag/v0.2.0
 [0.1.0]: https://github.com/madmax983/force-rs/releases/tag/v0.1.0

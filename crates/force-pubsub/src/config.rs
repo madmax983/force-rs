@@ -10,7 +10,7 @@ pub struct PubSubConfig {
     /// Number of events to request per FetchRequest batch.
     ///
     /// Must be between 1 and 100 (inclusive). Values outside this range will
-    /// cause [`PubSubHandler::connect`] to return a [`PubSubError::Config`] error.
+    /// cause `PubSubHandler::connect` to return a `PubSubError::Config` error.
     /// The Salesforce Pub/Sub API rejects requests with 0 or negative values.
     pub batch_size: i32,
     /// Reconnection policy for the subscribe stream.

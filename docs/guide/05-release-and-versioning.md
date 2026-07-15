@@ -4,13 +4,13 @@ Operator guide for cutting releases across the `force-rs` workspace.
 
 ## Workspace versioning
 
-- **Current version**: `0.3.0`, shared across all workspace crates via
+- **Current version**: `0.4.0`, shared across all workspace crates via
   `[workspace.package] version` in the root `Cargo.toml`.
 - **Edition**: 2024.
 - Each crate inherits `version.workspace = true`, so the workspace releases as a
   single lockstep line — bump the workspace version, and every crate moves
   together.
-- The `path` dependencies between siblings pin `version = "0.3.0"` explicitly, so
+- The `path` dependencies between siblings pin `version = "0.4.0"` explicitly, so
   a version bump must be reflected in those edges when publishing.
 
 Crates in the workspace:
@@ -37,10 +37,10 @@ Why this order — verified from the crates' `Cargo.toml` dependency edges:
 
 - **`force`** first. It has no sibling dependencies; every other non-standalone
   crate depends on it (`force-pubsub`, `force-sync`, and `force-lake` all declare
-  `force = { path = "../force", version = "0.3.0" }`).
+  `force = { path = "../force", version = "0.4.0" }`).
 - **`force-pubsub`** next. Depends only on `force`.
 - **`force-sync`** after both. It declares `force` **and**
-  `force-pubsub = { path = "../force-pubsub", version = "0.3.0" }`, so both must
+  `force-pubsub = { path = "../force-pubsub", version = "0.4.0" }`, so both must
   publish first.
 - **`force-lake`** requires `force` (with the `rest`, `bulk`, and `schema`
   features) but does **not** depend on `force-pubsub` or `force-sync`. It only

@@ -185,7 +185,7 @@ impl<A: Authenticator> IngestJob<Open, A> {
     ///
     /// # Arguments
     ///
-    /// * `data` - CSV data (Bytes, Vec<u8>, String, etc.)
+    /// * `data` - CSV data (Bytes, `Vec<u8>`, String, etc.)
     ///
     /// # Errors
     ///
