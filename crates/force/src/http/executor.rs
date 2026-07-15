@@ -115,7 +115,7 @@ impl HttpExecutor {
     /// Executes a request with an explicit retry class override.
     ///
     /// Use this when the default HTTP-method-based classification (from
-    /// [`classify_request`]) is insufficient — for example, to mark a POST
+    /// `classify_request`) is insufficient — for example, to mark a POST
     /// as idempotent so it can be safely retried on transient failures.
     pub async fn execute_response_with_retry_class<F, Fut>(
         &self,
