@@ -597,6 +597,88 @@ mod tests {
         assert!(response.graphs[0].is_successful);
     }
 
+    /// Reproduces the EXACT chain `tests/live_core.rs::live_core_composite_graph`
+    /// drives — `client.composite().graph().add_graph(Graph::new(..).query(..))?.execute()`
+    /// — pinned to the live org's default `v62.0` api_version, and asserts the
+    /// captured on-the-wire sub-request URL is the full absolute
+    /// `/services/data/v62.0/query?q=...` path (never the version-relative
+    /// `/v62.0/query?...` that the live org rejects with OPERATION_NOT_ALLOWED).
+    /// The `body_json` matcher + `.expect(1)` fail the test if the collection
+    /// `execute()` emits any other URL shape.
+    #[tokio::test]
+    async fn test_graph_collection_execute_emits_full_services_data_url_v62() {
+        use crate::config::{ClientConfig, Environment};
+        use wiremock::matchers::body_json;
+
+        let mock_server = MockServer::start().await;
+        let config = ClientConfig {
+            api_version: "v62.0".to_string(),
+            environment: Environment::Production,
+            timeout: std::time::Duration::from_secs(30),
+            max_retries: 3,
+        };
+        let client = crate::client::ForceClientBuilder::new()
+            .config(config)
+            .authenticate(MockAuthenticator::new("token", &mock_server.uri()))
+            .build()
+            .await
+            .must();
+
+        let account_query = crate::api::soql::SoqlQueryBuilder::new()
+            .select(&["Id"])
+            .from("Account")
+            .limit(1);
+        let graph = Graph::new("live-graph")
+            .query(account_query, "acctQuery")
+            .must();
+
+        Mock::given(method("POST"))
+            .and(path("/services/data/v62.0/composite/graph"))
+            .and(body_json(json!({
+                "graphs": [
+                    {
+                        "graphId": "live-graph",
+                        "compositeRequest": [
+                            {
+                                "method": "GET",
+                                "url": "/services/data/v62.0/query?q=SELECT+Id+FROM+Account+LIMIT+1",
+                                "referenceId": "acctQuery"
+                            }
+                        ]
+                    }
+                ]
+            })))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "graphs": [
+                    {
+                        "graphId": "live-graph",
+                        "isSuccessful": true,
+                        "compositeResponse": [
+                            {
+                                "body": {"records": []},
+                                "httpHeaders": {},
+                                "httpStatusCode": 200,
+                                "referenceId": "acctQuery"
+                            }
+                        ]
+                    }
+                ]
+            })))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let response = client
+            .composite()
+            .graph()
+            .add_graph(graph)
+            .must()
+            .execute()
+            .await
+            .must();
+        assert!(response.graphs[0].is_successful);
+    }
+
     #[tokio::test]
     async fn test_graph_execute_empty() {
         let builder = create_builder().await;
