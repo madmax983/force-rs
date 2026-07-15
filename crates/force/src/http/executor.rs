@@ -115,7 +115,7 @@ impl HttpExecutor {
     /// Executes a request with an explicit retry class override.
     ///
     /// Use this when the default HTTP-method-based classification (from
-    /// [`classify_request`]) is insufficient — for example, to mark a POST
+    /// `classify_request`) is insufficient — for example, to mark a POST
     /// as idempotent so it can be safely retried on transient failures.
     pub async fn execute_response_with_retry_class<F, Fut>(
         &self,
@@ -128,20 +128,21 @@ impl HttpExecutor {
         F: Fn() -> Fut,
         Fut: std::future::Future<Output = Result<AccessToken>>,
     {
-        let method_str = request.method().as_str().to_string();
-        let path_str = request.url().path().to_string();
-
+        // Borrow the method and path straight from the request rather than
+        // allocating an owned `String` for each: the tracing span copies the
+        // `&str` into its own storage, and `TelemetryContext::new` only retains
+        // owned copies when telemetry hooks are actually registered.
         let ctx = TelemetryContext::new(
-            &method_str,
-            &path_str,
+            request.method().as_str(),
+            request.url().path(),
             request_class,
             self.telemetry_hooks.has_hooks(),
         );
 
         let request_span = tracing::info_span!(
             "force_http_request",
-            http.method = method_str.as_str(),
-            http.path = path_str.as_str(),
+            http.method = request.method().as_str(),
+            http.path = request.url().path(),
             request.class = ctx.request_class
         );
         let _request_span_guard = request_span.enter();
@@ -191,6 +192,129 @@ impl HttpExecutor {
                 if !refreshed {
                     let new_token = refresh_token().await?;
                     Self::inject_auth_header(&mut request, &new_token)?;
+                    refreshed = true;
+                    continue;
+                }
+
+                self.record_completion(
+                    ctx,
+                    Some(StatusCode::UNAUTHORIZED.as_u16()),
+                    None,
+                    retry_attempt,
+                );
+                return Ok(response);
+            }
+
+            if status == StatusCode::TOO_MANY_REQUESTS {
+                return Err(self.handle_rate_limit(&response, retry_attempt, ctx));
+            }
+
+            if status == StatusCode::SERVICE_UNAVAILABLE && retry_attempt < max_retries {
+                self.handle_transient_failure(retry_attempt, ctx, Some(503))
+                    .await;
+                retry_attempt += 1;
+                continue;
+            }
+
+            self.record_completion(ctx, Some(status.as_u16()), None, retry_attempt);
+            return Ok(response);
+        }
+    }
+
+    /// Executes a request built by a factory closure, with auth/retry behavior.
+    ///
+    /// Unlike [`execute_response`](Self::execute_response), which retries by
+    /// cloning a pre-built [`Request`], this variant rebuilds the request from
+    /// scratch on every attempt by calling `make_request`. This is required for
+    /// requests with **streaming or multipart bodies**, which cannot be cloned
+    /// (`Request::try_clone` returns `None`), so the pre-built path fails with a
+    /// "cannot clone request for retry" error. Because the body is regenerated
+    /// each attempt, transient-failure retries, 429/503 handling, and 401 token
+    /// refresh all work for non-clonable bodies.
+    ///
+    /// The `make_request` closure must produce a fresh, equivalent request each
+    /// time it is called (e.g. rebuilding the multipart form from retained
+    /// bytes). Authentication headers are injected by the executor, so the
+    /// closure should not set them.
+    pub async fn execute_response_factory<MK, F, Fut>(
+        &self,
+        make_request: MK,
+        token: &AccessToken,
+        refresh_token: F,
+    ) -> Result<Response>
+    where
+        MK: Fn() -> Result<Request>,
+        F: Fn() -> Fut,
+        Fut: std::future::Future<Output = Result<AccessToken>>,
+    {
+        // Build one request up front purely to classify it and seed telemetry
+        // (method + path). The request itself is discarded; the retry loop
+        // rebuilds a fresh request for the actual attempt.
+        let probe = make_request()?;
+        let request_class = classify_request(probe.method());
+
+        let ctx = TelemetryContext::new(
+            probe.method().as_str(),
+            probe.url().path(),
+            request_class,
+            self.telemetry_hooks.has_hooks(),
+        );
+
+        let request_span = tracing::info_span!(
+            "force_http_request",
+            http.method = probe.method().as_str(),
+            http.path = probe.url().path(),
+            request.class = ctx.request_class
+        );
+        let _request_span_guard = request_span.enter();
+        drop(probe);
+
+        self.retry_loop_factory(make_request, token, refresh_token, request_class, &ctx)
+            .await
+    }
+
+    async fn retry_loop_factory<MK, F, Fut>(
+        &self,
+        make_request: MK,
+        token: &AccessToken,
+        refresh_token: F,
+        request_class: RequestRetryClass,
+        ctx: &TelemetryContext,
+    ) -> Result<Response>
+    where
+        MK: Fn() -> Result<Request>,
+        F: Fn() -> Fut,
+        Fut: std::future::Future<Output = Result<AccessToken>>,
+    {
+        let mut retry_attempt = 0;
+        let mut refreshed = false;
+        let max_retries = self.max_retries_for(request_class);
+
+        // The current auth token, updated in place after a 401-triggered refresh.
+        let mut current_token = token.clone();
+
+        loop {
+            let mut request = make_request()?;
+            Self::inject_auth_header(&mut request, &current_token)?;
+
+            let response_result = self.execute_attempt(request, retry_attempt, ctx).await;
+
+            let response = match response_result {
+                Ok(resp) => resp,
+                Err(e) if retry_attempt < max_retries && Self::is_retryable_error(&e) => {
+                    self.handle_transient_failure(retry_attempt, ctx, None)
+                        .await;
+                    retry_attempt += 1;
+                    continue;
+                }
+                Err(e) => return Err(e),
+            };
+
+            let status = response.status();
+
+            if status == StatusCode::UNAUTHORIZED {
+                if !refreshed {
+                    current_token = refresh_token().await?;
                     refreshed = true;
                     continue;
                 }

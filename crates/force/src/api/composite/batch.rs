@@ -295,7 +295,10 @@ impl<A: Authenticator> BatchRequest<A> {
 
 /// ⚡ Bolt: Takes ownership of the `String` to avoid unnecessary allocations.
 /// In cases where the URL is already normalized, we reuse the existing allocation.
-fn normalize_subrequest_url(mut url: String, api_version: &str) -> String {
+///
+/// Shared with the Composite Graph path (`super::graph`), which requires the
+/// same API-version-prefix normalization on its sub-request URLs.
+pub fn normalize_subrequest_url(mut url: String, api_version: &str) -> String {
     let trim_len = url.len() - url.trim_start_matches('/').len();
     if trim_len > 0 {
         url.drain(..trim_len);
@@ -322,7 +325,7 @@ fn normalize_subrequest_url(mut url: String, api_version: &str) -> String {
     new_url
 }
 
-fn is_api_version_prefixed(url: &str) -> bool {
+pub(super) fn is_api_version_prefixed(url: &str) -> bool {
     let Some(rest) = url.strip_prefix('v') else {
         return false;
     };

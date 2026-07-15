@@ -36,6 +36,10 @@ percent-encoding = { workspace = true }
 jsonwebtoken = { workspace = true, optional = true }
 csv = { workspace = true, optional = true }
 wiremock = { workspace = true, optional = true }
+sha2 = { workspace = true, optional = true }
+getrandom = { workspace = true, optional = true }
+uuid = { version = "1", features = ["v4"], optional = true }
+quick-xml = { workspace = true, optional = true }
 
 [dev-dependencies]
 loom = "0.7"
@@ -44,10 +48,11 @@ anyhow = { workspace = true }
 wiremock = { workspace = true }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 proptest = "1.5"
+criterion = { workspace = true }
 
 [features]
 default = ["rest"]
-files = ["rest"]
+files = ["rest", "reqwest/multipart"]
 
 # Platform API surfaces
 rest = []
@@ -63,6 +68,8 @@ data_utility = ["composite"]
 # Auth flows
 jwt = ["dep:jsonwebtoken"]
 username_password = []
+# OAuth 2.0 Authorization Code + PKCE flow
+auth_code = ["dep:sha2", "dep:getrandom"]
 
 # Testing utilities
 mock = ["dep:wiremock"]
@@ -85,8 +92,26 @@ cpq = ["apex_rest"]
 # Consent & Portability API surface (GDPR/CCPA)
 consent = []
 
+# Agentforce API surfaces (api.salesforce.com host)
+models = []
+agent_api = ["dep:uuid"]
+agentforce = ["models", "agent_api"]
+
+# Account Engagement (Pardot) API v5 surface
+account_engagement = []
+
+# Reports & Dashboards (Analytics) REST API surface
+analytics = []
+
+# SOAP Partner API surface
+soap = ["dep:quick-xml"]
+
+# Internal-only: exposes crate-private hot-path functions to benchmarks.
+# Not part of the public API; never enable in downstream builds.
+bench-internals = ["soap"]
+
 # Meta features
-full = ["rest", "files", "bulk", "composite", "tooling", "jwt", "ui", "graphql", "data_cloud", "apex_rest", "consent"]
+full = ["rest", "files", "bulk", "composite", "tooling", "jwt", "auth_code", "ui", "graphql", "data_cloud", "apex_rest", "consent", "models", "agent_api", "account_engagement", "analytics", "soap"]
 all = ["full", "schema", "data_utility", "composite_graph", "cpq"]
 
 [[example]]
@@ -116,3 +141,12 @@ required-features = ["ui"]
 [[example]]
 name = "graphql"
 required-features = ["graphql"]
+
+[[example]]
+name = "auth_code_pkce"
+required-features = ["auth_code"]
+
+[[bench]]
+name = "soap_bench"
+harness = false
+required-features = ["soap", "bench-internals"]

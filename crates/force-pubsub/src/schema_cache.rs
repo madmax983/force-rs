@@ -178,4 +178,20 @@ mod tests {
         let cache = SchemaCache::default();
         assert!(cache.is_empty());
     }
+
+    #[test]
+    fn test_insert_then_get_hit_and_miss() {
+        let cache = SchemaCache::new();
+        let Ok(schema) = Schema::parse_str(SIMPLE_SCHEMA_JSON) else {
+            panic!("valid schema JSON")
+        };
+
+        // Directly insert a pre-parsed schema, then read it back via `get`.
+        cache.insert("schema-042".to_string(), schema);
+
+        assert_eq!(cache.len(), 1);
+        assert!(cache.get("schema-042").is_some());
+        // A different id is a cache miss and yields None.
+        assert!(cache.get("schema-999").is_none());
+    }
 }

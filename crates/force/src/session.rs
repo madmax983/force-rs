@@ -54,6 +54,31 @@ impl<A: crate::auth::authenticator::Authenticator> Session<A> {
             })
             .await
     }
+    /// Executes a request built fresh on each attempt through the shared middleware.
+    ///
+    /// Use this for requests with non-clonable bodies (streaming / multipart),
+    /// where [`execute_request`](Self::execute_request) cannot retry because
+    /// `Request::try_clone` returns `None`. The `make_request` closure rebuilds
+    /// the request (and its body) on every attempt; the executor injects auth and
+    /// applies the same 401-refresh, 429, 503, and transient-failure handling.
+    #[cfg(feature = "files")]
+    pub(crate) async fn execute_request_factory<MK>(
+        &self,
+        make_request: MK,
+    ) -> crate::error::Result<reqwest::Response>
+    where
+        MK: Fn() -> crate::error::Result<reqwest::Request>,
+    {
+        let token = self.token_manager.get_token_arc().await?;
+        let token_manager = Arc::clone(&self.token_manager);
+        self.http_executor
+            .execute_response_factory(make_request, &token, move || {
+                let token_manager = Arc::clone(&token_manager);
+                async move { token_manager.force_refresh().await }
+            })
+            .await
+    }
+
     /// Returns the instance URL from the current authentication token.
     pub(crate) async fn instance_url(&self) -> crate::error::Result<String> {
         let token = self.token_manager.get_token_arc().await?;

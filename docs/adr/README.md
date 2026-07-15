@@ -60,6 +60,14 @@ ADRs follow this structure:
 | [024](024-consent-portability-api-design.md) | Consent & Portability API Design | Accepted | 2026-03-21 |
 | [025](025-username-password-auth.md) | Username-Password Authentication Flow | Accepted | 2026-03-22 |
 | [026](026-force-sync-crate.md) | Create `force-sync` as a Postgres-First Sync Engine | Accepted | 2026-03-25 |
+| [027](027-authorization-code-pkce-auth.md) | OAuth 2.0 Authorization Code Flow with PKCE | Accepted | 2026-07-13 |
+| [028](028-agentforce-api-design.md) | Agentforce API Design (Models + Agent) | Accepted | 2026-07-12 |
+| [029](029-account-engagement-api-design.md) | Account Engagement (Pardot) API v5 Design | Accepted | 2026-07-13 |
+| [030](030-force-lake-crate.md) | Create `force-lake` as a Salesforce → Iceberg Snapshot Sink | Accepted | 2026-07-13 |
+| [031](031-reports-dashboards-api-design.md) | Reports & Dashboards (Analytics) API Design | Accepted | 2026-07-13 |
+| [032](032-soap-api-design.md) | SOAP API Design | Accepted | 2026-07-13 |
+| [033](033-live-contract-test-harness.md) | Tiered, Env-Gated Live-Contract Test Harness | Accepted | 2026-07-13 |
+| [034](034-marketing-cloud-engagement-crate.md) | Create `force-marketingcloud` as a Standalone Engagement Crate | Accepted | 2026-07-12 |
 
 ## Decision Process
 
@@ -158,6 +166,11 @@ graph TD
 - **Decision**: Move persistence logic to a dedicated crate/boundary
 - **Rationale**: Resolve circular dependencies and improve build times
 - **Impact**: Modular architecture but increased complexity
+
+### ADR-033: Tiered, Env-Gated Live-Contract Test Harness
+- **Decision**: Add sibling live-test binaries (`live_core`, `live_special`, `live_account_engagement`, and the MC crate's `live_marketingcloud`) plus a shared `tests/common/mod.rs`, leaving `live_salesforce.rs` untouched
+- **Rationale**: Broader live coverage with per-surface env tiers, skip-not-fail, and a single credential contract, without editing the contention-prone existing file
+- **Impact**: More live coverage and clean partial-credential CI runs, at the cost of a duplicated auth loader between the two harnesses
 
 ## Contributing ADRs
 

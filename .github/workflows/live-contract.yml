@@ -56,6 +56,36 @@ jobs:
       # Pub/Sub unary contract smoke. Topic must exist and be accessible.
       SF_PUBSUB_ENDPOINT: ${{ vars.SF_PUBSUB_ENDPOINT || 'https://api.pubsub.salesforce.com:7443' }}
       SF_PUBSUB_TOPIC: ${{ vars.SF_PUBSUB_TOPIC || secrets.SF_PUBSUB_TOPIC }}
+
+      # ── Tiered live-contract harness (ADR-033) ──
+      # Core-tier upsert externals (optional; live_core upsert skips when unset).
+      SF_UPSERT_SOBJECT: ${{ vars.SF_UPSERT_SOBJECT }}
+      SF_UPSERT_EXT_FIELD: ${{ vars.SF_UPSERT_EXT_FIELD }}
+      SF_UPSERT_EXT_VALUE: ${{ vars.SF_UPSERT_EXT_VALUE }}
+
+      # Data Cloud tier.
+      SF_DATA_CLOUD: ${{ vars.SF_DATA_CLOUD || '0' }}
+      SF_DATA_CLOUD_TOKEN_URL: ${{ vars.SF_DATA_CLOUD_TOKEN_URL || secrets.SF_DATA_CLOUD_TOKEN_URL }}
+      SF_DATA_CLOUD_API_VERSION: ${{ vars.SF_DATA_CLOUD_API_VERSION }}
+
+      # Special-surface tiers.
+      SF_APEX_REST_PATH: ${{ vars.SF_APEX_REST_PATH }}
+      SF_CONSENT_ACTION: ${{ vars.SF_CONSENT_ACTION }}
+      SF_CONSENT_IDS: ${{ vars.SF_CONSENT_IDS || secrets.SF_CONSENT_IDS }}
+      SF_MODELS_MODEL: ${{ vars.SF_MODELS_MODEL }}
+      SF_AGENT_ID: ${{ vars.SF_AGENT_ID || secrets.SF_AGENT_ID }}
+      SF_CPQ_QUOTE_ID: ${{ vars.SF_CPQ_QUOTE_ID || secrets.SF_CPQ_QUOTE_ID }}
+
+      # Account Engagement (Pardot) tier.
+      SF_AE_BUSINESS_UNIT_ID: ${{ vars.SF_AE_BUSINESS_UNIT_ID || secrets.SF_AE_BUSINESS_UNIT_ID }}
+
+      # Marketing Cloud Engagement tier (sibling crate).
+      MC_TENANT_SUBDOMAIN: ${{ vars.MC_TENANT_SUBDOMAIN || secrets.MC_TENANT_SUBDOMAIN }}
+      MC_CLIENT_ID: ${{ secrets.MC_CLIENT_ID }}
+      MC_CLIENT_SECRET: ${{ secrets.MC_CLIENT_SECRET }}
+      MC_ACCOUNT_ID: ${{ vars.MC_ACCOUNT_ID || secrets.MC_ACCOUNT_ID }}
+      MC_SCOPE: ${{ vars.MC_SCOPE }}
+      MC_AUTH_URL: ${{ vars.MC_AUTH_URL }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -81,6 +111,21 @@ jobs:
 
       - name: Run force live tests
         run: cargo test -p force --all-features --test live_salesforce -- --ignored --test-threads=1
+
+      - name: Run force core-tier live tests
+        run: cargo test -p force --all-features --test live_core -- --ignored --test-threads=1
+
+      - name: Run force special-surface live tests
+        run: cargo test -p force --all-features --test live_special -- --ignored --test-threads=1
+
+      - name: Run force SOAP live tests
+        run: cargo test -p force --all-features --test live_soap -- --ignored --test-threads=1
+
+      - name: Run force Account Engagement live tests
+        run: cargo test -p force --all-features --test live_account_engagement -- --ignored --test-threads=1
+
+      - name: Run Marketing Cloud live tests
+        run: cargo test -p force-marketingcloud --test live_marketingcloud -- --ignored --test-threads=1
 
       - name: Run Pub/Sub live tests
         run: cargo test -p force-pubsub --test live_salesforce_pubsub -- --ignored --test-threads=1

@@ -90,6 +90,15 @@ impl<A: crate::auth::authenticator::Authenticator> ForceClient<A> {
     }
 
     handler_accessor! {
+        /// Creates a Files API handler for this client.
+        ///
+        /// Provides upload/download of `ContentVersion` binaries and linking
+        /// documents to records via `ContentDocumentLink`.
+        #[cfg(feature = "files")]
+        pub fn files -> crate::api::files::FilesHandler<A>
+    }
+
+    handler_accessor! {
         /// Creates a Bulk API 2.0 handler for this client.
         ///
         /// Provides high-volume data operations and bulk queries.
@@ -154,6 +163,37 @@ impl<A: crate::auth::authenticator::Authenticator> ForceClient<A> {
         pub fn consent -> crate::api::consent::ConsentHandler<A>
     }
 
+    handler_accessor! {
+        /// Creates a Models API handler (Einstein Models / LLM gateway on api.salesforce.com).
+        #[cfg(feature = "models")]
+        pub fn models -> crate::api::models::ModelsHandler<A>
+    }
+
+    handler_accessor! {
+        /// Creates an Agentforce Agent API handler (api.salesforce.com/einstein/ai-agent).
+        #[cfg(feature = "agent_api")]
+        pub fn agents -> crate::api::agent_api::AgentHandler<A>
+    }
+
+    handler_accessor! {
+        /// Creates an Analytics (Reports & Dashboards) API handler for this client.
+        ///
+        /// Provides report execution/metadata and dashboard operations via
+        /// `/services/data/vXX.X/analytics/`.
+        #[cfg(feature = "analytics")]
+        pub fn analytics -> crate::api::analytics::AnalyticsHandler<A>
+    }
+
+    handler_accessor! {
+        /// Creates a SOAP Partner API handler for this client.
+        ///
+        /// Provides the classic untyped SOAP calls (CRUD, query, search,
+        /// describe, and utility calls) reusing the client's OAuth token in the
+        /// SOAP `SessionHeader`.
+        #[cfg(feature = "soap")]
+        pub fn soap -> crate::api::soap::SoapHandler<A>
+    }
+
     /// Creates a Data Cloud API handler for this client.
     ///
     /// The Data Cloud handler provides access to the Salesforce Data Cloud
@@ -188,6 +228,37 @@ impl<A: crate::auth::authenticator::Authenticator> ForceClient<A> {
         Ok(crate::api::data_cloud::DataCloudHandler::new(Arc::clone(
             dc,
         )))
+    }
+
+    /// Access the Account Engagement (Pardot) API v5 for the given business unit.
+    ///
+    /// `business_unit_id` is the 18-char `0Uv…` Account Engagement Business Unit ID,
+    /// sent as the required `Pardot-Business-Unit-Id` header on every request.
+    ///
+    /// The handler targets `https://pi.pardot.com` (production/training) or
+    /// `https://pi.demo.pardot.com` (sandbox/demo/developer), derived from the
+    /// client [`Environment`](crate::config::Environment). Use
+    /// [`AccountEngagementHandler::with_host`](crate::api::account_engagement::AccountEngagementHandler::with_host)
+    /// to override the host for a custom domain or a mock server.
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// let ae = client.account_engagement("0Uv000000000001AAA");
+    /// let prospects = ae
+    ///     .query_prospects("id,email,firstName,lastName", &[("limit", "50")])
+    ///     .await?;
+    /// ```
+    #[cfg(feature = "account_engagement")]
+    #[must_use]
+    pub fn account_engagement(
+        &self,
+        business_unit_id: impl Into<String>,
+    ) -> crate::api::account_engagement::AccountEngagementHandler<A> {
+        crate::api::account_engagement::AccountEngagementHandler::new(
+            Arc::clone(&self.inner),
+            business_unit_id.into(),
+        )
     }
 }
 

@@ -6,6 +6,9 @@
 #[cfg(feature = "rest")]
 pub mod rest;
 
+#[cfg(feature = "files")]
+pub mod files;
+
 #[cfg(feature = "bulk")]
 pub mod bulk;
 
@@ -32,6 +35,21 @@ pub mod cpq;
 
 #[cfg(feature = "consent")]
 pub mod consent;
+
+#[cfg(feature = "models")]
+pub mod models;
+
+#[cfg(feature = "agent_api")]
+pub mod agent_api;
+
+#[cfg(feature = "account_engagement")]
+pub mod account_engagement;
+
+#[cfg(feature = "analytics")]
+pub mod analytics;
+
+#[cfg(feature = "soap")]
+pub mod soap;
 
 pub(crate) mod query_stream;
 pub(crate) mod rest_operation;

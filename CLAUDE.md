@@ -85,19 +85,35 @@ graph TB
 ### 1. Feature-Gated Zero-Cost Abstractions
 Only compile what you use. Each API surface is behind a feature flag:
 - `rest` (default) - REST API
+- `files` - Files/ContentVersion helpers (depends on `rest`)
 - `tooling` - Tooling API (independent of `rest`)
 - `bulk` - Bulk API 2.0
 - `composite` - Composite API
+- `composite_graph` - Composite Graph API (depends on `composite`)
+- `data_utility` - Data utility helpers (depends on `composite`)
+- `schema` - Iceberg schema generation (`generate_iceberg_schema`, depends on `rest`)
 - `ui` - UI API (layout-aware records, metadata, list views, favorites)
 - `graphql` - GraphQL API (queries, mutations, variables)
 - `data_cloud` - Data Cloud REST Connect API (SQL queries, two-step token exchange)
 - `apex_rest` - Generic Apex REST API (custom `/services/apexrest/` endpoints)
 - `cpq` - Salesforce CPQ API (quote lifecycle, product config, documents, amendments)
 - `consent` - Consent & Portability API (GDPR/CCPA consent checks, data export)
+- `models` - Agentforce Models API (Einstein LLM gateway: text/chat/embeddings on `api.salesforce.com`)
+- `agent_api` - Agentforce Agent API (headless agent sessions on `api.salesforce.com`)
+- `agentforce` - Umbrella feature (models + agent_api)
+- `account_engagement` - Account Engagement (Pardot) API v5 (separate `pi.pardot.com` host, business-unit-scoped prospects/lists/campaigns/etc.)
+- `analytics` - Reports & Dashboards REST API (report runs/instances/describe, dashboard results/refresh/status)
+- `soap` - Classic SOAP Partner API (untyped generic CRUD/query/search/describe over `/services/Soap/u/`, OAuth token in `SessionHeader`)
 - `jwt` - JWT Bearer authentication flow
+- `auth_code` - OAuth 2.0 Authorization Code + PKCE flow (interactive/browser-based clients)
 - `username_password` - Username-password flow (deprecated by Salesforce, feature-gated as speed bump)
+- `mock` - Testing utilities (wiremock-backed test doubles)
+- `full` - All common features (rest + files + tooling + bulk + composite + jwt + auth_code + ui + graphql + data_cloud + apex_rest + consent + models + agent_api + account_engagement + analytics)
+- `all` - Everything: `full` plus specialized APIs (schema + data_utility + composite_graph + cpq)
+
+> **Note:** Pub/Sub is **not** a `force` feature. The gRPC Pub/Sub API lives in the separate `force-pubsub` sibling crate (see [ADR-018](docs/adr/018-force-pubsub-crate.md)).
 - `pub_sub` - gRPC Pub/Sub API (separate `force-pubsub` crate)
-- `full` - All common features (rest + tooling + bulk + composite + jwt + ui + graphql + data_cloud + apex_rest)
+- `full` - All common features (rest + tooling + bulk + composite + jwt + auth_code + ui + graphql + data_cloud + apex_rest + consent + models + agent_api + account_engagement + analytics + soap)
 - `all` - Everything including specialized APIs (+ cpq)
 
 ### 2. Compile-Time Auth Safety (Phantom Type State Pattern)
@@ -177,33 +193,41 @@ fn query(id: SalesforceId, version: ApiVersion) -> Result<()>
 ```
 crates/force/src/
 ├── lib.rs                  # Public API surface
+├── config.rs              # ClientConfig, Environment
+├── session.rs             # Session (resolved auth + config + base URL resolution)
+├── error.rs               # Error hierarchy (single file, thiserror)
+├── types.rs               # types module root (re-exports)
 ├── types/
-│   ├── mod.rs
 │   ├── salesforce_id.rs   # SalesforceId newtype (15/18 char validation)
-│   └── api_version.rs     # ApiVersion newtype (v67.0 format)
-├── error/
-│   ├── mod.rs             # Error hierarchy
-│   ├── auth_error.rs
-│   ├── http_error.rs
-│   └── api_error.rs
+│   ├── api_version.rs     # ApiVersion newtype (v67.0 format)
+│   ├── query.rs           # QueryResult, DynamicSObject
+│   ├── sobject.rs
+│   ├── describe.rs
+│   ├── explain.rs
+│   ├── common.rs
+│   └── validator.rs
 ├── auth/
 │   ├── mod.rs
-│   ├── traits.rs          # Authenticator trait
-│   ├── token.rs           # AccessToken, TokenManager
+│   ├── authenticator.rs   # Authenticator trait
+│   ├── token.rs           # AccessToken, TokenResponse
+│   ├── token_manager.rs   # TokenManager
 │   ├── client_credentials.rs
 │   ├── jwt_bearer.rs      # Feature-gated: jwt
-│   └── saml_bearer.rs     # Feature-gated: jwt
+│   ├── auth_code.rs       # Feature-gated: auth_code (Authorization Code + PKCE)
+│   ├── username_password.rs # Feature-gated: username_password
+│   └── data_cloud.rs      # Feature-gated: data_cloud (decorator authenticator)
 ├── http/
 │   ├── mod.rs
-│   ├── client.rs          # HTTP layer with middleware
-│   ├── retry.rs           # Exponential backoff
-│   ├── rate_limit.rs      # 429 handling
-│   └── middleware.rs      # 401 token refresh
+│   ├── executor.rs        # HttpExecutor: HTTP layer with middleware (retry + 401 refresh)
+│   ├── retry.rs           # Exponential backoff + 429/Retry-After handling
+│   ├── telemetry.rs       # Request telemetry hooks
+│   ├── error.rs           # HTTP error mapping
+│   └── tests.rs
 ├── client/
-│   ├── mod.rs
-│   ├── force_client.rs    # ForceClient<Auth>
-│   ├── builder.rs         # ForceClientBuilder
-│   └── config.rs          # ClientConfig, Environment
+│   ├── mod.rs             # ForceClient<Auth>
+│   └── builder.rs         # ForceClientBuilder
+├── schema/                # Feature: schema (Iceberg/Avro/dbt/DBML/... generators + analyzers)
+├── data/                  # Data tooling (faker, masker, seeder, validator, archiver)
 └── api/
     ├── rest/              # Feature: rest (default)
     ├── bulk/              # Feature: bulk
@@ -243,6 +267,37 @@ crates/force/src/
     │   ├── types.rs       # ConsentValue, ConsentRecord, PortabilityRequest/Response
     │   ├── action.rs      # read_consent, read_consent_multi
     │   └── portability.rs # request_portability, check_portability_status
+    ├── models/            # Feature: models (Agentforce Models API, api.salesforce.com host)
+    │   ├── mod.rs         # ModelsHandler + AI_PLATFORM_HOST + with_host + Models headers
+    │   └── types.rs       # ModelName, GenerateText/ChatGeneration/Embedding req+resp
+    ├── agent_api/         # Feature: agent_api (Agentforce Agent API, api.salesforce.com host)
+    │   ├── mod.rs         # AgentHandler + start/send/end session (sync; streaming is follow-up)
+    │   └── types.rs       # StartSessionRequest, SendMessageRequest, AgentMessage, SessionEndReason
+    ├── account_engagement/ # Feature: account_engagement (Pardot API v5)
+    │   ├── mod.rs         # AccountEngagementHandler + host selection + BU header + escape hatch
+    │   ├── types.rs       # QueryResponse<T> ({values, nextPageToken, nextPageUrl})
+    │   ├── prospects.rs   # Prospect (full CRUD)
+    │   ├── lists.rs       # List + ListMembership (full CRUD)
+    │   ├── campaigns.rs   # Campaign (query/get/create)
+    │   ├── custom_fields.rs # CustomField (full CRUD)
+    │   ├── forms.rs       # Form (query/get/create/delete)
+    │   └── emails.rs      # Email (query/get/send)
+    ├── analytics/         # Feature: analytics (Reports & Dashboards REST API)
+    │   ├── mod.rs         # AnalyticsHandler + analytics/ URL resolver + HTTP helpers
+    │   ├── types.rs       # ReportResults, FactMapEntry, ReportMetadata, ReportInstance, Dashboard* types
+    │   ├── reports.rs     # run_report(_async/_with_metadata), instances, describe, list, query, report types
+    │   └── dashboards.rs  # list/describe/get_results/refresh/status
+    ├── soap/              # Feature: soap (classic SOAP Partner API)
+    │   ├── mod.rs         # SoapHandler + send/dispatch + fault-retry + endpoint URL
+    │   ├── envelope.rs    # SOAP envelope + SessionHeader/CallOptions + sObject serialization + escaping
+    │   ├── types.rs       # SObject, SaveResult/UpsertResult/DeleteResult, QueryResult, UserInfo, describe types
+    │   ├── fault.rs       # SoapFault (ForceError::Soap) + fault parsing
+    │   ├── parse.rs       # Namespace-prefix-agnostic DOM + per-call response parsers
+    │   ├── crud.rs        # create/update/upsert/delete/retrieve
+    │   ├── query.rs       # query/query_more/query_all/search
+    │   ├── describe.rs    # describe_sobject/describe_sobjects/describe_global
+    │   ├── typed.rs       # serde bridge: *_typed::<T> (query/retrieve/create/update/upsert)
+    │   └── misc.rs        # get_user_info/get_server_timestamp
     └── ...                # Other API surfaces
 ```
 
@@ -289,7 +344,7 @@ sequenceDiagram
 
 ### Prerequisites
 ```bash
-rustc 1.85+ (edition 2024)
+rustc 1.92+ (edition 2024)
 cargo-watch
 cargo-nextest (recommended)
 ```
@@ -364,6 +419,12 @@ use force::testing::{MockForceClient, MockAuthenticator};
 ### Phase 2: Core Auth Flows
 - [x] Client credentials flow (OAuth 2.0)
 - [x] JWT bearer flow (feature: jwt)
+- [x] Authorization Code + PKCE flow (feature: auth_code) - See [ADR-027](docs/adr/027-authorization-code-pkce-auth.md)
+  - [x] PKCE helpers (code_verifier generation, S256 code_challenge derivation)
+  - [x] Authorize URL builder (AuthorizeUrlBuilder)
+  - [x] Authorization code → token exchange (public + confidential clients)
+  - [x] Refresh token storage, rotation, and graceful fallback
+  - [x] Token revocation (/services/oauth2/revoke)
 - [x] Username-password flow (feature: username_password) - See [ADR-025](docs/adr/025-username-password-auth.md)
   - [x] Password grant with security_token concatenation
   - [x] Refresh token storage and rotation
@@ -434,11 +495,77 @@ use force::testing::{MockForceClient, MockAuthenticator};
   - [x] Consent reads: read_consent (single action), read_consent_multi (multiple actions)
   - [x] Portability: request_portability, check_portability_status
   - [x] Typed ConsentValue enum (Yes/No/Unknown) with fail-safe deserialization
+- [x] Agentforce Models API (feature: models) - See [ADR-028](docs/adr/028-agentforce-api-design.md)
+  - [x] ModelsHandler on fixed `api.salesforce.com` host with `with_host` override (Gov Cloud/testing)
+  - [x] generate_text (POST /einstein/platform/v1/models/{model}/generations)
+  - [x] generate_chat (POST .../chat-generations)
+  - [x] generate_embeddings (POST .../embeddings)
+  - [x] Required `x-sfdc-app-context` + `x-client-feature-id` headers
+  - [x] ModelName open newtype with common-model constants; permissive Trust Layer typing
+- [x] Agentforce Agent API (feature: agent_api) - See [ADR-028](docs/adr/028-agentforce-api-design.md)
+  - [x] AgentHandler on fixed `api.salesforce.com` host with `with_host` override
+  - [x] start_session + start_session_default (POST /einstein/ai-agent/v1/agents/{agentId}/sessions)
+  - [x] send_message + send_text (POST sessions/{sessionId}/messages)
+  - [x] end_session with `x-session-end-reason` header (DELETE sessions/{sessionId}, 204)
+  - [x] Polymorphic AgentMessage (open String type), SessionEndReason enum
+  - [ ] Streaming SSE endpoint (documented follow-up)
+- [x] Account Engagement (Pardot) API v5 (feature: account_engagement) - See [ADR-029](docs/adr/029-account-engagement-api-design.md)
+  - [x] AccountEngagementHandler on separate host (pi.pardot.com / pi.demo.pardot.com), env-derived + `with_host` override
+  - [x] Required `Pardot-Business-Unit-Id` header + `pardot_api` scope; mandatory `fields` param
+  - [x] Prospects (full CRUD)
+  - [x] Lists + List Memberships (full CRUD)
+  - [x] Campaigns (query/get/create)
+  - [x] Custom Fields (full CRUD)
+  - [x] Forms (query/get/create/delete)
+  - [x] Emails (query/get/send)
+  - [x] Generic escape hatch (get_raw/post_raw/patch_raw/delete_raw) for un-modeled objects
+  - [x] QueryResponse<T> pagination envelope; integer IDs; errors surface as ForceError::Http
+- [x] Reports & Dashboards REST API (feature: analytics) - See [ADR-031](docs/adr/031-reports-dashboards-api-design.md)
+  - [x] AnalyticsHandler with `analytics/` URL resolution (one gate for reports + dashboards)
+  - [x] Report runs: run_report, run_report_with_metadata, query_report (ad-hoc)
+  - [x] Async instances: run_report_async(_with_metadata), list/get/delete_report_instance
+  - [x] Report metadata: describe_report, list_reports, list_report_types, describe_report_type
+  - [x] Dashboards: list_dashboards, describe_dashboard, get_dashboard_results, refresh_dashboard, get_dashboard_status
+  - [x] Typed core (ReportResults/factMap/groupings/ReportMetadata) with serde_json::Value escape hatches
+  - [x] Round-trip ReportMetadata + fail-safe ReportFormat/InstanceStatus/FilterOperator enums
 
 ### Phase 5: Specialized Features
 - [ ] Pub/Sub API via gRPC (feature: pub_sub)
 - [ ] Streaming API (feature: streaming)
 - [ ] SOAP API (feature: soap)
+- [x] Marketing Cloud Engagement REST API (sibling crate: `force-marketingcloud`) - See [ADR-034](docs/adr/034-marketing-cloud-engagement-crate.md)
+- [x] SOAP Partner API (feature: soap) - See [ADR-032](docs/adr/032-soap-api-design.md)
+  - [x] Untyped generic `SObject` model (Partner WSDL; no per-org codegen)
+  - [x] CRUD: create, update, upsert (external-id), delete, retrieve
+  - [x] Query: query, query_more, query_all, search (SOSL)
+  - [x] Describe: describe_sobject, describe_sobjects, describe_global
+  - [x] Serde-typed convenience layer over the generic `SObject` (`*_typed::<T>`): `query_typed` (auto-paginates), `query_typed_page`/`query_more_typed_page`, `retrieve_typed` (`Vec<Option<T>>`), `create_typed`/`update_typed`/`upsert_typed`; stringly-typed fields, null → `fieldsToNull`
+  - [x] Utility: get_user_info, get_server_timestamp
+  - [x] OAuth token reused in `SessionHeader` (no `login()`; retiring Summer '27)
+  - [x] `SoapFault` → `ForceError::Soap`; per-record errors in result structs
+  - [x] `INVALID_SESSION_ID` (HTTP 500) manual refresh-and-retry once
+  - [x] quick-xml parsing on patched 0.41.0 (RUSTSEC-2026-0194/0195)
+  - [ ] merge, convert_lead, set_password, nested relationship records (follow-ups)
+- [x] Marketing Cloud Engagement REST API (sibling crate: `force-marketingcloud`) - See [ADR-027](docs/adr/027-marketing-cloud-engagement-crate.md)
+  - [x] Installed-Package server-to-server (JSON client credentials) auth
+  - [x] Proactive, per-business-unit (MID) token cache with single-flight refresh
+  - [x] Transactional Messaging (email/SMS send + status)
+  - [x] Content Builder Assets (create/get/update/delete/list)
+  - [x] Contacts (create, delete by key)
+  - [x] Data Extensions (sync rowset upsert, async insert, row query)
+  - [x] Journeys / Interaction (list, fire entry event)
+  - [x] Raw escape hatch; SOAP deferred as a follow-up
+
+### Phase 6: Analytics Sink (force-lake crate) - See [ADR-030](docs/adr/030-force-lake-crate.md)
+- [x] Iceberg schema generator in `force` (feature: schema) - `generate_iceberg_schema`
+- [x] `force-lake` snapshot sink (Salesforce → S3 Tables / Apache Iceberg)
+  - [x] Describe → Iceberg + Arrow schema mapping (schema_map)
+  - [x] Arrow RecordBatch assembly from Bulk records (record_batch)
+  - [x] In-memory Parquet encoding (parquet_writer)
+  - [x] `LakeCatalog` trait with `MockCatalog` + `S3TablesCatalog`
+  - [x] `SnapshotSink` orchestration (append / full-partition overwrite)
+- [ ] CDC ingestion via force-pubsub (documented follow-up)
+- [ ] Row-level upsert via Athena `MERGE` (documented follow-up)
 
 ## Configuration
 
@@ -618,10 +745,20 @@ async fn main() -> anyhow::Result<()> {
 
 ## Related Projects
 
+Sibling crates in this workspace:
+- **force-pubsub** - Salesforce Pub/Sub API (gRPC) client
+- **force-sync** - Postgres-first bidirectional Salesforce/Postgres sync engine
+- **force-marketingcloud** - Standalone Salesforce Marketing Cloud Engagement REST API client (see [ADR-034](docs/adr/034-marketing-cloud-engagement-crate.md))
+
 This crate integrates with the Mark's Rust ecosystem:
 - **aletheiadb** - Bi-temporal graph database for Salesforce data models
 - **vangoh** - AI-native CRM built on AletheiaDB
 - **thorp** - Quant trading platform using Salesforce data
+
+Sibling workspace crates:
+- **force-pubsub** - Salesforce Pub/Sub API (gRPC) client
+- **force-sync** - Correctness-first bidirectional Salesforce ↔ Postgres sync engine (see [ADR-026](docs/adr/026-force-sync-crate.md))
+- **force-lake** - One-way Salesforce → S3 Tables / Apache Iceberg analytics snapshot sink (see [ADR-030](docs/adr/030-force-lake-crate.md))
 
 ## ADRs (Architecture Decision Records)
 
@@ -639,6 +776,15 @@ Significant architectural decisions are documented in `docs/adr/`:
 - [ADR-022](docs/adr/022-data-cloud-api-design.md) - Data Cloud API decorator authenticator and token exchange design
 - [ADR-023](docs/adr/023-apex-rest-cpq-design.md) - Apex REST and CPQ API layered design
 - [ADR-025](docs/adr/025-username-password-auth.md) - Username-password authentication with refresh token support
+- [ADR-026](docs/adr/026-force-sync-crate.md) - Postgres-first bidirectional sync engine (force-sync crate)
+- [ADR-027](docs/adr/027-authorization-code-pkce-auth.md) - OAuth 2.0 Authorization Code flow with PKCE
+- [ADR-028](docs/adr/028-agentforce-api-design.md) - Agentforce Models + Agent API design (api.salesforce.com host, permissive typing)
+- [ADR-030](docs/adr/030-force-lake-crate.md) - Salesforce → Iceberg analytics snapshot sink (force-lake crate)
+- [ADR-029](docs/adr/029-account-engagement-api-design.md) - Account Engagement (Pardot) API v5 separate-host design
+- [ADR-031](docs/adr/031-reports-dashboards-api-design.md) - Reports & Dashboards (Analytics) API handler design
+- [ADR-033](docs/adr/033-live-contract-test-harness.md) - Tiered, env-gated live-contract test harness
+- [ADR-034](docs/adr/034-marketing-cloud-engagement-crate.md) - Standalone `force-marketingcloud` crate for Marketing Cloud Engagement
+- [ADR-032](docs/adr/032-soap-api-design.md) - SOAP Partner API design (untyped generic client, OAuth in SessionHeader, INVALID_SESSION retry)
 
 ## Contributing
 

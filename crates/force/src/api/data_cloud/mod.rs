@@ -6,7 +6,7 @@
 //!
 //! Data Cloud uses a separate tenant endpoint and requires a two-step token
 //! exchange. The [`DataCloudHandler`] manages this transparently via the
-//! [`DataCloudAuthenticator`](crate::auth::DataCloudAuthenticator) decorator.
+//! [`DataCloudAuthenticator`] decorator.
 //!
 //! # Feature Flag
 //!
