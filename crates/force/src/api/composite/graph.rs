@@ -538,9 +538,15 @@ mod tests {
         let auth = MockAuthenticator::new("token", &mock_server.uri());
         let client = client_builder().authenticate(auth).build().await.must();
 
-        // A SOQL query builder yields a bare `query?q=...` URL that the Composite
-        // Graph API rejects unless it is the full absolute `/services/data/vNN.N/`
-        // path (unlike the Batch API, which resolves version-relative URLs).
+        // This drives the exact real code path `tests/live_core.rs` uses:
+        // `Graph::new(..).query(SoqlQueryBuilder::new().select(&["Id"]).from("Account").limit(1), ..)`.
+        // `encode_soql_query_url` yields a bare `query?q=...` sub-request URL. The
+        // Composite Graph API rejects that unless it is the full absolute
+        // `/services/data/vNN.N/` path — a version-relative `v62.0/query?...`
+        // (the pre-fix batch-style normalization) was echoed and rejected by the
+        // live org as `/v62.0/query?...` (OPERATION_NOT_ALLOWED, missing
+        // /services/data). Reverting `normalize_graph_subrequest_url` to that
+        // behavior makes the `body_json` matcher below miss and this test fail.
         let account_query = crate::api::soql::SoqlQueryBuilder::new()
             .select(&["Id"])
             .from("Account")
@@ -643,10 +649,30 @@ mod tests {
             "/services/data/v62.0/query?q=SELECT+Id"
         );
 
+        // Leading-slash + version (`/v62.0/query?...`) — the shape the live org
+        // rejected as `/v62.0/query?...` (missing /services/data). The leading
+        // slash is trimmed before the version check, so it still gets the full
+        // /services/data/ prefix.
+        assert_eq!(
+            normalize_graph_subrequest_url(
+                "/v62.0/query?q=SELECT+Id+FROM+Account+LIMIT+1",
+                "v67.0"
+            ),
+            "/services/data/v62.0/query?q=SELECT+Id+FROM+Account+LIMIT+1"
+        );
+
         // Already-rooted /services/ paths are left untouched (single leading slash).
         assert_eq!(
             normalize_graph_subrequest_url("/services/data/v62.0/sobjects/Account", "v67.0"),
             "/services/data/v62.0/sobjects/Account"
+        );
+        // Idempotent: a fully-qualified query path is returned verbatim.
+        assert_eq!(
+            normalize_graph_subrequest_url(
+                "/services/data/v62.0/query?q=SELECT+Id+FROM+Account+LIMIT+1",
+                "v67.0"
+            ),
+            "/services/data/v62.0/query?q=SELECT+Id+FROM+Account+LIMIT+1"
         );
         assert_eq!(
             normalize_graph_subrequest_url("services/data/v62.0/sobjects/Account", "v67.0"),
