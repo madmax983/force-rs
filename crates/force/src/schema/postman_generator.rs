@@ -16,10 +16,11 @@ use serde_json::{Value, json};
 #[allow(clippy::too_many_lines)]
 pub fn generate_postman_collection(describe: &SObjectDescribe) -> Value {
     let name = &describe.name;
+    // ⚡ Bolt: Use a referenced `&str` instead of cloning into a new `String` for the label, eliminating a heap allocation.
     let label = if describe.label.is_empty() {
-        name.clone()
+        name.as_str()
     } else {
-        describe.label.clone()
+        describe.label.as_str()
     };
 
     // Build dummy json body for create/update using fields that are createable/updateable
