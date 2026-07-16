@@ -375,13 +375,10 @@ impl HttpExecutor {
     }
 
     fn is_retryable_error(error: &crate::error::ForceError) -> bool {
-        match error {
-            crate::error::ForceError::Http(HttpError::Timeout { .. }) => true,
-            crate::error::ForceError::Http(HttpError::RequestFailed(re)) => {
-                !re.is_builder() && !re.is_redirect() && !re.is_status()
-            }
-            _ => false,
-        }
+        matches!(
+            error,
+            crate::error::ForceError::Http(HttpError::Timeout { .. })
+        ) || matches!(error, crate::error::ForceError::Http(HttpError::RequestFailed(re)) if !re.is_builder() && !re.is_redirect() && !re.is_status())
     }
 
     fn handle_rate_limit(

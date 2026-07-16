@@ -143,10 +143,9 @@ impl<A: Authenticator> TokenManager<A> {
             if let Some(token) = &state.token {
                 // If the token in state is a different allocation (Arc::ptr_eq is false) than what we captured,
                 // another thread just refreshed it. Return that one!
-                let is_same = match &current_arc {
-                    Some(arc) => Arc::ptr_eq(token, arc),
-                    None => false,
-                };
+                let is_same = current_arc
+                    .as_ref()
+                    .is_some_and(|arc| Arc::ptr_eq(token, arc));
                 if !is_same {
                     return Ok(token.clone());
                 }
@@ -189,17 +188,14 @@ impl<A: Authenticator> TokenManager<A> {
             state.clear_count
         };
 
-        let refresh_result = self.authenticator.refresh().await;
+        let Ok(new_token) = self.authenticator.refresh().await else {
+            return Ok(self.latest_token_or(valid_token).await);
+        };
 
-        match refresh_result {
-            Ok(new_token) => {
-                // ⚡ Bolt: Moving `new_token` directly into `Arc` avoids an unnecessary `.clone()` allocation
-                // when transferring ownership, saving one heap allocation per token refresh.
-                let arc_token = Arc::new(new_token);
-                self.update_token_state(arc_token, clear_count).await
-            }
-            Err(_) => Ok(self.latest_token_or(valid_token).await),
-        }
+        // ⚡ Bolt: Moving `new_token` directly into `Arc` avoids an unnecessary `.clone()` allocation
+        // when transferring ownership, saving one heap allocation per token refresh.
+        let arc_token = Arc::new(new_token);
+        self.update_token_state(arc_token, clear_count).await
     }
 
     /// Returns the current access token, refreshing if necessary.
@@ -255,10 +251,9 @@ impl<A: Authenticator> TokenManager<A> {
             if let Some(token) = &state.token {
                 // If the token in state is a different allocation (Arc::ptr_eq is false) than what we captured,
                 // another thread just refreshed it. Return that one!
-                let is_same = match &current_arc {
-                    Some(arc) => Arc::ptr_eq(token, arc),
-                    None => false,
-                };
+                let is_same = current_arc
+                    .as_ref()
+                    .is_some_and(|arc| Arc::ptr_eq(token, arc));
                 if !is_same {
                     return Ok((*token.clone()).clone());
                 }
