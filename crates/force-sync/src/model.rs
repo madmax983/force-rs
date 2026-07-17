@@ -186,12 +186,7 @@ fn hash_json_value(value: &Value, hasher: &mut blake3::Hasher) {
         Value::Object(map) => {
             /// ⚡ Bolt: Check if the map is inherently sorted first before falling back to allocating a `Vec` and sorting.
             /// This provides an O(N) fast-path avoiding O(N) allocations and O(N log N) sorting.
-            fn write_pair(
-                k: &String,
-                v: &Value,
-                first: &mut bool,
-                hasher: &mut blake3::Hasher,
-            ) {
+            fn write_pair(k: &String, v: &Value, first: &mut bool, hasher: &mut blake3::Hasher) {
                 if !*first {
                     let _ = std::io::Write::write_all(hasher, b",");
                 }
