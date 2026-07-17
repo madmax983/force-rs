@@ -10,19 +10,8 @@ use crate::types::describe::SObjectDescribe;
 #[cfg(feature = "schema")]
 use serde_json::{Value, json};
 
-/// Generates a Postman v2.1.0 Collection for an SObject.
 #[cfg(feature = "schema")]
-#[must_use]
-#[allow(clippy::too_many_lines)]
-pub fn generate_postman_collection(describe: &SObjectDescribe) -> Value {
-    let name = &describe.name;
-    let label = if describe.label.is_empty() {
-        name.clone()
-    } else {
-        describe.label.clone()
-    };
-
-    // Build dummy json body for create/update using fields that are createable/updateable
+fn build_create_update_bodies(describe: &SObjectDescribe) -> (String, String) {
     let mut create_body = serde_json::Map::new();
     let mut update_body = serde_json::Map::new();
 
@@ -46,6 +35,139 @@ pub fn generate_postman_collection(describe: &SObjectDescribe) -> Value {
     let update_body_str =
         serde_json::to_string_pretty(&update_body).unwrap_or_else(|_| "{}".to_string());
 
+    (create_body_str, update_body_str)
+}
+
+#[cfg(feature = "schema")]
+fn build_create_request(label: &str, name: &str, create_body_str: &str) -> Value {
+    json!({
+        "name": format!("Create {}", label),
+        "request": {
+            "method": "POST",
+            "header": [
+                {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                }
+            ],
+            "body": {
+                "mode": "raw",
+                "raw": create_body_str
+            },
+            "url": {
+                "raw": format!("{{{{_endpoint}}}}/services/data/v67.0/sobjects/{}", name),
+                "host": [
+                    "{{_endpoint}}"
+                ],
+                "path": [
+                    "services",
+                    "data",
+                    "v67.0",
+                    "sobjects",
+                    name
+                ]
+            }
+        }
+    })
+}
+
+#[cfg(feature = "schema")]
+fn build_read_request(label: &str, name: &str) -> Value {
+    json!({
+        "name": format!("Read {}", label),
+        "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+                "raw": format!("{{{{_endpoint}}}}/services/data/v67.0/sobjects/{}/{{{{recordId}}}}", name),
+                "host": [
+                    "{{_endpoint}}"
+                ],
+                "path": [
+                    "services",
+                    "data",
+                    "v67.0",
+                    "sobjects",
+                    name,
+                    "{{recordId}}"
+                ]
+            }
+        }
+    })
+}
+
+#[cfg(feature = "schema")]
+fn build_update_request(label: &str, name: &str, update_body_str: &str) -> Value {
+    json!({
+        "name": format!("Update {}", label),
+        "request": {
+            "method": "PATCH",
+            "header": [
+                {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                }
+            ],
+            "body": {
+                "mode": "raw",
+                "raw": update_body_str
+            },
+            "url": {
+                "raw": format!("{{{{_endpoint}}}}/services/data/v67.0/sobjects/{}/{{{{recordId}}}}", name),
+                "host": [
+                    "{{_endpoint}}"
+                ],
+                "path": [
+                    "services",
+                    "data",
+                    "v67.0",
+                    "sobjects",
+                    name,
+                    "{{recordId}}"
+                ]
+            }
+        }
+    })
+}
+
+#[cfg(feature = "schema")]
+fn build_delete_request(label: &str, name: &str) -> Value {
+    json!({
+        "name": format!("Delete {}", label),
+        "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+                "raw": format!("{{{{_endpoint}}}}/services/data/v67.0/sobjects/{}/{{{{recordId}}}}", name),
+                "host": [
+                    "{{_endpoint}}"
+                ],
+                "path": [
+                    "services",
+                    "data",
+                    "v67.0",
+                    "sobjects",
+                    name,
+                    "{{recordId}}"
+                ]
+            }
+        }
+    })
+}
+
+/// Generates a Postman v2.1.0 Collection for an SObject.
+#[cfg(feature = "schema")]
+#[must_use]
+pub fn generate_postman_collection(describe: &SObjectDescribe) -> Value {
+    let name = &describe.name;
+    let label = if describe.label.is_empty() {
+        name.clone()
+    } else {
+        describe.label.clone()
+    };
+
+    let (create_body_str, update_body_str) = build_create_update_bodies(describe);
+
     json!({
         "info": {
             "name": format!("Salesforce REST API - {}", label),
@@ -53,107 +175,10 @@ pub fn generate_postman_collection(describe: &SObjectDescribe) -> Value {
             "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
         },
         "item": [
-            {
-                "name": format!("Create {}", label),
-                "request": {
-                    "method": "POST",
-                    "header": [
-                        {
-                            "key": "Content-Type",
-                            "value": "application/json"
-                        }
-                    ],
-                    "body": {
-                        "mode": "raw",
-                        "raw": create_body_str
-                    },
-                    "url": {
-                        "raw": format!("{{{{_endpoint}}}}/services/data/v67.0/sobjects/{}", name),
-                        "host": [
-                            "{{_endpoint}}"
-                        ],
-                        "path": [
-                            "services",
-                            "data",
-                            "v67.0",
-                            "sobjects",
-                            name
-                        ]
-                    }
-                }
-            },
-            {
-                "name": format!("Read {}", label),
-                "request": {
-                    "method": "GET",
-                    "header": [],
-                    "url": {
-                        "raw": format!("{{{{_endpoint}}}}/services/data/v67.0/sobjects/{}/{{{{recordId}}}}", name),
-                        "host": [
-                            "{{_endpoint}}"
-                        ],
-                        "path": [
-                            "services",
-                            "data",
-                            "v67.0",
-                            "sobjects",
-                            name,
-                            "{{recordId}}"
-                        ]
-                    }
-                }
-            },
-            {
-                "name": format!("Update {}", label),
-                "request": {
-                    "method": "PATCH",
-                    "header": [
-                        {
-                            "key": "Content-Type",
-                            "value": "application/json"
-                        }
-                    ],
-                    "body": {
-                        "mode": "raw",
-                        "raw": update_body_str
-                    },
-                    "url": {
-                        "raw": format!("{{{{_endpoint}}}}/services/data/v67.0/sobjects/{}/{{{{recordId}}}}", name),
-                        "host": [
-                            "{{_endpoint}}"
-                        ],
-                        "path": [
-                            "services",
-                            "data",
-                            "v67.0",
-                            "sobjects",
-                            name,
-                            "{{recordId}}"
-                        ]
-                    }
-                }
-            },
-            {
-                "name": format!("Delete {}", label),
-                "request": {
-                    "method": "DELETE",
-                    "header": [],
-                    "url": {
-                        "raw": format!("{{{{_endpoint}}}}/services/data/v67.0/sobjects/{}/{{{{recordId}}}}", name),
-                        "host": [
-                            "{{_endpoint}}"
-                        ],
-                        "path": [
-                            "services",
-                            "data",
-                            "v67.0",
-                            "sobjects",
-                            name,
-                            "{{recordId}}"
-                        ]
-                    }
-                }
-            }
+            build_create_request(&label, name, &create_body_str),
+            build_read_request(&label, name),
+            build_update_request(&label, name, &update_body_str),
+            build_delete_request(&label, name)
         ]
     })
 }
