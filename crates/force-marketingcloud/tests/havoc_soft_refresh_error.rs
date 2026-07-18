@@ -50,7 +50,7 @@ async fn test_marketing_cloud_soft_refresh_failure_returns_old_token() {
     // First call should succeed and cache the soft-expired token
     let token1 = match manager.token(None).await {
         Ok(t) => t,
-        Err(e) => panic!("Expected Ok, got {:?}", e),
+        Err(e) => panic!("Expected Ok, got {e:?}"),
     };
     assert_eq!(token1.as_str(), "soft-expired-token");
 
