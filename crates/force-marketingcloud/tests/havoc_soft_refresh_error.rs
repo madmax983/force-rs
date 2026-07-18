@@ -1,4 +1,4 @@
-//! Tests for chaotic soft refresh behavior in TokenManager
+//! Tests for chaotic soft refresh behavior in `TokenManager`
 
 use async_trait::async_trait;
 use force_marketingcloud::AccessToken;
@@ -48,7 +48,10 @@ async fn test_marketing_cloud_soft_refresh_failure_returns_old_token() {
     let manager = TokenManager::new(auth.clone());
 
     // First call should succeed and cache the soft-expired token
-    let token1 = manager.token(None).await.unwrap();
+    let token1 = match manager.token(None).await {
+        Ok(t) => t,
+        Err(e) => panic!("Expected Ok, got {:?}", e),
+    };
     assert_eq!(token1.as_str(), "soft-expired-token");
 
     // Second call should attempt to refresh (because it's soft-expired)
