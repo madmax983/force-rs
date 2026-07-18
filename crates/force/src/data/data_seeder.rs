@@ -180,4 +180,67 @@ mod tests {
 
         assert_eq!(success_count, 2);
     }
+
+    #[tokio::test]
+    async fn test_data_seeder_halt_on_error() {
+        let mock_server = create_mock_server().await;
+        let client = create_test_client(&mock_server).await;
+
+        let describe_json = serde_json::from_str::<serde_json::Value>(r#"{
+            "name": "Account",
+            "label": "Account",
+            "custom": false,
+            "queryable": true,
+            "activateable": false, "createable": true, "customSetting": false, "deletable": true,
+            "deprecatedAndHidden": false, "feedEnabled": true, "hasSubtypes": false,
+            "isSubtype": false, "keyPrefix": "001", "labelPlural": "Accounts", "layoutable": true,
+            "mergeable": true, "mruEnabled": true, "replicateable": true, "retrieveable": true,
+            "searchable": true, "triggerable": true, "undeletable": true, "updateable": true,
+            "urls": {}, "childRelationships": [], "recordTypeInfos": [],
+            "fields": [
+                {
+                    "name": "Name", "type": "string", "label": "Account Name", "createable": true,
+                    "autoNumber": false, "calculated": false,
+                    "aggregatable": true, "byteLength": 18,
+                    "cascadeDelete": false, "caseSensitive": false, "custom": false,
+                    "defaultedOnCreate": true, "dependentPicklist": false, "deprecatedAndHidden": false,
+                    "digits": 0, "displayLocationInDecimal": false, "encrypted": false, "externalId": false,
+                    "filterable": true, "groupable": true, "highScaleNumber": false, "htmlFormatted": false,
+                    "idLookup": true, "length": 18, "nameField": false, "namePointing": false, "nillable": false,
+                    "permissionable": false, "polymorphicForeignKey": false, "precision": 0, "queryByDistance": false,
+                    "restrictedDelete": false, "restrictedPicklist": false, "scale": 0, "soapType": "xsd:string",
+                    "sortable": true, "unique": false, "updateable": false, "writeRequiresMasterRead": false,
+                    "referenceTo": []
+                }
+            ]
+        }"#).must();
+
+        Mock::given(method("GET"))
+            .and(path("/services/data/v67.0/sobjects/Account/describe"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(describe_json))
+            .mount(&mock_server)
+            .await;
+
+        Mock::given(method("POST"))
+            .and(path("/services/data/v67.0/composite/batch"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "hasErrors": true,
+                "results": [
+                    { "statusCode": 400, "result": [ { "errorCode": "INVALID_FIELD", "message": "No such field Name" } ] },
+                    { "statusCode": 201, "result": { "id": "001000000000002AAA", "success": true, "errors": [] } }
+                ]
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let seeder = DataSeeder::new(&client).halt_on_error(true);
+        let result = seeder.seed("Account", 2).await;
+
+        assert!(result.is_err());
+        if let Err(crate::error::ForceError::InvalidInput(msg)) = result {
+            assert_eq!(msg, "Seed operation failed");
+        } else {
+            panic!("Expected InvalidInput error");
+        }
+    }
 }
