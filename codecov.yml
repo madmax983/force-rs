@@ -11,3 +11,10 @@ ignore:
   - "crates/force/tests/live_soap.rs"
   - "crates/force/tests/live_account_engagement.rs"
   - "crates/force-marketingcloud/tests/live_marketingcloud.rs"
+
+coverage:
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 0.1%
