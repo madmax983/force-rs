@@ -5,8 +5,8 @@ use force_marketingcloud::AccessToken;
 use force_marketingcloud::Authenticator;
 use force_marketingcloud::TokenManager;
 use force_marketingcloud::TokenResponse;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 #[derive(Debug)]
 struct FailingAuth {
