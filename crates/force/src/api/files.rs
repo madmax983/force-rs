@@ -43,6 +43,7 @@ impl<A: Authenticator> FilesHandler<A> {
     ///
     /// # Returns
     /// The ID of the inserted `ContentVersion`.
+    /// ⚡ Bolt: Converting `Vec<u8>` to `bytes::Bytes` and using `Part::stream` provides O(1) cloning, eliminating an O(N) heap allocation of the entire file payload during request retries.
     pub async fn upload(
         &self,
         title: &str,
@@ -54,6 +55,7 @@ impl<A: Authenticator> FilesHandler<A> {
         let session = Arc::clone(&self.session);
         let title = title.to_string();
         let path_on_client = path_on_client.to_string();
+        let file_bytes = bytes::Bytes::from(file_bytes);
 
         // Rebuild the multipart form (and its body) on every attempt: streaming
         // multipart bodies cannot be cloned, so the executor calls this factory
@@ -68,7 +70,7 @@ impl<A: Authenticator> FilesHandler<A> {
                 .mime_str("application/json")
                 .map_err(|e| ForceError::InvalidInput(e.to_string()))?;
 
-            let version_data_part = Part::bytes(file_bytes.clone())
+            let version_data_part = Part::stream(file_bytes.clone())
                 .file_name(path_on_client.clone())
                 .mime_str("application/octet-stream")
                 .map_err(|e| ForceError::InvalidInput(e.to_string()))?;
