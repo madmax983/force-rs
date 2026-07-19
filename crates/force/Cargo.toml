@@ -29,7 +29,7 @@ url.workspace = true
 tracing = { workspace = true }
 futures = { workspace = true }
 async-trait = { workspace = true }
-bytes = { workspace = true }
+bytes.workspace = true
 percent-encoding = { workspace = true }
 
 # Feature-gated dependencies
