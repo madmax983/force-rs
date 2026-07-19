@@ -288,3 +288,42 @@ pub struct DescribeGlobalResult {
     /// The objects available in the org.
     pub sobjects: Vec<DescribeGlobalSObject>,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_sobject_builder_pattern() {
+        let obj = SObject::new("Account")
+            .with_field("Name", "Acme")
+            .with_null_field("Website");
+        assert_eq!(obj.sobject_type, "Account");
+        assert_eq!(
+            obj.fields,
+            vec![("Name".to_string(), Some("Acme".to_string()))]
+        );
+        assert_eq!(obj.fields_to_null, vec!["Website".to_string()]);
+    }
+
+    #[test]
+    fn test_sobject_set_field() {
+        let mut obj = SObject::new("Contact");
+        obj.set_field("LastName", "Smith");
+        assert_eq!(
+            obj.fields,
+            vec![("LastName".to_string(), Some("Smith".to_string()))]
+        );
+    }
+
+    #[test]
+    fn test_sobject_get_and_id() {
+        let obj = SObject::new("Account")
+            .with_field("Id", "001AAA")
+            .with_field("Name", "Acme");
+        assert_eq!(obj.get("Id"), Some("001AAA"));
+        assert_eq!(obj.get("Name"), Some("Acme"));
+        assert_eq!(obj.get("Website"), None);
+        assert_eq!(obj.id(), Some("001AAA"));
+    }
+}
