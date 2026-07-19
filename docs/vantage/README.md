@@ -45,6 +45,8 @@ Design backlog and product-spec notes for incubating `force-rs` capabilities. Th
 
 ## Data Utilities
 
+- [`nested-relationship-records.md`](nested-relationship-records.md): Single-request parent and child record creation.
+
 - [`soql-query-builder.md`](soql-query-builder.md): SOQL query builder for type-safe query construction.
 - [`data-faker.md`](data-faker.md): synthetic Salesforce-shaped data generation.
 - [`data-seeder.md`](data-seeder.md): repeatable fixture and seed workflows.
