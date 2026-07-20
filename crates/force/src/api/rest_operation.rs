@@ -372,8 +372,10 @@ pub trait RestOperation<A: Authenticator> {
         let encoded_value = utf8_percent_encode(external_id_value, UPSERT_ENCODE_SET);
 
         let relative = format!(
-            "sobjects/{}/{}/{}",
-            sobject, external_id_field, encoded_value
+            "{}/{}/{}",
+            crate::api::path_utils::format_sobject_path(sobject, None),
+            external_id_field,
+            encoded_value
         );
         let api_path = self.resolve_api_path(&relative);
         let url = self.session().resolve_url(&api_path).await?;
@@ -647,15 +649,13 @@ async fn upsert_with_retry_class_impl<A: Authenticator>(
     // ⚡ Bolt: Pass `utf8_percent_encode` directly to `format!` to avoid an intermediate `String` allocation.
     let encoded_value = utf8_percent_encode(external_id_value, UPSERT_ENCODE_SET);
 
+    let base_path = crate::api::path_utils::format_sobject_path(sobject, None);
     let api_path = if api_path_prefix.is_empty() {
-        format!(
-            "sobjects/{}/{}/{}",
-            sobject, external_id_field, encoded_value
-        )
+        format!("{}/{}/{}", base_path, external_id_field, encoded_value)
     } else {
         format!(
-            "{}/sobjects/{}/{}/{}",
-            api_path_prefix, sobject, external_id_field, encoded_value
+            "{}/{}/{}/{}",
+            api_path_prefix, base_path, external_id_field, encoded_value
         )
     };
     let url = session.resolve_url(&api_path).await?;
