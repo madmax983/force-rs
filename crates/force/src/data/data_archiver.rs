@@ -47,8 +47,17 @@ impl<'a, A: Authenticator> DataArchiver<'a, A> {
     where
         T: DeserializeOwned + Serialize + Unpin,
     {
+        if path
+            .as_ref()
+            .components()
+            .any(|c| matches!(c, std::path::Component::ParentDir))
+        {
+            return Err(crate::error::ForceError::InvalidInput(
+                "Path traversal detected".to_string(),
+            ));
+        }
         let mut stream = self.client.rest().query_stream::<T>(soql);
-        let mut file = File::create(path).await?;
+        let mut file = File::create(&path).await?;
         let mut count = 0;
 
         while let Some(record) = stream.next().await? {
@@ -86,6 +95,15 @@ impl<'a, A: Authenticator> DataArchiver<'a, A> {
         soql: &str,
         path: impl AsRef<Path>,
     ) -> Result<usize> {
+        if path
+            .as_ref()
+            .components()
+            .any(|c| matches!(c, std::path::Component::ParentDir))
+        {
+            return Err(crate::error::ForceError::InvalidInput(
+                "Path traversal detected".to_string(),
+            ));
+        }
         let describe = self.client.rest().describe(sobject_name).await?;
         let masker = DataMasker::new(&describe);
 
@@ -94,7 +112,7 @@ impl<'a, A: Authenticator> DataArchiver<'a, A> {
             .rest()
             .query_stream::<crate::types::DynamicSObject>(soql);
 
-        let mut file = File::create(path).await?;
+        let mut file = File::create(&path).await?;
         let mut count = 0;
 
         while let Some(mut record) = stream.next().await? {
@@ -286,5 +304,30 @@ mod tests {
         assert_eq!(record["Email"], "***@***.***"); // Should be masked!
 
         let _ = std::fs::remove_file(file_path);
+    }
+
+    #[tokio::test]
+    async fn test_export_to_jsonl_path_traversal() {
+        let mock_server = MockServer::start().await;
+        let auth = MockAuthenticator::new("token", &mock_server.uri());
+        let client = ForceClientBuilder::new()
+            .authenticate(auth)
+            .build()
+            .await
+            .must();
+        let archiver = DataArchiver::new(&client);
+
+        let soql = "SELECT Id FROM Account";
+        let path = "../../etc/passwd";
+
+        let result = archiver
+            .export_to_jsonl::<serde_json::Value>(soql, path)
+            .await;
+
+        let Err(err) = result else {
+            panic!("Expected an error for path traversal");
+        };
+
+        assert!(err.to_string().contains("Path traversal detected"));
     }
 }
