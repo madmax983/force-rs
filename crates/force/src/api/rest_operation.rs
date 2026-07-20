@@ -371,10 +371,8 @@ pub trait RestOperation<A: Authenticator> {
         // ⚡ Bolt: Pass `utf8_percent_encode` directly to `format!` to avoid an intermediate `String` allocation.
         let encoded_value = utf8_percent_encode(external_id_value, UPSERT_ENCODE_SET);
 
-        let relative = format!(
-            "sobjects/{}/{}/{}",
-            sobject, external_id_field, encoded_value
-        );
+        let base_path = crate::api::path_utils::format_sobject_path(sobject, None);
+        let relative = format!("{}/{}/{}", base_path, external_id_field, encoded_value);
         let api_path = self.resolve_api_path(&relative);
         let url = self.session().resolve_url(&api_path).await?;
 
