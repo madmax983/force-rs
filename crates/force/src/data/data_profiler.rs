@@ -6,7 +6,6 @@ use crate::auth::Authenticator;
 use crate::client::ForceClient;
 use crate::error::Result;
 use crate::types::DynamicSObject;
-use futures::StreamExt;
 use std::collections::HashMap;
 
 /// A profile for a single field, detailing its population statistics.
@@ -75,7 +74,6 @@ impl<'a, A: Authenticator> DataProfiler<'a, A> {
         let soql = builder.try_build()?;
 
         let mut stream = self.client.rest().query_stream::<DynamicSObject>(&soql);
-        let mut stream = std::pin::pin!(stream);
 
         let mut total_sampled = 0;
         let mut field_profiles: HashMap<String, FieldProfile> = describe
@@ -95,8 +93,7 @@ impl<'a, A: Authenticator> DataProfiler<'a, A> {
             })
             .collect();
 
-        while let Some(record_result) = stream.next().await {
-            let record = record_result?;
+        while let Some(record) = stream.next().await? {
             total_sampled += 1;
             for (field_name, profile) in &mut field_profiles {
                 profile.total_sampled += 1;
