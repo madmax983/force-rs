@@ -57,7 +57,7 @@ impl<'a, A: Authenticator> DataArchiver<'a, A> {
             ));
         }
         let mut stream = self.client.rest().query_stream::<T>(soql);
-        let mut file = File::create(&path).await?;
+        let mut file = File::create(path).await?;
         let mut count = 0;
 
         while let Some(record) = stream.next().await? {
@@ -112,7 +112,7 @@ impl<'a, A: Authenticator> DataArchiver<'a, A> {
             .rest()
             .query_stream::<crate::types::DynamicSObject>(soql);
 
-        let mut file = File::create(&path).await?;
+        let mut file = File::create(path).await?;
         let mut count = 0;
 
         while let Some(mut record) = stream.next().await? {
