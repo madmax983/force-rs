@@ -135,6 +135,7 @@ mod tests {
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
     #[tokio::test]
+    #[allow(clippy::too_many_lines)]
     async fn test_data_profiler() {
         let mock_server = MockServer::start().await;
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
@@ -242,15 +243,15 @@ mod tests {
 
         let id_profile = profile.fields.get("Id").must();
         assert_eq!(id_profile.populated_count, 3);
-        assert_eq!(id_profile.fill_rate, 1.0);
+        assert!((id_profile.fill_rate - 1.0).abs() < f64::EPSILON);
 
         let name_profile = profile.fields.get("Name").must();
         assert_eq!(name_profile.populated_count, 3);
-        assert_eq!(name_profile.fill_rate, 1.0);
+        assert!((name_profile.fill_rate - 1.0).abs() < f64::EPSILON);
 
-        let ind_profile = profile.fields.get("Industry").must();
-        assert_eq!(ind_profile.populated_count, 1);
-        assert_eq!(ind_profile.null_count, 2); // one explicitly null, one omitted
-        assert!((ind_profile.fill_rate - 0.3333333333333333).abs() < f64::EPSILON);
+        let industry_profile = profile.fields.get("Industry").must();
+        assert_eq!(industry_profile.populated_count, 1);
+        assert_eq!(industry_profile.null_count, 2); // one explicitly null, one omitted
+        assert!((industry_profile.fill_rate - 0.333_333_333_333_333_3).abs() < f64::EPSILON);
     }
 }
