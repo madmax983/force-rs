@@ -330,4 +330,29 @@ mod tests {
 
         assert!(err.to_string().contains("Path traversal detected"));
     }
+
+    #[tokio::test]
+    async fn test_export_masked_to_jsonl_path_traversal() {
+        let mock_server = MockServer::start().await;
+        let auth = MockAuthenticator::new("token", &mock_server.uri());
+        let client = ForceClientBuilder::new()
+            .authenticate(auth)
+            .build()
+            .await
+            .must();
+        let archiver = DataArchiver::new(&client);
+
+        let soql = "SELECT Id, Name, Email FROM Contact";
+        let path = "../../etc/passwd";
+
+        let result = archiver
+            .export_masked_to_jsonl("Contact", soql, path)
+            .await;
+
+        let Err(err) = result else {
+            panic!("Expected an error for path traversal");
+        };
+
+        assert!(err.to_string().contains("Path traversal detected"));
+    }
 }
