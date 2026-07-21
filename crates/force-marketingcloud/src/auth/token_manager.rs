@@ -73,6 +73,8 @@ impl TokenManager {
     /// Useful for handling a `401` where the server invalidated the token early.
     pub async fn invalidate(&self, account_id: Option<&str>) {
         let key: CacheKey = account_id.map(ToString::to_string);
+        let key_lock = self.key_lock(&key).await;
+        let _guard = key_lock.lock().await;
         self.cache.write().await.remove(&key);
     }
 
