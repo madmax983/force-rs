@@ -93,8 +93,13 @@ impl<'a> DataExtensionsHandler<'a> {
         let items: Vec<serde_json::Value> = rows
             .iter()
             .map(|row| {
-                let mut merged = row.keys.clone();
-                merged.extend(row.values.clone());
+                // ⚡ Bolt: Collecting keys and values concurrently using iter().chain() avoids the intermediate `.clone()` allocations for both maps.
+                let merged: serde_json::Map<String, serde_json::Value> = row
+                    .keys
+                    .iter()
+                    .chain(row.values.iter())
+                    .map(|(k, v)| (k.clone(), v.clone()))
+                    .collect();
                 serde_json::Value::Object(merged)
             })
             .collect();
