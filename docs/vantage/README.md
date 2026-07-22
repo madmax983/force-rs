@@ -44,6 +44,7 @@ Design backlog and product-spec notes for incubating `force-rs` capabilities. Th
 - [`salesforce-files-api.md`](salesforce-files-api.md): streaming multipart file uploads and downloads.
 
 ## Data Utilities
+- [`backtesting-engine.md`](backtesting-engine.md): historical market data backtesting engine.
 
 - [`soql-query-builder.md`](soql-query-builder.md): SOQL query builder for type-safe query construction.
 - [`data-faker.md`](data-faker.md): synthetic Salesforce-shaped data generation.
