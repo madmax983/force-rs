@@ -15,14 +15,20 @@ use tokio::sync::{Mutex, RwLock};
 /// Cache key: the effective per-call account id override (`None` = builder default).
 type CacheKey = Option<String>;
 
+#[derive(Debug)]
+struct CacheState {
+    tokens: HashMap<CacheKey, Arc<AccessToken>>,
+    clear_counts: HashMap<CacheKey, u64>,
+}
+
 /// Thread-safe, per-MID token cache with proactive re-authentication.
 #[derive(Debug)]
 pub struct TokenManager {
     /// The underlying authenticator.
     authenticator: Arc<dyn Authenticator>,
 
-    /// Cached tokens keyed by business-unit override.
-    cache: RwLock<HashMap<CacheKey, Arc<AccessToken>>>,
+    /// State encompassing both the cache and clear counts to allow atomic updates.
+    state: RwLock<CacheState>,
 
     /// Per-key single-flight locks serializing concurrent refreshes.
     locks: Mutex<HashMap<CacheKey, Arc<Mutex<()>>>>,
@@ -34,7 +40,10 @@ impl TokenManager {
     pub fn new(authenticator: Arc<dyn Authenticator>) -> Self {
         Self {
             authenticator,
-            cache: RwLock::new(HashMap::new()),
+            state: RwLock::new(CacheState {
+                tokens: HashMap::new(),
+                clear_counts: HashMap::new(),
+            }),
             locks: Mutex::new(HashMap::new()),
         }
     }
@@ -63,8 +72,19 @@ impl TokenManager {
             return Ok(token);
         }
 
-        let token = Arc::new(self.authenticator.authenticate(account_id).await?);
-        self.cache.write().await.insert(key, token.clone());
+        let (token, clear_count_at_start) = {
+            let clear_count = self.state.read().await.clear_counts.get(&key).copied().unwrap_or(0);
+            (Arc::new(self.authenticator.authenticate(account_id).await?), clear_count)
+        };
+
+        let mut state = self.state.write().await;
+        let current_clear_count = state.clear_counts.get(&key).copied().unwrap_or(0);
+
+        if current_clear_count == clear_count_at_start {
+            state.tokens.insert(key, token.clone());
+        }
+        drop(state);
+
         Ok(token)
     }
 
@@ -73,13 +93,15 @@ impl TokenManager {
     /// Useful for handling a `401` where the server invalidated the token early.
     pub async fn invalidate(&self, account_id: Option<&str>) {
         let key: CacheKey = account_id.map(ToString::to_string);
-        self.cache.write().await.remove(&key);
+        let mut state = self.state.write().await;
+        state.tokens.remove(&key);
+        *state.clear_counts.entry(key).or_insert(0) += 1;
     }
 
     /// Returns the cached token for `key` if present and not due for refresh.
     async fn cached_valid(&self, key: &CacheKey) -> Option<Arc<AccessToken>> {
-        let cache = self.cache.read().await;
-        cache.get(key).filter(|t| !t.needs_refresh()).cloned()
+        let state = self.state.read().await;
+        state.tokens.get(key).filter(|t| !t.needs_refresh()).cloned()
     }
 
     /// Fetches (creating if necessary) the single-flight lock for `key`.
@@ -120,11 +142,11 @@ mod tests {
         async fn authenticate(&self, account_id: Option<&str>) -> Result<AccessToken> {
             let n = self.calls.fetch_add(1, Ordering::SeqCst) + 1;
             let label = account_id.unwrap_or("default");
-            AccessToken::new_for_test(
+            Ok(AccessToken::new_for_test(
                 &format!("{label}-token-{n}"),
                 "https://sub.rest.marketingcloudapis.com/",
                 Utc::now() + self.lifetime,
-            )
+            ).unwrap())
         }
     }
 
@@ -193,5 +215,59 @@ mod tests {
         }
         // Single-flight: exactly one auth despite concurrency.
         assert_eq!(auth.calls.load(Ordering::SeqCst), 1);
+    }
+
+    #[derive(Debug)]
+    struct RaceAuth {
+        start_notify: std::sync::Arc<tokio::sync::Notify>,
+        wait_notify: std::sync::Arc<tokio::sync::Notify>,
+    }
+
+    #[async_trait::async_trait]
+    impl Authenticator for RaceAuth {
+        async fn authenticate(&self, _account_id: Option<&str>) -> crate::error::Result<AccessToken> {
+            self.start_notify.notify_one();
+            self.wait_notify.notified().await;
+
+            Ok(AccessToken::new_for_test(
+                "stale_token",
+                "https://test.com",
+                chrono::Utc::now() + chrono::Duration::hours(1),
+            ).unwrap())
+        }
+    }
+
+    #[tokio::test]
+    async fn havoc_test_invalidate_resurrects_stale_token() {
+        let start_notify = std::sync::Arc::new(tokio::sync::Notify::new());
+        let wait_notify = std::sync::Arc::new(tokio::sync::Notify::new());
+
+        let auth = std::sync::Arc::new(RaceAuth {
+            start_notify: start_notify.clone(),
+            wait_notify: wait_notify.clone(),
+        });
+
+        let manager = std::sync::Arc::new(TokenManager::new(auth));
+
+        let m1 = manager.clone();
+        let handle = tokio::spawn(async move {
+            m1.token(None).await.unwrap();
+        });
+
+        start_notify.notified().await;
+
+        // Let authenticate proceed so invalidate can run concurrently
+        wait_notify.notify_one();
+
+        manager.invalidate(None).await;
+
+        handle.await.unwrap();
+
+        let is_some = {
+            let state = manager.state.read().await;
+            state.tokens.contains_key(&None)
+        };
+
+        assert!(!is_some, "Cache should be empty after invalidate, but an in-flight refresh resurrected it!");
     }
 }
