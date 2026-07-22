@@ -73,8 +73,18 @@ impl TokenManager {
         }
 
         let (token, clear_count_at_start) = {
-            let clear_count = self.state.read().await.clear_counts.get(&key).copied().unwrap_or(0);
-            (Arc::new(self.authenticator.authenticate(account_id).await?), clear_count)
+            let clear_count = self
+                .state
+                .read()
+                .await
+                .clear_counts
+                .get(&key)
+                .copied()
+                .unwrap_or(0);
+            (
+                Arc::new(self.authenticator.authenticate(account_id).await?),
+                clear_count,
+            )
         };
 
         let mut state = self.state.write().await;
@@ -101,7 +111,11 @@ impl TokenManager {
     /// Returns the cached token for `key` if present and not due for refresh.
     async fn cached_valid(&self, key: &CacheKey) -> Option<Arc<AccessToken>> {
         let state = self.state.read().await;
-        state.tokens.get(key).filter(|t| !t.needs_refresh()).cloned()
+        state
+            .tokens
+            .get(key)
+            .filter(|t| !t.needs_refresh())
+            .cloned()
     }
 
     /// Fetches (creating if necessary) the single-flight lock for `key`.
@@ -146,7 +160,8 @@ mod tests {
                 &format!("{label}-token-{n}"),
                 "https://sub.rest.marketingcloudapis.com/",
                 Utc::now() + self.lifetime,
-            ).unwrap())
+            )
+            .unwrap())
         }
     }
 
@@ -225,7 +240,10 @@ mod tests {
 
     #[async_trait::async_trait]
     impl Authenticator for RaceAuth {
-        async fn authenticate(&self, _account_id: Option<&str>) -> crate::error::Result<AccessToken> {
+        async fn authenticate(
+            &self,
+            _account_id: Option<&str>,
+        ) -> crate::error::Result<AccessToken> {
             self.start_notify.notify_one();
             self.wait_notify.notified().await;
 
@@ -233,7 +251,8 @@ mod tests {
                 "stale_token",
                 "https://test.com",
                 chrono::Utc::now() + chrono::Duration::hours(1),
-            ).unwrap())
+            )
+            .unwrap())
         }
     }
 
@@ -268,6 +287,9 @@ mod tests {
             state.tokens.contains_key(&None)
         };
 
-        assert!(!is_some, "Cache should be empty after invalidate, but an in-flight refresh resurrected it!");
+        assert!(
+            !is_some,
+            "Cache should be empty after invalidate, but an in-flight refresh resurrected it!"
+        );
     }
 }
