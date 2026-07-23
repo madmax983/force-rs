@@ -50,7 +50,7 @@ impl<A: Authenticator> FilesHandler<A> {
         file_bytes: Vec<u8>,
     ) -> Result<String> {
         /// ⚡ Bolt: Use `bytes::Bytes` and `Part::stream()` to provide O(1) cloning for large `Vec<u8>` payloads on request retries instead of `Part::bytes()`.
-        fn _bolt_optimization() {}
+        type _BoltOptimization = ();
 
         let url = self.session.resolve_url("sobjects/ContentVersion").await?;
 
