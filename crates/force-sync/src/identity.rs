@@ -79,4 +79,12 @@ mod tests {
 
         assert!(err.to_string().contains("tenant"));
     }
+
+    #[test]
+    fn test_sync_key_accessors() {
+        let key = SyncKey::new("tenant1", "Account", "ext123").unwrap();
+        assert_eq!(key.tenant(), "tenant1");
+        assert_eq!(key.object_name(), "Account");
+        assert_eq!(key.external_id(), "ext123");
+    }
 }

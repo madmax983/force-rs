@@ -41,3 +41,10 @@
 **Finding:** Missing mutation test coverage in `upsert_with_retry_class` and `validate_query_input_len`. The `MAX_QUERY_INPUT_BYTES` threshold tests were weak, and the response limit calculation in `upsert` lacked explicit bound verification.
 **Evidence:** 5+ surviving mutants around `100 * 1024 * 1024` limit calculation in `upsert` paths. Surviving `>=` mutant on `validate_query_input_len`.
 **Recommendation:** Ensure exact boundary coverage in threshold validation methods (like EXACT max allowed size), and explicitly cover payload too large errors (`HttpError::PayloadTooLarge`) by setting up mocks with very large mock response data.
+
+**[Elenchus: force-sync core models Test Quality Audit]**
+**Module:** `force-sync::config`, `force-sync::identity`, `force-sync::model`
+**Severity:** 🟡 Suspect
+**Finding:** Basic struct accessors and enum serialization methods (`as_db_value`) were untested.
+**Evidence:** `cargo mutants` revealed 14 surviving mutants in `LaneThresholds` defaults, `SyncKey` accessors, and `as_db_value` implementations across `SourceSystem`, `ChangeOperation`, and `SourceCursor`.
+**Recommendation:** Add explicit unit tests for these basic properties to ensure false confidence is eliminated and prevent silent serialization bugs in the journal.
