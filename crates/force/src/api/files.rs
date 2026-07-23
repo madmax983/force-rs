@@ -63,6 +63,10 @@ impl<A: Authenticator> FilesHandler<A> {
         let make_request = move || -> Result<reqwest::Request> {
             // ⚡ Bolt: Using `bytes::Bytes` and `Part::stream()` provides O(1) cloning for large payloads,
             // avoiding expensive O(N) memory allocations during request retries.
+            //
+            // By wrapping file_bytes in `bytes::Bytes` and using `Part::stream`, we also safely avoid
+            // triggering a fallback to chunked encoding, as `bytes::Bytes` implements `Into<Body>` with
+            // an exact known length.
 
             let entity_content = json!({
                 "Title": title,
