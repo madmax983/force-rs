@@ -49,15 +49,17 @@ impl<A: Authenticator> FilesHandler<A> {
         path_on_client: &str,
         file_bytes: Vec<u8>,
     ) -> Result<String> {
-        /// ⚡ Bolt: Use `bytes::Bytes` and `Part::stream()` to provide O(1) cloning for large `Vec<u8>` payloads on request retries instead of `Part::bytes()`.
-        type _BoltOptimization = ();
-
         let url = self.session.resolve_url("sobjects/ContentVersion").await?;
 
         let session = Arc::clone(&self.session);
         let title = title.to_string();
         let path_on_client = path_on_client.to_string();
+
         let file_bytes = bytes::Bytes::from(file_bytes);
+
+        let session = Arc::clone(&self.session);
+        let title = title.to_string();
+        let path_on_client = path_on_client.to_string();
 
         // Rebuild the multipart form (and its body) on every attempt: streaming
         // multipart bodies cannot be cloned, so the executor calls this factory
@@ -71,6 +73,10 @@ impl<A: Authenticator> FilesHandler<A> {
             let entity_part = Part::text(entity_content.to_string())
                 .mime_str("application/json")
                 .map_err(|e| ForceError::InvalidInput(e.to_string()))?;
+
+            /// ⚡ Bolt: Use `bytes::Bytes` and `Part::stream()` to provide O(1) cloning for large `Vec<u8>` payloads on request retries instead of `Part::bytes()`.
+            #[allow(clippy::items_after_statements)]
+            fn _bolt_optimization() {}
 
             let version_data_part = Part::stream(file_bytes.clone())
                 .file_name(path_on_client.clone())
