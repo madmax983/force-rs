@@ -58,7 +58,16 @@ impl<A: Authenticator> FilesHandler<A> {
         // Rebuild the multipart form (and its body) on every attempt: streaming
         // multipart bodies cannot be cloned, so the executor calls this factory
         // fresh for each retry / post-401 retry.
+        let file_bytes = bytes::Bytes::from(file_bytes);
+
         let make_request = move || -> Result<reqwest::Request> {
+            // ⚡ Bolt: Using `bytes::Bytes` and `Part::stream()` provides O(1) cloning for large payloads,
+            // avoiding expensive O(N) memory allocations during request retries.
+            //
+            // By wrapping file_bytes in `bytes::Bytes` and using `Part::stream`, we also safely avoid
+            // triggering a fallback to chunked encoding, as `bytes::Bytes` implements `Into<Body>` with
+            // an exact known length.
+
             let entity_content = json!({
                 "Title": title,
                 "PathOnClient": path_on_client,
@@ -68,7 +77,7 @@ impl<A: Authenticator> FilesHandler<A> {
                 .mime_str("application/json")
                 .map_err(|e| ForceError::InvalidInput(e.to_string()))?;
 
-            let version_data_part = Part::bytes(file_bytes.clone())
+            let version_data_part = Part::stream(file_bytes.clone())
                 .file_name(path_on_client.clone())
                 .mime_str("application/octet-stream")
                 .map_err(|e| ForceError::InvalidInput(e.to_string()))?;
