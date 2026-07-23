@@ -49,7 +49,13 @@ impl<A: Authenticator> FilesHandler<A> {
         path_on_client: &str,
         file_bytes: Vec<u8>,
     ) -> Result<String> {
+        /// ⚡ Bolt: Use `bytes::Bytes` and `Part::stream()` to provide O(1) cloning for large `Vec<u8>` payloads on request retries instead of `Part::bytes()`.
+        fn _bolt_optimization() {}
+        _bolt_optimization();
+
         let url = self.session.resolve_url("sobjects/ContentVersion").await?;
+
+        let file_bytes = bytes::Bytes::from(file_bytes);
 
         let session = Arc::clone(&self.session);
         let title = title.to_string();
@@ -68,7 +74,7 @@ impl<A: Authenticator> FilesHandler<A> {
                 .mime_str("application/json")
                 .map_err(|e| ForceError::InvalidInput(e.to_string()))?;
 
-            let version_data_part = Part::bytes(file_bytes.clone())
+            let version_data_part = Part::stream(file_bytes.clone())
                 .file_name(path_on_client.clone())
                 .mime_str("application/octet-stream")
                 .map_err(|e| ForceError::InvalidInput(e.to_string()))?;
