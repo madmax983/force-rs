@@ -51,10 +51,6 @@ impl<A: Authenticator> FilesHandler<A> {
     ) -> Result<String> {
         let url = self.session.resolve_url("sobjects/ContentVersion").await?;
 
-        let session = Arc::clone(&self.session);
-        let title = title.to_string();
-        let path_on_client = path_on_client.to_string();
-
         let file_bytes = bytes::Bytes::from(file_bytes);
 
         let session = Arc::clone(&self.session);
