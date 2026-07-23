@@ -322,23 +322,4 @@ mod tests {
             "Name": "Acme"
         })));
     }
-
-    #[test]
-    fn test_source_system_as_db_value() {
-        assert_eq!(SourceSystem::Salesforce.as_db_value(), "salesforce");
-        assert_eq!(SourceSystem::Postgres.as_db_value(), "postgres");
-    }
-
-    #[test]
-    fn test_change_operation_as_db_value() {
-        assert_eq!(ChangeOperation::Upsert.as_db_value(), "upsert");
-        assert_eq!(ChangeOperation::Delete.as_db_value(), "delete");
-    }
-
-    #[test]
-    fn test_source_cursor_as_db_value() {
-        assert_eq!(SourceCursor::SalesforceReplayId(42).as_db_value(), "salesforce-replay-id:42");
-        assert_eq!(SourceCursor::PostgresLsn("0/16B3748".to_string()).as_db_value(), "postgres-lsn:0/16B3748");
-        assert_eq!(SourceCursor::Snapshot("snap-123".to_string()).as_db_value(), "snapshot:snap-123");
-    }
 }

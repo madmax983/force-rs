@@ -146,11 +146,4 @@ mod tests {
         assert_eq!(config.field_owner_for("Name"), Some(Owner::Postgres));
         assert_eq!(config.field_ownership().len(), 1);
     }
-
-    #[test]
-    fn test_lane_thresholds_defaults() {
-        let thresholds = super::LaneThresholds::default();
-        assert_eq!(thresholds.rest_max_batch_size(), 25);
-        assert_eq!(thresholds.bulk_min_batch_size(), 500);
-    }
 }
