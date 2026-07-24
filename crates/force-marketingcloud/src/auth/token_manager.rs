@@ -12,6 +12,14 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{Mutex, RwLock};
 
+/// State containing both the cached tokens and a generation counter
+/// to prevent TOCTOU (Time-of-check to time-of-use) stale resurrections.
+#[derive(Debug)]
+struct CacheState {
+    tokens: HashMap<CacheKey, Arc<AccessToken>>,
+    clear_count: u64,
+}
+
 /// Cache key: the effective per-call account id override (`None` = builder default).
 type CacheKey = Option<String>;
 
@@ -22,7 +30,8 @@ pub struct TokenManager {
     authenticator: Arc<dyn Authenticator>,
 
     /// Cached tokens keyed by business-unit override.
-    cache: RwLock<HashMap<CacheKey, Arc<AccessToken>>>,
+    /// Cached tokens and a generation counter to prevent stale resurrections.
+    cache: RwLock<CacheState>,
 
     /// Per-key single-flight locks serializing concurrent refreshes.
     locks: Mutex<HashMap<CacheKey, Arc<Mutex<()>>>>,
@@ -34,7 +43,10 @@ impl TokenManager {
     pub fn new(authenticator: Arc<dyn Authenticator>) -> Self {
         Self {
             authenticator,
-            cache: RwLock::new(HashMap::new()),
+            cache: RwLock::new(CacheState {
+                tokens: HashMap::new(),
+                clear_count: 0,
+            }),
             locks: Mutex::new(HashMap::new()),
         }
     }
@@ -51,20 +63,56 @@ impl TokenManager {
     pub async fn token(&self, account_id: Option<&str>) -> Result<Arc<AccessToken>> {
         let key: CacheKey = account_id.map(ToString::to_string);
 
-        if let Some(token) = self.cached_valid(&key).await {
-            return Ok(token);
-        }
+        let clear_count_at_start = {
+            let cache = self.cache.read().await;
+            if let Some(token) = cache
+                .tokens
+                .get(&key)
+                .filter(|t| !t.needs_refresh())
+                .cloned()
+            {
+                return Ok(token);
+            }
+            cache.clear_count
+        };
 
         let key_lock = self.key_lock(&key).await;
         let _guard = key_lock.lock().await;
 
         // Double-check: another task may have refreshed while we waited.
-        if let Some(token) = self.cached_valid(&key).await {
+        let (existing_token, current_clear_count) = {
+            let cache = self.cache.read().await;
+            (
+                cache
+                    .tokens
+                    .get(&key)
+                    .filter(|t| !t.needs_refresh())
+                    .cloned(),
+                cache.clear_count,
+            )
+        };
+
+        if let Some(token) = existing_token {
             return Ok(token);
         }
 
+        if current_clear_count != clear_count_at_start {
+            // The cache was invalidated while we waited for the lock.
+            // We proceed to fetch a new token, but must track this new epoch.
+        }
+
         let token = Arc::new(self.authenticator.authenticate(account_id).await?);
-        self.cache.write().await.insert(key, token.clone());
+
+        let mut cache = self.cache.write().await;
+        if cache.clear_count != current_clear_count {
+            // The cache was invalidated while we were authenticating.
+            // We should not cache the token because it might be based on stale credentials,
+            // or the server might have invalidated it immediately.
+            return Ok(token);
+        }
+
+        cache.tokens.insert(key, token.clone());
+        drop(cache);
         Ok(token)
     }
 
@@ -73,13 +121,9 @@ impl TokenManager {
     /// Useful for handling a `401` where the server invalidated the token early.
     pub async fn invalidate(&self, account_id: Option<&str>) {
         let key: CacheKey = account_id.map(ToString::to_string);
-        self.cache.write().await.remove(&key);
-    }
-
-    /// Returns the cached token for `key` if present and not due for refresh.
-    async fn cached_valid(&self, key: &CacheKey) -> Option<Arc<AccessToken>> {
-        let cache = self.cache.read().await;
-        cache.get(key).filter(|t| !t.needs_refresh()).cloned()
+        let mut cache = self.cache.write().await;
+        cache.tokens.remove(&key);
+        cache.clear_count += 1;
     }
 
     /// Fetches (creating if necessary) the single-flight lock for `key`.
