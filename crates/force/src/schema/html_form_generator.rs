@@ -182,10 +182,33 @@ mod tests {
 
     #[test]
     fn test_generate_html_form() {
+        let mut picklist_field = mock_field("Industry", "picklist", true);
+        picklist_field["picklistValues"] = json!([
+            { "active": true, "defaultValue": false, "label": "Tech", "value": "Technology", "validFor": null },
+            { "active": false, "defaultValue": false, "label": "Inactive", "value": "None", "validFor": null }
+        ]);
+
+        let mut multi_field = mock_field("Multi", "multipicklist", true);
+        multi_field["picklistValues"] = json!([
+            { "active": true, "defaultValue": false, "label": "Multi1", "value": "M1", "validFor": null }
+        ]);
+
         let describe = create_mock_describe(&json!([
             mock_field("Id", "id", false),
             mock_field("Name<Script>", "string", true),
-            mock_field("IsActive", "boolean", true)
+            mock_field("IsActive", "boolean", true),
+            picklist_field,
+            multi_field,
+            mock_field("Notes", "textarea", true),
+            mock_field("CloseDate", "date", true),
+            mock_field("CreatedDate", "datetime", true),
+            mock_field("Email", "email", true),
+            mock_field("Phone", "phone", true),
+            mock_field("Website", "url", true),
+            mock_field("Count", "int", true),
+            mock_field("Amount", "double", true),
+            mock_field("Rate", "percent", true),
+            mock_field("Revenue", "currency", true)
         ]));
 
         let html = generate_html_form(&describe);
@@ -195,5 +218,41 @@ mod tests {
         assert!(html.contains("type=\"text\""));
         assert!(html.contains("id=\"IsActive\""));
         assert!(html.contains("type=\"checkbox\""));
+
+        // Picklist
+        assert!(html.contains("<select id=\"Industry\" name=\"Industry\">"));
+        assert!(html.contains("<option value=\"Technology\">Tech</option>"));
+        assert!(!html.contains("Inactive")); // inactive value
+
+        // Multipicklist
+        assert!(html.contains("<select id=\"Multi\" name=\"Multi\">"));
+
+        // Textarea
+        assert!(html.contains("<textarea id=\"Notes\" name=\"Notes\"></textarea>"));
+
+        // Date
+        assert!(html.contains("<input type=\"date\" id=\"CloseDate\" name=\"CloseDate\" />"));
+
+        // Datetime
+        assert!(
+            html.contains(
+                "<input type=\"datetime-local\" id=\"CreatedDate\" name=\"CreatedDate\" />"
+            )
+        );
+
+        // Email
+        assert!(html.contains("<input type=\"email\" id=\"Email\" name=\"Email\" />"));
+
+        // Phone
+        assert!(html.contains("<input type=\"tel\" id=\"Phone\" name=\"Phone\" />"));
+
+        // Url
+        assert!(html.contains("<input type=\"url\" id=\"Website\" name=\"Website\" />"));
+
+        // Number types
+        assert!(html.contains("<input type=\"number\" id=\"Count\" name=\"Count\" />"));
+        assert!(html.contains("<input type=\"number\" id=\"Amount\" name=\"Amount\" />"));
+        assert!(html.contains("<input type=\"number\" id=\"Rate\" name=\"Rate\" />"));
+        assert!(html.contains("<input type=\"number\" id=\"Revenue\" name=\"Revenue\" />"));
     }
 }
