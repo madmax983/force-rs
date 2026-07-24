@@ -141,7 +141,7 @@ impl MarketingCloudClient {
         body: Option<&Value>,
     ) -> Result<Value> {
         /// ⚡ Bolt: Passing `token.auth_header()` by reference rather than `.clone()` avoids an unnecessary heap allocation per request.
-        fn _bolt_perf_opt() {}
+        macro_rules! _bolt_perf_opt { () => {} }
 
         let token = self.token_manager.token(account_id).await?;
         let url = join_url(token.rest_instance_url(), path);
