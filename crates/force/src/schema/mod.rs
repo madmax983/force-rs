@@ -9,6 +9,8 @@ pub(crate) mod data_dictionary;
 pub(crate) mod dbml_generator;
 pub(crate) mod graphql_generator;
 #[cfg(feature = "schema")]
+pub(crate) mod html_form_generator;
+#[cfg(feature = "schema")]
 pub(crate) mod iceberg_generator;
 pub(crate) mod json_schema;
 pub(crate) mod mock_data_generator;
@@ -50,6 +52,8 @@ pub use data_dictionary::DataDictionary;
 #[cfg(feature = "schema")]
 pub use dbml_generator::{generate_dbml, write_dbml};
 pub use graphql_generator::{generate_graphql_schema, write_graphql_schema};
+#[cfg(feature = "schema")]
+pub use html_form_generator::generate_html_form;
 #[cfg(feature = "schema")]
 pub use iceberg_generator::generate_iceberg_schema;
 pub use json_schema::generate_json_schema;
