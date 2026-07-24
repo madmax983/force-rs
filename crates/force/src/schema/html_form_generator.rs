@@ -9,14 +9,15 @@ use std::fmt::Write;
 /// Basic HTML escaping
 fn escape_html(s: &str) -> String {
     s.replace('&', "&amp;")
-     .replace('<', "&lt;")
-     .replace('>', "&gt;")
-     .replace('"', "&quot;")
-     .replace('\'', "&#39;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&#39;")
 }
 
 /// Generates an HTML form from an SObject describe result.
 #[cfg(feature = "schema")]
+#[allow(clippy::too_many_lines)]
 pub fn generate_html_form(describe: &SObjectDescribe) -> String {
     let mut out = String::new();
     let escaped_name = escape_html(&describe.name);
@@ -34,48 +35,96 @@ pub fn generate_html_form(describe: &SObjectDescribe) -> String {
         let escaped_field_label = escape_html(&field.label);
 
         let _ = writeln!(out, "  <div class=\"form-group\">");
-        let _ = writeln!(out, "    <label for=\"{}\">{}</label>", escaped_field_name, escaped_field_label);
+        let _ = writeln!(
+            out,
+            "    <label for=\"{}\">{}</label>",
+            escaped_field_name, escaped_field_label
+        );
 
         match field.type_ {
             FieldType::Boolean => {
-                let _ = writeln!(out, "    <input type=\"checkbox\" id=\"{}\" name=\"{}\" />", escaped_field_name, escaped_field_name);
-            },
+                let _ = writeln!(
+                    out,
+                    "    <input type=\"checkbox\" id=\"{}\" name=\"{}\" />",
+                    escaped_field_name, escaped_field_name
+                );
+            }
             FieldType::Picklist | FieldType::Multipicklist => {
-                let _ = writeln!(out, "    <select id=\"{}\" name=\"{}\">", escaped_field_name, escaped_field_name);
+                let _ = writeln!(
+                    out,
+                    "    <select id=\"{}\" name=\"{}\">",
+                    escaped_field_name, escaped_field_name
+                );
                 if let Some(ref values) = field.picklist_values {
                     for pv in values {
                         if pv.active {
                             let escaped_val = escape_html(&pv.value);
                             let escaped_pv_label = escape_html(&pv.label);
-                            let _ = writeln!(out, "      <option value=\"{}\">{}</option>", escaped_val, escaped_pv_label);
+                            let _ = writeln!(
+                                out,
+                                "      <option value=\"{}\">{}</option>",
+                                escaped_val, escaped_pv_label
+                            );
                         }
                     }
                 }
                 let _ = writeln!(out, "    </select>");
-            },
+            }
             FieldType::Textarea => {
-                let _ = writeln!(out, "    <textarea id=\"{}\" name=\"{}\"></textarea>", escaped_field_name, escaped_field_name);
-            },
+                let _ = writeln!(
+                    out,
+                    "    <textarea id=\"{}\" name=\"{}\"></textarea>",
+                    escaped_field_name, escaped_field_name
+                );
+            }
             FieldType::Date => {
-                let _ = writeln!(out, "    <input type=\"date\" id=\"{}\" name=\"{}\" />", escaped_field_name, escaped_field_name);
-            },
+                let _ = writeln!(
+                    out,
+                    "    <input type=\"date\" id=\"{}\" name=\"{}\" />",
+                    escaped_field_name, escaped_field_name
+                );
+            }
             FieldType::Datetime => {
-                let _ = writeln!(out, "    <input type=\"datetime-local\" id=\"{}\" name=\"{}\" />", escaped_field_name, escaped_field_name);
-            },
+                let _ = writeln!(
+                    out,
+                    "    <input type=\"datetime-local\" id=\"{}\" name=\"{}\" />",
+                    escaped_field_name, escaped_field_name
+                );
+            }
             FieldType::Email => {
-                let _ = writeln!(out, "    <input type=\"email\" id=\"{}\" name=\"{}\" />", escaped_field_name, escaped_field_name);
-            },
+                let _ = writeln!(
+                    out,
+                    "    <input type=\"email\" id=\"{}\" name=\"{}\" />",
+                    escaped_field_name, escaped_field_name
+                );
+            }
             FieldType::Phone => {
-                let _ = writeln!(out, "    <input type=\"tel\" id=\"{}\" name=\"{}\" />", escaped_field_name, escaped_field_name);
-            },
+                let _ = writeln!(
+                    out,
+                    "    <input type=\"tel\" id=\"{}\" name=\"{}\" />",
+                    escaped_field_name, escaped_field_name
+                );
+            }
             FieldType::Url => {
-                let _ = writeln!(out, "    <input type=\"url\" id=\"{}\" name=\"{}\" />", escaped_field_name, escaped_field_name);
-            },
+                let _ = writeln!(
+                    out,
+                    "    <input type=\"url\" id=\"{}\" name=\"{}\" />",
+                    escaped_field_name, escaped_field_name
+                );
+            }
             FieldType::Int | FieldType::Double | FieldType::Percent | FieldType::Currency => {
-                let _ = writeln!(out, "    <input type=\"number\" id=\"{}\" name=\"{}\" />", escaped_field_name, escaped_field_name);
-            },
+                let _ = writeln!(
+                    out,
+                    "    <input type=\"number\" id=\"{}\" name=\"{}\" />",
+                    escaped_field_name, escaped_field_name
+                );
+            }
             _ => {
-                let _ = writeln!(out, "    <input type=\"text\" id=\"{}\" name=\"{}\" />", escaped_field_name, escaped_field_name);
+                let _ = writeln!(
+                    out,
+                    "    <input type=\"text\" id=\"{}\" name=\"{}\" />",
+                    escaped_field_name, escaped_field_name
+                );
             }
         }
         let _ = writeln!(out, "  </div>");
@@ -109,11 +158,7 @@ mod tests {
         serde_json::from_value(describe_json).must()
     }
 
-    fn mock_field(
-        name: &str,
-        field_type: &str,
-        createable: bool,
-    ) -> serde_json::Value {
+    fn mock_field(name: &str, field_type: &str, createable: bool) -> serde_json::Value {
         json!({
             "name": name,
             "type": field_type,
