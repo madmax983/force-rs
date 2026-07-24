@@ -174,13 +174,12 @@ mod tests {
                 .unwrap_or_else(|| panic!("Expected Int")),
             42
         );
-        assert_eq!(
-            obj.get("Revenue")
-                .unwrap_or_else(|| panic!("Expected Revenue"))
-                .as_f64()
-                .unwrap_or_else(|| panic!("Expected Double")),
-            42.0
-        );
+        let revenue = obj
+            .get("Revenue")
+            .unwrap_or_else(|| panic!("Expected Revenue"))
+            .as_f64()
+            .unwrap_or_else(|| panic!("Expected Double"));
+        assert!((revenue - 42.0).abs() < f64::EPSILON);
         assert_eq!(
             obj.get("CreatedDate")
                 .unwrap_or_else(|| panic!("Expected CreatedDate"))
