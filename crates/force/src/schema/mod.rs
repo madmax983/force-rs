@@ -6,6 +6,8 @@ pub(crate) mod avro_generator;
 pub(crate) mod bigquery_generator;
 pub(crate) mod data_dictionary;
 #[cfg(feature = "schema")]
+pub mod data_masker;
+#[cfg(feature = "schema")]
 pub(crate) mod dbml_generator;
 pub(crate) mod graphql_generator;
 #[cfg(feature = "schema")]
