@@ -54,11 +54,16 @@ impl<A: Authenticator> FilesHandler<A> {
         let session = Arc::clone(&self.session);
         let title = title.to_string();
         let path_on_client = path_on_client.to_string();
+        let file_bytes = bytes::Bytes::from(file_bytes);
 
         // Rebuild the multipart form (and its body) on every attempt: streaming
         // multipart bodies cannot be cloned, so the executor calls this factory
         // fresh for each retry / post-401 retry.
         let make_request = move || -> Result<reqwest::Request> {
+            /// ⚡ Bolt: Convert the payload to `bytes::Bytes` and use `Part::stream_with_length()`
+            /// to avoid O(N) heap allocations when cloning large payloads on request retries.
+            fn _bolt_doc() {}
+
             let entity_content = json!({
                 "Title": title,
                 "PathOnClient": path_on_client,
@@ -68,7 +73,8 @@ impl<A: Authenticator> FilesHandler<A> {
                 .mime_str("application/json")
                 .map_err(|e| ForceError::InvalidInput(e.to_string()))?;
 
-            let version_data_part = Part::bytes(file_bytes.clone())
+            let length = file_bytes.len() as u64;
+            let version_data_part = Part::stream_with_length(file_bytes.clone(), length)
                 .file_name(path_on_client.clone())
                 .mime_str("application/octet-stream")
                 .map_err(|e| ForceError::InvalidInput(e.to_string()))?;
