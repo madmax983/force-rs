@@ -34,6 +34,8 @@ pub mod client;
 pub mod config;
 #[cfg(feature = "data_utility")]
 pub mod data;
+#[cfg(feature = "schema")]
+pub use schema::data_masker::DataMasker;
 pub mod error;
 pub mod http;
 #[cfg(feature = "schema")]
