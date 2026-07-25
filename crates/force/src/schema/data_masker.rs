@@ -29,7 +29,7 @@ impl DataMasker {
     ) -> Map<String, Value> {
         for field in &describe.fields {
             if let Some(val) = record.get_mut(&field.name) {
-                if self.is_sensitive(field) {
+                if Self::is_sensitive(field) {
                     *val = self.mask_value(val, field);
                 }
             }
@@ -37,7 +37,7 @@ impl DataMasker {
         record
     }
 
-    fn is_sensitive(&self, field: &FieldDescribe) -> bool {
+    fn is_sensitive(field: &FieldDescribe) -> bool {
         if field.encrypted {
             return true;
         }
@@ -59,9 +59,8 @@ impl DataMasker {
             return Value::Null;
         }
 
-        let s = match val.as_str() {
-            Some(s) => s,
-            None => return Value::Null, // For simplicity, if a sensitive field isn't a string, null it out
+        let Some(s) = val.as_str() else {
+            return Value::Null;
         };
 
         if s.is_empty() {
@@ -134,17 +133,21 @@ mod tests {
         record.insert("TopSecret__c".to_string(), json!("classified"));
 
         let masker = DataMasker::new();
-        let masked = masker.mask_record(&describe, record);
+        let masked_record = masker.mask_record(&describe, record);
 
-        assert_eq!(masked.get("Id").unwrap(), "003000000000001");
-        assert_eq!(masked.get("Name").unwrap(), "John Doe");
-        assert_eq!(masked.get("Email").unwrap(), "***@***.com");
-        assert_eq!(masked.get("Phone").unwrap(), "(***) ***-****");
-        assert_eq!(
-            masked.get("SocialSecurityNumber__c").unwrap(),
-            "***********"
-        );
-        assert_eq!(masked.get("SecretKey__c").unwrap(), "************");
-        assert_eq!(masked.get("TopSecret__c").unwrap(), "**********");
+        let id_val = masked_record.get("Id");
+        assert!(id_val.is_some_and(|v| v == "003000000000001"));
+        let name_val = masked_record.get("Name");
+        assert!(name_val.is_some_and(|v| v == "John Doe"));
+        let email_val = masked_record.get("Email");
+        assert!(email_val.is_some_and(|v| v == "***@***.com"));
+        let phone_val = masked_record.get("Phone");
+        assert!(phone_val.is_some_and(|v| v == "(***) ***-****"));
+        let ssn_val = masked_record.get("SocialSecurityNumber__c");
+        assert!(ssn_val.is_some_and(|v| v == "***********"));
+        let secret_val = masked_record.get("SecretKey__c");
+        assert!(secret_val.is_some_and(|v| v == "************"));
+        let top_secret_val = masked_record.get("TopSecret__c");
+        assert!(top_secret_val.is_some_and(|v| v == "**********"));
     }
 }
