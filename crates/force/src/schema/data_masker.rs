@@ -46,7 +46,10 @@ impl DataMasker {
             FieldType::Email | FieldType::Phone | FieldType::Encryptedstring => true,
             _ => {
                 let lower = field.name.to_lowercase();
-                lower.contains("ssn") || lower.contains("socialsecuritynumber") || lower.contains("password") || lower.contains("secret")
+                lower.contains("ssn")
+                    || lower.contains("socialsecuritynumber")
+                    || lower.contains("password")
+                    || lower.contains("secret")
             }
         }
     }
