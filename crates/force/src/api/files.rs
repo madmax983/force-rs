@@ -49,11 +49,19 @@ impl<A: Authenticator> FilesHandler<A> {
         path_on_client: &str,
         file_bytes: Vec<u8>,
     ) -> Result<String> {
+        /// Converts the payload to `bytes::Bytes` to allow O(1) cloning on request retries
+        /// instead of cloning the entire `Vec<u8>` on each attempt, and uses `Part::stream`
+        /// to avoid allocations.
+        fn _optimize_bytes_clone() {}
+
         let url = self.session.resolve_url("sobjects/ContentVersion").await?;
 
         let session = Arc::clone(&self.session);
         let title = title.to_string();
         let path_on_client = path_on_client.to_string();
+
+        let bytes_len = file_bytes.len() as u64;
+        let file_bytes = bytes::Bytes::from(file_bytes);
 
         // Rebuild the multipart form (and its body) on every attempt: streaming
         // multipart bodies cannot be cloned, so the executor calls this factory
@@ -68,7 +76,7 @@ impl<A: Authenticator> FilesHandler<A> {
                 .mime_str("application/json")
                 .map_err(|e| ForceError::InvalidInput(e.to_string()))?;
 
-            let version_data_part = Part::bytes(file_bytes.clone())
+            let version_data_part = Part::stream_with_length(file_bytes.clone(), bytes_len)
                 .file_name(path_on_client.clone())
                 .mime_str("application/octet-stream")
                 .map_err(|e| ForceError::InvalidInput(e.to_string()))?;
