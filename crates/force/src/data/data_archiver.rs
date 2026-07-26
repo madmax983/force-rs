@@ -149,7 +149,7 @@ mod tests {
     use crate::test_utils::mock_auth::MockAuthenticator;
     use crate::test_utils::must::Must;
     use serde_json::json;
-    use std::env;
+
     use wiremock::matchers::{method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -227,7 +227,7 @@ mod tests {
             .must();
         let archiver = DataArchiver::new(&client);
 
-        let file_path = env::temp_dir().join(format!("export_{}.jsonl", std::process::id()));
+        let file_path = format!("export_{}.jsonl", std::process::id());
 
         let soql = "SELECT Id, Name FROM Account";
         let count = archiver
@@ -333,7 +333,7 @@ mod tests {
             .must();
         let archiver = DataArchiver::new(&client);
 
-        let file_path = env::temp_dir().join(format!("export_masked_{}.jsonl", std::process::id()));
+        let file_path = format!("export_masked_{}.jsonl", std::process::id());
 
         let soql = "SELECT Id, Name, Email FROM Contact";
         let count = archiver
