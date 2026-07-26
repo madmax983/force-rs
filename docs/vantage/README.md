@@ -38,6 +38,7 @@ Design backlog and product-spec notes for incubating `force-rs` capabilities. Th
 
 - [`metadata-api.md`](metadata-api.md): Metadata API deployment and retrieval operations.
 - [`query-plan-analyzer.md`](query-plan-analyzer.md): SOQL query performance analyzer and cost threshold validation.
+- [`backtesting-engine.md`](backtesting-engine.md): backtesting engine for trading strategies.
 
 ## Content and Files
 
