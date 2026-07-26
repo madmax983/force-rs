@@ -309,7 +309,6 @@ mod tests {
         ));
     }
 
-
     #[test]
     fn payload_hash_matches_unsorted_payloads() {
         let mut map1 = serde_json::Map::new();
@@ -342,7 +341,6 @@ mod tests {
             super::payload_hash(&payload2)
         );
     }
-
 
     #[test]
     fn change_envelope_payload_hash_matches_semantically_equal_payloads() {
