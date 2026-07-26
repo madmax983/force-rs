@@ -15,7 +15,6 @@ use tokio::sync::{Mutex, RwLock};
 /// Cache key: the effective per-call account id override (`None` = builder default).
 type CacheKey = Option<String>;
 
-
 /// Internal state for caching a token along with an invalidation epoch.
 #[derive(Debug)]
 struct CacheState {
@@ -72,17 +71,21 @@ impl TokenManager {
         }
 
         let clear_count = {
-            self.cache.read().await.get(&key).map_or(0, |s| s.clear_count)
+            self.cache
+                .read()
+                .await
+                .get(&key)
+                .map_or(0, |s| s.clear_count)
         };
 
         let token = Arc::new(self.authenticator.authenticate(account_id).await?);
 
-
-
-
         {
             let mut cache = self.cache.write().await;
-            let entry = cache.entry(key).or_insert_with(|| CacheState { token: None, clear_count: 0 });
+            let entry = cache.entry(key).or_insert_with(|| CacheState {
+                token: None,
+                clear_count: 0,
+            });
             if entry.clear_count == clear_count {
                 entry.token = Some(token.clone());
             }
@@ -98,7 +101,10 @@ impl TokenManager {
     pub async fn invalidate(&self, account_id: Option<&str>) {
         let key: CacheKey = account_id.map(ToString::to_string);
         let mut cache = self.cache.write().await;
-        let entry = cache.entry(key).or_insert_with(|| CacheState { token: None, clear_count: 0 });
+        let entry = cache.entry(key).or_insert_with(|| CacheState {
+            token: None,
+            clear_count: 0,
+        });
         entry.token = None;
         entry.clear_count += 1;
         drop(cache);
@@ -107,7 +113,11 @@ impl TokenManager {
     /// Returns the cached token for `key` if present and not due for refresh.
     async fn cached_valid(&self, key: &CacheKey) -> Option<Arc<AccessToken>> {
         let cache = self.cache.read().await;
-        cache.get(key).and_then(|s| s.token.as_ref()).filter(|t| !t.needs_refresh()).cloned()
+        cache
+            .get(key)
+            .and_then(|s| s.token.as_ref())
+            .filter(|t| !t.needs_refresh())
+            .cloned()
     }
 
     /// Fetches (creating if necessary) the single-flight lock for `key`.

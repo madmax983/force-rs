@@ -1,4 +1,11 @@
-#![allow(missing_docs, clippy::unwrap_used, clippy::needless_pass_by_value, clippy::redundant_clone, clippy::ref_option)]
+#![allow(
+    missing_docs,
+    clippy::unwrap_used,
+    clippy::needless_pass_by_value,
+    clippy::redundant_clone,
+    clippy::ref_option,
+    clippy::significant_drop_tightening
+)]
 use loom::sync::{Arc, Mutex, RwLock};
 use loom::thread;
 use std::collections::HashMap;
@@ -57,7 +64,10 @@ impl TokenManagerLoomModel {
         let token_val = fetch();
 
         let mut cache = self.cache.write().unwrap();
-        let entry = cache.entry(key).or_insert_with(|| CacheState { token: None, clear_count: 0 });
+        let entry = cache.entry(key).or_insert_with(|| CacheState {
+            token: None,
+            clear_count: 0,
+        });
         if entry.clear_count == clear_count {
             entry.token = Some(token_val);
         }
@@ -66,7 +76,10 @@ impl TokenManagerLoomModel {
 
     fn invalidate(&self, key: Option<String>) {
         let mut cache = self.cache.write().unwrap();
-        let entry = cache.entry(key).or_insert_with(|| CacheState { token: None, clear_count: 0 });
+        let entry = cache.entry(key).or_insert_with(|| CacheState {
+            token: None,
+            clear_count: 0,
+        });
         entry.token = None;
         entry.clear_count += 1;
     }
