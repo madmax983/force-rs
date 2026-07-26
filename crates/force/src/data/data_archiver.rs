@@ -47,6 +47,21 @@ impl<'a, A: Authenticator> DataArchiver<'a, A> {
     where
         T: DeserializeOwned + Serialize + Unpin,
     {
+        let path = path.as_ref();
+
+        // Prevent path traversal by explicitly blocking absolute paths
+        // and parent directory traversal components.
+        if path.has_root()
+            || path.is_absolute()
+            || path
+                .components()
+                .any(|c| matches!(c, std::path::Component::ParentDir))
+        {
+            return Err(crate::error::ForceError::InvalidInput(
+                "path traversal detected".into(),
+            ));
+        }
+
         let mut stream = self.client.rest().query_stream::<T>(soql);
         let mut file = File::create(path).await?;
         let mut count = 0;
@@ -86,6 +101,19 @@ impl<'a, A: Authenticator> DataArchiver<'a, A> {
         soql: &str,
         path: impl AsRef<Path>,
     ) -> Result<usize> {
+        let path = path.as_ref();
+
+        if path.has_root()
+            || path.is_absolute()
+            || path
+                .components()
+                .any(|c| matches!(c, std::path::Component::ParentDir))
+        {
+            return Err(crate::error::ForceError::InvalidInput(
+                "path traversal detected".into(),
+            ));
+        }
+
         let describe = self.client.rest().describe(sobject_name).await?;
         let masker = DataMasker::new(&describe);
 
@@ -121,9 +149,48 @@ mod tests {
     use crate::test_utils::mock_auth::MockAuthenticator;
     use crate::test_utils::must::Must;
     use serde_json::json;
-    use std::env;
+
     use wiremock::matchers::{method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    #[tokio::test]
+    async fn test_path_traversal() {
+        let client = ForceClientBuilder::new()
+            .authenticate(MockAuthenticator::new("token", "http://localhost"))
+            .build()
+            .await
+            .must();
+        let archiver = DataArchiver::new(&client);
+
+        let result = archiver
+            .export_to_jsonl::<serde_json::Value>("SELECT Id FROM Account", "../../etc/passwd")
+            .await;
+
+        assert!(result.is_err());
+        let Err(err) = result else {
+            panic!("Expected an error")
+        };
+        assert!(
+            err.to_string().contains("path traversal detected"),
+            "Expected path traversal detected error, got: {}",
+            err
+        );
+
+        let result = archiver
+            .export_to_jsonl::<serde_json::Value>(
+                "SELECT Id FROM Account",
+                "/some/fake/absolute/path.json",
+            )
+            .await;
+
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(
+            err.to_string().contains("path traversal detected"),
+            "Expected path traversal detected error, got: {}",
+            err
+        );
+    }
 
     #[tokio::test]
     async fn test_export_to_jsonl() {
@@ -160,7 +227,7 @@ mod tests {
             .must();
         let archiver = DataArchiver::new(&client);
 
-        let file_path = env::temp_dir().join(format!("export_{}.jsonl", std::process::id()));
+        let file_path = format!("export_{}.jsonl", std::process::id());
 
         let soql = "SELECT Id, Name FROM Account";
         let count = archiver
@@ -266,7 +333,7 @@ mod tests {
             .must();
         let archiver = DataArchiver::new(&client);
 
-        let file_path = env::temp_dir().join(format!("export_masked_{}.jsonl", std::process::id()));
+        let file_path = format!("export_masked_{}.jsonl", std::process::id());
 
         let soql = "SELECT Id, Name, Email FROM Contact";
         let count = archiver
