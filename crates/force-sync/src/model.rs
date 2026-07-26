@@ -310,6 +310,26 @@ mod tests {
     }
 
     #[test]
+    fn payload_hash_matches_unsorted_payloads() {
+        let mut map1 = serde_json::Map::new();
+        map1.insert("a".to_string(), serde_json::json!(1));
+        map1.insert("b".to_string(), serde_json::json!(2));
+        map1.insert("c".to_string(), serde_json::json!(3));
+        let payload1 = serde_json::Value::Object(map1);
+
+        let mut map2 = serde_json::Map::new();
+        map2.insert("c".to_string(), serde_json::json!(3));
+        map2.insert("a".to_string(), serde_json::json!(1));
+        map2.insert("b".to_string(), serde_json::json!(2));
+        let payload2 = serde_json::Value::Object(map2);
+
+        assert_eq!(
+            super::payload_hash(&payload1),
+            super::payload_hash(&payload2)
+        );
+    }
+
+    #[test]
     fn change_envelope_payload_hash_matches_semantically_equal_payloads() {
         let sync_key = match SyncKey::new("tenant", "Account", "abc") {
             Ok(sync_key) => sync_key,
