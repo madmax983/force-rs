@@ -167,7 +167,7 @@ mod tests {
             .await;
 
         assert!(result.is_err());
-        let err = result.unwrap_err();
+        let Err(err) = result else { panic!("Expected an error") };
         assert!(
             err.to_string().contains("path traversal detected"),
             "Expected path traversal detected error, got: {}",
