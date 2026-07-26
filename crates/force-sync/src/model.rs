@@ -309,18 +309,32 @@ mod tests {
         ));
     }
 
+
     #[test]
     fn payload_hash_matches_unsorted_payloads() {
         let mut map1 = serde_json::Map::new();
         map1.insert("a".to_string(), serde_json::json!(1));
         map1.insert("b".to_string(), serde_json::json!(2));
         map1.insert("c".to_string(), serde_json::json!(3));
+
+        let mut inner_map = serde_json::Map::new();
+        inner_map.insert("z".to_string(), serde_json::json!(1));
+        inner_map.insert("y".to_string(), serde_json::json!(2));
+        inner_map.insert("x".to_string(), serde_json::json!(3));
+        map1.insert("d".to_string(), serde_json::Value::Object(inner_map));
         let payload1 = serde_json::Value::Object(map1);
 
         let mut map2 = serde_json::Map::new();
         map2.insert("c".to_string(), serde_json::json!(3));
         map2.insert("a".to_string(), serde_json::json!(1));
         map2.insert("b".to_string(), serde_json::json!(2));
+
+        let mut inner_map2 = serde_json::Map::new();
+        inner_map2.insert("x".to_string(), serde_json::json!(3));
+        inner_map2.insert("y".to_string(), serde_json::json!(2));
+        inner_map2.insert("z".to_string(), serde_json::json!(1));
+        map2.insert("d".to_string(), serde_json::Value::Object(inner_map2));
+
         let payload2 = serde_json::Value::Object(map2);
 
         assert_eq!(
@@ -328,6 +342,7 @@ mod tests {
             super::payload_hash(&payload2)
         );
     }
+
 
     #[test]
     fn change_envelope_payload_hash_matches_semantically_equal_payloads() {
