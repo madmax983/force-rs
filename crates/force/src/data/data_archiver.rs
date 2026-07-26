@@ -47,10 +47,15 @@ impl<'a, A: Authenticator> DataArchiver<'a, A> {
     where
         T: DeserializeOwned + Serialize + Unpin,
     {
-        if path
-            .as_ref()
-            .components()
-            .any(|c| matches!(c, std::path::Component::ParentDir))
+        let path = path.as_ref();
+
+        // Prevent path traversal by explicitly blocking absolute paths
+        // and parent directory traversal components.
+        if path.has_root()
+            || path.is_absolute()
+            || path
+                .components()
+                .any(|c| matches!(c, std::path::Component::ParentDir))
         {
             return Err(crate::error::ForceError::InvalidInput(
                 "path traversal detected".into(),
@@ -96,10 +101,13 @@ impl<'a, A: Authenticator> DataArchiver<'a, A> {
         soql: &str,
         path: impl AsRef<Path>,
     ) -> Result<usize> {
-        if path
-            .as_ref()
-            .components()
-            .any(|c| matches!(c, std::path::Component::ParentDir))
+        let path = path.as_ref();
+
+        if path.has_root()
+            || path.is_absolute()
+            || path
+                .components()
+                .any(|c| matches!(c, std::path::Component::ParentDir))
         {
             return Err(crate::error::ForceError::InvalidInput(
                 "path traversal detected".into(),
@@ -154,8 +162,6 @@ mod tests {
             .must();
         let archiver = DataArchiver::new(&client);
 
-
-
         let result = archiver
             .export_to_jsonl::<serde_json::Value>("SELECT Id FROM Account", "../../etc/passwd")
             .await;
@@ -163,8 +169,23 @@ mod tests {
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert!(
-            err.to_string().contains("invalid input"),
-            "Expected invalid input error, got: {}",
+            err.to_string().contains("path traversal detected"),
+            "Expected path traversal detected error, got: {}",
+            err
+        );
+
+        let result = archiver
+            .export_to_jsonl::<serde_json::Value>(
+                "SELECT Id FROM Account",
+                "/some/fake/absolute/path.json",
+            )
+            .await;
+
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(
+            err.to_string().contains("path traversal detected"),
+            "Expected path traversal detected error, got: {}",
             err
         );
     }
