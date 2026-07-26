@@ -185,19 +185,29 @@ fn hash_json_value(value: &Value, hasher: &mut blake3::Hasher) {
     match value {
         Value::Object(map) => {
             let _ = Write::write_all(hasher, b"{");
-            // ⚡ Bolt: Provide a capacity hint for the intermediate vector to avoid reallocations
-            let mut iter = Vec::with_capacity(map.len());
-            iter.extend(map.iter());
-            iter.sort_unstable_by_key(|(k, _)| *k);
-            let mut first = true;
-            for (k, v) in iter {
-                if !first {
+            // ⚡ Bolt: Avoid allocating a Vec and sorting if the map keys are already sorted (O(N) fast-path)
+            let mut process_entry = |k: &String, v: &Value, first: &mut bool| {
+                if !*first {
                     let _ = Write::write_all(hasher, b",");
                 }
-                first = false;
+                *first = false;
                 let _ = serde_json::to_writer(&mut *hasher, k);
                 let _ = Write::write_all(hasher, b":");
                 hash_json_value(v, hasher);
+            };
+
+            let mut first = true;
+            if map.keys().zip(map.keys().skip(1)).all(|(k1, k2)| k1 <= k2) {
+                for (k, v) in map {
+                    process_entry(k, v, &mut first);
+                }
+            } else {
+                let mut iter = Vec::with_capacity(map.len());
+                iter.extend(map.iter());
+                iter.sort_unstable_by_key(|(k, _)| *k);
+                for (k, v) in iter {
+                    process_entry(k, v, &mut first);
+                }
             }
             let _ = Write::write_all(hasher, b"}");
         }
