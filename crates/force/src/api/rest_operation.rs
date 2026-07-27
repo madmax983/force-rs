@@ -1301,6 +1301,83 @@ mod tests {
         assert!(message.contains("NOT_FOUND"));
     }
 
+
+    #[tokio::test]
+    async fn test_query_failure_mock() {
+        use crate::client::builder;
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        use serde_json::json;
+
+        let mock_server = MockServer::start().await;
+        let auth =
+            crate::test_utils::mock_auth::MockAuthenticator::new("test_token", &mock_server.uri());
+        let client = builder().authenticate(auth).build().await.must();
+
+        Mock::given(method("GET"))
+            .and(path("/services/data/v67.0/query"))
+            .respond_with(ResponseTemplate::new(400).set_body_json(json!([{
+                "errorCode": "MALFORMED_QUERY",
+                "message": "unexpected token: 'SELECTT'"
+            }])))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let rest = client.rest();
+        let result = rest
+            .query::<serde_json::Value>("SELECTT Id FROM Account")
+            .await;
+
+        let Err(crate::error::ForceError::Http(crate::error::HttpError::StatusError {
+            status_code,
+            message,
+        })) = result
+        else {
+            panic!("Expected 400 StatusError, got: {:?}", result);
+        };
+        assert_eq!(status_code, 400);
+        assert!(message.contains("MALFORMED_QUERY"));
+    }
+
+    #[tokio::test]
+    async fn test_query_more_failure_mock() {
+        use crate::client::builder;
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        use serde_json::json;
+
+        let mock_server = MockServer::start().await;
+        let auth =
+            crate::test_utils::mock_auth::MockAuthenticator::new("test_token", &mock_server.uri());
+        let client = builder().authenticate(auth).build().await.must();
+
+        Mock::given(method("GET"))
+            .and(path("/services/data/v67.0/query/01g-INVALID"))
+            .respond_with(ResponseTemplate::new(400).set_body_json(json!([{
+                "errorCode": "INVALID_QUERY_LOCATOR",
+                "message": "invalid query locator"
+            }])))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let rest = client.rest();
+        let result = rest
+            .query_more::<serde_json::Value>("/services/data/v67.0/query/01g-INVALID")
+            .await;
+
+        let Err(crate::error::ForceError::Http(crate::error::HttpError::StatusError {
+            status_code,
+            message,
+        })) = result
+        else {
+            panic!("Expected 400 StatusError, got: {:?}", result);
+        };
+        assert_eq!(status_code, 400);
+        assert!(message.contains("INVALID_QUERY_LOCATOR"));
+    }
+
     async fn test_get_success_mock() {
         use crate::client::builder;
         use crate::types::SalesforceId;
