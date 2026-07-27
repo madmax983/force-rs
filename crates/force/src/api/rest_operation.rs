@@ -1301,13 +1301,12 @@ mod tests {
         assert!(message.contains("NOT_FOUND"));
     }
 
-
     #[tokio::test]
     async fn test_query_failure_mock() {
         use crate::client::builder;
+        use serde_json::json;
         use wiremock::matchers::{method, path};
         use wiremock::{Mock, MockServer, ResponseTemplate};
-        use serde_json::json;
 
         let mock_server = MockServer::start().await;
         let auth =
@@ -1343,9 +1342,9 @@ mod tests {
     #[tokio::test]
     async fn test_query_more_failure_mock() {
         use crate::client::builder;
+        use serde_json::json;
         use wiremock::matchers::{method, path};
         use wiremock::{Mock, MockServer, ResponseTemplate};
-        use serde_json::json;
 
         let mock_server = MockServer::start().await;
         let auth =
