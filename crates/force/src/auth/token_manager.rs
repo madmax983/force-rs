@@ -143,11 +143,10 @@ impl<A: Authenticator> TokenManager<A> {
             if let Some(token) = &state.token {
                 // If the token in state is a different allocation (Arc::ptr_eq is false) than what we captured,
                 // another thread just refreshed it. Return that one!
-                let is_same = match &current_arc {
-                    Some(arc) => Arc::ptr_eq(token, arc),
-                    None => false,
-                };
-                if !is_same {
+                if !current_arc
+                    .as_ref()
+                    .is_some_and(|arc| Arc::ptr_eq(token, arc))
+                {
                     return Ok(token.clone());
                 }
 
@@ -255,12 +254,11 @@ impl<A: Authenticator> TokenManager<A> {
             if let Some(token) = &state.token {
                 // If the token in state is a different allocation (Arc::ptr_eq is false) than what we captured,
                 // another thread just refreshed it. Return that one!
-                let is_same = match &current_arc {
-                    Some(arc) => Arc::ptr_eq(token, arc),
-                    None => false,
-                };
-                if !is_same {
-                    return Ok((*token.clone()).clone());
+                if !current_arc
+                    .as_ref()
+                    .is_some_and(|arc| Arc::ptr_eq(token, arc))
+                {
+                    return Ok((**token).clone());
                 }
             }
         }
