@@ -29,6 +29,7 @@ async-trait = { workspace = true }
 wiremock = { workspace = true }
 anyhow = { workspace = true }
 tokio = { workspace = true }
+loom = "0.7.2"
 
 [lints]
 workspace = true
