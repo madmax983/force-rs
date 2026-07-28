@@ -18,6 +18,16 @@ struct TokenState {
     clear_count: u64,
 }
 
+/// Represents the expiration state of an access token.
+pub(crate) enum TokenStatus {
+    /// Token is completely valid and ready for use.
+    Valid(Arc<AccessToken>),
+    /// Token is nearing expiration (soft-expired). Background refresh may be initiated.
+    SoftExpired(Arc<AccessToken>),
+    /// Token is completely expired or no token exists. Hard refresh is required.
+    HardExpired,
+}
+
 /// Thread-safe token manager with automatic refresh.
 #[derive(Debug)]
 pub struct TokenManager<A: Authenticator> {
@@ -96,36 +106,25 @@ impl<A: Authenticator> TokenManager<A> {
     ///
     /// This is an internal method to avoid cloning the token for internal use.
     pub(crate) async fn get_token_arc(&self) -> Result<Arc<AccessToken>> {
-        let (is_soft_expired, is_hard_expired_actual, current_token) =
-            self.evaluate_token_state().await;
-
-        if let Some(token) = current_token.as_ref() {
-            if !is_soft_expired && !is_hard_expired_actual {
-                return Ok(token.clone());
-            }
-        }
-
-        if is_hard_expired_actual {
-            self.handle_hard_refresh().await
-        } else if let Some(valid_token) = current_token {
-            self.handle_soft_refresh(valid_token).await
-        } else {
-            Err(crate::error::ForceError::Authentication(
-                crate::error::AuthenticationError::InvalidToken,
-            ))
+        match self.evaluate_token_state().await {
+            TokenStatus::Valid(token) => Ok(token),
+            TokenStatus::SoftExpired(token) => self.handle_soft_refresh(token).await,
+            TokenStatus::HardExpired => self.handle_hard_refresh().await,
         }
     }
 
-    async fn evaluate_token_state(&self) -> (bool, bool, Option<Arc<AccessToken>>) {
+    async fn evaluate_token_state(&self) -> TokenStatus {
         let state = self.state.read().await;
         if let Some(token) = &state.token {
-            (
-                token.is_soft_expired(),
-                token.is_hard_expired(),
-                Some(token.clone()),
-            )
+            if token.is_hard_expired() {
+                TokenStatus::HardExpired
+            } else if token.is_soft_expired() {
+                TokenStatus::SoftExpired(token.clone())
+            } else {
+                TokenStatus::Valid(token.clone())
+            }
         } else {
-            (false, true, None)
+            TokenStatus::HardExpired
         }
     }
 
