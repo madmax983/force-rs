@@ -21,11 +21,23 @@ pub struct TokenManager {
     /// The underlying authenticator.
     authenticator: Arc<dyn Authenticator>,
 
-    /// Cached tokens keyed by business-unit override.
-    cache: RwLock<HashMap<CacheKey, Arc<AccessToken>>>,
+    /// Token cache state and invalidation counts.
+    cache: RwLock<CacheState>,
 
     /// Per-key single-flight locks serializing concurrent refreshes.
     locks: Mutex<HashMap<CacheKey, Arc<Mutex<()>>>>,
+}
+
+#[derive(Debug)]
+struct TokenState {
+    token: Arc<AccessToken>,
+    clear_count: u64,
+}
+
+#[derive(Debug, Default)]
+struct CacheState {
+    tokens: HashMap<CacheKey, TokenState>,
+    clear_counts: HashMap<CacheKey, u64>,
 }
 
 impl TokenManager {
@@ -34,7 +46,7 @@ impl TokenManager {
     pub fn new(authenticator: Arc<dyn Authenticator>) -> Self {
         Self {
             authenticator,
-            cache: RwLock::new(HashMap::new()),
+            cache: RwLock::new(CacheState::default()),
             locks: Mutex::new(HashMap::new()),
         }
     }
@@ -51,20 +63,41 @@ impl TokenManager {
     pub async fn token(&self, account_id: Option<&str>) -> Result<Arc<AccessToken>> {
         let key: CacheKey = account_id.map(ToString::to_string);
 
-        if let Some(token) = self.cached_valid(&key).await {
+        if let Some((token, _)) = self.cached_valid(&key).await {
             return Ok(token);
         }
+
+        let start_clear_count = {
+            let cache = self.cache.read().await;
+            cache.clear_counts.get(&key).copied().unwrap_or(0)
+        };
 
         let key_lock = self.key_lock(&key).await;
         let _guard = key_lock.lock().await;
 
         // Double-check: another task may have refreshed while we waited.
-        if let Some(token) = self.cached_valid(&key).await {
+        if let Some((token, _)) = self.cached_valid(&key).await {
             return Ok(token);
         }
 
         let token = Arc::new(self.authenticator.authenticate(account_id).await?);
-        self.cache.write().await.insert(key, token.clone());
+
+        let mut cache = self.cache.write().await;
+        let current_clear_count = cache.clear_counts.get(&key).copied().unwrap_or(0);
+
+        if current_clear_count != start_clear_count {
+            // State was cleared while authenticating; return the token but do not cache it
+            return Ok(token);
+        }
+
+        cache.tokens.insert(
+            key,
+            TokenState {
+                token: token.clone(),
+                clear_count: current_clear_count,
+            },
+        );
+        drop(cache);
         Ok(token)
     }
 
@@ -73,13 +106,21 @@ impl TokenManager {
     /// Useful for handling a `401` where the server invalidated the token early.
     pub async fn invalidate(&self, account_id: Option<&str>) {
         let key: CacheKey = account_id.map(ToString::to_string);
-        self.cache.write().await.remove(&key);
+        let mut cache = self.cache.write().await;
+        cache.tokens.remove(&key);
+        let count = cache.clear_counts.entry(key).or_insert(0);
+        *count += 1;
+        drop(cache);
     }
 
     /// Returns the cached token for `key` if present and not due for refresh.
-    async fn cached_valid(&self, key: &CacheKey) -> Option<Arc<AccessToken>> {
+    async fn cached_valid(&self, key: &CacheKey) -> Option<(Arc<AccessToken>, u64)> {
         let cache = self.cache.read().await;
-        cache.get(key).filter(|t| !t.needs_refresh()).cloned()
+        cache
+            .tokens
+            .get(key)
+            .filter(|state| !state.token.needs_refresh())
+            .map(|state| (state.token.clone(), state.clear_count))
     }
 
     /// Fetches (creating if necessary) the single-flight lock for `key`.
