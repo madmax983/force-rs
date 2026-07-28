@@ -19,7 +19,7 @@ struct TokenState {
 }
 
 /// Represents the expiration state of an access token.
-pub(crate) enum TokenStatus {
+enum TokenStatus {
     /// Token is completely valid and ready for use.
     Valid(Arc<AccessToken>),
     /// Token is nearing expiration (soft-expired). Background refresh may be initiated.
