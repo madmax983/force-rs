@@ -268,9 +268,9 @@ mod tests {
         assert_eq!(profile.fields.len(), 2);
 
         assert_eq!(profile.fields[0].name, "Id");
-        assert_eq!(profile.fields[0].fill_rate, 100.0);
+        assert!((profile.fields[0].fill_rate - 100.0).abs() < f64::EPSILON);
 
         assert_eq!(profile.fields[1].name, "Name");
-        assert_eq!(profile.fields[1].fill_rate, 95.0);
+        assert!((profile.fields[1].fill_rate - 95.0).abs() < f64::EPSILON);
     }
 }
