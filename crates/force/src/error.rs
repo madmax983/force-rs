@@ -30,6 +30,10 @@ pub enum ForceError {
     #[error("serialization error: {0}")]
     Serialization(#[from] SerializationError),
 
+    /// Generic string error.
+    #[error("generic error: {0}")]
+    Generic(String),
+
     /// Invalid Salesforce ID.
     #[error("invalid Salesforce ID: {0}")]
     InvalidId(#[from] crate::types::salesforce_id::SalesforceIdError),
