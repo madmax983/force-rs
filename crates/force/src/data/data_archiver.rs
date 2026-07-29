@@ -312,6 +312,7 @@ mod tests {
         let _ = std::fs::remove_file(file_path);
     }
 
+    #[allow(clippy::unwrap_used)]
     #[tokio::test]
     async fn test_export_path_traversal() {
         let mock_server = MockServer::start().await;
