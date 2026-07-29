@@ -48,8 +48,14 @@ impl<'a, A: Authenticator> DataArchiver<'a, A> {
         T: DeserializeOwned + Serialize + Unpin,
     {
         let mut stream = self.client.rest().query_stream::<T>(soql);
-        if path.as_ref().components().any(|c| matches!(c, std::path::Component::ParentDir)) {
-            return Err(ForceError::Generic("Path traversal detected: cannot use ParentDir (..) in paths".to_string()));
+        if path
+            .as_ref()
+            .components()
+            .any(|c| matches!(c, std::path::Component::ParentDir))
+        {
+            return Err(ForceError::Generic(
+                "Path traversal detected: cannot use ParentDir (..) in paths".to_string(),
+            ));
         }
 
         let mut file = File::create(path).await?;
@@ -62,7 +68,9 @@ impl<'a, A: Authenticator> DataArchiver<'a, A> {
             file.write_all(json.as_bytes()).await?;
             file.write_all(b"\n").await?;
 
-            count = count.checked_add(1).ok_or_else(|| ForceError::Generic("Integer overflow in count calculation".to_string()))?;
+            count = count.checked_add(1).ok_or_else(|| {
+                ForceError::Generic("Integer overflow in count calculation".to_string())
+            })?;
         }
 
         file.flush().await?;
@@ -90,8 +98,14 @@ impl<'a, A: Authenticator> DataArchiver<'a, A> {
         soql: &str,
         path: impl AsRef<Path>,
     ) -> Result<usize> {
-        if path.as_ref().components().any(|c| matches!(c, std::path::Component::ParentDir)) {
-            return Err(ForceError::Generic("Path traversal detected: cannot use ParentDir (..) in paths".to_string()));
+        if path
+            .as_ref()
+            .components()
+            .any(|c| matches!(c, std::path::Component::ParentDir))
+        {
+            return Err(ForceError::Generic(
+                "Path traversal detected: cannot use ParentDir (..) in paths".to_string(),
+            ));
         }
 
         let describe = self.client.rest().describe(sobject_name).await?;
@@ -114,7 +128,9 @@ impl<'a, A: Authenticator> DataArchiver<'a, A> {
             file.write_all(json.as_bytes()).await?;
             file.write_all(b"\n").await?;
 
-            count = count.checked_add(1).ok_or_else(|| ForceError::Generic("Integer overflow in count calculation".to_string()))?;
+            count = count.checked_add(1).ok_or_else(|| {
+                ForceError::Generic("Integer overflow in count calculation".to_string())
+            })?;
         }
 
         file.flush().await?;
