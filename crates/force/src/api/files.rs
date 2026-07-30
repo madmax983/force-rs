@@ -55,6 +55,10 @@ impl<A: Authenticator> FilesHandler<A> {
         let title = title.to_string();
         let path_on_client = path_on_client.to_string();
 
+        // ⚡ Bolt: Convert to `bytes::Bytes` to enable O(1) cloning during request retries, avoiding large heap allocations.
+        let file_bytes = bytes::Bytes::from(file_bytes);
+        let file_len = file_bytes.len() as u64;
+
         // Rebuild the multipart form (and its body) on every attempt: streaming
         // multipart bodies cannot be cloned, so the executor calls this factory
         // fresh for each retry / post-401 retry.
@@ -68,7 +72,7 @@ impl<A: Authenticator> FilesHandler<A> {
                 .mime_str("application/json")
                 .map_err(|e| ForceError::InvalidInput(e.to_string()))?;
 
-            let version_data_part = Part::bytes(file_bytes.clone())
+            let version_data_part = Part::stream_with_length(file_bytes.clone(), file_len)
                 .file_name(path_on_client.clone())
                 .mime_str("application/octet-stream")
                 .map_err(|e| ForceError::InvalidInput(e.to_string()))?;
