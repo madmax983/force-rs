@@ -55,9 +55,9 @@ impl<A: Authenticator> FilesHandler<A> {
         let title = title.to_string();
         let path_on_client = path_on_client.to_string();
 
-        /// ⚡ Bolt: Converting the payload to bytes::Bytes enables O(1) shallow cloning.
-        /// When retrying requests, we avoid allocating and copying the entire file content.
-        /// Using stream_with_length ensures reqwest does not drop the Content-Length header.
+        // ⚡ Bolt: Converting the payload to bytes::Bytes enables O(1) shallow cloning.
+        // When retrying requests, we avoid allocating and copying the entire file content.
+        // Using stream_with_length ensures reqwest does not drop the Content-Length header.
         let file_bytes = bytes::Bytes::from(file_bytes);
         let file_len = file_bytes.len() as u64;
 
