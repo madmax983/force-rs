@@ -47,6 +47,15 @@ impl<'a, A: Authenticator> DataArchiver<'a, A> {
     where
         T: DeserializeOwned + Serialize + Unpin,
     {
+        if path
+            .as_ref()
+            .components()
+            .any(|c| matches!(c, std::path::Component::ParentDir))
+        {
+            return Err(ForceError::InvalidInput(
+                "Path traversal detected".to_string(),
+            ));
+        }
         let mut stream = self.client.rest().query_stream::<T>(soql);
         let mut file = File::create(path).await?;
         let mut count = 0;
@@ -86,6 +95,15 @@ impl<'a, A: Authenticator> DataArchiver<'a, A> {
         soql: &str,
         path: impl AsRef<Path>,
     ) -> Result<usize> {
+        if path
+            .as_ref()
+            .components()
+            .any(|c| matches!(c, std::path::Component::ParentDir))
+        {
+            return Err(ForceError::InvalidInput(
+                "Path traversal detected".to_string(),
+            ));
+        }
         let describe = self.client.rest().describe(sobject_name).await?;
         let masker = DataMasker::new(&describe);
 
@@ -184,6 +202,24 @@ mod tests {
 
         // Cleanup
         let _ = std::fs::remove_file(file_path);
+    }
+
+    #[tokio::test]
+    async fn test_export_to_jsonl_path_traversal() {
+        let auth = MockAuthenticator::new("token", "http://localhost");
+        let client = ForceClientBuilder::new()
+            .authenticate(auth)
+            .build()
+            .await
+            .must();
+        let archiver = DataArchiver::new(&client);
+        let path = std::path::Path::new("../../../etc/passwd");
+
+        let result = archiver
+            .export_to_jsonl::<serde_json::Value>("SELECT Id FROM Account", &path)
+            .await;
+
+        assert!(matches!(result, Err(ForceError::InvalidInput(_))));
     }
 
     #[tokio::test]
