@@ -1364,9 +1364,12 @@ mod tests {
     }
 
     #[tokio::test]
-    #[allow(clippy::too_many_lines)]
     async fn test_describe_success_mock() {
         use crate::client::builder;
+        use crate::test_utils::mock_describe::{
+            MockFieldDescribeBuilder, MockSObjectDescribeBuilder,
+        };
+        use crate::types::describe::FieldType;
         use wiremock::matchers::{method, path};
         use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -1375,89 +1378,23 @@ mod tests {
             crate::test_utils::mock_auth::MockAuthenticator::new("test_token", &mock_server.uri());
         let client = builder().authenticate(auth).build().await.must();
 
-        let describe_json: serde_json::Value = serde_json::from_str(
-            r#"{
-            "name": "Account",
-            "label": "Account",
-            "custom": false,
-            "keyPrefix": "001",
-            "activateable": false,
-            "createable": true,
-            "customSetting": false,
-            "deletable": true,
-            "deprecatedAndHidden": false,
-            "feedEnabled": false,
-            "hasSubtypes": false,
-            "isSubtype": false,
-            "labelPlural": "Accounts",
-            "layoutable": true,
-            "mergeable": true,
-            "mruEnabled": true,
-            "queryable": true,
-            "replicateable": true,
-            "retrieveable": true,
-            "searchable": true,
-            "triggerable": true,
-            "undeletable": true,
-            "updateable": true,
-            "childRelationships": [],
-            "recordTypeInfos": [],
-            "fields": [
-                {
-                    "name": "Id",
-                    "type": "id",
-                    "label": "Record ID",
-                    "length": 18,
-                    "nillable": false,
-                    "custom": false,
-                    "calculated": false,
-                    "aggregatable": true,
-                    "autoNumber": false,
-                    "byteLength": 18,
-                    "caseSensitive": false,
-                    "createable": false,
-                    "defaultedOnCreate": true,
-                    "deprecatedAndHidden": false,
-                    "digits": 0,
-                    "filterable": true,
-                    "groupable": true,
-                    "idLookup": true,
-                    "nameField": false,
-                    "namePointing": false,
-                    "permissionable": false,
-                    "restrictedPicklist": false,
-                    "scale": 0,
-                    "sortable": true,
-                    "unique": false,
-                    "updateable": false,
-                    "cascadeDelete": false,
-                    "dependentPicklist": false,
-                    "deprecatedAndHidden": false,
-                    "displayLocationInDecimal": false,
-                    "encrypted": false,
-                    "externalId": false,
-                    "highScaleNumber": false,
-                    "htmlFormatted": false,
-                    "polymorphicForeignKey": false,
-                    "searchPrefilterable": false,
-                    "writeRequiresMasterRead": false,
-                    "precision": 0,
-                    "queryByDistance": false,
-                    "restrictedDelete": false,
-                    "sortable": true,
-                    "unique": false,
-                    "updateable": false,
-                    "referenceTo": [],
-                    "relationshipName": null,
-                    "relationshipOrder": null,
-                    "referenceTargetField": null,
-                    "soapType": "tns:ID"
-                }
-            ],
-            "urls": {}
-        }"#,
-        )
-        .must();
+        let field_describe = MockFieldDescribeBuilder::new("Id", FieldType::Id)
+            .length(18)
+            .byte_length(18)
+            .nillable(false)
+            .createable(false)
+            .updateable(false)
+            .permissionable(false)
+            .defaulted_on_create(true)
+            .label("Record ID")
+            .soap_type("tns:ID")
+            .build();
+
+        let describe = MockSObjectDescribeBuilder::new("Account")
+            .field(field_describe)
+            .build();
+
+        let describe_json = serde_json::to_value(&describe).must();
 
         Mock::given(method("GET"))
             .and(path("/services/data/v67.0/sobjects/Account/describe"))
