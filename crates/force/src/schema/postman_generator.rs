@@ -234,4 +234,25 @@ mod tests {
             "UpdateOnly should be updateable"
         );
     }
+
+    #[test]
+    fn test_build_url() {
+        let url = super::build_url("Account", false);
+        assert_eq!(
+            url["raw"],
+            "{{_endpoint}}/services/data/v67.0/sobjects/Account"
+        );
+        let path = url["path"].as_array().must_msg("path is array");
+        assert_eq!(path.len(), 5);
+        assert_eq!(path[4], "Account");
+
+        let url_with_id = super::build_url("Account", true);
+        assert_eq!(
+            url_with_id["raw"],
+            "{{_endpoint}}/services/data/v67.0/sobjects/Account/{{recordId}}"
+        );
+        let path = url_with_id["path"].as_array().must_msg("path is array");
+        assert_eq!(path.len(), 6);
+        assert_eq!(path[5], "{{recordId}}");
+    }
 }
