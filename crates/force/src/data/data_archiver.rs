@@ -323,7 +323,9 @@ mod tests {
             .export_to_jsonl::<serde_json::Value>("SELECT Id FROM Account", path)
             .await;
         assert!(result.is_err());
-        let Err(err) = result else { panic!("Expected an error"); };
+        let Err(err) = result else {
+            panic!("Expected an error");
+        };
         assert!(err.to_string().contains("Path traversal detected"));
     }
 }
