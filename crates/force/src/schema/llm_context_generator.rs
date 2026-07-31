@@ -34,6 +34,35 @@ impl Default for LlmContextOptions {
     }
 }
 
+fn get_field_type_str(field_type: &FieldType) -> &'static str {
+    match field_type {
+        FieldType::String => "string",
+        FieldType::Id => "id",
+        FieldType::Reference => "reference",
+        FieldType::Int => "int",
+        FieldType::Double => "double",
+        FieldType::Boolean => "boolean",
+        FieldType::Date => "date",
+        FieldType::Datetime => "datetime",
+        FieldType::Picklist => "picklist",
+        FieldType::Multipicklist => "multipicklist",
+        FieldType::Currency => "currency",
+        FieldType::Email => "email",
+        FieldType::Phone => "phone",
+        FieldType::Url => "url",
+        FieldType::Textarea => "textarea",
+        FieldType::Location => "location",
+        FieldType::Address => "address",
+        FieldType::Base64 => "base64",
+        FieldType::Combobox => "combobox",
+        FieldType::Encryptedstring => "encrypted",
+        FieldType::Datacategorygroupreference => "datacategory",
+        FieldType::Percent => "percent",
+        FieldType::Time => "time",
+        FieldType::AnyType => "any",
+    }
+}
+
 /// Generates a token-optimized string representation of an SObject schema for LLM prompting.
 ///
 /// # Arguments
@@ -66,32 +95,7 @@ pub fn generate_llm_context(describe: &SObjectDescribe, options: &LlmContextOpti
             continue;
         }
 
-        let type_str = match field.type_ {
-            FieldType::String => "string",
-            FieldType::Id => "id",
-            FieldType::Reference => "reference",
-            FieldType::Int => "int",
-            FieldType::Double => "double",
-            FieldType::Boolean => "boolean",
-            FieldType::Date => "date",
-            FieldType::Datetime => "datetime",
-            FieldType::Picklist => "picklist",
-            FieldType::Multipicklist => "multipicklist",
-            FieldType::Currency => "currency",
-            FieldType::Email => "email",
-            FieldType::Phone => "phone",
-            FieldType::Url => "url",
-            FieldType::Textarea => "textarea",
-            FieldType::Location => "location",
-            FieldType::Address => "address",
-            FieldType::Base64 => "base64",
-            FieldType::Combobox => "combobox",
-            FieldType::Encryptedstring => "encrypted",
-            FieldType::Datacategorygroupreference => "datacategory",
-            FieldType::Percent => "percent",
-            FieldType::Time => "time",
-            FieldType::AnyType => "any",
-        };
+        let type_str = get_field_type_str(&field.type_);
 
         // ⚡ Bolt: Eliminate intermediate Vec allocation and format! heap allocation for modifiers
         let mut modifiers_str = String::new();
@@ -309,5 +313,45 @@ mod tests {
         // No relationships
         assert!(!context.contains("Child Relationships:"));
         assert!(!context.contains("-> Account"));
+    }
+
+    #[test]
+    fn test_get_field_type_str() {
+        assert_eq!(super::get_field_type_str(&FieldType::String), "string");
+        assert_eq!(super::get_field_type_str(&FieldType::Id), "id");
+        assert_eq!(
+            super::get_field_type_str(&FieldType::Reference),
+            "reference"
+        );
+        assert_eq!(super::get_field_type_str(&FieldType::Int), "int");
+        assert_eq!(super::get_field_type_str(&FieldType::Double), "double");
+        assert_eq!(super::get_field_type_str(&FieldType::Boolean), "boolean");
+        assert_eq!(super::get_field_type_str(&FieldType::Date), "date");
+        assert_eq!(super::get_field_type_str(&FieldType::Datetime), "datetime");
+        assert_eq!(super::get_field_type_str(&FieldType::Picklist), "picklist");
+        assert_eq!(
+            super::get_field_type_str(&FieldType::Multipicklist),
+            "multipicklist"
+        );
+        assert_eq!(super::get_field_type_str(&FieldType::Currency), "currency");
+        assert_eq!(super::get_field_type_str(&FieldType::Email), "email");
+        assert_eq!(super::get_field_type_str(&FieldType::Phone), "phone");
+        assert_eq!(super::get_field_type_str(&FieldType::Url), "url");
+        assert_eq!(super::get_field_type_str(&FieldType::Textarea), "textarea");
+        assert_eq!(super::get_field_type_str(&FieldType::Location), "location");
+        assert_eq!(super::get_field_type_str(&FieldType::Address), "address");
+        assert_eq!(super::get_field_type_str(&FieldType::Base64), "base64");
+        assert_eq!(super::get_field_type_str(&FieldType::Combobox), "combobox");
+        assert_eq!(
+            super::get_field_type_str(&FieldType::Encryptedstring),
+            "encrypted"
+        );
+        assert_eq!(
+            super::get_field_type_str(&FieldType::Datacategorygroupreference),
+            "datacategory"
+        );
+        assert_eq!(super::get_field_type_str(&FieldType::Percent), "percent");
+        assert_eq!(super::get_field_type_str(&FieldType::Time), "time");
+        assert_eq!(super::get_field_type_str(&FieldType::AnyType), "any");
     }
 }

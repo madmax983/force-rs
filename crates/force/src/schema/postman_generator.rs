@@ -10,6 +10,35 @@ use crate::types::describe::SObjectDescribe;
 #[cfg(feature = "schema")]
 use serde_json::{Value, json};
 
+#[cfg(feature = "schema")]
+fn build_url(name: &str, with_id: bool) -> Value {
+    let raw_url = if with_id {
+        format!(
+            "{{{{_endpoint}}}}/services/data/v67.0/sobjects/{}/{{{{recordId}}}}",
+            name
+        )
+    } else {
+        format!("{{{{_endpoint}}}}/services/data/v67.0/sobjects/{}", name)
+    };
+    let mut path = vec![
+        json!("services"),
+        json!("data"),
+        json!("v67.0"),
+        json!("sobjects"),
+        json!(name),
+    ];
+    if with_id {
+        path.push(json!("{{recordId}}"));
+    }
+    json!({
+        "raw": raw_url,
+        "host": [
+            "{{_endpoint}}"
+        ],
+        "path": path
+    })
+}
+
 /// Generates a Postman v2.1.0 Collection for an SObject.
 #[cfg(feature = "schema")]
 #[must_use]
@@ -67,19 +96,7 @@ pub fn generate_postman_collection(describe: &SObjectDescribe) -> Value {
                         "mode": "raw",
                         "raw": create_body_str
                     },
-                    "url": {
-                        "raw": format!("{{{{_endpoint}}}}/services/data/v67.0/sobjects/{}", name),
-                        "host": [
-                            "{{_endpoint}}"
-                        ],
-                        "path": [
-                            "services",
-                            "data",
-                            "v67.0",
-                            "sobjects",
-                            name
-                        ]
-                    }
+                    "url": build_url(name, false)
                 }
             },
             {
@@ -87,20 +104,7 @@ pub fn generate_postman_collection(describe: &SObjectDescribe) -> Value {
                 "request": {
                     "method": "GET",
                     "header": [],
-                    "url": {
-                        "raw": format!("{{{{_endpoint}}}}/services/data/v67.0/sobjects/{}/{{{{recordId}}}}", name),
-                        "host": [
-                            "{{_endpoint}}"
-                        ],
-                        "path": [
-                            "services",
-                            "data",
-                            "v67.0",
-                            "sobjects",
-                            name,
-                            "{{recordId}}"
-                        ]
-                    }
+                    "url": build_url(name, true)
                 }
             },
             {
@@ -117,20 +121,7 @@ pub fn generate_postman_collection(describe: &SObjectDescribe) -> Value {
                         "mode": "raw",
                         "raw": update_body_str
                     },
-                    "url": {
-                        "raw": format!("{{{{_endpoint}}}}/services/data/v67.0/sobjects/{}/{{{{recordId}}}}", name),
-                        "host": [
-                            "{{_endpoint}}"
-                        ],
-                        "path": [
-                            "services",
-                            "data",
-                            "v67.0",
-                            "sobjects",
-                            name,
-                            "{{recordId}}"
-                        ]
-                    }
+                    "url": build_url(name, true)
                 }
             },
             {
@@ -138,20 +129,7 @@ pub fn generate_postman_collection(describe: &SObjectDescribe) -> Value {
                 "request": {
                     "method": "DELETE",
                     "header": [],
-                    "url": {
-                        "raw": format!("{{{{_endpoint}}}}/services/data/v67.0/sobjects/{}/{{{{recordId}}}}", name),
-                        "host": [
-                            "{{_endpoint}}"
-                        ],
-                        "path": [
-                            "services",
-                            "data",
-                            "v67.0",
-                            "sobjects",
-                            name,
-                            "{{recordId}}"
-                        ]
-                    }
+                    "url": build_url(name, true)
                 }
             }
         ]
@@ -255,5 +233,26 @@ mod tests {
             update_raw.contains("\"UpdateOnly\""),
             "UpdateOnly should be updateable"
         );
+    }
+
+    #[test]
+    fn test_build_url() {
+        let url = super::build_url("Account", false);
+        assert_eq!(
+            url["raw"],
+            "{{_endpoint}}/services/data/v67.0/sobjects/Account"
+        );
+        let path = url["path"].as_array().must_msg("path is array");
+        assert_eq!(path.len(), 5);
+        assert_eq!(path[4], "Account");
+
+        let url_with_id = super::build_url("Account", true);
+        assert_eq!(
+            url_with_id["raw"],
+            "{{_endpoint}}/services/data/v67.0/sobjects/Account/{{recordId}}"
+        );
+        let path = url_with_id["path"].as_array().must_msg("path is array");
+        assert_eq!(path.len(), 6);
+        assert_eq!(path[5], "{{recordId}}");
     }
 }
