@@ -113,6 +113,23 @@ pub struct UpdateRecordInput {
     pub fields: HashMap<String, Value>,
 }
 
+/// ⚡ Bolt: Helper to join items with a comma without allocating an intermediate `Vec`.
+/// This avoids the overhead of `.collect::<Vec<_>>().join(",")` by pre-allocating
+/// a `String` and appending directly, saving heap allocations per request.
+fn join_as_str<T, F>(items: &[T], as_str_fn: F) -> String
+where
+    F: Fn(&T) -> &str,
+{
+    let mut s = String::with_capacity(items.len() * 10);
+    for (i, item) in items.iter().enumerate() {
+        if i > 0 {
+            s.push(',');
+        }
+        s.push_str(as_str_fn(item));
+    }
+    s
+}
+
 // ─── UiHandler<A> implementation ─────────────────────────────────────────────
 
 impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
@@ -140,14 +157,9 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
         let ids_str = ids.join(",");
         let path = format!("record-ui/{}", ids_str);
 
-        let lt_str = layout_types.map(|lts| {
-            lts.iter()
-                .map(|lt| lt.as_str())
-                .collect::<Vec<_>>()
-                .join(",")
-        });
+        let lt_str = layout_types.map(|lts| join_as_str(lts, |lt| lt.as_str()));
 
-        let mode_str = modes.map(|ms| ms.iter().map(|m| m.as_str()).collect::<Vec<_>>().join(","));
+        let mode_str = modes.map(|ms| join_as_str(ms, |m| m.as_str()));
 
         // ⚡ Bolt: Use a stack-allocated array to avoid heap allocation for small parameter list
         let mut params_array = [("", ""); 2];
@@ -356,6 +368,17 @@ mod tests {
     use serde_json::json;
     use wiremock::matchers::{method, path, query_param};
     use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    #[test]
+    fn test_join_as_str() {
+        let items = vec!["View", "Edit", "Create"];
+        let joined = super::join_as_str(&items, |s| *s);
+        assert_eq!(joined, "View,Edit,Create");
+
+        let empty: Vec<&str> = vec![];
+        let joined_empty = super::join_as_str(&empty, |s| *s);
+        assert_eq!(joined_empty, "");
+    }
 
     const VALID_ID: &str = "001000000000001AAA";
     const VALID_ID2: &str = "001000000000002AAA";
