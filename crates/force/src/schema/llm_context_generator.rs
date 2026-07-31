@@ -34,6 +34,35 @@ impl Default for LlmContextOptions {
     }
 }
 
+fn get_field_type_str(field_type: &FieldType) -> &'static str {
+    match field_type {
+        FieldType::String => "string",
+        FieldType::Id => "id",
+        FieldType::Reference => "reference",
+        FieldType::Int => "int",
+        FieldType::Double => "double",
+        FieldType::Boolean => "boolean",
+        FieldType::Date => "date",
+        FieldType::Datetime => "datetime",
+        FieldType::Picklist => "picklist",
+        FieldType::Multipicklist => "multipicklist",
+        FieldType::Currency => "currency",
+        FieldType::Email => "email",
+        FieldType::Phone => "phone",
+        FieldType::Url => "url",
+        FieldType::Textarea => "textarea",
+        FieldType::Location => "location",
+        FieldType::Address => "address",
+        FieldType::Base64 => "base64",
+        FieldType::Combobox => "combobox",
+        FieldType::Encryptedstring => "encrypted",
+        FieldType::Datacategorygroupreference => "datacategory",
+        FieldType::Percent => "percent",
+        FieldType::Time => "time",
+        FieldType::AnyType => "any",
+    }
+}
+
 /// Generates a token-optimized string representation of an SObject schema for LLM prompting.
 ///
 /// # Arguments
@@ -66,32 +95,7 @@ pub fn generate_llm_context(describe: &SObjectDescribe, options: &LlmContextOpti
             continue;
         }
 
-        let type_str = match field.type_ {
-            FieldType::String => "string",
-            FieldType::Id => "id",
-            FieldType::Reference => "reference",
-            FieldType::Int => "int",
-            FieldType::Double => "double",
-            FieldType::Boolean => "boolean",
-            FieldType::Date => "date",
-            FieldType::Datetime => "datetime",
-            FieldType::Picklist => "picklist",
-            FieldType::Multipicklist => "multipicklist",
-            FieldType::Currency => "currency",
-            FieldType::Email => "email",
-            FieldType::Phone => "phone",
-            FieldType::Url => "url",
-            FieldType::Textarea => "textarea",
-            FieldType::Location => "location",
-            FieldType::Address => "address",
-            FieldType::Base64 => "base64",
-            FieldType::Combobox => "combobox",
-            FieldType::Encryptedstring => "encrypted",
-            FieldType::Datacategorygroupreference => "datacategory",
-            FieldType::Percent => "percent",
-            FieldType::Time => "time",
-            FieldType::AnyType => "any",
-        };
+        let type_str = get_field_type_str(&field.type_);
 
         // ⚡ Bolt: Eliminate intermediate Vec allocation and format! heap allocation for modifiers
         let mut modifiers_str = String::new();
