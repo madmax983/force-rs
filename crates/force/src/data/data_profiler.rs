@@ -90,14 +90,16 @@ impl DataProfiler {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::expect_used)]
+    #![allow(clippy::panic)]
     use super::*;
     use crate::types::sobject::{Attributes, DynamicSObject};
     use serde_json::json;
 
     fn create_record(fields: serde_json::Value) -> DynamicSObject {
-        let fields_map = match fields {
-            serde_json::Value::Object(map) => map,
-            _ => panic!("Expected object"),
+        let serde_json::Value::Object(fields_map) = fields else {
+            panic!("Expected object");
         };
         DynamicSObject {
             attributes: Attributes {
