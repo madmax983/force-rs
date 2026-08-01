@@ -190,6 +190,7 @@ fn resolve_key_path(raw: &str) -> std::path::PathBuf {
 // ─── Credential Loading ────────────────────────────────────────────────────
 
 const PRODUCTION_TOKEN_URL: &str = "https://login.salesforce.com/services/oauth2/token";
+#[allow(dead_code)]
 const PRODUCTION_LOGIN_URL: &str = "https://login.salesforce.com";
 
 fn invalid_config(field: &str, reason: impl Into<String>) -> ForceError {
@@ -242,6 +243,7 @@ fn parse_live_https_url(field: &str, value: &str) -> Result<url::Url> {
     Ok(parsed)
 }
 
+#[allow(dead_code)]
 fn canonical_base_url(mut parsed: url::Url) -> String {
     parsed.set_path("");
     parsed.set_query(None);
