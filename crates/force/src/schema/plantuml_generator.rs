@@ -160,7 +160,7 @@ mod tests {
         assert!(puml.contains("  - Name: string *"));
         assert!(puml.contains("  - ParentId: reference"));
         assert!(puml.contains("  + CustomField__c: string"));
-        assert!(puml.contains("}"));
+        assert!(puml.contains('}'));
         assert!(puml.contains("Account --> \"1\" Account : ParentId"));
         assert!(puml.contains("@enduml"));
     }
