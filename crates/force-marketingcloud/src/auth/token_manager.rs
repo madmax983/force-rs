@@ -64,7 +64,12 @@ impl TokenManager {
         }
 
         let token = Arc::new(self.authenticator.authenticate(account_id).await?);
-        self.cache.write().await.insert(key, token.clone());
+        self.cache.write().await.insert(key.clone(), token.clone());
+
+        let mut locks = self.locks.lock().await;
+        locks.remove(&key);
+        drop(locks);
+
         Ok(token)
     }
 
