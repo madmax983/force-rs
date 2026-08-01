@@ -101,6 +101,7 @@ where
     Ok(())
 }
 
+#[cfg(not(tarpaulin_include))]
 async fn mark_outbox_processed_in_tx<C>(client: &C, outbox_id: i64) -> Result<(), ForceSyncError>
 where
     C: GenericClient + Sync + ?Sized,
