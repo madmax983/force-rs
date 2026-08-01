@@ -190,6 +190,7 @@ mod tests {
                     "currency",
                     json!({"nillable": true, "precision": 18, "scale": 2}),
                 ),
+                field_json("Stage", "string", json!({"nillable": true})),
             ],
         ))
         .expect("describe fixture")

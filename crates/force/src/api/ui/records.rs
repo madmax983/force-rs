@@ -477,7 +477,11 @@ mod tests {
 
         let result = client
             .ui()
-            .record_ui(&[VALID_ID], Some(&[LayoutType::Full, LayoutType::Compact]), Some(&[Mode::View, Mode::Edit]))
+            .record_ui(
+                &[VALID_ID],
+                Some(&[LayoutType::Full, LayoutType::Compact]),
+                Some(&[Mode::View, Mode::Edit]),
+            )
             .await
             .must();
 
