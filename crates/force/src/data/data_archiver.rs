@@ -47,11 +47,10 @@ impl<'a, A: Authenticator> DataArchiver<'a, A> {
     where
         T: DeserializeOwned + Serialize + Unpin,
     {
-        if path.as_ref().is_absolute()
-            || path
-                .as_ref()
-                .components()
-                .any(|c| matches!(c, std::path::Component::ParentDir))
+        if path
+            .as_ref()
+            .components()
+            .any(|c| matches!(c, std::path::Component::ParentDir))
         {
             return Err(crate::error::ForceError::InvalidInput(
                 "Path traversal detected".to_string(),
@@ -96,11 +95,10 @@ impl<'a, A: Authenticator> DataArchiver<'a, A> {
         soql: &str,
         path: impl AsRef<Path>,
     ) -> Result<usize> {
-        if path.as_ref().is_absolute()
-            || path
-                .as_ref()
-                .components()
-                .any(|c| matches!(c, std::path::Component::ParentDir))
+        if path
+            .as_ref()
+            .components()
+            .any(|c| matches!(c, std::path::Component::ParentDir))
         {
             return Err(crate::error::ForceError::InvalidInput(
                 "Path traversal detected".to_string(),
@@ -319,25 +317,16 @@ mod tests {
             .must();
         let archiver = DataArchiver::new(&client);
 
-        let result1 = archiver
+        let result = archiver
             .export_to_jsonl::<serde_json::Value>("SELECT Id FROM Account", "../../etc/passwd")
             .await;
 
-        if let Err(crate::error::ForceError::InvalidInput(msg)) = result1 {
+        if let Err(crate::error::ForceError::InvalidInput(msg)) = result {
             assert_eq!(msg, "Path traversal detected");
         } else {
             panic!("Expected InvalidInput error due to path traversal");
         }
 
-        let result2 = archiver
-            .export_to_jsonl::<serde_json::Value>("SELECT Id FROM Account", "/etc/passwd")
-            .await;
-
-        if let Err(crate::error::ForceError::InvalidInput(msg)) = result2 {
-            assert_eq!(msg, "Path traversal detected");
-        } else {
-            panic!("Expected InvalidInput error due to absolute path");
-        }
     }
 
     #[tokio::test]
@@ -351,24 +340,15 @@ mod tests {
             .must();
         let archiver = DataArchiver::new(&client);
 
-        let result1 = archiver
+        let result = archiver
             .export_masked_to_jsonl("Account", "SELECT Id FROM Account", "../../etc/passwd")
             .await;
 
-        if let Err(crate::error::ForceError::InvalidInput(msg)) = result1 {
+        if let Err(crate::error::ForceError::InvalidInput(msg)) = result {
             assert_eq!(msg, "Path traversal detected");
         } else {
             panic!("Expected InvalidInput error due to path traversal");
         }
 
-        let result2 = archiver
-            .export_masked_to_jsonl("Account", "SELECT Id FROM Account", "/etc/passwd")
-            .await;
-
-        if let Err(crate::error::ForceError::InvalidInput(msg)) = result2 {
-            assert_eq!(msg, "Path traversal detected");
-        } else {
-            panic!("Expected InvalidInput error due to absolute path");
-        }
     }
 }
