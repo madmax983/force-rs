@@ -97,13 +97,21 @@ where
     };
 
     crate::store::pg::dead_letter::insert_dead_letter_in_tx(client, &dead_letter).await?;
+    mark_outbox_processed_in_tx(client, row.outbox_id).await?;
+    Ok(())
+}
+
+async fn mark_outbox_processed_in_tx<C>(client: &C, outbox_id: i64) -> Result<(), ForceSyncError>
+where
+    C: GenericClient + Sync + ?Sized,
+{
     client
         .execute(
             "update force_sync_outbox
              set processed_at = now()
              where outbox_id = $1
                and processed_at is null",
-            &[&row.outbox_id],
+            &[&outbox_id],
         )
         .await?;
     Ok(())
@@ -148,40 +156,24 @@ where
             created_at: row.get("created_at"),
         };
 
-        match outbox_envelope(&outbox_row) {
-            Ok(envelope) => match PgStore::append_journal_if_new_in_tx(client, &envelope).await? {
-                AppendResult::Inserted { journal_id } => {
-                    PgStore::enqueue_apply_task_in_tx(client, journal_id, priority).await?;
-                    client
-                        .execute(
-                            "update force_sync_outbox
-                             set processed_at = now()
-                             where outbox_id = $1
-                               and processed_at is null",
-                            &[&outbox_row.outbox_id],
-                        )
-                        .await?;
-                    processed = processed.saturating_add(1);
-                }
-                AppendResult::Duplicate => {
-                    client
-                        .execute(
-                            "update force_sync_outbox
-                             set processed_at = now()
-                             where outbox_id = $1
-                               and processed_at is null",
-                            &[&outbox_row.outbox_id],
-                        )
-                        .await?;
-                    processed = processed.saturating_add(1);
-                }
-            },
+        let envelope = match outbox_envelope(&outbox_row) {
+            Ok(envelope) => envelope,
             Err(error) if row_content_error(&error) => {
                 let _ = quarantine_row(client, &outbox_row, &error).await;
                 processed = processed.saturating_add(1);
+                continue;
             }
             Err(error) => return Err(error),
+        };
+
+        if let AppendResult::Inserted { journal_id } =
+            PgStore::append_journal_if_new_in_tx(client, &envelope).await?
+        {
+            PgStore::enqueue_apply_task_in_tx(client, journal_id, priority).await?;
         }
+
+        mark_outbox_processed_in_tx(client, outbox_row.outbox_id).await?;
+        processed = processed.saturating_add(1);
     }
 
     Ok(processed)
