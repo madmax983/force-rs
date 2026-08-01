@@ -49,7 +49,10 @@ impl LoomTokenManager {
         }
 
         let token = Arc::new(1);
-        self.cache.write().unwrap().insert(key.clone(), token.clone());
+        self.cache
+            .write()
+            .unwrap()
+            .insert(key.clone(), token.clone());
 
         let mut locks = self.locks.lock().unwrap();
         locks.remove(&key);
@@ -65,14 +68,10 @@ fn test_havoc_loom_token_manager_leak() {
         let manager = Arc::new(LoomTokenManager::new());
 
         let m1 = manager.clone();
-        let t1 = thread::spawn(move || {
-            m1.token(None)
-        });
+        let t1 = thread::spawn(move || m1.token(None));
 
         let m2 = manager.clone();
-        let t2 = thread::spawn(move || {
-            m2.token(None)
-        });
+        let t2 = thread::spawn(move || m2.token(None));
 
         let _ = t1.join().unwrap();
         let _ = t2.join().unwrap();
