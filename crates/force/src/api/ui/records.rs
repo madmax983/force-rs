@@ -468,8 +468,8 @@ mod tests {
             .and(path(format!(
                 "/services/data/v67.0/ui-api/record-ui/{VALID_ID}"
             )))
-            .and(query_param("layoutTypes", "Full"))
-            .and(query_param("modes", "View"))
+            .and(query_param("layoutTypes", "Full,Compact"))
+            .and(query_param("modes", "View,Edit"))
             .respond_with(ResponseTemplate::new(200).set_body_json(&response_body))
             .expect(1)
             .mount(&server)
@@ -477,7 +477,7 @@ mod tests {
 
         let result = client
             .ui()
-            .record_ui(&[VALID_ID], Some(&[LayoutType::Full]), Some(&[Mode::View]))
+            .record_ui(&[VALID_ID], Some(&[LayoutType::Full, LayoutType::Compact]), Some(&[Mode::View, Mode::Edit]))
             .await
             .must();
 
