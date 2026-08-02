@@ -137,17 +137,41 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
             crate::types::validator::validate_identifier(id, "record id")?;
         }
 
-        let ids_str = ids.join(",");
-        let path = format!("record-ui/{}", ids_str);
+        // ⚡ Bolt: Construct path directly to avoid intermediate `.join(",")` allocation
+        let mut path = String::with_capacity(10 + ids.iter().map(|s| s.len() + 1).sum::<usize>());
+        path.push_str("record-ui/");
+        for (i, id) in ids.iter().enumerate() {
+            if i > 0 {
+                path.push(',');
+            }
+            path.push_str(id);
+        }
 
         let lt_str = layout_types.map(|lts| {
-            lts.iter()
-                .map(|lt| lt.as_str())
-                .collect::<Vec<_>>()
-                .join(",")
+            // ⚡ Bolt: Construct layout types directly to avoid intermediate `.join(",")` allocation
+            let mut s =
+                String::with_capacity(lts.iter().map(|lt| lt.as_str().len() + 1).sum::<usize>());
+            for (i, lt) in lts.iter().enumerate() {
+                if i > 0 {
+                    s.push(',');
+                }
+                s.push_str(lt.as_str());
+            }
+            s
         });
 
-        let mode_str = modes.map(|ms| ms.iter().map(|m| m.as_str()).collect::<Vec<_>>().join(","));
+        let mode_str = modes.map(|ms| {
+            // ⚡ Bolt: Construct modes directly to avoid intermediate `.join(",")` allocation
+            let mut s =
+                String::with_capacity(ms.iter().map(|m| m.as_str().len() + 1).sum::<usize>());
+            for (i, m) in ms.iter().enumerate() {
+                if i > 0 {
+                    s.push(',');
+                }
+                s.push_str(m.as_str());
+            }
+            s
+        });
 
         // ⚡ Bolt: Use a stack-allocated array to avoid heap allocation for small parameter list
         let mut params_array = [("", ""); 2];
@@ -238,8 +262,26 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
             crate::types::validator::validate_identifier(id, "record id")?;
         }
 
-        let path = format!("records/batch/{}", ids.join(","));
-        let fields_str = fields.map(|fs| fs.join(","));
+        // ⚡ Bolt: Construct path directly to avoid intermediate `.join(",")` allocation
+        let mut path = String::with_capacity(14 + ids.iter().map(|s| s.len() + 1).sum::<usize>());
+        path.push_str("records/batch/");
+        for (i, id) in ids.iter().enumerate() {
+            if i > 0 {
+                path.push(',');
+            }
+            path.push_str(id);
+        }
+        let fields_str = fields.map(|fs| {
+            // ⚡ Bolt: Construct fields directly to avoid intermediate `.join(",")` allocation
+            let mut s = String::with_capacity(fs.iter().map(|f| f.len() + 1).sum::<usize>());
+            for (i, f) in fs.iter().enumerate() {
+                if i > 0 {
+                    s.push(',');
+                }
+                s.push_str(f);
+            }
+            s
+        });
 
         // ⚡ Bolt: Use a stack-allocated array to avoid heap allocation for small parameter list
         let mut params_array = [("", ""); 1];
