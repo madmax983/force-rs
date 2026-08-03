@@ -147,7 +147,24 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
                 .join(",")
         });
 
-        let mode_str = modes.map(|ms| ms.iter().map(|m| m.as_str()).collect::<Vec<_>>().join(","));
+        // ⚡ Bolt: Use a stack-allocated String and pre-calculate capacity to avoid intermediate Vec allocations.
+        let mode_str = modes.map(|ms| {
+            let mut capacity = 0;
+            for (i, m) in ms.iter().enumerate() {
+                if i > 0 {
+                    capacity += 1; // ","
+                }
+                capacity += m.as_str().len();
+            }
+            let mut result = String::with_capacity(capacity);
+            for (i, m) in ms.iter().enumerate() {
+                if i > 0 {
+                    result.push(',');
+                }
+                result.push_str(m.as_str());
+            }
+            result
+        });
 
         // ⚡ Bolt: Use a stack-allocated array to avoid heap allocation for small parameter list
         let mut params_array = [("", ""); 2];
