@@ -140,14 +140,33 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
         let ids_str = ids.join(",");
         let path = format!("record-ui/{}", ids_str);
 
+        // ⚡ Bolt: Pre-allocate a String using `String::with_capacity()` and append elements in a loop to eliminate the intermediate `Vec` heap allocation during string join operations.
         let lt_str = layout_types.map(|lts| {
-            lts.iter()
-                .map(|lt| lt.as_str())
-                .collect::<Vec<_>>()
-                .join(",")
+            let capacity =
+                lts.iter().map(|lt| lt.as_str().len()).sum::<usize>() + lts.len().saturating_sub(1);
+            let mut s = String::with_capacity(capacity);
+            for (i, lt) in lts.iter().enumerate() {
+                if i > 0 {
+                    s.push(',');
+                }
+                s.push_str(lt.as_str());
+            }
+            s
         });
 
-        let mode_str = modes.map(|ms| ms.iter().map(|m| m.as_str()).collect::<Vec<_>>().join(","));
+        // ⚡ Bolt: Pre-allocate a String using `String::with_capacity()` and append elements in a loop to eliminate the intermediate `Vec` heap allocation during string join operations.
+        let mode_str = modes.map(|ms| {
+            let capacity =
+                ms.iter().map(|m| m.as_str().len()).sum::<usize>() + ms.len().saturating_sub(1);
+            let mut s = String::with_capacity(capacity);
+            for (i, m) in ms.iter().enumerate() {
+                if i > 0 {
+                    s.push(',');
+                }
+                s.push_str(m.as_str());
+            }
+            s
+        });
 
         // ⚡ Bolt: Use a stack-allocated array to avoid heap allocation for small parameter list
         let mut params_array = [("", ""); 2];
