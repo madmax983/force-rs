@@ -83,3 +83,8 @@ pub use llm_context_generator::{LlmContextOptions, generate_llm_context};
 pub(crate) mod dbt_generator;
 #[cfg(feature = "schema")]
 pub use dbt_generator::{generate_dbt_source_yml, generate_dbt_staging_model};
+
+#[cfg(feature = "schema")]
+pub(crate) mod destructive_changes_generator;
+#[cfg(feature = "schema")]
+pub use destructive_changes_generator::generate_destructive_changes;
