@@ -141,13 +141,28 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
         let path = format!("record-ui/{}", ids_str);
 
         let lt_str = layout_types.map(|lts| {
-            lts.iter()
-                .map(|lt| lt.as_str())
-                .collect::<Vec<_>>()
-                .join(",")
+            // ⚡ Bolt: Eliminate intermediate Vec allocation by pre-allocating a String
+            let mut result = String::with_capacity(lts.len() * 10);
+            for (i, lt) in lts.iter().enumerate() {
+                if i > 0 {
+                    result.push(',');
+                }
+                result.push_str(lt.as_str());
+            }
+            result
         });
 
-        let mode_str = modes.map(|ms| ms.iter().map(|m| m.as_str()).collect::<Vec<_>>().join(","));
+        let mode_str = modes.map(|ms| {
+            // ⚡ Bolt: Eliminate intermediate Vec allocation by pre-allocating a String
+            let mut result = String::with_capacity(ms.len() * 10);
+            for (i, m) in ms.iter().enumerate() {
+                if i > 0 {
+                    result.push(',');
+                }
+                result.push_str(m.as_str());
+            }
+            result
+        });
 
         // ⚡ Bolt: Use a stack-allocated array to avoid heap allocation for small parameter list
         let mut params_array = [("", ""); 2];
