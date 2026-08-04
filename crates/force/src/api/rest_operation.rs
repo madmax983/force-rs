@@ -681,14 +681,14 @@ async fn upsert_with_retry_class_impl<A: Authenticator>(
         ));
     }
 
-    if status.is_success() {
-        // Success codes (201 Created, 200 OK) - parse as upsert response
-        let bytes = crate::http::error::read_capped_body_bytes(response, 100 * 1024 * 1024).await?;
-        return serde_json::from_slice::<UpsertResponse>(&bytes)
-            .map_err(|e| crate::error::SerializationError::from(e).into());
+    if !status.is_success() {
+        return Err(crate::http::response_to_force_error(response, "Upsert request failed").await);
     }
 
-    Err(crate::http::response_to_force_error(response, "Upsert request failed").await)
+    // Success codes (201 Created, 200 OK) - parse as upsert response
+    let bytes = crate::http::error::read_capped_body_bytes(response, 100 * 1024 * 1024).await?;
+    serde_json::from_slice::<UpsertResponse>(&bytes)
+        .map_err(|e| crate::error::SerializationError::from(e).into())
 }
 
 /// Resolves and validates the `nextRecordsUrl` for query pagination.

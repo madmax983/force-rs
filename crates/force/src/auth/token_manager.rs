@@ -106,14 +106,16 @@ impl<A: Authenticator> TokenManager<A> {
         }
 
         if is_hard_expired_actual {
-            self.handle_hard_refresh().await
-        } else if let Some(valid_token) = current_token {
-            self.handle_soft_refresh(valid_token).await
-        } else {
-            Err(crate::error::ForceError::Authentication(
-                crate::error::AuthenticationError::InvalidToken,
-            ))
+            return self.handle_hard_refresh().await;
         }
+
+        if let Some(valid_token) = current_token {
+            return self.handle_soft_refresh(valid_token).await;
+        }
+
+        Err(crate::error::ForceError::Authentication(
+            crate::error::AuthenticationError::InvalidToken,
+        ))
     }
 
     async fn evaluate_token_state(&self) -> (bool, bool, Option<Arc<AccessToken>>) {
