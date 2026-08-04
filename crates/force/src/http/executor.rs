@@ -188,12 +188,14 @@ impl HttpExecutor {
 
             let status = response.status();
 
-            if status == StatusCode::UNAUTHORIZED && !refreshed {
-                let new_token = refresh_token().await?;
-                Self::inject_auth_header(&mut request, &new_token)?;
-                refreshed = true;
-                continue;
-            } else if status == StatusCode::UNAUTHORIZED {
+            if status == StatusCode::UNAUTHORIZED {
+                if !refreshed {
+                    let new_token = refresh_token().await?;
+                    Self::inject_auth_header(&mut request, &new_token)?;
+                    refreshed = true;
+                    continue;
+                }
+
                 self.record_completion(
                     ctx,
                     Some(StatusCode::UNAUTHORIZED.as_u16()),
@@ -310,11 +312,13 @@ impl HttpExecutor {
 
             let status = response.status();
 
-            if status == StatusCode::UNAUTHORIZED && !refreshed {
-                current_token = refresh_token().await?;
-                refreshed = true;
-                continue;
-            } else if status == StatusCode::UNAUTHORIZED {
+            if status == StatusCode::UNAUTHORIZED {
+                if !refreshed {
+                    current_token = refresh_token().await?;
+                    refreshed = true;
+                    continue;
+                }
+
                 self.record_completion(
                     ctx,
                     Some(StatusCode::UNAUTHORIZED.as_u16()),
