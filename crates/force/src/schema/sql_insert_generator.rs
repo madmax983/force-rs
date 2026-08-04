@@ -1,8 +1,8 @@
 //! SQL Insert Generator.
 #[cfg(feature = "schema")]
-use crate::types::describe::SObjectDescribe;
-#[cfg(feature = "schema")]
 use crate::schema::generate_mock_data;
+#[cfg(feature = "schema")]
+use crate::types::describe::SObjectDescribe;
 
 /// Generates a batch SQL INSERT statement for the given SObject.
 #[cfg(feature = "schema")]
@@ -71,8 +71,8 @@ pub fn generate_sql_inserts(describe: &SObjectDescribe, count: usize) -> String 
 #[cfg(all(test, feature = "schema"))]
 mod tests {
     use super::*;
-    use crate::types::describe::FieldType;
     use crate::test_utils::mock_describe::{MockFieldDescribeBuilder, MockSObjectDescribeBuilder};
+    use crate::types::describe::FieldType;
 
     #[test]
     fn test_generate_sql_inserts_valid() {
@@ -85,6 +85,9 @@ mod tests {
         assert!(sql.contains("INSERT INTO Account"));
         assert!(sql.contains("(Id, Name)") || sql.contains("(Name, Id)"));
         assert!(sql.contains("VALUES"));
-        assert!(sql.contains("('001000000000000AAA', 'mock_string')") || sql.contains("('mock_string', '001000000000000AAA')"));
+        assert!(
+            sql.contains("('001000000000000AAA', 'mock_string')")
+                || sql.contains("('mock_string', '001000000000000AAA')")
+        );
     }
 }
