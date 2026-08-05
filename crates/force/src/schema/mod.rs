@@ -27,6 +27,8 @@ pub(crate) mod schema_graph;
 pub(crate) mod schema_limits;
 pub(crate) mod schema_linter;
 pub(crate) mod schema_visualizer;
+#[cfg(feature = "schema")]
+pub(crate) mod soql_generator;
 pub(crate) mod sql_exporter;
 #[allow(missing_docs)]
 pub(crate) mod type_generator;
@@ -71,6 +73,10 @@ pub use schema_linter::{
     LintResult, LintRule, LintSeverity, MissingCustomSuffixRule, SchemaLinter, TooManyFieldsRule,
 };
 pub use schema_visualizer::generate_visualizer_report;
+#[cfg(feature = "schema")]
+pub use soql_generator::{
+    generate_soql_select_all, generate_soql_select_createable, generate_soql_select_updateable,
+};
 pub use sql_exporter::{generate_ddl, write_ddl};
 pub use type_generator::generate_rust_struct;
 pub use typescript_generator::{generate_typescript_interface, write_typescript_interface};
