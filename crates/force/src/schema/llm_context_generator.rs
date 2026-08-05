@@ -172,8 +172,6 @@ pub fn generate_llm_context(describe: &SObjectDescribe, options: &LlmContextOpti
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::must::Must;
-    use serde_json::json;
 
     fn mock_describe() -> SObjectDescribe {
         use crate::test_utils::mock_describe::{
@@ -252,8 +250,6 @@ mod tests {
             child_sobject: "ChildObj__c".to_string(),
             deprecated_and_hidden: false,
             field: "ParentId__c".to_string(),
-            junction_id_list_names: vec![],
-            junction_reference_to: vec![],
             relationship_name: Some("Children__r".to_string()),
             restricted_delete: false,
         }];
