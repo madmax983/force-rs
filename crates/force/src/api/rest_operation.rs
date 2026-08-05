@@ -1366,6 +1366,7 @@ mod tests {
     #[tokio::test]
     async fn test_describe_success_mock() {
         use crate::client::builder;
+        use crate::test_utils::must::Must;
         use crate::test_utils::mock_describe::{
             MockFieldDescribeBuilder, MockSObjectDescribeBuilder,
         };
@@ -1391,7 +1392,7 @@ mod tests {
                     .build(),
             )
             .build();
-        let describe_json = serde_json::to_value(&describe_mock).unwrap();
+        let describe_json = serde_json::to_value(&describe_mock).must();
 
         Mock::given(method("GET"))
             .and(path("/services/data/v67.0/sobjects/Account/describe"))
