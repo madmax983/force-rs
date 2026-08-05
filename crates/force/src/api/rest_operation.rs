@@ -1366,10 +1366,10 @@ mod tests {
     #[tokio::test]
     async fn test_describe_success_mock() {
         use crate::client::builder;
-        use crate::test_utils::must::Must;
         use crate::test_utils::mock_describe::{
             MockFieldDescribeBuilder, MockSObjectDescribeBuilder,
         };
+        use crate::test_utils::must::Must;
         use crate::types::describe::FieldType;
         use wiremock::matchers::{method, path};
         use wiremock::{Mock, MockServer, ResponseTemplate};
