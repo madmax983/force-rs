@@ -172,95 +172,89 @@ pub fn generate_llm_context(describe: &SObjectDescribe, options: &LlmContextOpti
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::must::Must;
-    use serde_json::json;
 
     fn mock_describe() -> SObjectDescribe {
-        let json = json!({
-            "name": "CustomObj__c",
-            "label": "Custom Object",
-            "custom": true,
-            "queryable": true,
-            "activateable": false, "createable": true, "customSetting": false, "deletable": true,
-            "deprecatedAndHidden": false, "feedEnabled": true, "hasSubtypes": false,
-            "isSubtype": false, "keyPrefix": "a00", "labelPlural": "Custom Objects", "layoutable": true,
-            "mergeable": true, "mruEnabled": true, "replicateable": true, "retrieveable": true,
-            "searchable": true, "triggerable": true, "undeletable": true, "updateable": true,
-            "urls": {}, "recordTypeInfos": [],
-            "childRelationships": [
-                {
-                    "cascadeDelete": false,
-                    "childSObject": "ChildObj__c",
-                    "deprecatedAndHidden": false,
-                    "field": "ParentId__c",
-                    "relationshipName": "Children__r",
-                    "restrictedDelete": false
-                }
-            ],
-            "fields": [
-                {
-                    "name": "Id", "type": "id", "label": "Record ID", "custom": false, "nillable": false,
-                    "unique": false, "externalId": false, "calculated": false, "referenceTo": [],
-                    "aggregatable": true, "autoNumber": false, "byteLength": 18, "cascadeDelete": false,
-                    "caseSensitive": false, "createable": false, "defaultedOnCreate": true, "dependentPicklist": false,
-                    "deprecatedAndHidden": false, "digits": 0, "displayLocationInDecimal": false, "encrypted": false,
-                    "filterable": true, "groupable": true, "highScaleNumber": false, "htmlFormatted": false,
-                    "idLookup": true, "length": 18, "nameField": false, "namePointing": false, "permissionable": false,
-                    "polymorphicForeignKey": false, "precision": 0, "queryByDistance": false, "restrictedDelete": false,
-                    "restrictedPicklist": false, "scale": 0, "soapType": "tns:ID", "sortable": true, "updateable": false,
-                    "writeRequiresMasterRead": false
-                },
-                {
-                    "name": "Name", "type": "string", "label": "Name", "custom": false, "nillable": false,
-                    "unique": false, "externalId": false, "calculated": false, "referenceTo": [],
-                    "aggregatable": true, "autoNumber": false, "byteLength": 80, "cascadeDelete": false,
-                    "caseSensitive": false, "createable": true, "defaultedOnCreate": false, "dependentPicklist": false,
-                    "deprecatedAndHidden": false, "digits": 0, "displayLocationInDecimal": false, "encrypted": false,
-                    "filterable": true, "groupable": true, "highScaleNumber": false, "htmlFormatted": false,
-                    "idLookup": false, "length": 80, "nameField": true, "namePointing": false, "permissionable": false,
-                    "polymorphicForeignKey": false, "precision": 0, "queryByDistance": false, "restrictedDelete": false,
-                    "restrictedPicklist": false, "scale": 0, "soapType": "xsd:string", "sortable": true, "updateable": true,
-                    "writeRequiresMasterRead": false
-                },
-                {
-                    "name": "Account__c", "type": "reference", "label": "Account", "custom": true, "nillable": true,
-                    "unique": false, "externalId": false, "calculated": false, "referenceTo": ["Account"],
-                    "aggregatable": true, "autoNumber": false, "byteLength": 18, "cascadeDelete": false,
-                    "caseSensitive": false, "createable": true, "defaultedOnCreate": false, "dependentPicklist": false,
-                    "deprecatedAndHidden": false, "digits": 0, "displayLocationInDecimal": false, "encrypted": false,
-                    "filterable": true, "groupable": true, "highScaleNumber": false, "htmlFormatted": false,
-                    "idLookup": false, "length": 18, "nameField": false, "namePointing": false, "permissionable": false,
-                    "polymorphicForeignKey": false, "precision": 0, "queryByDistance": false, "restrictedDelete": false,
-                    "restrictedPicklist": false, "scale": 0, "soapType": "tns:ID", "sortable": true, "updateable": true,
-                    "writeRequiresMasterRead": false
-                },
-                {
-                    "name": "Amount__c", "type": "currency", "label": "Amount", "custom": true, "nillable": true,
-                    "unique": false, "externalId": false, "calculated": false, "referenceTo": [],
-                    "aggregatable": true, "autoNumber": false, "byteLength": 0, "cascadeDelete": false,
-                    "caseSensitive": false, "createable": true, "defaultedOnCreate": false, "dependentPicklist": false,
-                    "deprecatedAndHidden": false, "digits": 18, "displayLocationInDecimal": false, "encrypted": false,
-                    "filterable": true, "groupable": true, "highScaleNumber": false, "htmlFormatted": false,
-                    "idLookup": false, "length": 0, "nameField": false, "namePointing": false, "permissionable": false,
-                    "polymorphicForeignKey": false, "precision": 18, "queryByDistance": false, "restrictedDelete": false,
-                    "restrictedPicklist": false, "scale": 2, "soapType": "xsd:double", "sortable": true, "updateable": true,
-                    "writeRequiresMasterRead": false
-                },
-                {
-                    "name": "ExtId__c", "type": "string", "label": "External ID", "custom": true, "nillable": false,
-                    "unique": true, "externalId": true, "calculated": false, "referenceTo": [],
-                    "aggregatable": true, "autoNumber": false, "byteLength": 255, "cascadeDelete": false,
-                    "caseSensitive": false, "createable": true, "defaultedOnCreate": false, "dependentPicklist": false,
-                    "deprecatedAndHidden": false, "digits": 0, "displayLocationInDecimal": false, "encrypted": false,
-                    "filterable": true, "groupable": true, "highScaleNumber": false, "htmlFormatted": false,
-                    "idLookup": true, "length": 255, "nameField": false, "namePointing": false, "permissionable": false,
-                    "polymorphicForeignKey": false, "precision": 0, "queryByDistance": false, "restrictedDelete": false,
-                    "restrictedPicklist": false, "scale": 0, "soapType": "xsd:string", "sortable": true, "updateable": true,
-                    "writeRequiresMasterRead": false
-                }
-            ]
-        });
-        serde_json::from_value(json).must()
+        use crate::test_utils::mock_describe::{
+            MockFieldDescribeBuilder, MockSObjectDescribeBuilder,
+        };
+        use crate::types::describe::{ChildRelationship, FieldType};
+
+        let mut describe = MockSObjectDescribeBuilder::new("CustomObj__c")
+            .field(
+                MockFieldDescribeBuilder::new("Id", FieldType::Id)
+                    .label("Record ID")
+                    .length(18)
+                    .byte_length(18)
+                    .nillable(false)
+                    .createable(false)
+                    .defaulted_on_create(true)
+                    .updateable(false)
+                    .build(),
+            )
+            .field(
+                MockFieldDescribeBuilder::new("Name", FieldType::String)
+                    .label("Name")
+                    .length(80)
+                    .byte_length(80)
+                    .nillable(false)
+                    .createable(true)
+                    .updateable(true)
+                    .build(),
+            )
+            .field(
+                MockFieldDescribeBuilder::new("Account__c", FieldType::Reference)
+                    .label("Account")
+                    .length(18)
+                    .byte_length(18)
+                    .nillable(true)
+                    .createable(true)
+                    .updateable(true)
+                    .build(),
+            )
+            .field(
+                MockFieldDescribeBuilder::new("Amount__c", FieldType::Currency)
+                    .label("Amount")
+                    .length(0)
+                    .byte_length(0)
+                    .precision(18)
+                    .scale(2)
+                    .digits(18)
+                    .nillable(true)
+                    .createable(true)
+                    .updateable(true)
+                    .build(),
+            )
+            .field(
+                MockFieldDescribeBuilder::new("ExtId__c", FieldType::String)
+                    .label("External ID")
+                    .length(255)
+                    .byte_length(255)
+                    .nillable(false)
+                    .createable(true)
+                    .updateable(true)
+                    .build(),
+            )
+            .build();
+
+        describe.custom = true;
+        describe.label = "Custom Object".to_string();
+        describe.fields[2].custom = true;
+        describe.fields[2].reference_to = vec!["Account".to_string()];
+        describe.fields[3].custom = true;
+        describe.fields[4].custom = true;
+        describe.fields[4].external_id = true;
+        describe.fields[4].unique = true;
+
+        describe.child_relationships = vec![ChildRelationship {
+            cascade_delete: false,
+            child_sobject: "ChildObj__c".to_string(),
+            deprecated_and_hidden: false,
+            field: "ParentId__c".to_string(),
+            relationship_name: Some("Children__r".to_string()),
+            restricted_delete: false,
+        }];
+
+        describe
     }
 
     #[test]
