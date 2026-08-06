@@ -140,14 +140,26 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
         let ids_str = ids.join(",");
         let path = format!("record-ui/{}", ids_str);
 
-        let lt_str = layout_types.map(|lts| {
-            lts.iter()
-                .map(|lt| lt.as_str())
-                .collect::<Vec<_>>()
-                .join(",")
-        });
+        macro_rules! join_slice {
+            ($slice:expr) => {{
+                // ⚡ Bolt: Eliminate intermediate Vec allocation by pre-calculating string capacity
+                let mut capacity = 0;
+                for item in $slice.iter() {
+                    capacity += item.as_str().len() + 1;
+                }
+                let mut res = String::with_capacity(capacity.saturating_sub(1));
+                for (i, item) in $slice.iter().enumerate() {
+                    if i > 0 {
+                        res.push(',');
+                    }
+                    res.push_str(item.as_str());
+                }
+                res
+            }};
+        }
 
-        let mode_str = modes.map(|ms| ms.iter().map(|m| m.as_str()).collect::<Vec<_>>().join(","));
+        let lt_str = layout_types.map(|lts| join_slice!(lts));
+        let mode_str = modes.map(|ms| join_slice!(ms));
 
         // ⚡ Bolt: Use a stack-allocated array to avoid heap allocation for small parameter list
         let mut params_array = [("", ""); 2];
