@@ -6,6 +6,8 @@ pub(crate) mod avro_generator;
 pub(crate) mod bigquery_generator;
 pub(crate) mod data_dictionary;
 #[cfg(feature = "schema")]
+pub(crate) mod data_masking_generator;
+#[cfg(feature = "schema")]
 pub(crate) mod dbml_generator;
 pub(crate) mod graphql_generator;
 #[cfg(feature = "schema")]
@@ -47,6 +49,10 @@ pub use avro_generator::{generate_avro_schema, write_avro_schema};
 #[cfg(feature = "schema")]
 pub use bigquery_generator::generate_bigquery_schema;
 pub use data_dictionary::DataDictionary;
+#[cfg(feature = "schema")]
+pub use data_masking_generator::{
+    DataMaskingPolicy, FieldMaskingPolicy, MaskingStrategy, generate_masking_policy,
+};
 #[cfg(feature = "schema")]
 pub use dbml_generator::{generate_dbml, write_dbml};
 pub use graphql_generator::{generate_graphql_schema, write_graphql_schema};
