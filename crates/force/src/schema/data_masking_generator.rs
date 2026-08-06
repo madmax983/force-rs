@@ -61,9 +61,9 @@ pub fn generate_masking_policy(describe: &SObjectDescribe) -> DataMaskingPolicy 
                 || lower_name.contains("street")
                 || lower_name.contains("zip")
                 || lower_name.contains("postal")
+                || lower_name.contains("dob")
+                || lower_name.contains("birth")
             {
-                MaskingStrategy::Scramble
-            } else if lower_name.contains("dob") || lower_name.contains("birth") {
                 MaskingStrategy::Scramble
             } else {
                 MaskingStrategy::Preserve
@@ -192,13 +192,14 @@ mod tests {
         assert_eq!(policy.object_name, "Contact");
         assert_eq!(policy.fields.len(), 6);
 
+        use crate::test_utils::must::Must;
         let get_strategy = |name: &str| {
             policy
                 .fields
                 .iter()
                 .find(|f| f.name == name)
                 .map(|f| &f.strategy)
-                .unwrap()
+                .must()
         };
 
         assert_eq!(get_strategy("Id"), &MaskingStrategy::Preserve);
