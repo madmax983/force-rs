@@ -86,6 +86,7 @@ pub fn generate_masking_policy(describe: &SObjectDescribe) -> DataMaskingPolicy 
 #[cfg(feature = "schema")]
 mod tests {
     use super::*;
+    use crate::test_utils::must::Must;
     use crate::types::describe::FieldDescribe;
 
     fn mock_field(name: &str, type_: FieldType) -> FieldDescribe {
@@ -192,7 +193,6 @@ mod tests {
         assert_eq!(policy.object_name, "Contact");
         assert_eq!(policy.fields.len(), 6);
 
-        use crate::test_utils::must::Must;
         let get_strategy = |name: &str| {
             policy
                 .fields
