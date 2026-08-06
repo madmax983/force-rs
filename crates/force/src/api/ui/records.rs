@@ -137,17 +137,36 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
             crate::types::validator::validate_identifier(id, "record id")?;
         }
 
-        let ids_str = ids.join(",");
+        let mut ids_str = String::with_capacity(ids.len() * 19);
+        for (i, id) in ids.iter().enumerate() {
+            if i > 0 {
+                ids_str.push(',');
+            }
+            ids_str.push_str(id);
+        }
         let path = format!("record-ui/{}", ids_str);
 
         let lt_str = layout_types.map(|lts| {
-            lts.iter()
-                .map(|lt| lt.as_str())
-                .collect::<Vec<_>>()
-                .join(",")
+            let mut s = String::with_capacity(lts.len() * 10);
+            for (i, lt) in lts.iter().enumerate() {
+                if i > 0 {
+                    s.push(',');
+                }
+                s.push_str(lt.as_str());
+            }
+            s
         });
 
-        let mode_str = modes.map(|ms| ms.iter().map(|m| m.as_str()).collect::<Vec<_>>().join(","));
+        let mode_str = modes.map(|ms| {
+            let mut s = String::with_capacity(ms.len() * 10);
+            for (i, m) in ms.iter().enumerate() {
+                if i > 0 {
+                    s.push(',');
+                }
+                s.push_str(m.as_str());
+            }
+            s
+        });
 
         // ⚡ Bolt: Use a stack-allocated array to avoid heap allocation for small parameter list
         let mut params_array = [("", ""); 2];
@@ -238,8 +257,25 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
             crate::types::validator::validate_identifier(id, "record id")?;
         }
 
-        let path = format!("records/batch/{}", ids.join(","));
-        let fields_str = fields.map(|fs| fs.join(","));
+        let mut ids_str = String::with_capacity(ids.len() * 19);
+        for (i, id) in ids.iter().enumerate() {
+            if i > 0 {
+                ids_str.push(',');
+            }
+            ids_str.push_str(id);
+        }
+        let path = format!("records/batch/{}", ids_str);
+
+        let fields_str = fields.map(|fs| {
+            let mut s = String::with_capacity(fs.len() * 20);
+            for (i, f) in fs.iter().enumerate() {
+                if i > 0 {
+                    s.push(',');
+                }
+                s.push_str(f);
+            }
+            s
+        });
 
         // ⚡ Bolt: Use a stack-allocated array to avoid heap allocation for small parameter list
         let mut params_array = [("", ""); 1];
