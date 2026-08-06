@@ -119,7 +119,7 @@ impl HttpExecutor {
     /// as idempotent so it can be safely retried on transient failures.
     pub async fn execute_response_with_retry_class<F, Fut>(
         &self,
-        mut request: Request,
+        request: Request,
         token: &AccessToken,
         refresh_token: F,
         request_class: RequestRetryClass,
@@ -147,78 +147,22 @@ impl HttpExecutor {
         );
         let _request_span_guard = request_span.enter();
 
-        Self::inject_auth_header(&mut request, token)?;
-
-        self.retry_loop(request, refresh_token, request_class, &ctx)
-            .await
-    }
-
-    async fn retry_loop<F, Fut>(
-        &self,
-        mut request: Request,
-        refresh_token: F,
-        request_class: RequestRetryClass,
-        ctx: &TelemetryContext,
-    ) -> Result<Response>
-    where
-        F: Fn() -> Fut,
-        Fut: std::future::Future<Output = Result<AccessToken>>,
-    {
-        let mut retry_attempt = 0;
-        let mut refreshed = false;
-        let max_retries = self.max_retries_for(request_class);
-
-        loop {
-            let req_clone = request.try_clone().ok_or_else(|| {
-                HttpError::RequestBuildError("cannot clone request for retry: streaming bodies cannot be retried automatically".to_string())
-            })?;
-
-            let response_result = self.execute_attempt(req_clone, retry_attempt, ctx).await;
-
-            let response = match response_result {
-                Ok(resp) => resp,
-                Err(e) if retry_attempt < max_retries && Self::is_retryable_error(&e) => {
-                    self.handle_transient_failure(retry_attempt, ctx, None)
-                        .await;
-                    retry_attempt += 1;
-                    continue;
-                }
-                Err(e) => return Err(e),
-            };
-
-            let status = response.status();
-
-            if status == StatusCode::UNAUTHORIZED {
-                if !refreshed {
-                    let new_token = refresh_token().await?;
-                    Self::inject_auth_header(&mut request, &new_token)?;
-                    refreshed = true;
-                    continue;
-                }
-
-                self.record_completion(
-                    ctx,
-                    Some(StatusCode::UNAUTHORIZED.as_u16()),
-                    None,
-                    retry_attempt,
-                );
-                return Ok(response);
-            }
-
-            if status == StatusCode::TOO_MANY_REQUESTS {
-                return Err(self.handle_rate_limit(&response, retry_attempt, ctx));
-            }
-
-            if status == StatusCode::SERVICE_UNAVAILABLE && retry_attempt < max_retries {
-                self.handle_transient_failure(retry_attempt, ctx, Some(503))
-                    .await;
-                retry_attempt += 1;
-                continue;
-            }
-
-            self.record_completion(ctx, Some(status.as_u16()), None, retry_attempt);
-            return Ok(response);
-        }
+        self.retry_loop_factory(
+            || {
+                request.try_clone().ok_or_else(|| {
+                    crate::error::HttpError::RequestBuildError(
+                        "cannot clone request for retry: streaming bodies cannot be retried automatically"
+                            .to_string(),
+                    )
+                    .into()
+                })
+            },
+            token,
+            refresh_token,
+            request_class,
+            &ctx,
+        )
+        .await
     }
 
     /// Executes a request built by a factory closure, with auth/retry behavior.
