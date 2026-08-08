@@ -41,3 +41,10 @@
 **Finding:** Missing mutation test coverage in `upsert_with_retry_class` and `validate_query_input_len`. The `MAX_QUERY_INPUT_BYTES` threshold tests were weak, and the response limit calculation in `upsert` lacked explicit bound verification.
 **Evidence:** 5+ surviving mutants around `100 * 1024 * 1024` limit calculation in `upsert` paths. Surviving `>=` mutant on `validate_query_input_len`.
 **Recommendation:** Ensure exact boundary coverage in threshold validation methods (like EXACT max allowed size), and explicitly cover payload too large errors (`HttpError::PayloadTooLarge`) by setting up mocks with very large mock response data.
+
+**[Elenchus: force-pubsub handle_reconnect mutant analysis]**
+**Module:** `crates/force-pubsub/src/subscriber.rs`
+**Severity:** 🔴 Critical
+**Finding:** `test_subscribe_exhausts_retries_returns_error` had a weak assertion for testing backoff delay (`elapsed >= 30ms`). Mutants affecting the logic `delay_for(*reconnect_count - 1)` (changing `-` to `+` or `/`) survived because their total delay (90ms and 60ms respectively) still passed the >= 30ms check.
+**Evidence:** `cargo mutants` left 2 mutants surviving out of 39 in `crates/force-pubsub/src/subscriber.rs`. The test provided false confidence that the exact exponential backoff maths were validated.
+**Recommendation:** Sentry must strengthen test assertions involving time delays. Ensure a strict upper bound `elapsed < Duration::from_millis(55)` is asserted alongside the lower bound to accurately catch regressions in the retry logic.
