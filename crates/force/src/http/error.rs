@@ -168,6 +168,26 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_parse_api_error_with_multiple_fields() {
+        let body = r#"[{"errorCode":"INVALID_FIELD","message":"Field does not exist","fields":["Name", "Id"]}]"#;
+        let error = parse_api_error(400, body);
+
+        if let HttpError::StatusError {
+            status_code,
+            message,
+        } = error
+        {
+            assert_eq!(status_code, 400);
+            assert_eq!(
+                message,
+                "[INVALID_FIELD] Field does not exist (fields: Name, Id)"
+            );
+        } else {
+            panic!("Expected StatusError");
+        }
+    }
+
+    #[test]
     fn test_parse_api_error_with_salesforce_format() {
         let body =
             r#"[{"errorCode":"INVALID_FIELD","message":"Field does not exist","fields":["Name"]}]"#;
