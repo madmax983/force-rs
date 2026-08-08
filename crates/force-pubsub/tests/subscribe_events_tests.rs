@@ -355,8 +355,8 @@ async fn test_subscribe_exhausts_retries_returns_error() {
                     let elapsed = start_time.elapsed();
                     // We expect total delay to be at least 30ms (10ms + 20ms).
                     assert!(
-                        elapsed >= Duration::from_millis(30),
-                        "backoff delay too short, elapsed: {elapsed:?}"
+                        elapsed >= Duration::from_millis(30) && elapsed < Duration::from_millis(55),
+                        "backoff delay out of bounds (mutant +1 or /1 occurred if > 60ms), elapsed: {elapsed:?}"
                     );
                     reconnect_failed_seen = true;
                     break;
