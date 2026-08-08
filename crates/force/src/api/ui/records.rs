@@ -141,13 +141,42 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
         let path = format!("record-ui/{}", ids_str);
 
         let lt_str = layout_types.map(|lts| {
-            lts.iter()
-                .map(|lt| lt.as_str())
-                .collect::<Vec<_>>()
-                .join(",")
+            if lts.is_empty() {
+                return String::new();
+            }
+            let mut capacity = lts.len() - 1;
+            #[allow(clippy::explicit_iter_loop)]
+            for lt in lts.iter() {
+                capacity += lt.as_str().len();
+            }
+            let mut s = String::with_capacity(capacity);
+            for (i, lt) in lts.iter().enumerate() {
+                if i > 0 {
+                    s.push(',');
+                }
+                s.push_str(lt.as_str());
+            }
+            s
         });
 
-        let mode_str = modes.map(|ms| ms.iter().map(|m| m.as_str()).collect::<Vec<_>>().join(","));
+        let mode_str = modes.map(|ms| {
+            if ms.is_empty() {
+                return String::new();
+            }
+            let mut capacity = ms.len() - 1;
+            #[allow(clippy::explicit_iter_loop)]
+            for m in ms.iter() {
+                capacity += m.as_str().len();
+            }
+            let mut s = String::with_capacity(capacity);
+            for (i, m) in ms.iter().enumerate() {
+                if i > 0 {
+                    s.push(',');
+                }
+                s.push_str(m.as_str());
+            }
+            s
+        });
 
         // ⚡ Bolt: Use a stack-allocated array to avoid heap allocation for small parameter list
         let mut params_array = [("", ""); 2];
