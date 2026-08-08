@@ -145,6 +145,7 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
                 return String::new();
             }
             let mut capacity = lts.len() - 1;
+            #[allow(clippy::explicit_iter_loop)]
             for lt in lts.iter() {
                 capacity += lt.as_str().len();
             }
@@ -163,6 +164,7 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
                 return String::new();
             }
             let mut capacity = ms.len() - 1;
+            #[allow(clippy::explicit_iter_loop)]
             for m in ms.iter() {
                 capacity += m.as_str().len();
             }
