@@ -47,7 +47,10 @@ Design backlog and product-spec notes for incubating `force-rs` capabilities. Th
 
 - [`soql-query-builder.md`](soql-query-builder.md): SOQL query builder for type-safe query construction.
 - [`data-faker.md`](data-faker.md): synthetic Salesforce-shaped data generation.
+- [`volatile-market-backtesting.md`](volatile-market-backtesting.md): Volatile market backtesting specification.
 - [`data-seeder.md`](data-seeder.md): repeatable fixture and seed workflows.
+- [`volatile-market-backtesting.md`](volatile-market-backtesting.md): Volatile market backtesting specification.
+- [`volatile-market-backtesting.md`](volatile-market-backtesting.md): Volatile market backtesting specification.
 
 ## Authentication
 
