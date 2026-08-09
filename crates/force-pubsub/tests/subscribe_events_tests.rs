@@ -319,8 +319,8 @@ async fn test_subscribe_exhausts_retries_returns_error() {
             max_retries: 2,
             backoff: BackoffConfig {
                 initial_delay: Duration::from_millis(10),
-                max_delay: Duration::from_millis(50),
-                multiplier: 2.0,
+                max_delay: Duration::from_millis(5000),
+                multiplier: 10.0,
             },
         },
     )
@@ -353,10 +353,15 @@ async fn test_subscribe_exhausts_retries_returns_error() {
                         "should have seen exactly 2 reconnect events"
                     );
                     let elapsed = start_time.elapsed();
-                    // We expect total delay to be at least 30ms (10ms + 20ms).
+                    // We expect total delay to be at least 110ms (10ms + 100ms)
+                    // and strictly less than 400ms to catch mutants that increase the delay.
                     assert!(
-                        elapsed >= Duration::from_millis(30),
+                        elapsed >= Duration::from_millis(110),
                         "backoff delay too short, elapsed: {elapsed:?}"
+                    );
+                    assert!(
+                        elapsed < Duration::from_millis(400),
+                        "backoff delay too long, elapsed: {elapsed:?}"
                     );
                     reconnect_failed_seen = true;
                     break;

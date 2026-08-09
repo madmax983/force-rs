@@ -41,3 +41,10 @@
 **Finding:** Missing mutation test coverage in `upsert_with_retry_class` and `validate_query_input_len`. The `MAX_QUERY_INPUT_BYTES` threshold tests were weak, and the response limit calculation in `upsert` lacked explicit bound verification.
 **Evidence:** 5+ surviving mutants around `100 * 1024 * 1024` limit calculation in `upsert` paths. Surviving `>=` mutant on `validate_query_input_len`.
 **Recommendation:** Ensure exact boundary coverage in threshold validation methods (like EXACT max allowed size), and explicitly cover payload too large errors (`HttpError::PayloadTooLarge`) by setting up mocks with very large mock response data.
+
+**[Elenchus: force-pubsub::subscriber Test Quality Audit II]**
+**Module:** `crates/force-pubsub/src/subscriber.rs`
+**Severity:** 🔴 Critical
+**Finding:** `cargo mutants` exposed that the backoff delay calculation (`*reconnect_count - 1`) in `SubscribeState::handle_reconnect` was weakly tested. Mutating `*reconnect_count - 1` to `*reconnect_count + 1` or `/ 1` survived the test suite because the default test's `multiplier: 2.0` and small max delay cap (50ms) failed to create a distinguishable duration difference under normal CI timing jitter.
+**Evidence:** 2 surviving mutants: `replace - with +` and `replace - with /` on `*reconnect_count - 1` in `handle_reconnect`.
+**Recommendation:** Strengthen `test_subscribe_exhausts_retries_returns_error` by significantly increasing the multiplier (e.g., `10.0`) and the `max_delay` cap (e.g., `5000ms`), and adding strict assertions on the total elapsed time bounding it both below and above (e.g., `>= 110ms` and `< 400ms`).
