@@ -12,6 +12,7 @@ repository = "https://github.com/madmax983/force-rs"
 homepage = "https://github.com/madmax983/force-rs"
 
 [workspace.lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(tarpaulin_include)'] }
 unsafe_code = "forbid"
 missing_docs = "warn"
 
