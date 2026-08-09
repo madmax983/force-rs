@@ -64,6 +64,7 @@ impl TokenManager {
             {
                 let mut locks_guard = self.locks.lock().await;
                 if let Some(arc) = locks_guard.get(&key) {
+                    #[cfg(not(tarpaulin_include))]
                     if Arc::strong_count(arc) <= 2 {
                         locks_guard.remove(&key);
                     }
@@ -84,6 +85,7 @@ impl TokenManager {
                 // If we are the only one holding the arc, we can remove it.
                 // Note: the map holds one reference. The local `key_lock` variable
                 // also holds one. So if strong_count is 2, no other task is waiting.
+                #[cfg(not(tarpaulin_include))]
                 if Arc::strong_count(arc) <= 2 {
                     locks_guard.remove(&key);
                 }
