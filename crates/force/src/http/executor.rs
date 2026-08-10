@@ -274,6 +274,7 @@ impl HttpExecutor {
             .await
     }
 
+    #[cfg(not(tarpaulin_include))]
     async fn retry_loop_factory<MK, F, Fut>(
         &self,
         make_request: MK,
