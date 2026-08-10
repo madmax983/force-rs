@@ -1,3 +1,4 @@
+#![allow(unexpected_cfgs)]
 //! HTTP executor implementation.
 
 use super::retry::{
@@ -188,33 +189,32 @@ impl HttpExecutor {
 
             let status = response.status();
 
-            match status {
-                StatusCode::UNAUTHORIZED => {
-                    if !refreshed {
-                        let new_token = refresh_token().await?;
-                        Self::inject_auth_header(&mut request, &new_token)?;
-                        refreshed = true;
-                        continue;
-                    }
-
-                    self.record_completion(
-                        ctx,
-                        Some(StatusCode::UNAUTHORIZED.as_u16()),
-                        None,
-                        retry_attempt,
-                    );
-                    return Ok(response);
-                }
-                StatusCode::TOO_MANY_REQUESTS => {
-                    return Err(self.handle_rate_limit(&response, retry_attempt, ctx));
-                }
-                StatusCode::SERVICE_UNAVAILABLE if retry_attempt < max_retries => {
-                    self.handle_transient_failure(retry_attempt, ctx, Some(503))
-                        .await;
-                    retry_attempt += 1;
+            if status == StatusCode::UNAUTHORIZED {
+                if !refreshed {
+                    let new_token = refresh_token().await?;
+                    Self::inject_auth_header(&mut request, &new_token)?;
+                    refreshed = true;
                     continue;
                 }
-                _ => {}
+
+                self.record_completion(
+                    ctx,
+                    Some(StatusCode::UNAUTHORIZED.as_u16()),
+                    None,
+                    retry_attempt,
+                );
+                return Ok(response);
+            }
+
+            if status == StatusCode::TOO_MANY_REQUESTS {
+                return Err(self.handle_rate_limit(&response, retry_attempt, ctx));
+            }
+
+            if status == StatusCode::SERVICE_UNAVAILABLE && retry_attempt < max_retries {
+                self.handle_transient_failure(retry_attempt, ctx, Some(503))
+                    .await;
+                retry_attempt += 1;
+                continue;
             }
 
             self.record_completion(ctx, Some(status.as_u16()), None, retry_attempt);
@@ -274,7 +274,6 @@ impl HttpExecutor {
             .await
     }
 
-    #[cfg(not(tarpaulin_include))]
     async fn retry_loop_factory<MK, F, Fut>(
         &self,
         make_request: MK,
@@ -314,32 +313,31 @@ impl HttpExecutor {
 
             let status = response.status();
 
-            match status {
-                StatusCode::UNAUTHORIZED => {
-                    if !refreshed {
-                        current_token = refresh_token().await?;
-                        refreshed = true;
-                        continue;
-                    }
-
-                    self.record_completion(
-                        ctx,
-                        Some(StatusCode::UNAUTHORIZED.as_u16()),
-                        None,
-                        retry_attempt,
-                    );
-                    return Ok(response);
-                }
-                StatusCode::TOO_MANY_REQUESTS => {
-                    return Err(self.handle_rate_limit(&response, retry_attempt, ctx));
-                }
-                StatusCode::SERVICE_UNAVAILABLE if retry_attempt < max_retries => {
-                    self.handle_transient_failure(retry_attempt, ctx, Some(503))
-                        .await;
-                    retry_attempt += 1;
+            if status == StatusCode::UNAUTHORIZED {
+                if !refreshed {
+                    current_token = refresh_token().await?;
+                    refreshed = true;
                     continue;
                 }
-                _ => {}
+
+                self.record_completion(
+                    ctx,
+                    Some(StatusCode::UNAUTHORIZED.as_u16()),
+                    None,
+                    retry_attempt,
+                );
+                return Ok(response);
+            }
+
+            if status == StatusCode::TOO_MANY_REQUESTS {
+                return Err(self.handle_rate_limit(&response, retry_attempt, ctx));
+            }
+
+            if status == StatusCode::SERVICE_UNAVAILABLE && retry_attempt < max_retries {
+                self.handle_transient_failure(retry_attempt, ctx, Some(503))
+                    .await;
+                retry_attempt += 1;
+                continue;
             }
 
             self.record_completion(ctx, Some(status.as_u16()), None, retry_attempt);
