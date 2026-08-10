@@ -98,3 +98,6 @@
 **[Flatten Match With Original Error Context]**
 **Learning:** When flattening nested `match` statements handling `Result` outputs, rewriting them with `let Ok(...) = result else` guard clauses can lead to silently swallowing the underlying original error if not passed through explicitly, which breaks observability and changes runtime behavior. Using `.map_err(...)?` provides a flatter structure while preserving the exact error mappings natively.
 **Action:** When acting as 'Forge', never drop the original underlying error variable (e.g., `e`). To flatten `Result` mapping, use `.map_err(|e| { ... })?` with the `?` operator instead of verbose `match` statements or dropping context inside `else` guards, ensuring the error propagates cleanly without over-nesting.
+**[Consolidate Status Match Arms]**
+**Learning:** In HTTP execution retry loops, explicitly matching on the inner response status codes (`UNAUTHORIZED`, `TOO_MANY_REQUESTS`, `SERVICE_UNAVAILABLE`) with a `match status` block is significantly cleaner, flatter, and easier to read than a sequential series of `if status == ...` checks. This avoids the "Pyramid of Doom" and makes exhaustive handling of response codes easier to maintain.
+**Action:** Always prefer `match` blocks when evaluating a distinct set of HTTP response status codes inside retry loops rather than sequential `if` chains.
