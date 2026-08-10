@@ -1,3 +1,4 @@
+#![allow(unexpected_cfgs)]
 //! HTTP executor implementation.
 
 use super::retry::{
