@@ -137,30 +137,50 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
             crate::types::validator::validate_identifier(id, "record id")?;
         }
 
-        let ids_str = ids.join(",");
-        let path = format!("record-ui/{}", ids_str);
+        let mut path = String::with_capacity(10 + ids.len() * 19);
+        path.push_str("record-ui/");
+        for (i, id) in ids.iter().enumerate() {
+            if i > 0 {
+                path.push(',');
+            }
+            path.push_str(id);
+        }
 
-        let lt_str = layout_types.map(|lts| {
-            lts.iter()
-                .map(|lt| lt.as_str())
-                .collect::<Vec<_>>()
-                .join(",")
-        });
-
-        let mode_str = modes.map(|ms| ms.iter().map(|m| m.as_str()).collect::<Vec<_>>().join(","));
+        let mut lt_str = String::new();
+        let mut mode_str = String::new();
 
         // ⚡ Bolt: Use a stack-allocated array to avoid heap allocation for small parameter list
         let mut params_array = [("", ""); 2];
         let mut params_len = 0;
 
-        if let Some(lts) = &lt_str {
-            params_array[params_len] = ("layoutTypes", lts);
-            params_len += 1;
+        if let Some(lts) = layout_types {
+            // ⚡ Bolt: Avoid intermediate vector allocation for joining by building the string incrementally
+            if !lts.is_empty() {
+                lt_str.reserve(lts.len() * 10);
+                for (i, lt) in lts.iter().enumerate() {
+                    if i > 0 {
+                        lt_str.push(',');
+                    }
+                    lt_str.push_str(lt.as_str());
+                }
+                params_array[params_len] = ("layoutTypes", &lt_str);
+                params_len += 1;
+            }
         }
 
-        if let Some(ms) = &mode_str {
-            params_array[params_len] = ("modes", ms);
-            params_len += 1;
+        if let Some(ms) = modes {
+            // ⚡ Bolt: Avoid intermediate vector allocation for joining by building the string incrementally
+            if !ms.is_empty() {
+                mode_str.reserve(ms.len() * 6);
+                for (i, m) in ms.iter().enumerate() {
+                    if i > 0 {
+                        mode_str.push(',');
+                    }
+                    mode_str.push_str(m.as_str());
+                }
+                params_array[params_len] = ("modes", &mode_str);
+                params_len += 1;
+            }
         }
 
         let query = if params_len == 0 {
@@ -238,16 +258,34 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
             crate::types::validator::validate_identifier(id, "record id")?;
         }
 
-        let path = format!("records/batch/{}", ids.join(","));
-        let fields_str = fields.map(|fs| fs.join(","));
+        let mut path = String::with_capacity(14 + ids.len() * 19);
+        path.push_str("records/batch/");
+        for (i, id) in ids.iter().enumerate() {
+            if i > 0 {
+                path.push(',');
+            }
+            path.push_str(id);
+        }
+
+        let mut fields_str = String::new();
 
         // ⚡ Bolt: Use a stack-allocated array to avoid heap allocation for small parameter list
         let mut params_array = [("", ""); 1];
         let mut params_len = 0;
 
-        if let Some(fs) = &fields_str {
-            params_array[params_len] = ("fields", fs);
-            params_len += 1;
+        if let Some(fs) = fields {
+            // ⚡ Bolt: Construct string directly to avoid intermediate `.join(",")` allocation
+            if !fs.is_empty() {
+                fields_str.reserve(fs.len() * 20);
+                for (i, f) in fs.iter().enumerate() {
+                    if i > 0 {
+                        fields_str.push(',');
+                    }
+                    fields_str.push_str(f);
+                }
+                params_array[params_len] = ("fields", &fields_str);
+                params_len += 1;
+            }
         }
 
         let query = if params_len == 0 {
