@@ -373,3 +373,52 @@ async fn test_subscribe_exhausts_retries_returns_error() {
         "expected PubSubError::ReconnectFailed to be yielded"
     );
 }
+
+/// Verify the math inside `handle_reconnect` calculates the correct delay.
+#[tokio::test]
+async fn test_subscribe_backoff_delay_calculation() {
+    let service = AlwaysErrorService::default();
+    let url = start_always_error_server(service).await;
+    let (handler, _userinfo) = make_handler(
+        url,
+        ReconnectPolicy::Auto {
+            max_retries: 2,
+            backoff: BackoffConfig {
+                initial_delay: Duration::from_millis(100),
+                max_delay: Duration::from_millis(1000),
+                multiplier: 2.0,
+            },
+        },
+    )
+    .await;
+
+    let mut stream = handler
+        .subscribe("/event/Test__e", ReplayPreset::Latest)
+        .await
+        .unwrap();
+
+    let mut reconnect_events = 0;
+    let mut time_at_first_reconnect = Instant::now();
+
+    while let Ok(Some(item)) = tokio::time::timeout(Duration::from_secs(5), stream.next()).await {
+        if let Ok(PubSubEvent::Reconnected { attempt, .. }) = &item {
+            reconnect_events += 1;
+            if *attempt == 1 {
+                time_at_first_reconnect = Instant::now();
+            } else if *attempt == 2 {
+                let elapsed = time_at_first_reconnect.elapsed();
+                // For attempt == 2, the backoff code does:
+                // backoff.delay_for(2 - 1) = delay_for(1)
+                // delay_for(1) = 100ms * 2.0^1 = 200ms.
+                // If the mutation `+` was applied (2 + 1 = 3), delay = 100 * 2^3 = 800ms
+                // If the mutation `/` was applied (2 / 1 = 2), delay = 100 * 2^2 = 400ms
+                assert!(
+                    elapsed >= Duration::from_millis(200) && elapsed < Duration::from_millis(350),
+                    "backoff delay calculation was incorrect, elapsed: {elapsed:?}"
+                );
+                break;
+            }
+        }
+    }
+    assert_eq!(reconnect_events, 2, "did not reach second reconnect event");
+}
