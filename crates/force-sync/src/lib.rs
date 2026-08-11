@@ -34,7 +34,7 @@ pub const fn version() -> &'static str {
 pub use apply::{ApplyError, RestApplyResult, SalesforceApplier, project_sync_link};
 pub use capture::{capture_batch, capture_stream, load_replay_id};
 pub use config::{ConflictPolicy, LaneThresholds, ObjectSync, Owner};
-pub use error::ForceSyncError;
+pub use error::{ForceSyncError, Result};
 pub use identity::SyncKey;
 pub use model::{ChangeEnvelope, ChangeOperation, SourceCursor, SourceSystem};
 pub use plan::{ApplyLane, MergeOutcome, PlanDecision, PlannerContext, merge_payload, plan_change};

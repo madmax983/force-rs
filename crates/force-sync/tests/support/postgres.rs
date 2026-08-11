@@ -5,8 +5,6 @@ use std::env;
 use deadpool_postgres::{Config, Pool, Runtime};
 use tokio_postgres::NoTls;
 
-use force_sync::ForceSyncError;
-
 /// Builds a `Postgres` pool from `FORCE_SYNC_TEST_DATABASE_URL`.
 #[must_use]
 pub fn test_pool() -> Pool {
@@ -24,7 +22,7 @@ pub fn test_pool() -> Pool {
 }
 
 /// Drops and recreates the `public` schema for a clean test environment.
-pub async fn reset_schema(pool: &Pool) -> Result<(), ForceSyncError> {
+pub async fn reset_schema(pool: &Pool) -> force_sync::Result<()> {
     let client = pool.get().await?;
     client
         .batch_execute("drop schema if exists public cascade; create schema public;")

@@ -4,7 +4,7 @@ mod support;
 
 use serde_json::json;
 
-use force_sync::{ForceSyncError, PgStore, capture_batch};
+use force_sync::{PgStore, capture_batch};
 
 struct OutboxSeed<'a> {
     tenant: &'a str,
@@ -19,7 +19,7 @@ struct OutboxSeed<'a> {
 async fn insert_outbox_row(
     pool: &deadpool_postgres::Pool,
     seed: &OutboxSeed<'_>,
-) -> Result<i64, ForceSyncError> {
+) -> force_sync::Result<i64> {
     let client = pool.get().await?;
     let row = client
         .query_one(
@@ -55,7 +55,7 @@ async fn insert_outbox_row(
     Ok(row.get(0))
 }
 
-async fn dead_letter_count(pool: &deadpool_postgres::Pool) -> Result<i64, ForceSyncError> {
+async fn dead_letter_count(pool: &deadpool_postgres::Pool) -> force_sync::Result<i64> {
     let client = pool.get().await?;
     let row = client
         .query_one("select count(*) from sync_dead_letter", &[])
@@ -66,7 +66,7 @@ async fn dead_letter_count(pool: &deadpool_postgres::Pool) -> Result<i64, ForceS
 async fn error_message_for_external_id(
     pool: &deadpool_postgres::Pool,
     external_id: &str,
-) -> Result<Option<String>, ForceSyncError> {
+) -> force_sync::Result<Option<String>> {
     let client = pool.get().await?;
     let row = client
         .query_opt(
@@ -80,8 +80,8 @@ async fn error_message_for_external_id(
 
 #[tokio::test]
 #[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
-async fn outbox_rows_are_captured_into_the_journal_and_marked_processed()
--> Result<(), ForceSyncError> {
+async fn outbox_rows_are_captured_into_the_journal_and_marked_processed() -> force_sync::Result<()>
+{
     let pool = support::postgres::test_pool();
     support::postgres::reset_schema(&pool).await?;
     force_sync::migrate(&pool).await?;
@@ -138,7 +138,7 @@ async fn outbox_rows_are_captured_into_the_journal_and_marked_processed()
 
 #[tokio::test]
 #[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
-async fn duplicate_source_cursors_do_not_enqueue_duplicate_tasks() -> Result<(), ForceSyncError> {
+async fn duplicate_source_cursors_do_not_enqueue_duplicate_tasks() -> force_sync::Result<()> {
     let pool = support::postgres::test_pool();
     support::postgres::reset_schema(&pool).await?;
     force_sync::migrate(&pool).await?;
@@ -204,7 +204,7 @@ async fn duplicate_source_cursors_do_not_enqueue_duplicate_tasks() -> Result<(),
 
 #[tokio::test]
 #[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
-async fn contradictory_op_and_tombstone_rows_are_rejected_safely() -> Result<(), ForceSyncError> {
+async fn contradictory_op_and_tombstone_rows_are_rejected_safely() -> force_sync::Result<()> {
     let pool = support::postgres::test_pool();
     support::postgres::reset_schema(&pool).await?;
     force_sync::migrate(&pool).await?;
@@ -241,7 +241,7 @@ async fn contradictory_op_and_tombstone_rows_are_rejected_safely() -> Result<(),
 
 #[tokio::test]
 #[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
-async fn invalid_outbox_row_is_dead_lettered_and_marked_processed() -> Result<(), ForceSyncError> {
+async fn invalid_outbox_row_is_dead_lettered_and_marked_processed() -> force_sync::Result<()> {
     let pool = support::postgres::test_pool();
     support::postgres::reset_schema(&pool).await?;
     force_sync::migrate(&pool).await?;
@@ -293,7 +293,7 @@ async fn invalid_outbox_row_is_dead_lettered_and_marked_processed() -> Result<()
 
 #[tokio::test]
 #[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
-async fn already_encoded_cursor_is_rejected_safely() -> Result<(), ForceSyncError> {
+async fn already_encoded_cursor_is_rejected_safely() -> force_sync::Result<()> {
     let pool = support::postgres::test_pool();
     support::postgres::reset_schema(&pool).await?;
     force_sync::migrate(&pool).await?;

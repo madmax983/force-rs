@@ -14,7 +14,7 @@ use wiremock::{
     matchers::{body_json, header, method, path},
 };
 
-use force_sync::{ForceSyncError, ObjectSync, PgStore, SyncEngine};
+use force_sync::{ObjectSync, PgStore, SyncEngine};
 
 #[derive(Debug, Clone)]
 struct MockAuthenticator {
@@ -61,7 +61,7 @@ async fn test_client(mock_server: &MockServer) -> ForceClient<MockAuthenticator>
 async fn insert_outbox_row(
     pool: &deadpool_postgres::Pool,
     source_cursor: &str,
-) -> Result<(), ForceSyncError> {
+) -> force_sync::Result<()> {
     let client = pool.get().await?;
     let payload = json!({"Name": "Acme Corp"});
     client
@@ -91,7 +91,7 @@ async fn insert_outbox_row(
 
 #[tokio::test]
 #[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
-async fn run_capture_and_apply_once_converges_one_postgres_record() -> Result<(), ForceSyncError> {
+async fn run_capture_and_apply_once_converges_one_postgres_record() -> force_sync::Result<()> {
     let mock_server = MockServer::start().await;
     let client = test_client(&mock_server).await;
 
@@ -162,7 +162,7 @@ async fn run_capture_and_apply_once_converges_one_postgres_record() -> Result<()
 
 #[tokio::test]
 #[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
-async fn replayed_postgres_change_is_not_reapplied_to_salesforce() -> Result<(), ForceSyncError> {
+async fn replayed_postgres_change_is_not_reapplied_to_salesforce() -> force_sync::Result<()> {
     let mock_server = MockServer::start().await;
     let client = test_client(&mock_server).await;
 

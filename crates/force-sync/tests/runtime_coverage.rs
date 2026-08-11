@@ -19,8 +19,8 @@ use wiremock::{
 };
 
 use force_sync::{
-    ChangeEnvelope, ChangeOperation, ForceSyncError, ObjectSync, PgStore, SourceCursor,
-    SourceSystem, SyncEngine, SyncKey,
+    ChangeEnvelope, ChangeOperation, ObjectSync, PgStore, SourceCursor, SourceSystem, SyncEngine,
+    SyncKey,
 };
 
 // ── Shared helpers ───────────────────────────────────────────────────
@@ -79,7 +79,7 @@ async fn insert_journal_and_task(
     source: SourceSystem,
     payload: serde_json::Value,
     external_id: &str,
-) -> Result<i64, ForceSyncError> {
+) -> force_sync::Result<i64> {
     use std::sync::atomic::{AtomicU64, Ordering};
     static CURSOR_SEQ: AtomicU64 = AtomicU64::new(1);
     let seq = CURSOR_SEQ.fetch_add(1, Ordering::SeqCst);
@@ -108,7 +108,7 @@ async fn insert_link(
     pool: &deadpool_postgres::Pool,
     salesforce_id: &str,
     external_id: &str,
-) -> Result<(), ForceSyncError> {
+) -> force_sync::Result<()> {
     let store = PgStore::new(pool.clone());
     let link = force_sync::SyncLink {
         tenant: "tenant".to_owned(),
@@ -143,7 +143,7 @@ async fn get_task_status(pool: &deadpool_postgres::Pool, task_id: i64) -> (Strin
 fn build_engine(
     client: ForceClient<MockAuthenticator>,
     pool: &deadpool_postgres::Pool,
-) -> Result<SyncEngine<MockAuthenticator>, ForceSyncError> {
+) -> force_sync::Result<SyncEngine<MockAuthenticator>> {
     SyncEngine::builder(client)
         .postgres(PgStore::new(pool.clone()))
         .object(ObjectSync::new("Account").external_id("ExternalId__c"))
@@ -160,7 +160,7 @@ fn build_engine(
 #[tokio::test]
 #[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
 #[allow(clippy::too_many_lines)]
-async fn runtime_coverage_combined_tests() -> Result<(), ForceSyncError> {
+async fn runtime_coverage_combined_tests() -> force_sync::Result<()> {
     let mock_server = MockServer::start().await;
 
     let pool = support::postgres::test_pool();

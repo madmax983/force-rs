@@ -4,7 +4,7 @@ mod support;
 
 #[tokio::test]
 #[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
-async fn applies_initial_schema() -> Result<(), force_sync::ForceSyncError> {
+async fn applies_initial_schema() -> force_sync::Result<()> {
     let pool = support::postgres::test_pool();
     support::postgres::reset_schema(&pool).await?;
 
