@@ -41,10 +41,3 @@
 **Finding:** Missing mutation test coverage in `upsert_with_retry_class` and `validate_query_input_len`. The `MAX_QUERY_INPUT_BYTES` threshold tests were weak, and the response limit calculation in `upsert` lacked explicit bound verification.
 **Evidence:** 5+ surviving mutants around `100 * 1024 * 1024` limit calculation in `upsert` paths. Surviving `>=` mutant on `validate_query_input_len`.
 **Recommendation:** Ensure exact boundary coverage in threshold validation methods (like EXACT max allowed size), and explicitly cover payload too large errors (`HttpError::PayloadTooLarge`) by setting up mocks with very large mock response data.
-
-**[Elenchus: SubscribeState::handle_reconnect math logic Test Quality Audit]**
-**Module:** `crates/force-pubsub/src/subscriber.rs`
-**Severity:** 🟡 Suspect
-**Finding:** The `handle_reconnect` backoff delay logic computes `delay_for(*reconnect_count - 1)` but the `*reconnect_count - 1` expression was not verified, allowing mutations `+` and `/` to survive.
-**Evidence:** 2 surviving mutants: `crates/force-pubsub/src/subscriber.rs:196:64: replace - with + in SubscribeState<A>::handle_reconnect` and `replace - with /`.
-**Recommendation:** Add a test verifying the exact sleep duration for the second reconnect attempt to guarantee `delay_for(1)` is evaluated rather than `delay_for(3)` or `delay_for(0)`.
