@@ -10,6 +10,12 @@ use reqwest::{Request, Response, StatusCode};
 use serde::de::DeserializeOwned;
 use std::time::Duration;
 
+enum RetryAction<T, E> {
+    Return(std::result::Result<T, E>),
+    Retry,
+    RefreshAndRetry(T),
+}
+
 const BASE_BACKOFF_MS: u64 = 500;
 
 /// HTTP executor that handles middleware concerns.
@@ -175,49 +181,32 @@ impl HttpExecutor {
 
             let response_result = self.execute_attempt(req_clone, retry_attempt, ctx).await;
 
-            let response = match response_result {
-                Ok(resp) => resp,
-                Err(e) if retry_attempt < max_retries && Self::is_retryable_error(&e) => {
-                    self.handle_transient_failure(retry_attempt, ctx, None)
-                        .await;
+            match self
+                .evaluate_attempt(response_result, retry_attempt, max_retries, ctx)
+                .await
+            {
+                RetryAction::Return(result) => return result,
+                RetryAction::Retry => {
                     retry_attempt += 1;
                     continue;
                 }
-                Err(e) => return Err(e),
-            };
+                RetryAction::RefreshAndRetry(response) => {
+                    if !refreshed {
+                        let new_token = refresh_token().await?;
+                        Self::inject_auth_header(&mut request, &new_token)?;
+                        refreshed = true;
+                        continue;
+                    }
 
-            let status = response.status();
-
-            if status == StatusCode::UNAUTHORIZED {
-                if !refreshed {
-                    let new_token = refresh_token().await?;
-                    Self::inject_auth_header(&mut request, &new_token)?;
-                    refreshed = true;
-                    continue;
+                    self.record_completion(
+                        ctx,
+                        Some(StatusCode::UNAUTHORIZED.as_u16()),
+                        None,
+                        retry_attempt,
+                    );
+                    return Ok(response);
                 }
-
-                self.record_completion(
-                    ctx,
-                    Some(StatusCode::UNAUTHORIZED.as_u16()),
-                    None,
-                    retry_attempt,
-                );
-                return Ok(response);
             }
-
-            if status == StatusCode::TOO_MANY_REQUESTS {
-                return Err(self.handle_rate_limit(&response, retry_attempt, ctx));
-            }
-
-            if status == StatusCode::SERVICE_UNAVAILABLE && retry_attempt < max_retries {
-                self.handle_transient_failure(retry_attempt, ctx, Some(503))
-                    .await;
-                retry_attempt += 1;
-                continue;
-            }
-
-            self.record_completion(ctx, Some(status.as_u16()), None, retry_attempt);
-            return Ok(response);
         }
     }
 
@@ -299,49 +288,69 @@ impl HttpExecutor {
 
             let response_result = self.execute_attempt(request, retry_attempt, ctx).await;
 
-            let response = match response_result {
-                Ok(resp) => resp,
-                Err(e) if retry_attempt < max_retries && Self::is_retryable_error(&e) => {
-                    self.handle_transient_failure(retry_attempt, ctx, None)
-                        .await;
+            match self
+                .evaluate_attempt(response_result, retry_attempt, max_retries, ctx)
+                .await
+            {
+                RetryAction::Return(result) => return result,
+                RetryAction::Retry => {
                     retry_attempt += 1;
                     continue;
                 }
-                Err(e) => return Err(e),
-            };
+                RetryAction::RefreshAndRetry(response) => {
+                    if !refreshed {
+                        current_token = refresh_token().await?;
+                        refreshed = true;
+                        continue;
+                    }
 
-            let status = response.status();
-
-            if status == StatusCode::UNAUTHORIZED {
-                if !refreshed {
-                    current_token = refresh_token().await?;
-                    refreshed = true;
-                    continue;
+                    self.record_completion(
+                        ctx,
+                        Some(StatusCode::UNAUTHORIZED.as_u16()),
+                        None,
+                        retry_attempt,
+                    );
+                    return Ok(response);
                 }
-
-                self.record_completion(
-                    ctx,
-                    Some(StatusCode::UNAUTHORIZED.as_u16()),
-                    None,
-                    retry_attempt,
-                );
-                return Ok(response);
             }
-
-            if status == StatusCode::TOO_MANY_REQUESTS {
-                return Err(self.handle_rate_limit(&response, retry_attempt, ctx));
-            }
-
-            if status == StatusCode::SERVICE_UNAVAILABLE && retry_attempt < max_retries {
-                self.handle_transient_failure(retry_attempt, ctx, Some(503))
-                    .await;
-                retry_attempt += 1;
-                continue;
-            }
-
-            self.record_completion(ctx, Some(status.as_u16()), None, retry_attempt);
-            return Ok(response);
         }
+    }
+
+    async fn evaluate_attempt(
+        &self,
+        response_result: Result<Response>,
+        retry_attempt: u32,
+        max_retries: u32,
+        ctx: &TelemetryContext,
+    ) -> RetryAction<Response, crate::error::ForceError> {
+        let response = match response_result {
+            Ok(resp) => resp,
+            Err(e) if retry_attempt < max_retries && Self::is_retryable_error(&e) => {
+                self.handle_transient_failure(retry_attempt, ctx, None)
+                    .await;
+                return RetryAction::Retry;
+            }
+            Err(e) => return RetryAction::Return(Err(e)),
+        };
+
+        let status = response.status();
+
+        if status == StatusCode::UNAUTHORIZED {
+            return RetryAction::RefreshAndRetry(response);
+        }
+
+        if status == StatusCode::TOO_MANY_REQUESTS {
+            return RetryAction::Return(Err(self.handle_rate_limit(&response, retry_attempt, ctx)));
+        }
+
+        if status == StatusCode::SERVICE_UNAVAILABLE && retry_attempt < max_retries {
+            self.handle_transient_failure(retry_attempt, ctx, Some(503))
+                .await;
+            return RetryAction::Retry;
+        }
+
+        self.record_completion(ctx, Some(status.as_u16()), None, retry_attempt);
+        RetryAction::Return(Ok(response))
     }
 
     fn inject_auth_header(request: &mut Request, token: &AccessToken) -> Result<()> {
