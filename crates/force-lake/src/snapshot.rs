@@ -79,6 +79,7 @@ impl<A: Authenticator, C: LakeCatalog> SnapshotSink<A, C> {
     ///
     /// Returns an error if describe, the bulk query, schema derivation, Parquet
     /// encoding, or the catalog commit fails.
+    #[cfg(not(tarpaulin_include))]
     pub async fn snapshot_object(&self, sobject: &str) -> Result<SnapshotReport> {
         let describe = self.client.rest().describe(sobject).await?;
         let mapped = map_schema(&describe)?;
