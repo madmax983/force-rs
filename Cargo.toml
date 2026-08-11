@@ -14,6 +14,7 @@ homepage = "https://github.com/madmax983/force-rs"
 [workspace.lints.rust]
 unsafe_code = "forbid"
 missing_docs = "warn"
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(tarpaulin_include)'] }
 
 [workspace.lints.clippy]
 pedantic = { level = "warn", priority = -1 }
