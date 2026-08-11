@@ -43,7 +43,7 @@ fn link_from_row(row: &tokio_postgres::Row) -> SyncLink {
     }
 }
 
-async fn put_link_query<C>(client: &C, link: &SyncLink) -> Result<i64, ForceSyncError>
+async fn put_link_query<C>(client: &C, link: &SyncLink) -> crate::error::Result<i64>
 where
     C: GenericClient + Sync + ?Sized,
 {
@@ -126,7 +126,7 @@ impl PgStore {
     /// # Errors
     ///
     /// Returns an error if the database write fails.
-    pub async fn put_link(&self, link: &SyncLink) -> Result<i64, ForceSyncError> {
+    pub async fn put_link(&self, link: &SyncLink) -> crate::error::Result<i64> {
         let client = self.pool().get().await?;
         put_link_query(&**client, link).await
     }

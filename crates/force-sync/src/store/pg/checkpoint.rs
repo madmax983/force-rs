@@ -22,7 +22,7 @@ async fn advance_checkpoint_if_greater_query<C>(
     stream_name: &str,
     cursor_position: i64,
     cursor: &str,
-) -> Result<u64, ForceSyncError>
+) -> crate::error::Result<u64>
 where
     C: GenericClient + Sync + ?Sized,
 {
@@ -78,7 +78,7 @@ impl PgStore {
         stream_name: impl AsRef<str>,
         cursor_position: i64,
         cursor: impl AsRef<str>,
-    ) -> Result<u64, ForceSyncError> {
+    ) -> crate::error::Result<u64> {
         let stream_name = stream_name.as_ref().to_owned();
         let cursor = cursor.as_ref().to_owned();
         let client = self.pool().get().await?;
@@ -95,7 +95,7 @@ impl PgStore {
         stream_name: &str,
         cursor_position: i64,
         cursor: &str,
-    ) -> Result<u64, ForceSyncError>
+    ) -> crate::error::Result<u64>
     where
         C: GenericClient + Sync + ?Sized,
     {
