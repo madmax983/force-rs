@@ -98,3 +98,6 @@
 **[Flatten Match With Original Error Context]**
 **Learning:** When flattening nested `match` statements handling `Result` outputs, rewriting them with `let Ok(...) = result else` guard clauses can lead to silently swallowing the underlying original error if not passed through explicitly, which breaks observability and changes runtime behavior. Using `.map_err(...)?` provides a flatter structure while preserving the exact error mappings natively.
 **Action:** When acting as 'Forge', never drop the original underlying error variable (e.g., `e`). To flatten `Result` mapping, use `.map_err(|e| { ... })?` with the `?` operator instead of verbose `match` statements or dropping context inside `else` guards, ensuring the error propagates cleanly without over-nesting.
+**[Extract Retry Loop Evaluation Helper]**
+**Learning:** Having duplicated nested match/if statements ("Pyramid of Doom") across similar loop functions (`retry_loop` and `retry_loop_factory`) makes the execution control flow harder to understand and maintain.
+**Action:** Encapsulate execution response evaluation into an enum like `RetryAction` and a helper method. This flattens the loop control flow and clearly documents transitions like `Retry` or `RefreshAndRetry`.
