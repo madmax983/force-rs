@@ -141,13 +141,42 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
         let path = format!("record-ui/{}", ids_str);
 
         let lt_str = layout_types.map(|lts| {
-            lts.iter()
-                .map(|lt| lt.as_str())
-                .collect::<Vec<_>>()
-                .join(",")
+            // ⚡ Bolt: Use pre-allocated String for layout types to avoid intermediate Vec allocations
+            let mut s = if lts.is_empty() {
+                String::new()
+            } else {
+                let cap = lts.len() - 1 + lts.iter().map(|lt| lt.as_str().len()).sum::<usize>();
+                String::with_capacity(cap)
+            };
+            if !lts.is_empty() {
+                for (i, lt) in lts.iter().enumerate() {
+                    if i > 0 {
+                        s.push(',');
+                    }
+                    s.push_str(lt.as_str());
+                }
+            }
+            s
         });
 
-        let mode_str = modes.map(|ms| ms.iter().map(|m| m.as_str()).collect::<Vec<_>>().join(","));
+        let mode_str = modes.map(|ms| {
+            // ⚡ Bolt: Use pre-allocated String for modes to avoid intermediate Vec allocations
+            let mut s = if ms.is_empty() {
+                String::new()
+            } else {
+                let cap = ms.len() - 1 + ms.iter().map(|m| m.as_str().len()).sum::<usize>();
+                String::with_capacity(cap)
+            };
+            if !ms.is_empty() {
+                for (i, m) in ms.iter().enumerate() {
+                    if i > 0 {
+                        s.push(',');
+                    }
+                    s.push_str(m.as_str());
+                }
+            }
+            s
+        });
 
         // ⚡ Bolt: Use a stack-allocated array to avoid heap allocation for small parameter list
         let mut params_array = [("", ""); 2];
