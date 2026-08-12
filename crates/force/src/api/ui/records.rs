@@ -137,17 +137,48 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
             crate::types::validator::validate_identifier(id, "record id")?;
         }
 
-        let ids_str = ids.join(",");
-        let path = format!("record-ui/{}", ids_str);
+        // ⚡ Bolt: Construct path directly to avoid intermediate `.join(",")` allocation
+        let capacity = 10 + ids.iter().map(|s| s.len() + 1).sum::<usize>();
+        let mut path = String::with_capacity(capacity);
+        path.push_str("record-ui/");
+        for (i, id) in ids.iter().enumerate() {
+            if i > 0 {
+                path.push(',');
+            }
+            path.push_str(id);
+        }
 
         let lt_str = layout_types.map(|lts| {
-            lts.iter()
-                .map(|lt| lt.as_str())
-                .collect::<Vec<_>>()
-                .join(",")
+            let cap = if lts.is_empty() {
+                0
+            } else {
+                lts.len() - 1 + lts.iter().map(|lt| lt.as_str().len()).sum::<usize>()
+            };
+            let mut s = String::with_capacity(cap);
+            for (i, lt) in lts.iter().enumerate() {
+                if i > 0 {
+                    s.push(',');
+                }
+                s.push_str(lt.as_str());
+            }
+            s
         });
 
-        let mode_str = modes.map(|ms| ms.iter().map(|m| m.as_str()).collect::<Vec<_>>().join(","));
+        let mode_str = modes.map(|ms| {
+            let cap = if ms.is_empty() {
+                0
+            } else {
+                ms.len() - 1 + ms.iter().map(|m| m.as_str().len()).sum::<usize>()
+            };
+            let mut s = String::with_capacity(cap);
+            for (i, m) in ms.iter().enumerate() {
+                if i > 0 {
+                    s.push(',');
+                }
+                s.push_str(m.as_str());
+            }
+            s
+        });
 
         // ⚡ Bolt: Use a stack-allocated array to avoid heap allocation for small parameter list
         let mut params_array = [("", ""); 2];
@@ -238,8 +269,32 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
             crate::types::validator::validate_identifier(id, "record id")?;
         }
 
-        let path = format!("records/batch/{}", ids.join(","));
-        let fields_str = fields.map(|fs| fs.join(","));
+        // ⚡ Bolt: Construct path directly to avoid intermediate `.join(",")` allocation
+        let capacity = 14 + ids.iter().map(|s| s.len() + 1).sum::<usize>();
+        let mut path = String::with_capacity(capacity);
+        path.push_str("records/batch/");
+        for (i, id) in ids.iter().enumerate() {
+            if i > 0 {
+                path.push(',');
+            }
+            path.push_str(id);
+        }
+
+        let fields_str = fields.map(|fs| {
+            let cap = if fs.is_empty() {
+                0
+            } else {
+                fs.len() - 1 + fs.iter().map(|f| f.len()).sum::<usize>()
+            };
+            let mut s = String::with_capacity(cap);
+            for (i, f) in fs.iter().enumerate() {
+                if i > 0 {
+                    s.push(',');
+                }
+                s.push_str(f);
+            }
+            s
+        });
 
         // ⚡ Bolt: Use a stack-allocated array to avoid heap allocation for small parameter list
         let mut params_array = [("", ""); 1];
