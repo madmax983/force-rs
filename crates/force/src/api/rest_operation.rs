@@ -913,13 +913,40 @@ mod tests {
 
     #[tokio::test]
     async fn test_validation_query_more_rejects_oversized_url_before_session() {
-        let op = TestRestOp;
+        use crate::client::builder;
+        use serde_json::json;
+        use wiremock::matchers::method;
+        use wiremock::{Mock, MockServer, ResponseTemplate};
 
-        let exact = "A".repeat(MAX_QUERY_INPUT_BYTES);
-        assert!(super::validate_query_input_len("test", &exact).is_ok());
+        let mock_server = MockServer::start().await;
+        let auth =
+            crate::test_utils::mock_auth::MockAuthenticator::new("test_token", &mock_server.uri());
+        let client = builder().authenticate(auth).build().await.must();
 
-        let next_records_url = "A".repeat(MAX_QUERY_INPUT_BYTES + 1);
-        let result = op.query_more::<serde_json::Value>(&next_records_url).await;
+        let prefix = format!("{}/services/data/v67.0/query/01g", &mock_server.uri());
+        let exact_url_absolute = format!("{}{}", prefix, "A".repeat(MAX_QUERY_INPUT_BYTES - prefix.len()));
+
+        Mock::given(method("GET"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "totalSize": 1,
+                "done": true,
+                "records": [{"Id": "001xx000003DHP0AAO", "Name": "Test Account"}]
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let rest = client.rest();
+
+        // Exact length should NOT be rejected by OUR validation (tests >= mutant)
+        let result = rest.query_more::<serde_json::Value>(&exact_url_absolute).await;
+        // It might fail in `reqwest` with a Uri error, but it should NOT be InvalidInput
+        if let Err(crate::error::ForceError::InvalidInput(msg)) = result {
+            panic!("Exact URL length was incorrectly rejected by our validation: {}", msg);
+        }
+
+        // One byte over MUST be rejected by our validation
+        let next_records_url = format!("{}A", exact_url_absolute);
+        let result = rest.query_more::<serde_json::Value>(&next_records_url).await;
 
         assert_invalid_input_contains(result, "100,000 bytes");
     }
@@ -1053,6 +1080,53 @@ mod tests {
 
         assert!(response.is_success());
         assert!(!response.is_created());
+        assert_eq!(response.id.as_str(), "001xx000003DHP0AAO");
+    }
+
+
+
+
+    #[tokio::test]
+    async fn test_upsert_payload_exact_limit() {
+        use crate::client::builder;
+        use serde_json::json;
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let mock_server = MockServer::start().await;
+        let auth = crate::test_utils::mock_auth::MockAuthenticator::new("test_token", &mock_server.uri());
+        let client = builder().authenticate(auth).build().await.must();
+
+        // Exact limit payload: valid JSON array of spaces and one record
+        let limit = 100 * 1024 * 1024;
+        let start = "{\"id\":\"001xx000003DHP0AAO\",\"success\":true,\"created\":false,\"errors\":[";
+        let end = "]}";
+        let mut body = Vec::with_capacity(limit);
+        body.extend_from_slice(start.as_bytes());
+        body.resize(limit - end.len(), b' ');
+        body.extend_from_slice(end.as_bytes());
+
+        assert_eq!(body.len(), limit);
+
+        Mock::given(method("PATCH"))
+            .and(path("/services/data/v67.0/sobjects/Account/ExternalId__c/ACME-002"))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(body))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let rest = client.rest();
+        let response = rest
+            .upsert(
+                "Account",
+                "ExternalId__c",
+                "ACME-002",
+                &json!({"Name": "Acme Corp"}),
+            )
+            .await
+            .must();
+
+        assert!(response.success);
         assert_eq!(response.id.as_str(), "001xx000003DHP0AAO");
     }
 
