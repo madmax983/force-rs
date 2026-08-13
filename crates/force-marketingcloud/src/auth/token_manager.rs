@@ -56,7 +56,14 @@ impl TokenManager {
         }
 
         let key_lock = self.key_lock(&key).await;
-        let _guard = key_lock.lock().await;
+        let _guard = if let Ok(guard) = key_lock.try_lock() {
+            guard
+        } else {
+            if let Some(token) = self.cached_unexpired(&key).await {
+                return Ok(token);
+            }
+            key_lock.lock().await
+        };
 
         // Double-check: another task may have refreshed while we waited.
         if let Some(token) = self.cached_valid(&key).await {
@@ -66,6 +73,12 @@ impl TokenManager {
         let token = Arc::new(self.authenticator.authenticate(account_id).await?);
         self.cache.write().await.insert(key, token.clone());
         Ok(token)
+    }
+
+    /// Returns the cached token for `key` if present and not past its hard expiry.
+    async fn cached_unexpired(&self, key: &CacheKey) -> Option<Arc<AccessToken>> {
+        let cache = self.cache.read().await;
+        cache.get(key).filter(|t| !t.is_expired()).cloned()
     }
 
     /// Removes any cached token for the given business unit.
