@@ -140,14 +140,29 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
         let ids_str = ids.join(",");
         let path = format!("record-ui/{}", ids_str);
 
+        // ⚡ Bolt: Uses iterative string construction instead of .collect::<Vec<_>>().join(",") to avoid unnecessary intermediate Vec heap allocation.
         let lt_str = layout_types.map(|lts| {
-            lts.iter()
-                .map(|lt| lt.as_str())
-                .collect::<Vec<_>>()
-                .join(",")
+            let mut s = String::with_capacity(lts.len() * 10);
+            for (i, lt) in lts.iter().enumerate() {
+                if i > 0 {
+                    s.push(',');
+                }
+                s.push_str(lt.as_str());
+            }
+            s
         });
 
-        let mode_str = modes.map(|ms| ms.iter().map(|m| m.as_str()).collect::<Vec<_>>().join(","));
+        // ⚡ Bolt: Uses iterative string construction instead of .collect::<Vec<_>>().join(",") to avoid unnecessary intermediate Vec heap allocation.
+        let mode_str = modes.map(|ms| {
+            let mut s = String::with_capacity(ms.len() * 10);
+            for (i, m) in ms.iter().enumerate() {
+                if i > 0 {
+                    s.push(',');
+                }
+                s.push_str(m.as_str());
+            }
+            s
+        });
 
         // ⚡ Bolt: Use a stack-allocated array to avoid heap allocation for small parameter list
         let mut params_array = [("", ""); 2];
