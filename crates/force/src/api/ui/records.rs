@@ -133,6 +133,25 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
         layout_types: Option<&[crate::api::ui::types::LayoutType]>,
         modes: Option<&[crate::api::ui::types::Mode]>,
     ) -> crate::error::Result<RecordUiRepresentation> {
+        /// ⚡ Bolt: Avoids intermediate `Vec` allocations by iterating and writing directly to a pre-sized `String`.
+        fn join_as_comma_separated<'a, I>(iter: I, count: usize) -> String
+        where
+            I: Iterator<Item = &'a str> + Clone,
+        {
+            if count == 0 {
+                return String::new();
+            }
+            let capacity = iter.clone().map(|s| s.len()).sum::<usize>() + count - 1;
+            let mut result = String::with_capacity(capacity);
+            for (i, s) in iter.enumerate() {
+                if i > 0 {
+                    result.push(',');
+                }
+                result.push_str(s);
+            }
+            result
+        }
+
         for id in ids {
             crate::types::validator::validate_identifier(id, "record id")?;
         }
@@ -140,14 +159,11 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
         let ids_str = ids.join(",");
         let path = format!("record-ui/{}", ids_str);
 
-        let lt_str = layout_types.map(|lts| {
-            lts.iter()
-                .map(|lt| lt.as_str())
-                .collect::<Vec<_>>()
-                .join(",")
-        });
+        let lt_str = layout_types
+            .map(|lts| join_as_comma_separated(lts.iter().map(|lt| lt.as_str()), lts.len()));
 
-        let mode_str = modes.map(|ms| ms.iter().map(|m| m.as_str()).collect::<Vec<_>>().join(","));
+        let mode_str =
+            modes.map(|ms| join_as_comma_separated(ms.iter().map(|m| m.as_str()), ms.len()));
 
         // ⚡ Bolt: Use a stack-allocated array to avoid heap allocation for small parameter list
         let mut params_array = [("", ""); 2];
