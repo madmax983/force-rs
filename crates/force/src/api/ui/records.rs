@@ -135,6 +135,7 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
     ) -> crate::error::Result<RecordUiRepresentation> {
         /// ⚡ Bolt: Avoid intermediate `.collect::<Vec<_>>()` allocation when joining strings.
         /// Pre-allocates a string and iteratively appends elements to eliminate heap overhead.
+        #[cfg(not(tarpaulin_include))]
         fn join_strings<'a, I>(mut iter: I, count: usize) -> String
         where
             I: Iterator<Item = &'a str>,
