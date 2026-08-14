@@ -1,3 +1,13 @@
+coverage:
+  status:
+    project:
+      default:
+        threshold: 0.1%
+    patch:
+      default:
+        target: 0%
+
+
 # Codecov configuration
 #
 # The live_* test binaries and the shared tests/common harness are #[ignore]
