@@ -133,6 +133,26 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
         layout_types: Option<&[crate::api::ui::types::LayoutType]>,
         modes: Option<&[crate::api::ui::types::Mode]>,
     ) -> crate::error::Result<RecordUiRepresentation> {
+        /// ⚡ Bolt: Helper to join an iterator of strings without intermediate Vec allocations
+        fn join_as_comma_separated<'a>(
+            mut items: impl ExactSizeIterator<Item = &'a str>,
+        ) -> String {
+            let len = items.len();
+            if len == 0 {
+                return String::new();
+            }
+            // Approximation for capacity to reduce re-allocations
+            let mut result = String::with_capacity(len * 10 + len - 1);
+            if let Some(first) = items.next() {
+                result.push_str(first);
+            }
+            for item in items {
+                result.push(',');
+                result.push_str(item);
+            }
+            result
+        }
+
         for id in ids {
             crate::types::validator::validate_identifier(id, "record id")?;
         }
@@ -140,14 +160,10 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
         let ids_str = ids.join(",");
         let path = format!("record-ui/{}", ids_str);
 
-        let lt_str = layout_types.map(|lts| {
-            lts.iter()
-                .map(|lt| lt.as_str())
-                .collect::<Vec<_>>()
-                .join(",")
-        });
+        let lt_str =
+            layout_types.map(|lts| join_as_comma_separated(lts.iter().map(|lt| lt.as_str())));
 
-        let mode_str = modes.map(|ms| ms.iter().map(|m| m.as_str()).collect::<Vec<_>>().join(","));
+        let mode_str = modes.map(|ms| join_as_comma_separated(ms.iter().map(|m| m.as_str())));
 
         // ⚡ Bolt: Use a stack-allocated array to avoid heap allocation for small parameter list
         let mut params_array = [("", ""); 2];
@@ -1095,5 +1111,45 @@ mod tests {
         }"#;
         let ui: RecordUiRepresentation = serde_json::from_str(json_str).must();
         assert!(ui.records.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_record_ui_with_multiple_layout_types_and_modes() {
+        let server = MockServer::start().await;
+        let client = make_client(&server).await;
+
+        let response_body = json!({
+            "layoutUserStates": {},
+            "layouts": {},
+            "objectInfos": {},
+            "records": {
+                VALID_ID: minimal_record_json(VALID_ID)
+            }
+        });
+
+        Mock::given(method("GET"))
+            .and(path(format!(
+                "/services/data/v67.0/ui-api/record-ui/{VALID_ID}"
+            )))
+            .and(query_param("layoutTypes", "Full,Compact"))
+            .and(query_param("modes", "View,Edit"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(&response_body))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let lt = [
+            crate::api::ui::types::LayoutType::Full,
+            crate::api::ui::types::LayoutType::Compact,
+        ];
+        let modes = [
+            crate::api::ui::types::Mode::View,
+            crate::api::ui::types::Mode::Edit,
+        ];
+        let _ = client
+            .ui()
+            .record_ui(&[VALID_ID], Some(&lt), Some(&modes))
+            .await
+            .must();
     }
 }
