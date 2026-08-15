@@ -1112,4 +1112,34 @@ mod tests {
         let ui: RecordUiRepresentation = serde_json::from_str(json_str).must();
         assert!(ui.records.is_empty());
     }
+
+    #[tokio::test]
+    async fn test_record_ui_with_multiple_layout_types_and_modes() {
+        let server = MockServer::start().await;
+        let client = make_client(&server).await;
+
+        let response_body = json!({
+            "layoutUserStates": {},
+            "layouts": {},
+            "objectInfos": {},
+            "records": {
+                VALID_ID: minimal_record_json(VALID_ID)
+            }
+        });
+
+        Mock::given(method("GET"))
+            .and(path(format!(
+                "/services/data/v67.0/ui-api/record-ui/{VALID_ID}"
+            )))
+            .and(query_param("layoutTypes", "Full,Compact"))
+            .and(query_param("modes", "View,Edit"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(&response_body))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let lt = [crate::api::ui::types::LayoutType::Full, crate::api::ui::types::LayoutType::Compact];
+        let modes = [crate::api::ui::types::Mode::View, crate::api::ui::types::Mode::Edit];
+        let _ = client.ui().record_ui(&[VALID_ID], Some(&lt), Some(&modes)).await.must();
+    }
 }
