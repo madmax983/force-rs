@@ -98,3 +98,6 @@
 **[Flatten Match With Original Error Context]**
 **Learning:** When flattening nested `match` statements handling `Result` outputs, rewriting them with `let Ok(...) = result else` guard clauses can lead to silently swallowing the underlying original error if not passed through explicitly, which breaks observability and changes runtime behavior. Using `.map_err(...)?` provides a flatter structure while preserving the exact error mappings natively.
 **Action:** When acting as 'Forge', never drop the original underlying error variable (e.g., `e`). To flatten `Result` mapping, use `.map_err(|e| { ... })?` with the `?` operator instead of verbose `match` statements or dropping context inside `else` guards, ensuring the error propagates cleanly without over-nesting.
+**[Delete Unused Helper Functions]**
+**Learning:** Extracting internal logic into standalone helper methods but failing to delete them after moving the logic into a trait method causes dead code accumulation. In this case, `upsert_with_retry_class_impl` was completely unused after `upsert_with_retry_class` was added to `RestOperation`.
+**Action:** Always delete unused standalone helper methods after consolidating their logic into trait methods to avoid dead code and reduce technical debt.
