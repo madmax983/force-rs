@@ -1138,8 +1138,18 @@ mod tests {
             .mount(&server)
             .await;
 
-        let lt = [crate::api::ui::types::LayoutType::Full, crate::api::ui::types::LayoutType::Compact];
-        let modes = [crate::api::ui::types::Mode::View, crate::api::ui::types::Mode::Edit];
-        let _ = client.ui().record_ui(&[VALID_ID], Some(&lt), Some(&modes)).await.must();
+        let lt = [
+            crate::api::ui::types::LayoutType::Full,
+            crate::api::ui::types::LayoutType::Compact,
+        ];
+        let modes = [
+            crate::api::ui::types::Mode::View,
+            crate::api::ui::types::Mode::Edit,
+        ];
+        let _ = client
+            .ui()
+            .record_ui(&[VALID_ID], Some(&lt), Some(&modes))
+            .await
+            .must();
     }
 }
