@@ -133,6 +133,22 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
         layout_types: Option<&[crate::api::ui::types::LayoutType]>,
         modes: Option<&[crate::api::ui::types::Mode]>,
     ) -> crate::error::Result<RecordUiRepresentation> {
+        /// ⚡ Bolt: Use pre-allocated `String::with_capacity` and manual concatenation
+        /// instead of `.collect::<Vec<_>>().join(",")` to avoid multiple heap allocations.
+        fn join_strs<'a, I>(iter: I) -> String
+        where
+            I: Iterator<Item = &'a str> + Clone,
+        {
+            let count = iter.clone().count();
+            let mut s = String::with_capacity(count * 10);
+            for (i, item) in iter.enumerate() {
+                if i > 0 {
+                    s.push(',');
+                }
+                s.push_str(item);
+            }
+            s
+        }
         for id in ids {
             crate::types::validator::validate_identifier(id, "record id")?;
         }
@@ -140,14 +156,9 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
         let ids_str = ids.join(",");
         let path = format!("record-ui/{}", ids_str);
 
-        let lt_str = layout_types.map(|lts| {
-            lts.iter()
-                .map(|lt| lt.as_str())
-                .collect::<Vec<_>>()
-                .join(",")
-        });
+        let lt_str = layout_types.map(|lts| join_strs(lts.iter().map(|lt| lt.as_str())));
 
-        let mode_str = modes.map(|ms| ms.iter().map(|m| m.as_str()).collect::<Vec<_>>().join(","));
+        let mode_str = modes.map(|ms| join_strs(ms.iter().map(|m| m.as_str())));
 
         // ⚡ Bolt: Use a stack-allocated array to avoid heap allocation for small parameter list
         let mut params_array = [("", ""); 2];
