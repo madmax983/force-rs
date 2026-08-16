@@ -3,6 +3,13 @@
 # The live_* test binaries and the shared tests/common harness are #[ignore]
 # and cannot run in hermetic CI without live org credentials. Tarpaulin still
 # reports their lines as source, so they are excluded from coverage here.
+coverage:
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 0.1%
+
 ignore:
   - "crates/force/tests/common/mod.rs"
   - "crates/force/tests/live_salesforce.rs"
