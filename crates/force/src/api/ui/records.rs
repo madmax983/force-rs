@@ -489,6 +489,38 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_record_ui_with_empty_layout_types_and_modes() {
+        let server = MockServer::start().await;
+        let client = make_client(&server).await;
+
+        let response_body = json!({
+            "layoutUserStates": {},
+            "layouts": {},
+            "objectInfos": {},
+            "records": {
+                VALID_ID: minimal_record_json(VALID_ID)
+            }
+        });
+
+        Mock::given(method("GET"))
+            .and(path(format!(
+                "/services/data/v67.0/ui-api/record-ui/{VALID_ID}"
+            )))
+            .respond_with(ResponseTemplate::new(200).set_body_json(&response_body))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let result = client
+            .ui()
+            .record_ui(&[VALID_ID], Some(&[]), Some(&[]))
+            .await
+            .must();
+
+        assert!(result.records.contains_key(VALID_ID));
+    }
+
+    #[tokio::test]
     async fn test_record_ui_multiple_ids() {
         let server = MockServer::start().await;
         let client = make_client(&server).await;
