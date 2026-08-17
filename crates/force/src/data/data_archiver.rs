@@ -310,49 +310,54 @@ mod tests {
     async fn test_export_to_jsonl_path_traversal() {
         let mock_server = MockServer::start().await;
         let auth = MockAuthenticator::new("token", &mock_server.uri());
-        let client = ForceClientBuilder::new()
-            .authenticate(auth)
-            .build()
-            .await
-            .must();
+        let client = ForceClientBuilder::new().authenticate(auth).build().await.must();
         let archiver = DataArchiver::new(&client);
 
         let soql = "SELECT Id FROM Account";
         let path = std::path::Path::new("../../etc/passwd");
 
-        let result = archiver
-            .export_to_jsonl::<serde_json::Value>(soql, path)
-            .await;
+        let result = archiver.export_to_jsonl::<serde_json::Value>(soql, path).await;
         let Err(err) = result else {
             panic!("Expected path traversal error");
         };
-        assert!(
-            err.to_string()
-                .contains("invalid data format: Path traversal detected")
-        );
+        assert!(err.to_string().contains("invalid data format: Path traversal detected"), "Actual error: {}", err);
     }
 
     #[tokio::test]
     async fn test_export_masked_to_jsonl_path_traversal() {
         let mock_server = MockServer::start().await;
+
+        let describe_json = json!({
+            "name": "Contact",
+            "label": "Contact",
+            "custom": false,
+            "queryable": true,
+            "activateable": false, "createable": true, "customSetting": false, "deletable": true,
+            "deprecatedAndHidden": false, "feedEnabled": true, "hasSubtypes": false,
+            "isSubtype": false, "keyPrefix": "003", "labelPlural": "Contacts", "layoutable": true,
+            "mergeable": true, "mruEnabled": true, "replicateable": true, "retrieveable": true,
+            "searchable": true, "triggerable": true, "undeletable": true, "updateable": true,
+            "urls": {}, "childRelationships": [], "recordTypeInfos": [],
+            "fields": []
+        });
+
+        Mock::given(method("GET"))
+            .and(path("/services/data/v67.0/sobjects/Contact/describe"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(describe_json))
+            .mount(&mock_server)
+            .await;
+
         let auth = MockAuthenticator::new("token", &mock_server.uri());
-        let client = ForceClientBuilder::new()
-            .authenticate(auth)
-            .build()
-            .await
-            .must();
+        let client = ForceClientBuilder::new().authenticate(auth).build().await.must();
         let archiver = DataArchiver::new(&client);
 
-        let soql = "SELECT Id FROM Account";
+        let soql = "SELECT Id FROM Contact";
         let path = std::path::Path::new("../../etc/passwd");
 
-        let result = archiver.export_masked_to_jsonl("Account", soql, path).await;
+        let result = archiver.export_masked_to_jsonl("Contact", soql, path).await;
         let Err(err) = result else {
             panic!("Expected path traversal error");
         };
-        assert!(
-            err.to_string()
-                .contains("invalid data format: Path traversal detected")
-        );
+        assert!(err.to_string().contains("invalid data format: Path traversal detected"), "Actual error: {}", err);
     }
 }
