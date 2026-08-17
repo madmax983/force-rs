@@ -310,17 +310,28 @@ mod tests {
     async fn test_export_to_jsonl_path_traversal() {
         let mock_server = MockServer::start().await;
         let auth = MockAuthenticator::new("token", &mock_server.uri());
-        let client = ForceClientBuilder::new().authenticate(auth).build().await.must();
+        let client = ForceClientBuilder::new()
+            .authenticate(auth)
+            .build()
+            .await
+            .must();
         let archiver = DataArchiver::new(&client);
 
         let soql = "SELECT Id FROM Account";
         let path = std::path::Path::new("../../etc/passwd");
 
-        let result = archiver.export_to_jsonl::<serde_json::Value>(soql, path).await;
+        let result = archiver
+            .export_to_jsonl::<serde_json::Value>(soql, path)
+            .await;
         let Err(err) = result else {
             panic!("Expected path traversal error");
         };
-        assert!(err.to_string().contains("invalid data format: Path traversal detected"), "Actual error: {}", err);
+        assert!(
+            err.to_string()
+                .contains("invalid data format: Path traversal detected"),
+            "Actual error: {}",
+            err
+        );
     }
 
     #[tokio::test]
@@ -348,7 +359,11 @@ mod tests {
             .await;
 
         let auth = MockAuthenticator::new("token", &mock_server.uri());
-        let client = ForceClientBuilder::new().authenticate(auth).build().await.must();
+        let client = ForceClientBuilder::new()
+            .authenticate(auth)
+            .build()
+            .await
+            .must();
         let archiver = DataArchiver::new(&client);
 
         let soql = "SELECT Id FROM Contact";
@@ -358,6 +373,11 @@ mod tests {
         let Err(err) = result else {
             panic!("Expected path traversal error");
         };
-        assert!(err.to_string().contains("invalid data format: Path traversal detected"), "Actual error: {}", err);
+        assert!(
+            err.to_string()
+                .contains("invalid data format: Path traversal detected"),
+            "Actual error: {}",
+            err
+        );
     }
 }
