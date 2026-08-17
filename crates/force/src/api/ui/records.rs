@@ -140,14 +140,29 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
         let ids_str = ids.join(",");
         let path = format!("record-ui/{}", ids_str);
 
+        // ⚡ Bolt: Construct string directly to avoid intermediate `.join(",")` allocation
         let lt_str = layout_types.map(|lts| {
-            lts.iter()
-                .map(|lt| lt.as_str())
-                .collect::<Vec<_>>()
-                .join(",")
+            let mut s = String::with_capacity(lts.len() * 10);
+            for (i, lt) in lts.iter().enumerate() {
+                if i > 0 {
+                    s.push(',');
+                }
+                s.push_str(lt.as_str());
+            }
+            s
         });
 
-        let mode_str = modes.map(|ms| ms.iter().map(|m| m.as_str()).collect::<Vec<_>>().join(","));
+        // ⚡ Bolt: Construct string directly to avoid intermediate `.join(",")` allocation
+        let mode_str = modes.map(|ms| {
+            let mut s = String::with_capacity(ms.len() * 10);
+            for (i, m) in ms.iter().enumerate() {
+                if i > 0 {
+                    s.push(',');
+                }
+                s.push_str(m.as_str());
+            }
+            s
+        });
 
         // ⚡ Bolt: Use a stack-allocated array to avoid heap allocation for small parameter list
         let mut params_array = [("", ""); 2];
@@ -461,6 +476,38 @@ mod tests {
         let result = client
             .ui()
             .record_ui(&[VALID_ID], Some(&[LayoutType::Full]), Some(&[Mode::View]))
+            .await
+            .must();
+
+        assert!(result.records.contains_key(VALID_ID));
+    }
+
+    #[tokio::test]
+    async fn test_record_ui_with_empty_layout_types_and_modes() {
+        let server = MockServer::start().await;
+        let client = make_client(&server).await;
+
+        let response_body = json!({
+            "layoutUserStates": {},
+            "layouts": {},
+            "objectInfos": {},
+            "records": {
+                VALID_ID: minimal_record_json(VALID_ID)
+            }
+        });
+
+        Mock::given(method("GET"))
+            .and(path(format!(
+                "/services/data/v67.0/ui-api/record-ui/{VALID_ID}"
+            )))
+            .respond_with(ResponseTemplate::new(200).set_body_json(&response_body))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let result = client
+            .ui()
+            .record_ui(&[VALID_ID], Some(&[]), Some(&[]))
             .await
             .must();
 

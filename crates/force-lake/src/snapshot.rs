@@ -83,12 +83,17 @@ impl<A: Authenticator, C: LakeCatalog> SnapshotSink<A, C> {
         let describe = self.client.rest().describe(sobject).await?;
         let mapped = map_schema(&describe)?;
 
-        let field_list = describe
-            .fields
-            .iter()
-            .map(|f| f.name.as_str())
-            .collect::<Vec<_>>()
-            .join(", ");
+        // ⚡ Bolt: Construct string directly to avoid intermediate `.join(", ")` allocation
+        let field_list = {
+            let mut s = String::with_capacity(describe.fields.len() * 20);
+            for (i, f) in describe.fields.iter().enumerate() {
+                if i > 0 {
+                    s.push_str(", ");
+                }
+                s.push_str(f.name.as_str());
+            }
+            s
+        };
         let soql = format!("SELECT {field_list} FROM {sobject}");
 
         let mut stream = self.client.bulk().query::<Value>(&soql).await?;
