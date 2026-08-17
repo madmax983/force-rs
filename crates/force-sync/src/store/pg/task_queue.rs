@@ -25,7 +25,7 @@ struct LeaseDeadline {
     lease_until: DateTime<Utc>,
 }
 
-fn compute_lease_deadline(lease_for: Duration) -> Result<LeaseDeadline, ForceSyncError> {
+fn compute_lease_deadline(lease_for: Duration) -> crate::Result<LeaseDeadline> {
     let secs =
         i64::try_from(lease_for.as_secs()).map_err(|_| ForceSyncError::InvalidLeaseDuration)?;
     let nanos = i64::from(lease_for.subsec_nanos());
@@ -49,7 +49,7 @@ async fn enqueue_apply_task_query<C>(
     client: &C,
     journal_id: i64,
     priority: i32,
-) -> Result<i64, ForceSyncError>
+) -> crate::Result<i64>
 where
     C: GenericClient + Sync + ?Sized,
 {
@@ -71,7 +71,7 @@ async fn lease_ready_tasks_query<C>(
     worker_id: &str,
     limit: i64,
     lease_until: &LeaseDeadline,
-) -> Result<Vec<LeasedTask>, ForceSyncError>
+) -> crate::Result<Vec<LeasedTask>>
 where
     C: GenericClient + Sync + ?Sized,
 {
@@ -116,7 +116,7 @@ async fn update_task_status_unguarded<C>(
     status: &str,
     last_error: Option<&str>,
     next_attempt_at: Option<DateTime<Utc>>,
-) -> Result<u64, ForceSyncError>
+) -> crate::Result<u64>
 where
     C: GenericClient + Sync + ?Sized,
 {
@@ -142,7 +142,7 @@ async fn update_task_status_guarded<C>(
     last_error: Option<&str>,
     next_attempt_at: Option<DateTime<Utc>>,
     worker_id: &str,
-) -> Result<u64, ForceSyncError>
+) -> crate::Result<u64>
 where
     C: GenericClient + Sync + ?Sized,
 {
@@ -170,7 +170,7 @@ async fn update_task_status<C>(
     last_error: Option<&str>,
     next_attempt_at: Option<DateTime<Utc>>,
     expected_lease_owner: Option<&str>,
-) -> Result<u64, ForceSyncError>
+) -> crate::Result<u64>
 where
     C: GenericClient + Sync + ?Sized,
 {
@@ -198,11 +198,7 @@ impl PgStore {
     /// # Errors
     ///
     /// Returns an error if the database write fails.
-    pub async fn enqueue_apply_task(
-        &self,
-        journal_id: i64,
-        priority: i32,
-    ) -> Result<i64, ForceSyncError> {
+    pub async fn enqueue_apply_task(&self, journal_id: i64, priority: i32) -> crate::Result<i64> {
         let client = self.pool().get().await?;
         enqueue_apply_task_query(&**client, journal_id, priority).await
     }
@@ -217,7 +213,7 @@ impl PgStore {
         worker_id: &str,
         limit: i64,
         lease_for: Duration,
-    ) -> Result<Vec<LeasedTask>, ForceSyncError> {
+    ) -> crate::Result<Vec<LeasedTask>> {
         let lease_deadline = compute_lease_deadline(lease_for)?;
         let client = self.pool().get().await?;
         lease_ready_tasks_query(&**client, worker_id, limit, &lease_deadline).await
@@ -228,7 +224,7 @@ impl PgStore {
     /// # Errors
     ///
     /// Returns an error if the database write fails.
-    pub async fn ack_task(&self, task_id: i64) -> Result<u64, ForceSyncError> {
+    pub async fn ack_task(&self, task_id: i64) -> crate::Result<u64> {
         let client = self.pool().get().await?;
         update_task_status(&**client, task_id, "done", None, None, None).await
     }
@@ -240,11 +236,7 @@ impl PgStore {
     /// # Errors
     ///
     /// Returns an error if the database write fails.
-    pub async fn ack_task_for_worker(
-        &self,
-        worker_id: &str,
-        task_id: i64,
-    ) -> Result<u64, ForceSyncError> {
+    pub async fn ack_task_for_worker(&self, worker_id: &str, task_id: i64) -> crate::Result<u64> {
         let client = self.pool().get().await?;
         update_task_status(&**client, task_id, "done", None, None, Some(worker_id)).await
     }
@@ -259,7 +251,7 @@ impl PgStore {
         task_id: i64,
         next_attempt_at: DateTime<Utc>,
         error: impl AsRef<str>,
-    ) -> Result<u64, ForceSyncError> {
+    ) -> crate::Result<u64> {
         let error = error.as_ref().to_owned();
         let client = self.pool().get().await?;
         update_task_status(
@@ -286,7 +278,7 @@ impl PgStore {
         task_id: i64,
         next_attempt_at: DateTime<Utc>,
         error: impl AsRef<str>,
-    ) -> Result<u64, ForceSyncError> {
+    ) -> crate::Result<u64> {
         let error = error.as_ref().to_owned();
         let client = self.pool().get().await?;
         update_task_status(
@@ -305,11 +297,7 @@ impl PgStore {
     /// # Errors
     ///
     /// Returns an error if the database write fails.
-    pub async fn fail_task(
-        &self,
-        task_id: i64,
-        error: impl AsRef<str>,
-    ) -> Result<u64, ForceSyncError> {
+    pub async fn fail_task(&self, task_id: i64, error: impl AsRef<str>) -> crate::Result<u64> {
         let error = error.as_ref().to_owned();
         let client = self.pool().get().await?;
         update_task_status(&**client, task_id, "failed", Some(&error), None, None).await
@@ -327,7 +315,7 @@ impl PgStore {
         worker_id: &str,
         task_id: i64,
         error: impl AsRef<str>,
-    ) -> Result<u64, ForceSyncError> {
+    ) -> crate::Result<u64> {
         let error = error.as_ref().to_owned();
         let client = self.pool().get().await?;
         update_task_status(
@@ -350,7 +338,7 @@ impl PgStore {
         client: &C,
         journal_id: i64,
         priority: i32,
-    ) -> Result<i64, ForceSyncError>
+    ) -> crate::Result<i64>
     where
         C: GenericClient + Sync + ?Sized,
     {
@@ -367,7 +355,7 @@ impl PgStore {
         worker_id: &str,
         limit: i64,
         lease_for: Duration,
-    ) -> Result<Vec<LeasedTask>, ForceSyncError>
+    ) -> crate::Result<Vec<LeasedTask>>
     where
         C: GenericClient + Sync + ?Sized,
     {
@@ -380,7 +368,7 @@ impl PgStore {
     /// # Errors
     ///
     /// Returns an error if the database write fails.
-    pub async fn ack_task_in_tx<C>(client: &C, task_id: i64) -> Result<u64, ForceSyncError>
+    pub async fn ack_task_in_tx<C>(client: &C, task_id: i64) -> crate::Result<u64>
     where
         C: GenericClient + Sync + ?Sized,
     {
@@ -397,7 +385,7 @@ impl PgStore {
         task_id: i64,
         next_attempt_at: DateTime<Utc>,
         error: impl AsRef<str>,
-    ) -> Result<u64, ForceSyncError>
+    ) -> crate::Result<u64>
     where
         C: GenericClient + Sync + ?Sized,
     {
@@ -422,7 +410,7 @@ impl PgStore {
         client: &C,
         task_id: i64,
         error: impl AsRef<str>,
-    ) -> Result<u64, ForceSyncError>
+    ) -> crate::Result<u64>
     where
         C: GenericClient + Sync + ?Sized,
     {
