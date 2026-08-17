@@ -85,18 +85,14 @@ impl<A: Authenticator, C: LakeCatalog> SnapshotSink<A, C> {
 
         // ⚡ Bolt: Construct string directly to avoid intermediate `.join(", ")` allocation
         let field_list = {
-            if describe.fields.is_empty() {
-                String::new()
-            } else {
-                let mut s = String::with_capacity(describe.fields.len() * 20);
-                for (i, f) in describe.fields.iter().enumerate() {
-                    if i > 0 {
-                        s.push_str(", ");
-                    }
-                    s.push_str(f.name.as_str());
+            let mut s = String::with_capacity(describe.fields.len() * 20);
+            for (i, f) in describe.fields.iter().enumerate() {
+                if i > 0 {
+                    s.push_str(", ");
                 }
-                s
+                s.push_str(f.name.as_str());
             }
+            s
         };
         let soql = format!("SELECT {field_list} FROM {sobject}");
 

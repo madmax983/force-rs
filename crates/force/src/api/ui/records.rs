@@ -142,9 +142,6 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
 
         // ⚡ Bolt: Construct string directly to avoid intermediate `.join(",")` allocation
         let lt_str = layout_types.map(|lts| {
-            if lts.is_empty() {
-                return String::new();
-            }
             let mut s = String::with_capacity(lts.len() * 10);
             for (i, lt) in lts.iter().enumerate() {
                 if i > 0 {
@@ -157,9 +154,6 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
 
         // ⚡ Bolt: Construct string directly to avoid intermediate `.join(",")` allocation
         let mode_str = modes.map(|ms| {
-            if ms.is_empty() {
-                return String::new();
-            }
             let mut s = String::with_capacity(ms.len() * 10);
             for (i, m) in ms.iter().enumerate() {
                 if i > 0 {
