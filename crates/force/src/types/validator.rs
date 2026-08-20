@@ -195,6 +195,12 @@ mod tests {
     }
 
     #[test]
+    fn test_validate_field_name_internal_without_functions() {
+        // Parentheses should be rejected if allow_functions is false
+        assert!(validate_field_name_internal("count(Id)", false).is_err());
+        assert!(validate_field_name_internal("Name", false).is_ok());
+    }
+    #[test]
     fn test_validate_field_name_invalid() {
         assert!(validate_field_name("").is_err());
         assert!(validate_field_name("Name; DROP").is_err());
