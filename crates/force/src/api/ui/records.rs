@@ -133,6 +133,30 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
         layout_types: Option<&[crate::api::ui::types::LayoutType]>,
         modes: Option<&[crate::api::ui::types::Mode]>,
     ) -> crate::error::Result<RecordUiRepresentation> {
+        /// ⚡ Bolt: Removes intermediate `.collect::<Vec<_>>()` heap allocations when joining layout types.
+        fn join_layout_types(lts: &[crate::api::ui::types::LayoutType]) -> String {
+            let mut s = String::with_capacity(lts.len() * 8);
+            for (i, lt) in lts.iter().enumerate() {
+                if i > 0 {
+                    s.push(',');
+                }
+                s.push_str(lt.as_str());
+            }
+            s
+        }
+
+        /// ⚡ Bolt: Removes intermediate `.collect::<Vec<_>>()` heap allocations when joining modes.
+        fn join_modes(ms: &[crate::api::ui::types::Mode]) -> String {
+            let mut s = String::with_capacity(ms.len() * 8);
+            for (i, m) in ms.iter().enumerate() {
+                if i > 0 {
+                    s.push(',');
+                }
+                s.push_str(m.as_str());
+            }
+            s
+        }
+
         for id in ids {
             crate::types::validator::validate_identifier(id, "record id")?;
         }
@@ -140,14 +164,9 @@ impl<A: crate::auth::Authenticator> crate::api::ui::UiHandler<A> {
         let ids_str = ids.join(",");
         let path = format!("record-ui/{}", ids_str);
 
-        let lt_str = layout_types.map(|lts| {
-            lts.iter()
-                .map(|lt| lt.as_str())
-                .collect::<Vec<_>>()
-                .join(",")
-        });
+        let lt_str = layout_types.map(join_layout_types);
 
-        let mode_str = modes.map(|ms| ms.iter().map(|m| m.as_str()).collect::<Vec<_>>().join(","));
+        let mode_str = modes.map(join_modes);
 
         // ⚡ Bolt: Use a stack-allocated array to avoid heap allocation for small parameter list
         let mut params_array = [("", ""); 2];
