@@ -1,0 +1,12 @@
+[package]
+name = "havoc-loom-tests"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+loom = "0.7.2"
+
+[[test]]
+name = "havoc_marketingcloud_token_manager_loom"
+path = "tests/havoc_marketingcloud_token_manager_loom.rs"
