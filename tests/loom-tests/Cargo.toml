@@ -3,10 +3,11 @@ name = "havoc-loom-tests"
 version = "0.1.0"
 edition = "2021"
 publish = false
+license = "MIT OR Apache-2.0"
 
 [dependencies]
 loom = "0.7.2"
 
 [[test]]
 name = "havoc_marketingcloud_token_manager_loom"
-path = "tests/havoc_marketingcloud_token_manager_loom.rs"
+path = "havoc_marketingcloud_token_manager_loom.rs"

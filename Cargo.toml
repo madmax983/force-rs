@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
-members = ["fuzz", "crates/force", "crates/force-marketingcloud", "crates/force-pubsub", "crates/force-sync", "crates/force-lake", "crates/loom-tests"]
+members = ["fuzz", "crates/force", "crates/force-marketingcloud", "crates/force-pubsub", "crates/force-sync", "crates/force-lake", "tests/loom-tests"]
+exclude = [".github"]
 
 [workspace.package]
 version = "0.4.0"
