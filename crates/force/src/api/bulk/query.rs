@@ -500,7 +500,10 @@ impl<A: crate::auth::Authenticator> super::BulkHandler<A> {
     /// }
     /// ```
     #[allow(clippy::unused_async)]
-    pub fn query_results<T>(&self, job_id: &str) -> impl std::future::Future<Output = Result<BulkQueryStream<T, A>>>
+    pub fn query_results<T>(
+        &self,
+        job_id: &str,
+    ) -> impl std::future::Future<Output = Result<BulkQueryStream<T, A>>>
     where
         T: for<'de> Deserialize<'de>,
     {
