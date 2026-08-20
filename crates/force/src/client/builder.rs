@@ -168,72 +168,74 @@ impl<A: Authenticator> AuthenticatedBuilder<A> {
     /// Returns an error if:
     /// - HTTP client construction fails
     #[allow(clippy::unused_async)] // Async signature for future auth initialization
-    pub async fn build(self) -> Result<ForceClient<A>> {
-        use crate::session::Session;
-        use std::sync::Arc;
+    pub fn build(self) -> impl std::future::Future<Output = Result<ForceClient<A>>> {
+        std::future::ready((|| -> Result<ForceClient<A>> {
+            use crate::session::Session;
+            use std::sync::Arc;
 
-        let config = self.config.unwrap_or_default();
+            let config = self.config.unwrap_or_default();
 
-        // Build HTTP client with timeout from config
-        let http_client = reqwest::Client::builder()
-            .timeout(config.timeout)
-            .build()
-            .map_err(crate::error::HttpError::from)?;
-        let http_executor = crate::http::HttpExecutor::with_client(
-            http_client.clone(),
-            config.max_retries,
-            config.timeout,
-        );
+            // Build HTTP client with timeout from config
+            let http_client = reqwest::Client::builder()
+                .timeout(config.timeout)
+                .build()
+                .map_err(crate::error::HttpError::from)?;
+            let http_executor = crate::http::HttpExecutor::with_client(
+                http_client.clone(),
+                config.max_retries,
+                config.timeout,
+            );
 
-        // Create token manager with the authenticator
-        let token_manager = Arc::new(TokenManager::new(self.authenticator));
+            // Create token manager with the authenticator
+            let token_manager = Arc::new(TokenManager::new(self.authenticator));
 
-        // Optionally create the Data Cloud session
-        #[cfg(feature = "data_cloud")]
-        let dc_session = self.dc_config.map(|dc_config| {
-            // Resolve DC-specific API version (or inherit platform)
-            let dc_api_version = dc_config
-                .api_version
-                .clone()
-                .unwrap_or_else(|| config.api_version.clone());
+            // Optionally create the Data Cloud session
+            #[cfg(feature = "data_cloud")]
+            let dc_session = self.dc_config.map(|dc_config| {
+                // Resolve DC-specific API version (or inherit platform)
+                let dc_api_version = dc_config
+                    .api_version
+                    .clone()
+                    .unwrap_or_else(|| config.api_version.clone());
 
-            let dc_client_config = ClientConfig {
-                api_version: dc_api_version,
-                ..config.clone()
+                let dc_client_config = ClientConfig {
+                    api_version: dc_api_version,
+                    ..config.clone()
+                };
+
+                let dc_auth = crate::auth::DataCloudAuthenticator::new(
+                    Arc::clone(&token_manager),
+                    http_client.clone(),
+                    dc_config,
+                );
+                let dc_token_manager = Arc::new(TokenManager::new(dc_auth));
+                let dc_http_executor = crate::http::HttpExecutor::with_client(
+                    http_client.clone(),
+                    dc_client_config.max_retries,
+                    dc_client_config.timeout,
+                );
+
+                Arc::new(Session {
+                    config: dc_client_config,
+                    http_client: http_client.clone(),
+                    http_executor: dc_http_executor,
+                    token_manager: dc_token_manager,
+                })
+            });
+
+            let session = Session {
+                config,
+                http_client,
+                http_executor,
+                token_manager,
             };
 
-            let dc_auth = crate::auth::DataCloudAuthenticator::new(
-                Arc::clone(&token_manager),
-                http_client.clone(),
-                dc_config,
-            );
-            let dc_token_manager = Arc::new(TokenManager::new(dc_auth));
-            let dc_http_executor = crate::http::HttpExecutor::with_client(
-                http_client.clone(),
-                dc_client_config.max_retries,
-                dc_client_config.timeout,
-            );
-
-            Arc::new(Session {
-                config: dc_client_config,
-                http_client: http_client.clone(),
-                http_executor: dc_http_executor,
-                token_manager: dc_token_manager,
+            Ok(ForceClient {
+                inner: Arc::new(session),
+                #[cfg(feature = "data_cloud")]
+                dc_session,
             })
-        });
-
-        let session = Session {
-            config,
-            http_client,
-            http_executor,
-            token_manager,
-        };
-
-        Ok(ForceClient {
-            inner: Arc::new(session),
-            #[cfg(feature = "data_cloud")]
-            dc_session,
-        })
+        })())
     }
 }
 #[cfg(test)]

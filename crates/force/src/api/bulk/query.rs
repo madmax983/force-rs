@@ -145,11 +145,11 @@ impl<T, A: crate::auth::Authenticator> BulkQueryStream<T, A> {
     ///
     /// This version always succeeds; errors occur during streaming.
     #[allow(clippy::unused_async)]
-    pub(crate) async fn new_async(
+    pub(crate) fn new_async(
         inner: Arc<crate::session::Session<A>>,
         job_id: &str,
-    ) -> Result<Self> {
-        Ok(Self::new(inner, job_id.to_string()))
+    ) -> impl std::future::Future<Output = Result<Self>> {
+        std::future::ready(Ok(Self::new(inner, job_id.to_string())))
     }
 
     /// Fetches the next record from the stream.
@@ -500,15 +500,18 @@ impl<A: crate::auth::Authenticator> super::BulkHandler<A> {
     /// }
     /// ```
     #[allow(clippy::unused_async)]
-    pub async fn query_results<T>(&self, job_id: &str) -> Result<BulkQueryStream<T, A>>
+    pub fn query_results<T>(
+        &self,
+        job_id: &str,
+    ) -> impl std::future::Future<Output = Result<BulkQueryStream<T, A>>>
     where
         T: for<'de> Deserialize<'de>,
     {
         // Placeholder for GREEN phase
-        Ok(BulkQueryStream::new(
+        std::future::ready(Ok(BulkQueryStream::new(
             Arc::clone(&self.inner),
             job_id.to_string(),
-        ))
+        )))
     }
 
     /// Convenience method to perform a bulk query operation.
