@@ -168,7 +168,8 @@ impl<A: Authenticator> AuthenticatedBuilder<A> {
     /// Returns an error if:
     /// - HTTP client construction fails
     #[allow(clippy::unused_async)] // Async signature for future auth initialization
-    pub async fn build(self) -> Result<ForceClient<A>> {
+    pub fn build(self) -> impl std::future::Future<Output = Result<ForceClient<A>>> {
+        std::future::ready((|| -> Result<ForceClient<A>> {
         use crate::session::Session;
         use std::sync::Arc;
 
@@ -234,6 +235,7 @@ impl<A: Authenticator> AuthenticatedBuilder<A> {
             #[cfg(feature = "data_cloud")]
             dc_session,
         })
+        })())
     }
 }
 #[cfg(test)]
