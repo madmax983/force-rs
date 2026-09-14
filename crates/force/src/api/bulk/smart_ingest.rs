@@ -255,9 +255,16 @@ impl<'a, A: crate::auth::Authenticator> SmartIngest<'a, A> {
         T: Serialize + Sync,
     {
         for record in records {
-            // Only the very first record (across the whole stream) needs a
-            // full header+row serialization; every subsequent record reuses
-            // the cached header and serializes just its row.
+            // Only the first record of each job needs a full header+row
+            // serialization; every other record in that job reuses the
+            // cached header and serializes just its row. The header is
+            // recomputed whenever a new job starts (below) rather than
+            // reused across job boundaries: T's Serialize impl can
+            // legitimately emit a different column set per value (e.g.
+            // #[serde(skip_serializing_if = "Option::is_none")]), so a
+            // header cached from an earlier record could silently
+            // misalign columns for a differently-shaped record starting
+            // a new job.
             let row = if cached_header.is_some() {
                 csv::serialize_row_only(record)?
             } else {
@@ -294,7 +301,12 @@ impl<'a, A: crate::auth::Authenticator> SmartIngest<'a, A> {
                 jobs.push(self.finish_job(job_id, payload).await?);
 
                 *current_job_id = Some(self.create_job_internal().await?);
-                csv_data.extend_from_slice(header);
+                // Recompute the header from this record rather than reuse
+                // `header`: it may have a different shape than whichever
+                // earlier record populated the cache (see comment above).
+                let (fresh_header, _) = Self::serialize_record_parts(record)?;
+                csv_data.extend_from_slice(&fresh_header);
+                *cached_header = Some(fresh_header);
             }
 
             csv_data.extend_from_slice(&row);
@@ -723,6 +735,94 @@ mod tests {
         assert_eq!(result.jobs[1].id, "JOB_ID_2");
         assert_eq!(result.total_records_processed(), 2);
         assert_eq!(result.total_records_failed(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_smart_ingest_recomputes_header_when_shape_changes_across_job_rotation() {
+        // Regression test: the cached-header optimization must not reuse a
+        // stale header across a job rotation when T's Serialize impl emits a
+        // different column set per value (skip_serializing_if). The record
+        // that starts job 2 (phone: None) has one fewer column than the
+        // record that started job 1 (phone: Some(..)); job 2's uploaded body
+        // must use ITS OWN header, not job 1's.
+        #[derive(Serialize, Clone)]
+        struct VariableShapeRecord {
+            id: String,
+            #[serde(skip_serializing_if = "Option::is_none")]
+            phone: Option<String>,
+            name: String,
+        }
+
+        let mock_server = MockServer::start().await;
+
+        let create_job_call_count = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let create_job_call_count_for_mock = std::sync::Arc::clone(&create_job_call_count);
+
+        Mock::given(method("POST"))
+            .and(path("/services/data/v67.0/jobs/ingest"))
+            .respond_with(move |_: &wiremock::Request| {
+                let call_index = create_job_call_count_for_mock
+                    .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                let id = match call_index {
+                    0 => "JOB_ID_1",
+                    1 => "JOB_ID_2",
+                    _ => "UNEXPECTED_JOB_ID",
+                };
+
+                ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "id": id,
+                    "state": "Open",
+                    "operation": "insert",
+                    "object": "Account",
+                    "createdDate": "2024-01-01T00:00:00.000Z",
+                    "createdById": "005xx0000000001AAA"
+                }))
+            })
+            .expect(2)
+            .mount(&mock_server)
+            .await;
+
+        // job 1: header includes `phone` (record 1 has Some(..)).
+        mount_completed_ingest_job(
+            &mock_server,
+            "JOB_ID_1",
+            "id,phone,name\n001,5550100,First\n",
+            1,
+        )
+        .await;
+        // job 2: header must NOT include `phone` -- record 2 has None, so
+        // skip_serializing_if drops the column entirely for this record.
+        mount_completed_ingest_job(&mock_server, "JOB_ID_2", "id,name\n002,Second\n", 1).await;
+
+        let client = create_test_client(mock_server.uri()).await;
+        let handler = client.bulk();
+
+        let records = vec![
+            VariableShapeRecord {
+                id: "001".to_string(),
+                phone: Some("5550100".to_string()),
+                name: "First".to_string(),
+            },
+            VariableShapeRecord {
+                id: "002".to_string(),
+                phone: None,
+                name: "Second".to_string(),
+            },
+        ];
+        let stream = futures::stream::iter(records);
+
+        // 32 bytes holds job 1's full header+row (id,phone,name\n +
+        // 001,5550100,First\n) but not job 1's content plus record 2's row,
+        // forcing rotation before record 2 is written.
+        let result = SmartIngest::new(&handler, "Account", JobOperation::Insert)
+            .max_upload_bytes(35)
+            .execute_stream(stream)
+            .await
+            .must();
+
+        assert_eq!(result.jobs.len(), 2);
+        assert_eq!(result.jobs[0].id, "JOB_ID_1");
+        assert_eq!(result.jobs[1].id, "JOB_ID_2");
     }
 
     #[tokio::test]

@@ -16,18 +16,18 @@
 //!
 //! Run directly:
 //! ```bash
-//! cargo run --release -p force --features bulk --bin smart_ingest_profile
+//! cargo run --release -p force --features bulk --bench smart_ingest_profile
 //! ```
 //!
-//! Profile:
+//! Profile (this is a `[[bench]]` target, not a `[[bin]]`: the compiled
+//! executable lands under `target/release/deps/`, not `target/release/`):
 //! ```bash
-//! CARGO_PROFILE_RELEASE_DEBUG=true cargo build --release -p force --features bulk --bin smart_ingest_profile
-//! valgrind --tool=callgrind --callgrind-out-file=callgrind.out \
-//!     ./target/release/smart_ingest_profile
+//! CARGO_PROFILE_RELEASE_DEBUG=true cargo build --release -p force --features bulk --bench smart_ingest_profile
+//! BIN=$(find target/release/deps -maxdepth 1 -name 'smart_ingest_profile-*' -executable -not -name '*.d')
+//! valgrind --tool=callgrind --callgrind-out-file=callgrind.out "$BIN"
 //! callgrind_annotate callgrind.out
 //!
-//! valgrind --tool=dhat --dhat-out-file=dhat.out \
-//!     ./target/release/smart_ingest_profile
+//! valgrind --tool=dhat --dhat-out-file=dhat.out "$BIN"
 //! ```
 #![allow(clippy::unwrap_used, clippy::expect_used, missing_docs)]
 
