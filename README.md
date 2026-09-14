@@ -7,7 +7,10 @@
 
 **A canonical Salesforce Platform API client for Rust** — built with production-grade safety, performance, and developer ergonomics.
 
-force-rs provides idiomatic Rust bindings to the Salesforce Platform APIs, enabling you to build high-performance integrations, data pipelines, and automation tools. With comprehensive coverage of 7 API surfaces, compile-time safe workflows, and memory-efficient streaming, force-rs is designed for real-world enterprise workloads.
+force-rs provides idiomatic Rust bindings to the Salesforce Platform APIs, enabling you to build high-performance integrations, data pipelines, and automation tools. With comprehensive coverage of 15+ API surfaces, compile-time safe workflows, and memory-efficient streaming, force-rs is designed for real-world enterprise workloads.
+
+**New to force-rs?** The [Operator's Guide](docs/guide/README.md) is the task-oriented walkthrough: install and
+feature-flag selection, choosing an auth flow, every API surface, and running against live orgs.
 
 The workspace also includes [`force-sync`](crates/force-sync), a Postgres-first bidirectional sync engine built on top of `force` and `force-pubsub`.
 
@@ -299,20 +302,34 @@ force-rs uses feature flags to minimize dependencies and binary size:
 | Feature | Description | Status |
 |---------|-------------|--------|
 | `rest` | REST API (CRUD, SOQL, SOSL, describe, limits) | Default |
+| `files` | Files/ContentVersion helpers (depends on `rest`) | Stable |
+| `tooling` | Tooling API (Apex, execute anonymous, tests, completions) | Stable |
 | `bulk` | Bulk API 2.0 (ingest and query jobs) | Stable |
 | `composite` | Composite API (batch requests) | Stable |
-| `composite_graph` | Composite Graph API (dependency-ordered nodes) | Stable |
-| `tooling` | Tooling API (Apex, execute anonymous, tests, completions) | Stable |
 | `ui` | UI API (layout-aware records, object info, list views, favorites) | Stable |
 | `graphql` | GraphQL API (queries, mutations, variables) | Stable |
-| `jwt` | JWT bearer token authentication | Stable |
-| `schema` | Schema analysis, scanning, and code generation utilities | Preview |
+| `data_cloud` | Data Cloud REST Connect API (SQL queries) | Stable |
+| `apex_rest` | Generic Apex REST API (custom `/services/apexrest/` endpoints) | Stable |
+| `consent` | Consent & Portability API (GDPR/CCPA) | Stable |
+| `models` | Agentforce Models API (Einstein LLM gateway) | Stable |
+| `agent_api` | Agentforce Agent API (headless agent sessions) | Stable |
+| `agentforce` | Umbrella feature (`models` + `agent_api`) | Stable |
+| `account_engagement` | Account Engagement (Pardot) API v5 | Stable |
+| `analytics` | Reports & Dashboards REST API | Stable |
+| `soap` | Classic SOAP Partner API | Stable |
+| `jwt` | JWT Bearer authentication flow | Stable |
+| `auth_code` | OAuth 2.0 Authorization Code + PKCE flow | Stable |
+| `username_password` | Username-password flow (deprecated by Salesforce; feature-gated as a speed bump) | Stable |
+| `mock` | Wiremock-backed test doubles | Stable |
+| `schema` | Iceberg schema generation (depends on `rest`) | Preview |
 | `data_utility` | Mock-data generation and Salesforce seeding helpers | Preview |
-| `mock` | Wiremock utilities for testing | Stable |
-| `full` | All stable APIs (`rest` + `bulk` + `composite` + `tooling` + `ui` + `graphql` + `jwt`) | Meta |
-| `all` | Everything including preview features | Meta |
+| `composite_graph` | Composite Graph API (dependency-ordered nodes, depends on `composite`) | Preview |
+| `cpq` | Salesforce CPQ API (quote lifecycle, product config, documents, amendments) | Preview |
+| `full` | All common features (`rest` + `files` + `tooling` + `bulk` + `composite` + `jwt` + `auth_code` + `ui` + `graphql` + `data_cloud` + `apex_rest` + `consent` + `models` + `agent_api` + `account_engagement` + `analytics` + `soap`) | Meta |
+| `all` | Everything: `full` plus `schema`, `data_utility`, `composite_graph`, `cpq` | Meta |
 
-**Recommendation:** Start with `default` features, then add `bulk` and `jwt` as needed.
+**Recommendation:** Start with `default` features, then add what each auth flow and API surface you need requires —
+see the [Operator's Guide](docs/guide/01-getting-started.md#feature-flag-matrix) for the full decision matrix.
 
 ## Preview Features
 
@@ -377,13 +394,15 @@ ForceClient<A>
   |-- .tooling()    -> ToolingHandler<A>    (feature: tooling)
   |-- .ui()         -> UiHandler<A>         (feature: ui)
   |-- .graphql()    -> GraphqlHandler<A>    (feature: graphql)
+  |-- ... one handler per API surface; see the Operator's Guide surfaces index below
 ```
 
-All handlers share a common `Session<A>` (via `Arc`) containing the HTTP client, token manager, and configuration. This ensures zero-cost handler creation and shared authentication state.
+All handlers share a common `Session<A>` (via `Arc`) containing the HTTP client, token manager, and configuration. This ensures zero-cost handler creation and shared authentication state. Every surface (Data Cloud, Apex REST, CPQ, Consent, Analytics, Account Engagement, SOAP, Agentforce, and more) follows the same pattern — see the [surfaces index](docs/guide/surfaces/README.md) for the full, current list rather than a copy here that will drift.
 
 For the sync layer, see [`crates/force-sync`](crates/force-sync) and its design notes in [`docs/adr/026-force-sync-crate.md`](docs/adr/026-force-sync-crate.md).
 
-Architectural decisions are documented in [`docs/adr/`](docs/adr/):
+Architectural decisions are documented in [`docs/adr/`](docs/adr/), starting with the foundation-phase ADRs below;
+see the [full ADR index](docs/adr/README.md) (34 decisions, including every API surface's design) for the rest:
 
 | ADR | Decision |
 |-----|----------|
@@ -394,9 +413,6 @@ Architectural decisions are documented in [`docs/adr/`](docs/adr/):
 | [005](docs/adr/005-compile-time-auth-safety.md) | Compile-time auth safety with phantom types |
 | [006](docs/adr/006-handler-pattern.md) | Handler pattern for API organization |
 | [007](docs/adr/007-rest-api-design.md) | REST API design decisions |
-| [019](docs/adr/019-tooling-api-design.md) | RestOperation trait and Tooling API |
-| [020](docs/adr/020-ui-api-design.md) | UI API handler design |
-| [021](docs/adr/021-graphql-api-design.md) | GraphQL API error handling strategy |
 
 ## Testing
 
@@ -417,6 +433,10 @@ cargo test --features bulk -- bulk
 Nightly live-contract tests (ignored by default in local runs) are available in CI and can be run manually with org credentials. OAuth URL env vars accept a bare host, an org base URL, or the full OAuth token endpoint; bare hosts are treated as HTTPS. Client-credentials live tests require `SF_TOKEN_URL` to be set explicitly for the target org/environment. Pub/Sub live tests require `SF_PUBSUB_TOPIC` to name an accessible event topic, for example `/data/AccountChangeEvent`; `SF_PUBSUB_ENDPOINT` defaults to `https://api.pubsub.salesforce.com:7443`.
 
 ## Enterprise DX and Governance
+
+### Operator's Guide
+
+- [Operator's Guide](docs/guide/README.md) - getting started, choosing an auth flow, every API surface, operations, live-contract testing, release/versioning
 
 ### Runbooks
 
@@ -468,4 +488,4 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 
 ---
 
-**Built by the force-rs contributors** | [Documentation](https://docs.rs/force) | [Examples](crates/force/examples) | [Issues](https://github.com/markm/force-rs/issues)
+**Built by the force-rs contributors** | [Documentation](https://docs.rs/force) | [Examples](crates/force/examples) | [Issues](https://github.com/madmax983/force-rs/issues)
