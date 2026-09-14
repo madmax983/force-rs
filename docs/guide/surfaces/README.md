@@ -29,7 +29,7 @@ use force::api::rest_operation::RestOperation; // or the re-export force::api::R
 | [Consent](consent.md) | `client.consent()` | `consent` | GDPR/CCPA consent checks & data portability |
 | [Analytics](analytics.md) | `client.analytics()` | `analytics` | Reports & Dashboards REST API (runs, instances, results) |
 | [Account Engagement](account-engagement.md) | `client.account_engagement()` | `account_engagement` | Pardot API v5 (separate host, business-unit-scoped) |
-| [SOAP](soap.md) | — | `soap` | Legacy SOAP API (planned — Phase 5 roadmap) |
+| [SOAP](soap.md) | `client.soap()` | `soap` | Classic SOAP Partner API (untyped `SObject` CRUD/query/describe) |
 | [Agentforce](agentforce.md) | `client.models()` / `client.agents()` | `agentforce` (= `models` + `agent_api`) | Einstein LLM gateway & headless agent sessions (`api.salesforce.com`) |
 | [Sibling crates](sibling-crates.md) | separate crates | — | `force-pubsub`, `force-marketingcloud`, `force-sync`, `force-lake` |
 
