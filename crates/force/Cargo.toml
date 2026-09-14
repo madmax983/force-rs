@@ -150,3 +150,8 @@ required-features = ["auth_code"]
 name = "soap_bench"
 harness = false
 required-features = ["soap", "bench-internals"]
+
+[[bench]]
+name = "smart_ingest_profile"
+harness = false
+required-features = ["bulk"]
