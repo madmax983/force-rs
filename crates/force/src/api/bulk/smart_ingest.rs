@@ -187,13 +187,23 @@ impl<'a, A: crate::auth::Authenticator> SmartIngest<'a, A> {
         let mut csv_data = Vec::new();
         let mut current_job_id = None;
         let mut jobs = Vec::new();
+        // The CSV header is identical for every record of type T; computing
+        // it once (instead of on every record, only to discard it for all
+        // but the first record of each job) is what append_records relies on.
+        let mut cached_header: Option<Vec<u8>> = None;
 
         while let Some(record) = stream.next().await {
             buffer.push(record);
 
             if buffer.len() >= self.batch_size {
                 if let Err(error) = self
-                    .append_records(&buffer, &mut current_job_id, &mut csv_data, &mut jobs)
+                    .append_records(
+                        &buffer,
+                        &mut current_job_id,
+                        &mut csv_data,
+                        &mut jobs,
+                        &mut cached_header,
+                    )
                     .await
                 {
                     if let Some(job_id) = current_job_id.as_deref() {
@@ -207,7 +217,13 @@ impl<'a, A: crate::auth::Authenticator> SmartIngest<'a, A> {
 
         if !buffer.is_empty() {
             if let Err(error) = self
-                .append_records(&buffer, &mut current_job_id, &mut csv_data, &mut jobs)
+                .append_records(
+                    &buffer,
+                    &mut current_job_id,
+                    &mut csv_data,
+                    &mut jobs,
+                    &mut cached_header,
+                )
                 .await
             {
                 if let Some(job_id) = current_job_id.as_deref() {
@@ -233,12 +249,27 @@ impl<'a, A: crate::auth::Authenticator> SmartIngest<'a, A> {
         current_job_id: &mut Option<String>,
         csv_data: &mut Vec<u8>,
         jobs: &mut Vec<JobInfo>,
+        cached_header: &mut Option<Vec<u8>>,
     ) -> Result<()>
     where
         T: Serialize + Sync,
     {
         for record in records {
-            let (header, row) = Self::serialize_record_parts(record)?;
+            // Only the very first record (across the whole stream) needs a
+            // full header+row serialization; every subsequent record reuses
+            // the cached header and serializes just its row.
+            let row = if cached_header.is_some() {
+                csv::serialize_row_only(record)?
+            } else {
+                let (header, row) = Self::serialize_record_parts(record)?;
+                *cached_header = Some(header);
+                row
+            };
+            let Some(header) = cached_header.as_ref() else {
+                return Err(crate::error::ForceError::InvalidInput(
+                    "SmartIngest CSV header cache was not populated".to_string(),
+                ));
+            };
             let minimum_payload_size = header.len() + row.len();
 
             if minimum_payload_size > self.max_upload_bytes {
@@ -250,7 +281,7 @@ impl<'a, A: crate::auth::Authenticator> SmartIngest<'a, A> {
 
             if current_job_id.is_none() {
                 *current_job_id = Some(self.create_job_internal().await?);
-                csv_data.extend_from_slice(&header);
+                csv_data.extend_from_slice(header);
             }
 
             if csv_data.len() + row.len() > self.max_upload_bytes {
@@ -263,7 +294,7 @@ impl<'a, A: crate::auth::Authenticator> SmartIngest<'a, A> {
                 jobs.push(self.finish_job(job_id, payload).await?);
 
                 *current_job_id = Some(self.create_job_internal().await?);
-                csv_data.extend_from_slice(&header);
+                csv_data.extend_from_slice(header);
             }
 
             csv_data.extend_from_slice(&row);

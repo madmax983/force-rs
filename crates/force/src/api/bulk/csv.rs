@@ -8,6 +8,43 @@ use crate::error::Result;
 use serde::{Deserialize, Serialize};
 use std::io::{Read, Write};
 
+/// Internal buffer capacity for a `csv::Writer` created to serialize a
+/// single record's row.
+///
+/// `csv::WriterBuilder`'s own default (8 KiB) is sized for a writer that
+/// emits many records before being dropped; a writer built fresh for one
+/// small CSV row (a few hundred bytes at most) wastes nearly all of it on a
+/// zeroed allocation it never fills. This is deliberately just large enough
+/// for a typical row without needing to grow; an unusually wide record
+/// still serializes correctly, just via one extra internal reallocation.
+const SINGLE_ROW_BUFFER_CAPACITY: usize = 512;
+
+/// Serializes a single record as a headerless CSV row.
+///
+/// Unlike [`serialize_to_csv_with_options`], this sizes the writer's
+/// internal buffer for one small row instead of the crate's 8 KiB default,
+/// which matters because this is called once per streamed record by
+/// `SmartIngest`.
+pub fn serialize_row_only<T>(record: &T) -> Result<Vec<u8>>
+where
+    T: Serialize,
+{
+    let mut bytes = Vec::with_capacity(SINGLE_ROW_BUFFER_CAPACITY);
+    {
+        let mut csv_writer = csv::WriterBuilder::new()
+            .has_headers(false)
+            .buffer_capacity(SINGLE_ROW_BUFFER_CAPACITY)
+            .from_writer(&mut bytes);
+        csv_writer
+            .serialize(record)
+            .map_err(crate::error::SerializationError::from)?;
+        csv_writer
+            .flush()
+            .map_err(|e| crate::error::SerializationError::Csv(csv::Error::from(e)))?;
+    }
+    Ok(bytes)
+}
+
 /// Serializes a collection of records to CSV format.
 ///
 /// Writes the records as CSV with headers to the provided writer. This function
