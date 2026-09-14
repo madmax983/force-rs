@@ -40,6 +40,9 @@ jobs:
       - name: Unit-focused tests (all features)
         run: cargo test --workspace --all-features --lib --tests -- --test-threads=1
 
+      - name: README Quick Start compiles from a clean room (network-touching, --ignored)
+        run: cargo test -p force --test dx_readme_quickstart --all-features -- --ignored --test-threads=1
+
   force-sync-postgres:
     name: force-sync Postgres Integration
     runs-on: ubuntu-latest

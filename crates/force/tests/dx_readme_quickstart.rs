@@ -189,7 +189,16 @@ fn readme_version_pins_admit_the_current_release() {
     );
 }
 
+/// Ignored like the live-contract tests (see `tests/README.md`): it spawns a
+/// real `cargo build` for a freshly generated scratch crate with no
+/// `Cargo.lock`, which can hit the network to resolve/download
+/// dependencies. Outer `--offline`/`--frozen` flags don't propagate to that
+/// nested invocation, so keeping this on by default would break the
+/// documented guarantee (`docs/guide/04-live-contract-testing.md`) that the
+/// default `cargo test` stays fully hermetic. Run explicitly with
+/// `cargo test -p force --test dx_readme_quickstart --all-features -- --ignored`.
 #[test]
+#[ignore = "spawns `cargo build` for a scratch crate, which can touch the network"]
 fn readme_quickstart_compiles_from_a_clean_room() {
     let readme = read_readme();
     let deps = installation_deps(&readme);
