@@ -2,6 +2,12 @@
 
 This directory contains architecture records, operational runbooks, and governance policies for `force-rs`.
 
+## Operator's Guide
+
+- [`guide/README.md`](guide/README.md): task-oriented docs — install and feature-flag selection, choosing an auth
+  flow, every API surface (REST, Bulk, Tooling, UI, GraphQL, Data Cloud, Apex REST, CPQ, Consent, Analytics,
+  Account Engagement, SOAP, Agentforce), operations, live-contract testing, and release/versioning
+
 ## Architecture
 
 - [`adr/`](adr/): Architecture Decision Records (design rationale and tradeoffs)

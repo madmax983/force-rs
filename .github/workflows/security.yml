@@ -35,14 +35,24 @@ jobs:
       - name: Install cargo-audit
         run: cargo install cargo-audit --locked
 
+      # Keep in sync with the [advisories] ignore list in deny.toml: cargo-deny's
+      # `cargo deny check` already accepts these advisories with documented
+      # rationale, but cargo-audit is a separate tool with no config-file support
+      # for advisory exceptions (only the --ignore flag), so the exceptions have
+      # to be repeated here explicitly.
+      - name: Set cargo-audit ignore flags
+        id: audit_ignores
+        run: |
+          echo "flags=--ignore RUSTSEC-2025-0134 --ignore RUSTSEC-2024-0436 --ignore RUSTSEC-2026-0194 --ignore RUSTSEC-2026-0195" >> "$GITHUB_OUTPUT"
+
       - name: Run cargo audit
-        run: cargo audit --json > audit-results.json
+        run: cargo audit --json ${{ steps.audit_ignores.outputs.flags }} > audit-results.json
         continue-on-error: true
 
       - name: Check for vulnerabilities
         id: check
         run: |
-          if cargo audit --deny warnings; then
+          if cargo audit --deny warnings ${{ steps.audit_ignores.outputs.flags }}; then
             echo "status=passed" >> $GITHUB_OUTPUT
           else
             echo "status=failed" >> $GITHUB_OUTPUT

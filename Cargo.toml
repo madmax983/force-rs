@@ -84,3 +84,17 @@ protoc-bin-vendored = "3.0"
 
 # Benchmarking
 criterion = { version = "0.5", features = ["html_reports"] }
+
+# aws-smithy-json 0.63.0 (pulled transitively by force-lake's iceberg-catalog-s3tables ->
+# aws-config/aws-sdk-{sso,ssooidc,sts,s3tables}) does not compile against aws-smithy-types
+# 1.7.0's new `Document::Object(DocumentObject)` shape -- it still passes a raw `HashMap`.
+# No published aws-config/aws-sdk-* release yet requires the fixed aws-smithy-json 0.64.0
+# (their Cargo.toml manifests pin `^0.63.0`, which excludes it), and aws-smithy-types is
+# independently forced to 1.7.0 by aws-smithy-runtime, so neither side can be unpinned to
+# route around this. `vendor/aws-smithy-json-0.63.0` is the upstream 0.63.0 source with the
+# three one-line fixes `rustc` itself suggests (two `.into()` conversions using
+# `DocumentObject`'s own `From<HashMap<String, Document>>` impl, plus a wildcard match arm
+# for `Document` being `#[non_exhaustive]`). Remove this patch once crates.io has an
+# aws-config/aws-sdk-* release that requires aws-smithy-json >=0.64.
+[patch.crates-io]
+aws-smithy-json = { path = "vendor/aws-smithy-json-0.63.0" }

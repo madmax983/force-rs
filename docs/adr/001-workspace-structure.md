@@ -243,6 +243,5 @@ This decision will be validated through:
 ## References
 
 - [Cargo Workspaces](https://doc.rust-lang.org/book/ch14-03-cargo-workspaces.html)
-- [Mark's CLAUDE.md Standards](C:\Users\markm\.claude\CLAUDE.md)
 - Existing projects: aletheiadb, thorp (workspace patterns)
 - [Rust API Guidelines](https://rust-lang.github.io/api-guidelines/)
