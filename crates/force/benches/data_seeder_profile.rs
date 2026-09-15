@@ -17,15 +17,15 @@
 //! shape are fixed (no RNG) so repeated runs are byte-for-byte deterministic,
 //! which is required for callgrind/dhat comparisons to be meaningful.
 //!
-//! Run directly:
+//! Run directly (`cargo run` doesn't support `--bench`, so use `cargo bench`):
 //! ```bash
-//! cargo run --release -p force --features composite --bench data_seeder_profile
+//! cargo bench -p force --features data_utility --bench data_seeder_profile
 //! ```
 //!
 //! Profile (this is a `[[bench]]` target, not a `[[bin]]`: the compiled
 //! executable lands under `target/release/deps/`, not `target/release/`):
 //! ```bash
-//! CARGO_PROFILE_RELEASE_DEBUG=true cargo build --release -p force --features composite --bench data_seeder_profile
+//! CARGO_PROFILE_RELEASE_DEBUG=true cargo build --release -p force --features data_utility --bench data_seeder_profile
 //! BIN=$(find target/release/deps -maxdepth 1 -name 'data_seeder_profile-*' -executable -not -name '*.d')
 //! valgrind --tool=callgrind --callgrind-out-file=callgrind.out "$BIN"
 //! callgrind_annotate callgrind.out
