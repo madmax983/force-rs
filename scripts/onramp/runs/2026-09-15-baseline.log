@@ -1,0 +1,192 @@
+=== force-rs Onramp clean-room harness: baseline run ===
+date (UTC): 2026-09-15T14:11:58Z
+repo commit: 44494ee0a8afedf8ff13a57ed243c50a233ff782
+README: /home/user/force-rs/README.md
+rustc: rustc 1.94.1 (e408947bf 2026-03-25)
+cargo: cargo 1.94.1 (29ea6fb6a 2026-03-24)
+
+workdir: /tmp/tmp.L7A7NIIQ0e
+STEP 1: extract Installation Cargo.toml block from README
+[dependencies]
+force = "0.1"
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+anyhow = "1.0"
+STEP 2: extract Quick Start Rust snippet from README
+STEP 3: cargo new pristine project
+STEP 4: write Cargo.toml exactly as documented
+[package]
+name = "onramp-quickstart"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+force = "0.1"
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+anyhow = "1.0"
+STEP 5: write src/main.rs exactly as documented
+STEP 6: cargo build (the moment of truth)
+    Updating crates.io index
+     Locking 161 packages to latest Rust 1.94.1 compatible versions
+      Adding force v0.1.0 (available: v0.4.0)
+   Compiling proc-macro2 v1.0.107
+   Compiling quote v1.0.47
+   Compiling unicode-ident v1.0.24
+   Compiling libc v0.2.189
+   Compiling smallvec v1.16.1
+   Compiling stable_deref_trait v1.2.1
+   Compiling cfg-if v1.0.4
+   Compiling pin-project-lite v0.2.17
+   Compiling futures-core v0.3.34
+   Compiling bytes v1.12.1
+   Compiling parking_lot_core v0.9.12
+   Compiling futures-sink v0.3.34
+   Compiling scopeguard v1.2.0
+   Compiling lock_api v0.4.14
+   Compiling itoa v1.0.18
+   Compiling shlex v2.0.1
+   Compiling syn v3.0.5
+   Compiling syn v2.0.119
+   Compiling find-msvc-tools v0.1.12
+   Compiling errno v0.3.14
+   Compiling signal-hook-registry v1.4.8
+   Compiling parking_lot v0.12.5
+   Compiling socket2 v0.6.5
+   Compiling mio v1.2.3
+   Compiling cc v1.4.6
+   Compiling futures-channel v0.3.34
+   Compiling litemap v0.8.3
+   Compiling memchr v2.8.3
+   Compiling writeable v0.6.4
+   Compiling ring v0.17.14
+   Compiling utf8_iter v1.0.4
+   Compiling zeroize v1.9.0
+   Compiling futures-task v0.3.34
+   Compiling serde_core v1.0.229
+   Compiling icu_normalizer_data v2.3.0
+   Compiling slab v0.4.12
+   Compiling futures-io v0.3.34
+   Compiling icu_properties_data v2.3.0
+   Compiling http v1.5.0
+   Compiling synstructure v0.13.2
+   Compiling zerovec-derive v0.11.6
+   Compiling displaydoc v0.2.7
+   Compiling zerofrom-derive v0.1.7
+   Compiling yoke-derive v0.8.2
+   Compiling tokio-macros v2.7.2
+   Compiling futures-macro v0.3.34
+   Compiling tokio v1.53.1
+   Compiling zerofrom v0.1.8
+   Compiling once_cell v1.21.4
+   Compiling futures-util v0.3.34
+   Compiling percent-encoding v2.3.2
+   Compiling yoke v0.8.3
+   Compiling http-body v1.1.0
+   Compiling zerovec v0.11.8
+   Compiling zerotrie v0.2.5
+   Compiling tinystr v0.8.4
+   Compiling icu_locale_core v2.3.0
+   Compiling potential_utf v0.1.6
+   Compiling icu_collections v2.3.0
+   Compiling icu_provider v2.3.1
+   Compiling rustls-pki-types v1.15.1
+   Compiling getrandom v0.2.17
+   Compiling serde v1.0.229
+   Compiling httparse v1.10.1
+   Compiling untrusted v0.9.0
+   Compiling icu_normalizer v2.3.0
+   Compiling icu_properties v2.3.0
+   Compiling serde_derive v1.0.229
+   Compiling try-lock v0.2.5
+   Compiling rustls v0.23.45
+   Compiling tower-service v0.3.3
+   Compiling want v0.3.1
+   Compiling rustls-webpki v0.103.15
+   Compiling idna_adapter v1.2.2
+   Compiling form_urlencoded v1.2.2
+   Compiling tracing-core v0.1.36
+   Compiling tracing-attributes v0.1.31
+   Compiling zmij v1.0.23
+   Compiling autocfg v1.5.1
+   Compiling atomic-waker v1.1.2
+   Compiling subtle v2.6.1
+   Compiling num-traits v0.2.19
+   Compiling hyper v1.11.1
+   Compiling tracing v0.1.44
+   Compiling idna v1.1.0
+   Compiling sync_wrapper v1.0.2
+   Compiling ipnet v2.12.2
+   Compiling tower-layer v0.3.3
+   Compiling serde_json v1.0.151
+   Compiling base64 v0.22.1
+   Compiling tower v0.5.3
+   Compiling hyper-util v0.1.20
+   Compiling url v2.5.8
+   Compiling webpki-roots v1.0.9
+   Compiling ryu v1.0.23
+   Compiling bitflags v2.13.2
+   Compiling thiserror v2.0.20
+   Compiling tower-http v0.6.11
+   Compiling serde_urlencoded v0.7.1
+   Compiling tokio-util v0.7.19
+   Compiling tokio-rustls v0.26.5
+   Compiling futures-executor v0.3.34
+   Compiling hyper-rustls v0.27.9
+   Compiling http-body-util v0.1.5
+   Compiling thiserror-impl v2.0.20
+   Compiling log v0.4.34
+   Compiling iana-time-zone v0.1.65
+   Compiling anyhow v1.0.104
+   Compiling chrono v0.4.45
+   Compiling reqwest v0.12.28
+   Compiling futures v0.3.34
+   Compiling secrecy v0.10.3
+   Compiling async-trait v0.1.92
+   Compiling force v0.1.0
+   Compiling onramp-quickstart v0.1.0 (/tmp/tmp.L7A7NIIQ0e/onramp-quickstart)
+error[E0599]: no function or associated item named `new_my_domain` found for struct `ClientCredentials` in the current scope
+   --> src/main.rs:18:35
+    |
+ 18 |     let auth = ClientCredentials::new_my_domain(
+    |                                   ^^^^^^^^^^^^^ function or associated item not found in `ClientCredentials`
+    |
+note: if you're trying to build a new `ClientCredentials` consider using one of the following associated functions:
+      ClientCredentials::new
+      ClientCredentials::new_production
+      ClientCredentials::new_sandbox
+   --> /root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/force-0.1.0/src/auth/client_credentials.rs:85:5
+    |
+ 85 | /     pub fn new(
+ 86 | |         client_id: impl Into<String>,
+ 87 | |         client_secret: impl Into<String>,
+ 88 | |         token_url: impl Into<String>,
+ 89 | |     ) -> Self {
+    | |_____________^
+...
+116 |       pub fn new_production(client_id: impl Into<String>, client_secret: impl Into<String>) -> Self {
+    |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+129 |       pub fn new_sandbox(client_id: impl Into<String>, client_secret: impl Into<String>) -> Self {
+    |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0282]: type annotations needed
+  --> src/main.rs:24:9
+   |
+24 |     let client = ForceClientBuilder::new()
+   |         ^^^^^^
+...
+31 |     let result = client.rest().query::<Account>(soql).await?;
+   |                  ------ type must be known at this point
+   |
+help: consider giving `client` an explicit type
+   |
+24 |     let client: /* Type */ = ForceClientBuilder::new()
+   |               ++++++++++++
+
+Some errors have detailed explanations: E0282, E0599.
+For more information about an error, try `rustc --explain E0282`.
+error: could not compile `onramp-quickstart` (bin "onramp-quickstart") due to 2 previous errors
+
+--- elapsed: 22s ---
+RESULT: FAIL (exit code 101) at STEP 6 of 6

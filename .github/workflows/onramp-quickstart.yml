@@ -1,0 +1,105 @@
+name: Onramp Quick-Start Clean Room
+
+# Clean-room harness for the README "Installation" + "Quick Start" journey —
+# the front door: the first code a developer sees on crates.io, docs.rs, and
+# the GitHub landing page.
+#
+# This does not hand-copy the snippets into a test file. It extracts the
+# Cargo.toml dependency block and the Quick Start Rust snippet directly out
+# of README.md and builds them in a fresh `cargo new` project on a clean
+# runner, exactly as a developer following the README verbatim would —
+# `force` is resolved from crates.io, never from this checkout. If the
+# README drifts from what actually compiles, this job fails the same way
+# that developer would.
+#
+# Baseline (2026-09-15, before docs/quickstart-sync-onramp fix):
+# FAIL at "cargo build" — see scripts/onramp/runs/2026-09-15-baseline.log.
+
+on:
+  push:
+    branches: [trunk, trunk-dev, main]
+    paths: ["README.md", ".github/workflows/onramp-quickstart.yml"]
+  pull_request:
+    branches: [trunk, trunk-dev, main]
+    paths: ["README.md", ".github/workflows/onramp-quickstart.yml"]
+  workflow_dispatch:
+
+jobs:
+  clean-room-quickstart:
+    name: README Quick Start compiles as written
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain (workspace MSRV)
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.92"
+
+      - name: Extract + build the documented Installation + Quick Start snippets
+        run: |
+          set -euo pipefail
+          README="README.md"
+          WORKDIR="$(mktemp -d)"
+
+          # extract_first_paragraph <heading-regex> <fence-lang> <file>
+          # First fenced block of the given language after the first heading
+          # match, printed only up to its first blank line — the sequential
+          # instruction, not any "# Or ..." alternative shown further down
+          # in the same fence.
+          extract_first_paragraph() {
+            awk -v heading="$1" -v lang="$2" '
+              $0 ~ heading { found=1 }
+              found && !inblock && $0 ~ ("^```" lang "$") { inblock=1; next }
+              inblock && /^```/ { exit }
+              inblock && /^$/ { exit }
+              inblock { print }
+            ' "$3"
+          }
+
+          # extract_block <heading-regex> <fence-lang> <file>
+          # Same, but the whole fenced block verbatim (the Quick Start
+          # snippet is a single self-contained program).
+          extract_block() {
+            awk -v heading="$1" -v lang="$2" '
+              $0 ~ heading { found=1 }
+              found && !inblock && $0 ~ ("^```" lang "$") { inblock=1; next }
+              inblock && /^```/ { exit }
+              inblock { print }
+            ' "$3"
+          }
+
+          echo "::group::extracted Installation dependency block"
+          DEPS_BLOCK="$(extract_first_paragraph '^## Installation' 'toml' "$README")"
+          [ -n "$DEPS_BLOCK" ] || { echo "no toml block found under '## Installation'"; exit 1; }
+          echo "$DEPS_BLOCK"
+          echo "::endgroup::"
+
+          echo "::group::extracted Quick Start snippet"
+          SNIPPET="$(extract_block '^## Quick Start' 'rust' "$README")"
+          [ -n "$SNIPPET" ] || { echo "no rust block found under '## Quick Start'"; exit 1; }
+          echo "$SNIPPET"
+          echo "::endgroup::"
+
+          cd "$WORKDIR"
+          cargo new onramp-quickstart --quiet
+          cd onramp-quickstart
+
+          {
+            echo '[package]'
+            echo 'name = "onramp-quickstart"'
+            echo 'version = "0.1.0"'
+            echo 'edition = "2024"'
+            echo
+            echo "$DEPS_BLOCK"
+          } > Cargo.toml
+          echo "::group::assembled Cargo.toml"
+          cat Cargo.toml
+          echo "::endgroup::"
+
+          echo "$SNIPPET" > src/main.rs
+
+          echo "::group::cargo build (force resolved from crates.io, not this workspace)"
+          cargo build
+          echo "::endgroup::"
