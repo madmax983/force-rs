@@ -70,11 +70,10 @@ impl<'a, A: Authenticator> DataSeeder<'a, A> {
 
         for i in 0..count {
             let record = generate_mock_record(&describe);
-            let value = serde_json::to_value(&record.fields).map_err(|e| {
-                crate::error::ForceError::InvalidInput(format!(
-                    "Failed to serialize mock record: {e}"
-                ))
-            })?;
+            // `record.fields` is already a `serde_json::Map`, so wrapping it
+            // directly avoids the full clone-through-`Serialize` that
+            // `serde_json::to_value(&record.fields)` would otherwise perform.
+            let value = serde_json::Value::Object(record.fields);
 
             current_batch = current_batch.post(sobject, value)?;
 
