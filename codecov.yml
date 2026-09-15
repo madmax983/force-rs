@@ -3,6 +3,11 @@
 # The live_* test binaries and the shared tests/common harness are #[ignore]
 # and cannot run in hermetic CI without live org credentials. Tarpaulin still
 # reports their lines as source, so they are excluded from coverage here.
+#
+# vendor/ holds unmodified-except-for-a-patch third-party crate source (see
+# [patch.crates-io] in the workspace root Cargo.toml and each vendored
+# crate's own FORCE-RS-PATCH.md); it isn't project code and was never meant
+# to be covered by this repo's own test suite.
 ignore:
   - "crates/force/tests/common/mod.rs"
   - "crates/force/tests/live_salesforce.rs"
@@ -11,3 +16,4 @@ ignore:
   - "crates/force/tests/live_soap.rs"
   - "crates/force/tests/live_account_engagement.rs"
   - "crates/force-marketingcloud/tests/live_marketingcloud.rs"
+  - "vendor/**"
