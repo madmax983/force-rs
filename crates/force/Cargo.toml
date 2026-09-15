@@ -155,3 +155,8 @@ required-features = ["soap", "bench-internals"]
 name = "smart_ingest_profile"
 harness = false
 required-features = ["bulk"]
+
+[[bench]]
+name = "data_seeder_profile"
+harness = false
+required-features = ["data_utility"]
