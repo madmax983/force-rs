@@ -5,6 +5,7 @@
 # reports their lines as source, so they are excluded from coverage here.
 ignore:
   - "crates/force/tests/common/mod.rs"
+  - "crates/force/tests/dx_readme_quickstart.rs"
   - "crates/force/tests/live_salesforce.rs"
   - "crates/force/tests/live_core.rs"
   - "crates/force/tests/live_special.rs"
