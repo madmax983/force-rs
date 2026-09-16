@@ -8,9 +8,10 @@
 
 ## Project Status
 
-🚧 **Foundation Phase** - Building core authentication and HTTP infrastructure with strict TDD discipline.
-
-Current milestone: Authentication layer and type system foundation
+**v0.4.0 released** (2026-07-15) - REST, Bulk 2.0, Composite, Tooling, UI, GraphQL, Data Cloud, Apex REST,
+CPQ, Consent, Agentforce (Models + Agent API), Account Engagement, Analytics, and SOAP Partner API surfaces
+are implemented and live-contract tested. See the [Feature Roadmap](#feature-roadmap) below for what's still
+open and [CHANGELOG.md](CHANGELOG.md) for release history.
 
 ## Architecture Overview
 
@@ -108,13 +109,11 @@ Only compile what you use. Each API surface is behind a feature flag:
 - `auth_code` - OAuth 2.0 Authorization Code + PKCE flow (interactive/browser-based clients)
 - `username_password` - Username-password flow (deprecated by Salesforce, feature-gated as speed bump)
 - `mock` - Testing utilities (wiremock-backed test doubles)
-- `full` - All common features (rest + files + tooling + bulk + composite + jwt + auth_code + ui + graphql + data_cloud + apex_rest + consent + models + agent_api + account_engagement + analytics)
+- `full` - All common features (rest + files + tooling + bulk + composite + jwt + auth_code + ui + graphql + data_cloud + apex_rest + consent + models + agent_api + account_engagement + analytics + soap)
 - `all` - Everything: `full` plus specialized APIs (schema + data_utility + composite_graph + cpq)
 
 > **Note:** Pub/Sub is **not** a `force` feature. The gRPC Pub/Sub API lives in the separate `force-pubsub` sibling crate (see [ADR-018](docs/adr/018-force-pubsub-crate.md)).
 - `pub_sub` - gRPC Pub/Sub API (separate `force-pubsub` crate)
-- `full` - All common features (rest + tooling + bulk + composite + jwt + auth_code + ui + graphql + data_cloud + apex_rest + consent + models + agent_api + account_engagement + analytics + soap)
-- `all` - Everything including specialized APIs (+ cpq)
 
 ### 2. Compile-Time Auth Safety (Phantom Type State Pattern)
 The builder uses phantom types to enforce authentication at compile time:
@@ -532,8 +531,6 @@ use force::testing::{MockForceClient, MockAuthenticator};
 ### Phase 5: Specialized Features
 - [ ] Pub/Sub API via gRPC (feature: pub_sub)
 - [ ] Streaming API (feature: streaming)
-- [ ] SOAP API (feature: soap)
-- [x] Marketing Cloud Engagement REST API (sibling crate: `force-marketingcloud`) - See [ADR-034](docs/adr/034-marketing-cloud-engagement-crate.md)
 - [x] SOAP Partner API (feature: soap) - See [ADR-032](docs/adr/032-soap-api-design.md)
   - [x] Untyped generic `SObject` model (Partner WSDL; no per-org codegen)
   - [x] CRUD: create, update, upsert (external-id), delete, retrieve
@@ -546,7 +543,7 @@ use force::testing::{MockForceClient, MockAuthenticator};
   - [x] `INVALID_SESSION_ID` (HTTP 500) manual refresh-and-retry once
   - [x] quick-xml parsing on patched 0.41.0 (RUSTSEC-2026-0194/0195)
   - [ ] merge, convert_lead, set_password, nested relationship records (follow-ups)
-- [x] Marketing Cloud Engagement REST API (sibling crate: `force-marketingcloud`) - See [ADR-027](docs/adr/027-marketing-cloud-engagement-crate.md)
+- [x] Marketing Cloud Engagement REST API (sibling crate: `force-marketingcloud`) - See [ADR-034](docs/adr/034-marketing-cloud-engagement-crate.md)
   - [x] Installed-Package server-to-server (JSON client credentials) auth
   - [x] Proactive, per-business-unit (MID) token cache with single-flight refresh
   - [x] Transactional Messaging (email/SMS send + status)
