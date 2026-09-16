@@ -30,8 +30,6 @@ ADRs follow this structure:
 
 ## Index
 
-### Foundation Phase
-
 | ADR | Title | Status | Date |
 |-----|-------|--------|------|
 | [001](001-workspace-structure.md) | Workspace Structure and Module Organization | Accepted | 2026-02-07 |
