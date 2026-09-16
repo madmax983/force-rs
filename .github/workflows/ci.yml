@@ -40,6 +40,25 @@ jobs:
       - name: Unit-focused tests (all features)
         run: cargo test --workspace --all-features --lib --tests -- --test-threads=1
 
+  onramp-docs-snippets:
+    name: Onramp (README snippet CI)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Check README/docs `force` version pins match the workspace version
+        run: bash scripts/onramp/check_version_pins.sh
+
+      - name: Compile every runnable README code sample against the workspace crate
+        run: bash scripts/onramp/compile_readme_snippets.sh
+
   force-sync-postgres:
     name: force-sync Postgres Integration
     runs-on: ubuntu-latest
