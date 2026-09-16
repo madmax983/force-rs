@@ -30,6 +30,10 @@ mutants.out.old/
 *.py
 *.sh
 
+# Onramp DX harness: committed CI infrastructure, not scratch scripts.
+!scripts/onramp/*.py
+!scripts/onramp/*.sh
+
 # Live test credentials (never commit)
 **/jwt_live_key.pem
 **/jwt_live_cert.crt
