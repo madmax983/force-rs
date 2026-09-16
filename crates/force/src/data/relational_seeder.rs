@@ -78,8 +78,11 @@ impl<'a, A: Authenticator> RelationalSeeder<'a, A> {
         // Remove 'Id' if present, as we are creating a new record.
         parent_record.fields.remove("Id");
 
-        let parent_value = serde_json::to_value(&parent_record.fields)
-            .map_err(|e| ForceError::Serialization(crate::error::SerializationError::Json(e)))?;
+        // `parent_record.fields` is already a `serde_json::Map`, so wrapping
+        // it directly avoids the full clone-through-`Serialize` that
+        // `serde_json::to_value(&parent_record.fields)` would otherwise
+        // perform.
+        let parent_value = serde_json::Value::Object(parent_record.fields);
 
         graph = graph.post(&parent_describe.name, parent_value, &parent_ref_id)?;
 
@@ -99,9 +102,8 @@ impl<'a, A: Authenticator> RelationalSeeder<'a, A> {
 
             let child_ref_id = format!("ref_{}_{}", child_describe.name.to_lowercase(), i);
 
-            let child_value = serde_json::to_value(&child_record.fields).map_err(|e| {
-                ForceError::Serialization(crate::error::SerializationError::Json(e))
-            })?;
+            // Same clone-through-`Serialize` avoidance as the parent above.
+            let child_value = serde_json::Value::Object(child_record.fields);
 
             graph = graph.post(&child_describe.name, child_value, &child_ref_id)?;
         }
