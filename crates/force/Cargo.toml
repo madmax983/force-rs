@@ -160,3 +160,8 @@ required-features = ["bulk"]
 name = "relational_seeder_profile"
 harness = false
 required-features = ["data_utility", "composite_graph"]
+
+[[bench]]
+name = "data_faker_profile"
+harness = false
+required-features = ["data_utility"]
