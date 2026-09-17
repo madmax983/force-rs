@@ -7,7 +7,7 @@ API surfaces and auth flows explicitly.
 
 ```toml
 [dependencies]
-force = { version = "0.3", features = ["rest", "bulk", "jwt"] }
+force = { version = "0.4", features = ["rest", "bulk", "jwt"] }
 ```
 
 To opt out of the default REST surface, disable default features and select only
@@ -15,7 +15,7 @@ what you need:
 
 ```toml
 [dependencies]
-force = { version = "0.3", default-features = false, features = ["tooling"] }
+force = { version = "0.4", default-features = false, features = ["tooling"] }
 ```
 
 ## Feature-flag matrix
