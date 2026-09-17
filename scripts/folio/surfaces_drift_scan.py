@@ -39,31 +39,22 @@ STALE_STATUS_RE = re.compile(
     re.IGNORECASE,
 )
 
-# `pub fn <name> -> crate::api::...Handler<A>` (macro-generated accessors)
-# and plain `pub fn <name>(...)  -> crate::api::...Handler<A>` (hand-written
-# accessors like `account_engagement`, `data_cloud`).
-ACCESSOR_RE = re.compile(
-    r"pub fn (?P<name>[a-z_]+)(?:\s*->|\s*\()\s*.*?crate::api::",
+# Every handler accessor (macro-generated or hand-written) is immediately
+# preceded by `#[cfg(feature = "<flag>")]`, optionally followed by other
+# attributes (e.g. `#[must_use]`) before the `pub fn <name>`. Scanning for
+# this pairing ties each accessor to the exact feature flag that gates it,
+# instead of guessing from substring overlap between flag and fn names.
+CFG_ACCESSOR_RE = re.compile(
+    r'#\[cfg\(feature = "(?P<flag>[a-z_]+)"\)\]'
+    r"(?:\s*#\[[^\]]*\])*\s*"
+    r"pub fn (?P<name>[a-z_]+)"
 )
 
 
-def shipped_accessors() -> set[str]:
+def shipped_surfaces() -> dict[str, str]:
+    """Map feature flag -> accessor name for every `client.<name>()` handler."""
     text = CLIENT_MOD.read_text()
-    names = set()
-    for line in text.splitlines():
-        m = re.search(r"pub fn ([a-z_]+)", line)
-        if not m:
-            continue
-        name = m.group(1)
-        # Cheap filter: only accessor-shaped names, skip helpers like
-        # `session`. We only need this for the handful of known surfaces,
-        # so require the name to appear later as `crate::api::<name-ish>`
-        # within a few lines (the macro body / fn body).
-        idx = text.index(line)
-        window = text[idx : idx + 300]
-        if "crate::api::" in window or "Handler" in window:
-            names.add(name)
-    return names
+    return {m.group("flag"): m.group("name") for m in CFG_ACCESSOR_RE.finditer(text)}
 
 
 def parse_table_rows(md_text: str) -> list[dict]:
@@ -83,11 +74,16 @@ def parse_table_rows(md_text: str) -> list[dict]:
                 continue
             surface, accessor, feature, description = cells[0], cells[1], cells[2], cells[3]
             feature_flag = re.sub(r"[`()=+]| .*$", "", feature).strip("`")
+            # A cell can name more than one flag, e.g. an umbrella surface
+            # like "`agentforce` (= `models` + `agent_api`)" -- capture all
+            # of them so a compound row still covers each underlying flag.
+            all_flags = re.findall(r"`([a-z_]+)`", feature)
             rows.append(
                 {
                     "surface": surface,
                     "accessor": accessor,
                     "feature": feature_flag,
+                    "all_flags": all_flags or [feature_flag],
                     "description": description,
                 }
             )
@@ -95,40 +91,51 @@ def parse_table_rows(md_text: str) -> list[dict]:
 
 
 def find_drift() -> list[dict]:
-    accessors = shipped_accessors()
+    surfaces = shipped_surfaces()  # feature flag -> accessor name
     rows = parse_table_rows(SURFACES_TABLE.read_text())
+    table_flags = {flag for row in rows for flag in row["all_flags"]}
 
     findings = []
     for row in rows:
-        accessor_call = re.search(r"client\.([a-z_]+)\(", row["accessor"])
-        claims_no_accessor = row["accessor"].strip() == "—"
+        flag = row["feature"]
+        code_accessor = surfaces.get(flag)
+        if code_accessor is None:
+            continue  # not a shipped client.<fn>() surface (e.g. umbrella/meta features); nothing to cross-check
+
         stale_status = STALE_STATUS_RE.search(row["description"])
+        claims_no_accessor = row["accessor"].strip() == "—"
 
-        if stale_status and not claims_no_accessor:
-            continue  # description mentions a status word but still names a real accessor; not this row's failure mode
+        # A real accessor exists for this flag, so the row is wrong if it
+        # still reads as unshipped (stale wording) OR still shows no
+        # accessor at all -- either shape leaves a shipped surface looking
+        # unavailable, whether or not the two contradict each other.
+        if stale_status or claims_no_accessor:
+            claim = repr(stale_status.group(0)) if stale_status else "accessor '—'"
+            findings.append(
+                {
+                    "type": "STALE_PLANNED",
+                    "surface": row["surface"],
+                    "detail": (
+                        f"table row says {claim} for feature `{flag}`, but "
+                        f"`client.{code_accessor}()` exists in {CLIENT_MOD.relative_to(REPO_ROOT)}"
+                    ),
+                }
+            )
 
-        if stale_status and claims_no_accessor:
-            # Does a real accessor exist for this surface's feature flag
-            # even though the table claims none / claims "planned"?
-            flag = row["feature"]
-            code_accessor = None
-            for name in accessors:
-                # feature flag name usually matches or is a substring of the accessor
-                if name == flag or name in flag or flag in name:
-                    code_accessor = name
-                    break
-            if code_accessor:
-                findings.append(
-                    {
-                        "type": "STALE_PLANNED",
-                        "surface": row["surface"],
-                        "detail": (
-                            f"table row says {stale_status.group(0)!r} / accessor '—' for "
-                            f"feature `{flag}`, but `client.{code_accessor}()` exists in "
-                            f"{CLIENT_MOD.relative_to(REPO_ROOT)}"
-                        ),
-                    }
-                )
+    for flag, accessor in surfaces.items():
+        if flag not in table_flags:
+            findings.append(
+                {
+                    "type": "MISSING_ROW",
+                    "surface": accessor,
+                    "detail": (
+                        f"`client.{accessor}()` is gated by feature `{flag}` in "
+                        f"{CLIENT_MOD.relative_to(REPO_ROOT)} but has no row in "
+                        f"{SURFACES_TABLE.relative_to(REPO_ROOT)}"
+                    ),
+                }
+            )
+
     return findings
 
 
