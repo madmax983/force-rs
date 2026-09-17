@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Onramp snippet CI: compiles every runnable ```rust fence in README.md (and
-# docs/adr/004-feature-gates.md) against the local workspace crate.
+# Onramp snippet CI: compiles every runnable ```rust fence in the first-run
+# docs (README.md, docs/adr/004-feature-gates.md, and
+# docs/guide/01-getting-started.md) against the local workspace crate.
 #
 # This is the fast, network-free half of the Onramp harness: it catches API
 # drift (missing imports, renamed methods, changed signatures) the moment a
