@@ -59,6 +59,16 @@ jobs:
       - name: Compile every runnable README code sample against the workspace crate
         run: bash scripts/onramp/compile_readme_snippets.sh
 
+  folio-docs-drift:
+    name: Folio (surfaces table drift scan)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check docs/guide/surfaces/README.md against shipped client accessors
+        run: python3 scripts/folio/surfaces_drift_scan.py
+
   force-sync-postgres:
     name: force-sync Postgres Integration
     runs-on: ubuntu-latest

@@ -34,6 +34,10 @@ mutants.out.old/
 !scripts/onramp/*.py
 !scripts/onramp/*.sh
 
+# Folio docs-drift harness: committed CI infrastructure, not scratch scripts.
+!scripts/folio/*.py
+!scripts/folio/*.sh
+
 # Live test credentials (never commit)
 **/jwt_live_key.pem
 **/jwt_live_cert.crt
