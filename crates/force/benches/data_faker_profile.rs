@@ -22,13 +22,13 @@
 //!
 //! Run directly (`cargo run` doesn't support `--bench`, so use `cargo bench`):
 //! ```bash
-//! cargo bench -p force --bench data_faker_profile
+//! cargo bench -p force --features data_utility --bench data_faker_profile
 //! ```
 //!
 //! Profile (this is a `[[bench]]` target, not a `[[bin]]`: the compiled
 //! executable lands under `target/release/deps/`, not `target/release/`):
 //! ```bash
-//! CARGO_PROFILE_RELEASE_DEBUG=true cargo build --release -p force --bench data_faker_profile
+//! CARGO_PROFILE_RELEASE_DEBUG=true cargo build --release -p force --features data_utility --bench data_faker_profile
 //! BIN=$(find target/release/deps -maxdepth 1 -name 'data_faker_profile-*' -executable -not -name '*.d')
 //! valgrind --tool=callgrind --callgrind-out-file=callgrind.out "$BIN"
 //! callgrind_annotate callgrind.out
