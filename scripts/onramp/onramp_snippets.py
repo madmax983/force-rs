@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""Onramp DX harness: extract and audit the Rust code fences in README.md.
+"""Onramp DX harness: extract and audit the Rust code fences in the docs a
+newcomer actually lands on for the first-run journey (README.md and
+docs/guide/01-getting-started.md).
 
-This is the tool that keeps README.md honest. Nothing in `cargo test --doc`
-touches README.md (it is not `include_str!`'d into any crate), so a fenced
+This is the tool that keeps those pages honest. Nothing in `cargo test --doc`
+touches them (they are not `include_str!`'d into any crate), so a fenced
 code block here can drift out of sync with the published API forever without
-any CI job noticing. This script gives README.md the same discipline as the
+any CI job noticing. This script gives them the same discipline as the
 rest of the codebase:
 
   extract-programs   Pull every fenced ```rust block that looks like a full
@@ -38,7 +40,14 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_DOC_FILES = [
     REPO_ROOT / "README.md",
     REPO_ROOT / "docs" / "adr" / "004-feature-gates.md",
+    REPO_ROOT / "docs" / "guide" / "01-getting-started.md",
 ]
+# Deliberately NOT included: docs/guide/surfaces/*.md. Those per-surface
+# reference pages use `force = { version = "...", ... }` / `"*"` as an
+# intentional "whatever you already pinned in Cargo.toml" placeholder (the
+# reader is assumed to have already followed 01-getting-started.md), not a
+# concrete version -- flagging them here would be a false positive on every
+# release, not a real drift defect.
 
 FENCE_RE = re.compile(r"```rust\n(.*?)```", re.DOTALL)
 # Matches `force = "0.1"` and `force = { version = "0.1", ... }`
