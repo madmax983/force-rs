@@ -18,6 +18,7 @@ use force::api::rest_operation::RestOperation; // or the re-export force::api::R
 | Surface | Accessor | Feature flag | Description |
 |---------|----------|--------------|-------------|
 | [REST](rest.md) | `client.rest()` | `rest` (default) | SOQL, CRUD, upsert, SOSL search, Describe, org limits |
+| [Files](files.md) | `client.files()` | `files` | Upload/download `ContentVersion`, link to records via `ContentDocumentLink` |
 | [Tooling](tooling.md) | `client.tooling()` | `tooling` | Apex/metadata CRUD + execute-anonymous, run-tests, completions |
 | [Bulk](bulk.md) | `client.bulk()` | `bulk` | Bulk API 2.0 high-volume ingest & streaming query |
 | [Composite](composite.md) | `client.composite()` | `composite` | Batch (25) & graph (500) requests in one round-trip |
@@ -29,7 +30,7 @@ use force::api::rest_operation::RestOperation; // or the re-export force::api::R
 | [Consent](consent.md) | `client.consent()` | `consent` | GDPR/CCPA consent checks & data portability |
 | [Analytics](analytics.md) | `client.analytics()` | `analytics` | Reports & Dashboards REST API (runs, instances, results) |
 | [Account Engagement](account-engagement.md) | `client.account_engagement()` | `account_engagement` | Pardot API v5 (separate host, business-unit-scoped) |
-| [SOAP](soap.md) | — | `soap` | Legacy SOAP API (planned — Phase 5 roadmap) |
+| [SOAP](soap.md) | `client.soap()` | `soap` | Legacy Partner SOAP API: CRUD, query/search, describe (see [ADR-032](../../adr/032-soap-api-design.md)) |
 | [Agentforce](agentforce.md) | `client.models()` / `client.agents()` | `agentforce` (= `models` + `agent_api`) | Einstein LLM gateway & headless agent sessions (`api.salesforce.com`) |
 | [Sibling crates](sibling-crates.md) | separate crates | — | `force-pubsub`, `force-marketingcloud`, `force-sync`, `force-lake` |
 

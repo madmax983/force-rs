@@ -2,6 +2,7 @@
 /target
 **/target
 Cargo.lock
+__pycache__/
 
 # IDE
 .vscode/
@@ -33,6 +34,10 @@ mutants.out.old/
 # Onramp DX harness: committed CI infrastructure, not scratch scripts.
 !scripts/onramp/*.py
 !scripts/onramp/*.sh
+
+# Folio docs-drift harness: committed CI infrastructure, not scratch scripts.
+!scripts/folio/*.py
+!scripts/folio/*.sh
 
 # Live test credentials (never commit)
 **/jwt_live_key.pem

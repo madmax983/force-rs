@@ -15,6 +15,7 @@ rationale see the [architecture overview](../../CLAUDE.md) and the
 
 - [Surfaces overview](surfaces/README.md)
   - [REST](surfaces/rest.md)
+  - [Files](surfaces/files.md)
   - [Tooling](surfaces/tooling.md)
   - [Bulk](surfaces/bulk.md)
   - [Composite](surfaces/composite.md)
