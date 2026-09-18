@@ -4,13 +4,15 @@ Design backlog and product-spec notes for incubating `force-rs` capabilities. Th
 
 ## Streaming and Integration
 
-- [`apex-rest-api.md`](apex-rest-api.md): native Apex REST handler for custom Salesforce endpoints.
 - [`bulk-pk-chunking.md`](bulk-pk-chunking.md): Bulk API PK Chunking Support.
-- [`consent-portability-api.md`](consent-portability-api.md): Consent and Portability API support.
 - [`force-sync-engine.md`](force-sync-engine.md): Postgres-first bidirectional sync engine.
 - [`pub-sub-api.md`](pub-sub-api.md): gRPC event streaming via Salesforce Pub/Sub.
-- [`soap-api.md`](soap-api.md): Legacy Enterprise and Partner SOAP API support.
 - [`streaming-api.md`](streaming-api.md): CometD/Bayeux streaming API support.
+
+> Apex REST, Consent & Portability, Data Cloud, and SOAP shipped (v0.1.0 and
+> v0.4.0 respectively) and moved to
+> [`docs/guide/surfaces/`](../guide/surfaces/README.md); their vantage specs
+> were removed as superseded.
 
 ## Schema and Codegen
 
@@ -41,7 +43,7 @@ Design backlog and product-spec notes for incubating `force-rs` capabilities. Th
 
 ## Content and Files
 
-- [`salesforce-files-api.md`](salesforce-files-api.md): streaming multipart file uploads and downloads.
+- [`salesforce-files-api.md`](salesforce-files-api.md): streaming (async reader/writer) upload/download for Salesforce Files, on top of the shipped in-memory `files` handler.
 
 ## Data Utilities
 
@@ -52,4 +54,3 @@ Design backlog and product-spec notes for incubating `force-rs` capabilities. Th
 ## Authentication
 
 - [`saml-bearer-flow.md`](saml-bearer-flow.md): OAuth 2.0 SAML Bearer Assertion Flow for Salesforce authentication.
-- [`data-cloud-api.md`](data-cloud-api.md): Data Cloud API support.
