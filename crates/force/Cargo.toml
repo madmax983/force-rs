@@ -165,3 +165,8 @@ required-features = ["data_utility", "composite_graph"]
 name = "data_faker_profile"
 harness = false
 required-features = ["data_utility"]
+
+[[bench]]
+name = "soap_query_profile"
+harness = false
+required-features = ["soap"]
