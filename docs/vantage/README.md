@@ -9,8 +9,8 @@ Design backlog and product-spec notes for incubating `force-rs` capabilities. Th
 - [`pub-sub-api.md`](pub-sub-api.md): gRPC event streaming via Salesforce Pub/Sub.
 - [`streaming-api.md`](streaming-api.md): CometD/Bayeux streaming API support.
 
-> Apex REST, Consent & Portability, Data Cloud, Files, and SOAP shipped
-> (v0.1.0 and v0.4.0 respectively) and moved to
+> Apex REST, Consent & Portability, Data Cloud, and SOAP shipped (v0.1.0 and
+> v0.4.0 respectively) and moved to
 > [`docs/guide/surfaces/`](../guide/surfaces/README.md); their vantage specs
 > were removed as superseded.
 
@@ -40,6 +40,10 @@ Design backlog and product-spec notes for incubating `force-rs` capabilities. Th
 
 - [`metadata-api.md`](metadata-api.md): Metadata API deployment and retrieval operations.
 - [`query-plan-analyzer.md`](query-plan-analyzer.md): SOQL query performance analyzer and cost threshold validation.
+
+## Content and Files
+
+- [`salesforce-files-api.md`](salesforce-files-api.md): streaming (async reader/writer) upload/download for Salesforce Files, on top of the shipped in-memory `files` handler.
 
 ## Data Utilities
 

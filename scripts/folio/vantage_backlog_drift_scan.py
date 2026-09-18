@@ -42,9 +42,14 @@ MAPPING: dict[str, str] = {
     "apex-rest-api.md": "apex_rest",
     "consent-portability-api.md": "consent",
     "data-cloud-api.md": "data_cloud",
-    "salesforce-files-api.md": "files",
     "soap-api.md": "soap",
 }
+# `files` is deliberately NOT mapped: the shipped `files` feature only covers
+# in-memory upload/download/link (see docs/guide/surfaces/files.md), while
+# docs/vantage/salesforce-files-api.md specs out streaming I/O, which never
+# shipped. A feature flag existing is necessary but not sufficient evidence
+# of full supersession -- verify the vantage doc's acceptance criteria
+# against the shipped surface's actual scope before adding an entry here.
 
 
 def shipped_feature_flags() -> set[str]:
