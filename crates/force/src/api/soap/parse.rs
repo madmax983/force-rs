@@ -172,6 +172,66 @@ fn operation_result_nodes(root: &Node) -> Vec<&Node> {
     response.children_named("result").collect()
 }
 
+/// Owned counterpart of [`operation_result_nodes`]: consumes `root` and moves
+/// out the `<result>` elements instead of borrowing them, so the per-record
+/// parsers ([`parse_record`]) can take fields by value instead of cloning
+/// them out of a borrowed DOM.
+fn take_operation_results(root: Node) -> Vec<Node> {
+    let Some(body) = take_descendant(root, "Body") else {
+        return Vec::new();
+    };
+    // The single element child of <Body> is the `<...Response>` wrapper.
+    let Some(response) = take_first_nonempty_child(body) else {
+        return Vec::new();
+    };
+    take_named_children(response, "result")
+}
+
+/// Owned counterpart of [`Node::find_descendant`]: consumes `node`, doing the
+/// same self-or-descendant, document-order depth-first search, and returns
+/// the first matching subtree by value instead of by reference. Sibling
+/// subtrees that are searched and don't contain a match are dropped.
+fn take_descendant(mut node: Node, name: &str) -> Option<Node> {
+    if node.name == name {
+        return Some(node);
+    }
+    while !node.children.is_empty() {
+        let child = node.children.remove(0);
+        if let Some(found) = take_descendant(child, name) {
+            return Some(found);
+        }
+    }
+    None
+}
+
+/// Removes and returns the first direct child with a non-empty local name.
+fn take_first_nonempty_child(mut node: Node) -> Option<Node> {
+    let idx = node.children.iter().position(|c| !c.name.is_empty())?;
+    Some(node.children.remove(idx))
+}
+
+/// Moves out all direct children with the given local name, dropping the rest.
+fn take_named_children(node: Node, name: &str) -> Vec<Node> {
+    node.children
+        .into_iter()
+        .filter(|c| c.name == name)
+        .collect()
+}
+
+/// Trims leading/trailing whitespace from an owned `String` without
+/// allocating a new buffer. `truncate`/`drain` shrink the existing allocation
+/// in place; in the common case (no surrounding whitespace, since SOAP
+/// responses are not pretty-printed) this is a length-field write only.
+fn into_trimmed(mut s: String) -> String {
+    let start = s.len() - s.trim_start().len();
+    let end = start + s[start..].trim_end().len();
+    s.truncate(end);
+    if start > 0 {
+        s.drain(..start);
+    }
+    s
+}
+
 /// Parses a per-record `<errors>` element.
 fn parse_error(node: &Node) -> SoapError {
     SoapError {
@@ -188,12 +248,17 @@ fn parse_error(node: &Node) -> SoapError {
 ///
 /// De-duplicates the repeated `Id` element (a Partner WSDL quirk) and skips
 /// nested relationship records/subqueries, which are a documented follow-up.
-fn parse_record(node: &Node) -> SObject {
+///
+/// Consumes `node` instead of borrowing it: each field's name and text move
+/// directly into the result instead of being cloned out of a borrowed DOM,
+/// which matters here because this runs once per field per record.
+fn parse_record(node: Node) -> SObject {
     let mut obj = SObject::new(String::new());
+    obj.fields.reserve(node.children.len());
     let mut seen_id = false;
-    for child in &node.children {
+    for child in node.children {
         if child.name == "type" {
-            obj.sobject_type = child.text_owned();
+            obj.sobject_type = into_trimmed(child.text);
             continue;
         }
         if child.name == "Id" {
@@ -210,9 +275,9 @@ fn parse_record(node: &Node) -> SObject {
         let value = if child.nil {
             None
         } else {
-            Some(child.text_owned())
+            Some(into_trimmed(child.text))
         };
-        obj.fields.push((child.name.clone(), value));
+        obj.fields.push((child.name, value));
     }
     obj
 }
@@ -260,7 +325,7 @@ pub fn parse_delete_results(xml: &str) -> Result<Vec<DeleteResult>> {
 /// Parses a `retrieveResponse` body into records, skipping nil (not-found) slots.
 pub fn parse_retrieve(xml: &str) -> Result<Vec<SObject>> {
     let root = parse_document(xml)?;
-    Ok(operation_result_nodes(&root)
+    Ok(take_operation_results(root)
         .into_iter()
         .filter(|node| !node.nil)
         .map(parse_record)
@@ -275,7 +340,7 @@ pub fn parse_retrieve(xml: &str) -> Result<Vec<SObject>> {
 /// which the typed retrieve relies on.
 pub fn parse_retrieve_optional(xml: &str) -> Result<Vec<Option<SObject>>> {
     let root = parse_document(xml)?;
-    Ok(operation_result_nodes(&root)
+    Ok(take_operation_results(root)
         .into_iter()
         .map(|node| {
             if node.nil {
@@ -290,35 +355,47 @@ pub fn parse_retrieve_optional(xml: &str) -> Result<Vec<Option<SObject>>> {
 /// Parses a `query`/`queryMore`/`queryAll` response body into a [`QueryResult`].
 pub fn parse_query_result(xml: &str) -> Result<QueryResult> {
     let root = parse_document(xml)?;
-    let results = operation_result_nodes(&root);
-    let Some(result) = results.into_iter().next() else {
+    let mut results = take_operation_results(root);
+    if results.is_empty() {
         return Ok(QueryResult {
             done: true,
             query_locator: None,
             size: 0,
             records: Vec::new(),
         });
-    };
+    }
+    let result = results.remove(0);
+    let done = result.child_bool("done").unwrap_or(true);
+    let query_locator = result.child_text("queryLocator").filter(|s| !s.is_empty());
+    let size = result.child_i64("size").unwrap_or(0);
+    let records = take_named_children(result, "records")
+        .into_iter()
+        .map(parse_record)
+        .collect();
     Ok(QueryResult {
-        done: result.child_bool("done").unwrap_or(true),
-        query_locator: result.child_text("queryLocator").filter(|s| !s.is_empty()),
-        size: result.child_i64("size").unwrap_or(0),
-        records: result.children_named("records").map(parse_record).collect(),
+        done,
+        query_locator,
+        size,
+        records,
     })
 }
 
 /// Parses a `searchResponse` body into a [`SearchResult`].
 pub fn parse_search_result(xml: &str) -> Result<SearchResult> {
     let root = parse_document(xml)?;
-    let results = operation_result_nodes(&root);
-    let Some(result) = results.into_iter().next() else {
+    let mut results = take_operation_results(root);
+    if results.is_empty() {
         return Ok(SearchResult::default());
-    };
-    let records = result
-        .children_named("searchRecords")
-        .map(|sr| {
-            sr.find_child("record")
-                .map_or_else(|| parse_record(sr), parse_record)
+    }
+    let result = results.remove(0);
+    let records = take_named_children(result, "searchRecords")
+        .into_iter()
+        .map(|mut sr| {
+            if let Some(idx) = sr.children.iter().position(|c| c.name == "record") {
+                parse_record(sr.children.remove(idx))
+            } else {
+                parse_record(sr)
+            }
         })
         .collect();
     Ok(SearchResult { records })
