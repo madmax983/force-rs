@@ -43,6 +43,9 @@ ROW_RE = re.compile(
     r"\|\s*`(?P<feature>[a-zA-Z0-9_]+)`\s*\|"
 )
 
+# A markdown table separator row, e.g. `|---------|---------|-------------|`.
+SEPARATOR_RE = re.compile(r"^\|[\s\-:|]+\|$")
+
 
 def section_after_heading(text: str, heading: str) -> str:
     idx = text.index(heading)
@@ -51,19 +54,38 @@ def section_after_heading(text: str, heading: str) -> str:
     return rest[: next_heading.start()] if next_heading else rest
 
 
-def parse_table(text: str) -> list[tuple[str, str, str]]:
+def parse_table(text: str) -> tuple[list[tuple[str, str, str]], list[str]]:
+    """Returns (rows, unparsed_lines). A `|`-prefixed line in the table that
+    is neither the header nor the separator nor a row `ROW_RE` matches is a
+    parse failure, not something to silently skip -- an unparseable row
+    (renamed column, hyphenated example name, mangled markdown) would
+    otherwise vanish from the check entirely while the harness still exits
+    0, defeating its own purpose exactly when the table drifts."""
     section = section_after_heading(text, "## More Examples")
     rows = []
-    for line in section.splitlines():
-        m = ROW_RE.match(line.strip())
+    unparsed = []
+    seen_header = False
+    for raw_line in section.splitlines():
+        line = raw_line.strip()
+        if not line.startswith("|"):
+            continue
+        if SEPARATOR_RE.match(line):
+            continue
+        if not seen_header:
+            # First non-separator `|` line is the header row; skip it.
+            seen_header = True
+            continue
+        m = ROW_RE.match(line)
         if m:
             rows.append((m.group("name"), m.group("path"), m.group("feature")))
-    return rows
+        else:
+            unparsed.append(line)
+    return rows, unparsed
 
 
 def main() -> int:
     text = README.read_text()
-    rows = parse_table(text)
+    rows, unparsed = parse_table(text)
     if not rows:
         print("ERROR: found no example rows under '## More Examples' in README.md")
         print("(the table format may have changed -- update ROW_RE in this script)")
@@ -71,6 +93,13 @@ def main() -> int:
 
     print(f"Checking {len(rows)} example(s) from README.md's 'More Examples' table...")
     failures: list[str] = []
+
+    if unparsed:
+        for line in unparsed:
+            failures.append(
+                f"could not parse table row (does not match ROW_RE -- update the "
+                f"regex or fix the row): {line}"
+            )
 
     for name, path, feature in rows:
         example_file = REPO_ROOT / path
