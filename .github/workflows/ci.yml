@@ -59,6 +59,9 @@ jobs:
       - name: Compile every runnable README code sample against the workspace crate
         run: bash scripts/onramp/compile_readme_snippets.sh
 
+      - name: Compile every README "More Examples" row with its documented single feature flag
+        run: python3 scripts/onramp/check_examples_table.py
+
   folio-docs-drift:
     name: Folio (surfaces table drift scan)
     runs-on: ubuntu-latest
