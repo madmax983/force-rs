@@ -42,6 +42,7 @@ MAPPING: dict[str, str] = {
     "apex-rest-api.md": "apex_rest",
     "consent-portability-api.md": "consent",
     "data-cloud-api.md": "data_cloud",
+    "salesforce-files-api.md": "files",
     "soap-api.md": "soap",
 }
 
