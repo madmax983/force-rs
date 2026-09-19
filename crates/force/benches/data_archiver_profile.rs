@@ -20,13 +20,13 @@
 //!
 //! Run directly (`cargo run` doesn't support `--bench`, so use `cargo bench`):
 //! ```bash
-//! cargo bench -p force --features rest --bench data_archiver_profile
+//! cargo bench -p force --features data_utility --bench data_archiver_profile
 //! ```
 //!
 //! Profile (this is a `[[bench]]` target, not a `[[bin]]`: the compiled
 //! executable lands under `target/release/deps/`, not `target/release/`):
 //! ```bash
-//! CARGO_PROFILE_RELEASE_DEBUG=true cargo build --release -p force --features rest --bench data_archiver_profile
+//! CARGO_PROFILE_RELEASE_DEBUG=true cargo build --release -p force --features data_utility --bench data_archiver_profile
 //! BIN=$(find target/release/deps -maxdepth 1 -name 'data_archiver_profile-*' -executable -not -name '*.d')
 //! valgrind --tool=callgrind --callgrind-out-file=callgrind.out "$BIN"
 //! callgrind_annotate callgrind.out
@@ -58,6 +58,20 @@ struct StaticAuthenticator {
     instance_url: String,
 }
 
+/// Current time as a Salesforce-style `issued_at` (Unix ms as a string), so
+/// the token this harness hands out is always freshly issued relative to
+/// whenever the harness actually runs -- a fixed past timestamp would go
+/// hard-expired the moment `expires_in` elapses after that fixed date,
+/// forcing `TokenManager` to refresh on every request for the rest of time
+/// and adding authentication noise to the profiled call stacks.
+fn issued_at_now() -> String {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("system clock before unix epoch")
+        .as_millis()
+        .to_string()
+}
+
 #[async_trait::async_trait]
 impl Authenticator for StaticAuthenticator {
     async fn authenticate(&self) -> ForceResult<AccessToken> {
@@ -65,7 +79,7 @@ impl Authenticator for StaticAuthenticator {
             access_token: secrecy::SecretString::new(self.token.clone().into()),
             instance_url: self.instance_url.clone(),
             token_type: "Bearer".to_string(),
-            issued_at: "1704067200000".to_string(),
+            issued_at: issued_at_now(),
             signature: "profile-sig".to_string(),
             expires_in: Some(7200),
             refresh_token: None,
