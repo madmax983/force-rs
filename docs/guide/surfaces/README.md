@@ -28,6 +28,7 @@ use force::api::rest_operation::RestOperation; // or the re-export force::api::R
 | [Apex REST](apex-rest.md) | `client.apex_rest()` | `apex_rest` | Generic access to custom `/services/apexrest/` endpoints |
 | [CPQ](cpq.md) | `client.cpq()` | `cpq` | Salesforce CPQ quote lifecycle, config, documents, amendments |
 | [Consent](consent.md) | `client.consent()` | `consent` | GDPR/CCPA consent checks & data portability |
+| [Data Utility](data-utility.md) | `force::data::*` | `data_utility` | Mock-record generation, org seeding, PII masking, client-side validation, local JSONL export |
 | [Analytics](analytics.md) | `client.analytics()` | `analytics` | Reports & Dashboards REST API (runs, instances, results) |
 | [Account Engagement](account-engagement.md) | `client.account_engagement()` | `account_engagement` | Pardot API v5 (separate host, business-unit-scoped) |
 | [SOAP](soap.md) | `client.soap()` | `soap` | Legacy Partner SOAP API: CRUD, query/search, describe (see [ADR-032](../../adr/032-soap-api-design.md)) |

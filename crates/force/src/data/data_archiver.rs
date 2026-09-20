@@ -2,6 +2,33 @@
 //!
 //! Provides `DataArchiver`, a utility for seamlessly exporting Salesforce data
 //! to local disk formats (JSONL, CSV).
+//!
+//! # Example
+//!
+//! ```no_run
+//! # use force::client::ForceClientBuilder;
+//! # use force::data::DataArchiver;
+//! # use force::auth::ClientCredentials;
+//! # #[tokio::main]
+//! # async fn main() -> anyhow::Result<()> {
+//! # let auth = ClientCredentials::new("id", "secret", "url");
+//! # let client = ForceClientBuilder::new().authenticate(auth).build().await?;
+//! let archiver = DataArchiver::new(&client);
+//!
+//! // Plain export
+//! let count = archiver
+//!     .export_to_jsonl::<serde_json::Value>("SELECT Id, Name FROM Account", "accounts.jsonl")
+//!     .await?;
+//! println!("Exported {count} Accounts");
+//!
+//! // PII-masked export, driven by the Contact describe metadata
+//! let count = archiver
+//!     .export_masked_to_jsonl("Contact", "SELECT Id, Name, Email FROM Contact", "contacts.jsonl")
+//!     .await?;
+//! println!("Exported {count} masked Contacts");
+//! # Ok(())
+//! # }
+//! ```
 
 use super::DataMasker;
 use crate::api::rest_operation::RestOperation;
