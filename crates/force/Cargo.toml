@@ -175,3 +175,8 @@ required-features = ["soap"]
 name = "data_archiver_profile"
 harness = false
 required-features = ["data_utility"]
+
+[[bench]]
+name = "data_validator_profile"
+harness = false
+required-features = ["data_utility"]

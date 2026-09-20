@@ -43,6 +43,7 @@
 use crate::types::DynamicSObject;
 use crate::types::describe::{FieldDescribe, FieldType, SObjectDescribe};
 use serde_json::Value;
+use std::collections::HashMap;
 
 /// Represents a validation error on a specific field.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -64,13 +65,26 @@ pub enum ValidationError {
 #[derive(Debug, Clone)]
 pub struct DataValidator<'a> {
     describe: &'a SObjectDescribe,
+    /// Lower-cased field name -> index into `describe.fields`, built once so
+    /// `find_field` is an O(1) lookup instead of a linear scan repeated for
+    /// every populated field of every validated record.
+    field_index: HashMap<String, usize>,
 }
 
 impl<'a> DataValidator<'a> {
     /// Creates a new `DataValidator` initialized with the target schema.
     #[must_use]
     pub fn new(describe: &'a SObjectDescribe) -> Self {
-        Self { describe }
+        let field_index = describe
+            .fields
+            .iter()
+            .enumerate()
+            .map(|(i, f)| (f.name.to_ascii_lowercase(), i))
+            .collect();
+        Self {
+            describe,
+            field_index,
+        }
     }
 
     /// Validates a record against the schema.
@@ -153,10 +167,8 @@ impl<'a> DataValidator<'a> {
 
     /// Finds a field definition by name (case-insensitive).
     fn find_field(&self, name: &str) -> Option<&FieldDescribe> {
-        self.describe
-            .fields
-            .iter()
-            .find(|f| f.name.eq_ignore_ascii_case(name))
+        let idx = *self.field_index.get(&name.to_ascii_lowercase())?;
+        self.describe.fields.get(idx)
     }
 
     fn is_string_type(field_type: &FieldType) -> bool {
