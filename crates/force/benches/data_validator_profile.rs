@@ -49,20 +49,8 @@ const RECORD_COUNT: usize = 20_000;
 /// covering every branch `DataValidator::validate` and `generate_mock_record`
 /// switch on.
 const FIELD_TYPES: &[&str] = &[
-    "string",
-    "textarea",
-    "email",
-    "phone",
-    "url",
-    "picklist",
-    "int",
-    "double",
-    "currency",
-    "percent",
-    "boolean",
-    "date",
-    "datetime",
-    "time",
+    "string", "textarea", "email", "phone", "url", "picklist", "int", "double", "currency",
+    "percent", "boolean", "date", "datetime", "time",
 ];
 
 #[allow(clippy::too_many_arguments)]
