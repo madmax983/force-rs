@@ -364,7 +364,7 @@ Preview utilities now live in the modules that own them:
 - **`force::api::composite::{QueryBatch, SoqlMassOp}`**: batch-aware helpers built on the Composite API.
 - **`force::api::rest::analyze_query_plan`**: turns `explain()` responses into actionable warnings.
 - **`force::schema`**: schema scanning, diffing, visualization, DDL export, and code generation helpers.
-- **`force::data`**: mock-record generation and bulk seeding helpers.
+- **`force::data`**: mock-record generation, org seeding, PII masking, client-side validation, and local JSONL export — see [docs/guide/surfaces/data-utility.md](docs/guide/surfaces/data-utility.md).
 
 ## Architecture
 

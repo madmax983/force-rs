@@ -43,6 +43,14 @@ MAPPING: dict[str, str] = {
     "consent-portability-api.md": "consent",
     "data-cloud-api.md": "data_cloud",
     "soap-api.md": "soap",
+    # Verified against crates/force/src/data/{data_faker,data_seeder}.rs:
+    # generate_mock_record() matches data-faker.md's acceptance criteria
+    # (createable/auto_number/calculated field handling, picklist defaults)
+    # exactly, and DataSeeder::seed() matches data-seeder.md's (Composite
+    # Batch API insert, chunking, halt_on_error) exactly -- unlike `files`
+    # below, these are full supersessions, not partial ones.
+    "data-faker.md": "data_utility",
+    "data-seeder.md": "data_utility",
 }
 # `files` is deliberately NOT mapped: the shipped `files` feature only covers
 # in-memory upload/download/link (see docs/guide/surfaces/files.md), while
