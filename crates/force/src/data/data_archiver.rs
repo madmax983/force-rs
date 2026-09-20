@@ -50,13 +50,15 @@ impl<'a, A: Authenticator> DataArchiver<'a, A> {
         let mut stream = self.client.rest().query_stream::<T>(soql);
         let mut file = File::create(path).await?;
         let mut count = 0;
+        let mut buf = Vec::new();
 
         while let Some(record) = stream.next().await? {
-            let json = serde_json::to_string(&record)
+            buf.clear();
+            serde_json::to_writer(&mut buf, &record)
                 .map_err(|e| ForceError::from(SerializationError::from(e)))?;
+            buf.push(b'\n');
 
-            file.write_all(json.as_bytes()).await?;
-            file.write_all(b"\n").await?;
+            file.write_all(&buf).await?;
 
             count += 1;
         }
@@ -96,15 +98,17 @@ impl<'a, A: Authenticator> DataArchiver<'a, A> {
 
         let mut file = File::create(path).await?;
         let mut count = 0;
+        let mut buf = Vec::new();
 
         while let Some(mut record) = stream.next().await? {
             masker.mask_record(&mut record);
 
-            let json = serde_json::to_string(&record)
+            buf.clear();
+            serde_json::to_writer(&mut buf, &record)
                 .map_err(|e| ForceError::from(SerializationError::from(e)))?;
+            buf.push(b'\n');
 
-            file.write_all(json.as_bytes()).await?;
-            file.write_all(b"\n").await?;
+            file.write_all(&buf).await?;
 
             count += 1;
         }
