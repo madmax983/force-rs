@@ -3,6 +3,25 @@
 //! This module provides `DataSeeder`, a utility that combines the schema discovery
 //! powers of `DataFaker` with the efficiency of `BatchBuilder` to generate and
 //! insert hundreds of valid, mock records into Salesforce in a few seconds.
+//!
+//! # Example
+//!
+//! ```no_run
+//! # use force::client::ForceClientBuilder;
+//! # use force::data::DataSeeder;
+//! # use force::auth::ClientCredentials;
+//! # #[tokio::main]
+//! # async fn main() -> anyhow::Result<()> {
+//! # let auth = ClientCredentials::new("id", "secret", "url");
+//! # let client = ForceClientBuilder::new().authenticate(auth).build().await?;
+//! let seeder = DataSeeder::new(&client).halt_on_error(true);
+//!
+//! // Generate and insert 500 mock Accounts via the Composite Batch API.
+//! let inserted = seeder.seed("Account", 500).await?;
+//! println!("Seeded {inserted} Accounts");
+//! # Ok(())
+//! # }
+//! ```
 
 use crate::api::rest_operation::RestOperation;
 use crate::auth::Authenticator;

@@ -12,7 +12,11 @@ Design backlog and product-spec notes for incubating `force-rs` capabilities. Th
 > Apex REST, Consent & Portability, Data Cloud, and SOAP shipped (v0.1.0 and
 > v0.4.0 respectively) and moved to
 > [`docs/guide/surfaces/`](../guide/surfaces/README.md); their vantage specs
-> were removed as superseded.
+> were removed as superseded. Data Faker shipped the same way and its spec
+> was removed too. Data Seeder shipped its generate-and-insert path, but its
+> spec is narrowed and kept — see
+> [`data-seeder.md`](data-seeder.md) — for the one acceptance criterion that
+> didn't ship: structured per-record failure reporting.
 
 ## Schema and Codegen
 
@@ -48,8 +52,7 @@ Design backlog and product-spec notes for incubating `force-rs` capabilities. Th
 ## Data Utilities
 
 - [`soql-query-builder.md`](soql-query-builder.md): SOQL query builder for type-safe query construction.
-- [`data-faker.md`](data-faker.md): synthetic Salesforce-shaped data generation.
-- [`data-seeder.md`](data-seeder.md): repeatable fixture and seed workflows.
+- [`data-seeder.md`](data-seeder.md): structured per-record failure reporting for the shipped `DataSeeder` (narrowed — see the status banner in that file).
 
 ## Authentication
 

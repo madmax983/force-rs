@@ -43,7 +43,18 @@ MAPPING: dict[str, str] = {
     "consent-portability-api.md": "consent",
     "data-cloud-api.md": "data_cloud",
     "soap-api.md": "soap",
+    # Verified against crates/force/src/data/data_faker.rs: generate_mock_record()
+    # matches data-faker.md's acceptance criteria (createable/auto_number/
+    # calculated field handling, picklist defaults) exactly -- a full
+    # supersession, unlike `files`/`data-seeder.md` below.
+    "data-faker.md": "data_utility",
 }
+# `data-seeder.md` is deliberately NOT mapped, for the same reason as `files`
+# below: DataSeeder::seed() ships the generate-and-insert path but not the
+# original spec's "clear success/failure reporting ... any Salesforce API
+# errors encountered" criterion (it returns only a success count). The
+# narrowed docs/vantage/data-seeder.md that replaced the original spec
+# covers just that gap and is intentionally out of this check's scope.
 # `files` is deliberately NOT mapped: the shipped `files` feature only covers
 # in-memory upload/download/link (see docs/guide/surfaces/files.md), while
 # docs/vantage/salesforce-files-api.md specs out streaming I/O, which never
