@@ -34,21 +34,40 @@ let fake_account = force::data::generate_mock_record(&describe);
 ### `DataSeeder` — generate + insert via Composite Batch
 
 Combines `generate_mock_record` with the Composite Batch API to insert many
-records in one round-trip, chunking automatically at the batch-size limit.
+records, chunking automatically into batches of 25 (the Composite Batch
+limit) — one round-trip per chunk, not one round-trip total.
+`seed()` returns only a count of successful inserts: a failed record is
+dropped silently unless `halt_on_error(true)`, in which case the whole call
+fails with one generic error and no per-record detail (open gap, see
+[the vantage spec](../../vantage/data-seeder.md)).
 
 ```rust
 let seeder = force::data::DataSeeder::new(&client).halt_on_error(true);
 
-// Generate and insert 500 mock Accounts via the Composite Batch API.
-let inserted = seeder.seed("Account", 500).await?;
-println!("Seeded {inserted} Accounts");
+// Generate and insert mock records for a custom object with no createable
+// Reference fields, via the Composite Batch API, 25 at a time.
+let inserted = seeder.seed("Mock_Fixture__c", 100).await?;
+println!("Seeded {inserted} Mock_Fixture__c records");
 ```
+
+> **Caveat:** `generate_mock_record` fills every createable `Reference`
+> field with a placeholder string, not a valid Salesforce Id — Salesforce
+> rejects that value. Most standard objects have at least one createable
+> Reference field (e.g. `OwnerId`), so seeding them with an unmodified
+> `seed()` call fails today; this works cleanly only for objects with no
+> createable Reference fields, such as a purpose-built custom object, or
+> after you post-process the generated records to drop/populate those
+> fields yourself.
 
 ### `DataMasker` — redact PII before it leaves an org
 
-Uses the object's describe metadata (field type, name heuristics) to redact
-sensitive fields (email, phone, SSN-shaped strings, ...) on a record already
-in memory.
+Redacts a field if its describe metadata says it's `encrypted`, its
+`FieldType` is `Email`/`Phone`, or its API name contains `ssn`, `password`,
+`creditcard`, or `secret` (case-insensitive). This is a name/type heuristic,
+not content inspection — a field like `TaxIdentifier__c` holding an
+SSN-shaped value is **not** masked because neither its name nor its type
+matches; rename or retype the field, or mask it yourself, if you rely on
+this for compliance.
 
 ```rust
 let describe = client.rest().describe("Contact").await?;
