@@ -57,12 +57,15 @@ impl<'a> DataMasker<'a> {
     /// Creates a new `DataMasker` initialized with the target schema.
     #[must_use]
     pub fn new(describe: &'a SObjectDescribe) -> Self {
-        let field_index = describe
-            .fields
-            .iter()
-            .enumerate()
-            .map(|(i, f)| (f.name.to_ascii_lowercase(), i))
-            .collect();
+        // Use `entry().or_insert()` rather than `collect()` so that, if the
+        // describe contains case-insensitive duplicate field names, the
+        // first one wins -- matching the previous `iter().find(...)`
+        // semantics exactly instead of letting a later duplicate silently
+        // overwrite an earlier (possibly sensitive) field's index.
+        let mut field_index = HashMap::with_capacity(describe.fields.len());
+        for (i, f) in describe.fields.iter().enumerate() {
+            field_index.entry(f.name.to_ascii_lowercase()).or_insert(i);
+        }
         Self {
             describe,
             field_index,
@@ -339,5 +342,34 @@ mod tests {
         assert!((double_val - 0.0).abs() < f64::EPSILON);
         let percent_val = record.get_field_as::<f64>("SecretPercent").must().must();
         assert!((percent_val - 0.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_find_field_prefers_first_case_insensitive_duplicate() {
+        // A describe with two case-insensitive-duplicate field names: the
+        // first is an `email` field (sensitive), the second is a plain
+        // `string` field of the same lower-cased name. `find_field` must
+        // resolve to the first definition, matching the pre-existing
+        // `iter().find(...)` semantics -- otherwise the index-based lookup
+        // could silently pick the later, non-sensitive definition and leave
+        // an email value unmasked.
+        let describe = create_mock_describe(&json!([
+            mock_field("Email", "email", false),
+            mock_field("EMAIL", "string", false)
+        ]));
+
+        let masker = DataMasker::new(&describe);
+
+        let mut record_fields = serde_json::Map::new();
+        record_fields.insert("Email".to_string(), json!("john.doe@example.com"));
+
+        let mut record = create_mock_record(record_fields);
+
+        masker.mask_record(&mut record);
+
+        assert_eq!(
+            record.get_field_as::<String>("Email").must().must(),
+            "***@***.***"
+        );
     }
 }
