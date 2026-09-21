@@ -27,7 +27,7 @@ literal dependency edges from the `[features]` table.
 | --- | --- | --- |
 | `default` | `rest` | Default feature set (REST only). |
 | `rest` | — | REST API: SOQL/SOSL, CRUD, describe, query plan. |
-| `files` | `rest` | Salesforce Files (ContentVersion/Document) helpers. |
+| `files` | `rest`, `reqwest/multipart` | Salesforce Files (ContentVersion/Document) helpers. |
 | `tooling` | — | Tooling API: Apex classes, execute anonymous, run tests, completions. |
 | `bulk` | `dep:csv` | Bulk API 2.0 (CSV ingest/query jobs). |
 | `composite` | `rest` | Composite API (batch, tree, sub-requests). |

@@ -18,8 +18,9 @@ crates/force/Cargo.toml" -- silently stops being true. A newcomer deciding
 "does this crate support X" from that table gets a wrong answer with no
 signal that anything is stale.
 
-Exit code is non-zero if the table is missing a shipped feature, or if the
-`full`/`all` code block doesn't match the real meta-feature definitions.
+Exit code is non-zero if the table is missing a shipped feature, if a row's
+"Pulls in" column doesn't match that feature's real dependency edges, or if
+the `full`/`all` code block doesn't match the real meta-feature definitions.
 
 Usage:
     python3 scripts/onramp/check_feature_matrix.py
@@ -41,7 +42,15 @@ GETTING_STARTED = REPO_ROOT / "docs" / "guide" / "01-getting-started.md"
 # this allowlist, so it's checked below rather than trusted blindly.
 INTENTIONALLY_UNDOCUMENTED = {"bench-internals"}
 
-TABLE_ROW_RE = re.compile(r"^\|\s*`([a-zA-Z0-9_-]+)`\s*\|", re.MULTILINE)
+# Rows whose "Pulls in" cell is prose ("see below", "`full` + extras"), not a
+# literal dependency-edge list -- those two are cross-checked separately
+# against the "actual definitions" code block instead.
+PROSE_PULLS_IN_ROWS = {"full", "all"}
+
+TABLE_ROW_RE = re.compile(
+    r"^\|\s*`([a-zA-Z0-9_-]+)`\s*\|\s*(?P<pulls>[^|]*)\|", re.MULTILINE
+)
+BACKTICK_TOKEN_RE = re.compile(r"`([^`]+)`")
 DEFINITIONS_BLOCK_RE = re.compile(
     r"From the actual definitions:\s*\n```toml\n(.*?)```", re.DOTALL
 )
@@ -52,8 +61,16 @@ def cargo_features() -> dict[str, list[str]]:
     return data["features"]
 
 
-def documented_feature_rows(text: str) -> set[str]:
-    return set(TABLE_ROW_RE.findall(text))
+def documented_feature_rows(text: str) -> dict[str, str]:
+    """Maps documented feature name -> raw "Pulls in" cell text."""
+    return {name: pulls.strip() for name, pulls in TABLE_ROW_RE.findall(text)}
+
+
+def parse_pulls_in_cell(cell: str) -> list[str]:
+    tokens = BACKTICK_TOKEN_RE.findall(cell)
+    if tokens:
+        return tokens
+    return [] if cell in ("—", "-") else [cell]
 
 
 def documented_definitions_block(text: str) -> dict[str, list[str]]:
@@ -80,19 +97,28 @@ def main() -> int:
             )
 
     shipped_public_features = set(features) - INTENTIONALLY_UNDOCUMENTED
-    missing_rows = sorted(shipped_public_features - documented_rows)
+    missing_rows = sorted(shipped_public_features - set(documented_rows))
     for name in missing_rows:
         problems.append(
             f"feature `{name}` is defined in Cargo.toml but has no row in "
             f"{GETTING_STARTED.relative_to(REPO_ROOT)}'s Feature-flag matrix table."
         )
 
-    stale_rows = sorted(documented_rows - set(features))
+    stale_rows = sorted(set(documented_rows) - set(features))
     for name in stale_rows:
         problems.append(
             f"the Feature-flag matrix table documents `{name}`, which no "
             "longer exists in Cargo.toml -- remove or rename the row."
         )
+
+    for name in sorted(set(documented_rows) & set(features) - PROSE_PULLS_IN_ROWS):
+        documented_edges = parse_pulls_in_cell(documented_rows[name])
+        real_edges = list(features[name])
+        if documented_edges != real_edges:
+            problems.append(
+                f"`{name}`'s Pulls in column reads {documented_edges!r} but "
+                f"Cargo.toml's real dependency edges are {real_edges!r}."
+            )
 
     if not documented_defs:
         problems.append(
