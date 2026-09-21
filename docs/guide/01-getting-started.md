@@ -49,6 +49,7 @@ literal dependency edges from the `[features]` table.
 | `agentforce` | `models`, `agent_api` | Umbrella for the full Agentforce surface. |
 | `account_engagement` | — | Account Engagement (Pardot) API v5 on `pi.pardot.com`. |
 | `analytics` | — | Reports & Dashboards REST API. |
+| `soap` | `dep:quick-xml` | Classic SOAP Partner API: CRUD, query/search, describe (see [ADR-032](../adr/032-soap-api-design.md)). |
 | `full` | see below | Common set of surfaces + auth flows. |
 | `all` | `full` + extras | Everything, including specialized/heavier surfaces. |
 
@@ -59,7 +60,7 @@ From the actual definitions:
 ```toml
 full = ["rest", "files", "bulk", "composite", "tooling", "jwt", "auth_code",
         "ui", "graphql", "data_cloud", "apex_rest", "consent", "models",
-        "agent_api", "account_engagement", "analytics"]
+        "agent_api", "account_engagement", "analytics", "soap"]
 all  = ["full", "schema", "data_utility", "composite_graph", "cpq"]
 ```
 

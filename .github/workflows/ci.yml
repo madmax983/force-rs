@@ -62,6 +62,9 @@ jobs:
       - name: Compile every README "More Examples" row with its documented single feature flag
         run: python3 scripts/onramp/check_examples_table.py
 
+      - name: Check getting-started feature-flag matrix against Cargo.toml
+        run: python3 scripts/onramp/check_feature_matrix.py
+
   folio-docs-drift:
     name: Folio (surfaces table drift scan)
     runs-on: ubuntu-latest
