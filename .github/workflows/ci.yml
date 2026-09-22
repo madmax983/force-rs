@@ -65,6 +65,9 @@ jobs:
       - name: Check getting-started feature-flag matrix against Cargo.toml
         run: python3 scripts/onramp/check_feature_matrix.py
 
+      - name: Compile every auth-flow-guide fragment against the workspace crate
+        run: bash scripts/onramp/compile_auth_flow_fragments.sh
+
   folio-docs-drift:
     name: Folio (surfaces table drift scan)
     runs-on: ubuntu-latest

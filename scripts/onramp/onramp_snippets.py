@@ -23,16 +23,32 @@ rest of the codebase:
                       out of README.md, verbatim, for the clean-room harness
                       to build against the *published* crates.io artifact.
 
+  extract-auth-flow-fragments
+                      Pull each ```rust fragment out of
+                      docs/guide/02-choosing-an-auth-flow.md -- the page
+                      01-getting-started.md's own "Next:" link sends every
+                      reader to -- and wrap it with a small stub preamble (so
+                      free variables like `client_id` type-check) into a
+                      standalone .rs file, for the same cargo-check drift
+                      catch `extract-programs` gives README.md. These
+                      fragments have no `fn main`, so `extract-programs`
+                      skips them by design; unlike README.md they also
+                      reference variables the reader is expected to supply
+                      (credentials), so they need a preamble instead of
+                      running verbatim.
+
 Usage:
     python3 scripts/onramp/onramp_snippets.py extract-programs --out DIR [FILES...]
     python3 scripts/onramp/onramp_snippets.py check-version-pins [FILES...]
     python3 scripts/onramp/onramp_snippets.py extract-quickstart --out DIR
+    python3 scripts/onramp/onramp_snippets.py extract-auth-flow-fragments --out DIR
 """
 from __future__ import annotations
 
 import argparse
 import re
 import sys
+import textwrap
 import tomllib
 from pathlib import Path
 
@@ -55,6 +71,71 @@ VERSION_PIN_RE = re.compile(
     r'force\s*=\s*(?:"(?P<bare>[^"]+)"'
     r'|\{[^}]*version\s*=\s*"(?P<inner>[^"]+)"[^}]*\})'
 )
+
+AUTH_FLOW_GUIDE = REPO_ROOT / "docs" / "guide" / "02-choosing-an-auth-flow.md"
+# Matches a `<!-- onramp-fragment: NAME -->` marker immediately followed by
+# the ```rust fence it names. The marker lives in the doc itself (not in a
+# side-table here) so a reordered or deleted fragment can't silently go
+# unchecked -- moving the fence without moving its marker is a `KeyError` at
+# extraction time, not a silent skip.
+FRAGMENT_RE = re.compile(r"<!-- onramp-fragment: (?P<name>[\w-]+) -->\n```rust\n(?P<body>.*?)```", re.DOTALL)
+
+# Every fragment in docs/guide/02-choosing-an-auth-flow.md references
+# variables the reader is expected to supply (their own credentials), so
+# each one needs a small stub preamble before it type-checks standalone.
+# Stub *values* are throwaway strings -- only the *types* matter for a
+# cargo-check-level drift catch (renamed constructor, reordered/added
+# argument, changed return type). Keyed by the `onramp-fragment:` marker
+# name so a fragment with no matching entry fails extraction loudly instead
+# of being skipped.
+FRAGMENT_PREAMBLES: dict[str, str] = {
+    "client_credentials": """
+        let client_id = "stub-client-id";
+        let client_secret = "stub-client-secret";
+    """,
+    "jwt_bearer": """
+        let client_id = "stub-client-id";
+    """,
+    "auth_code_stages": """
+        // Owned `String`s, not `&str`: the fragment borrows these
+        // (`&login_url`, `&client_id`, `&redirect_uri`) for the authorize
+        // URL, then moves the originals into `AuthorizationCode::new` --
+        // `&&str` doesn't satisfy an `impl Into<String>` bound, `&String` does.
+        let login_url = "https://login.salesforce.com".to_string();
+        let client_id = "stub-client-id".to_string();
+        let redirect_uri = "https://example.com/callback".to_string();
+        let client_secret: Option<String> = None;
+        let received_code = "stub-code";
+        let token_url = "https://login.salesforce.com/services/oauth2/token";
+    """,
+    "auth_code_builder_shortcut": """
+        use force::auth::PkceChallenge;
+        use force::client::ForceClientBuilder;
+        let client_id = "stub-client-id";
+        let redirect_uri = "https://example.com/callback";
+        let code = "stub-code";
+        let token_url = "https://login.salesforce.com/services/oauth2/token";
+        let pkce = PkceChallenge::generate();
+    """,
+    "username_password": """
+        let client_id = "stub-client-id";
+        let client_secret = "stub-client-secret";
+        let password = "stub-password";
+        let security_token = "stub-token";
+    """,
+    "data_cloud": """
+        let client_id = "stub-client-id";
+        let client_secret = "stub-client-secret";
+    """,
+    "marketing_cloud": """
+        let client_id = "stub-client-id";
+        let client_secret = "stub-client-secret";
+    """,
+    "agentforce": """
+        let client_id = "stub-client-id";
+        let client_secret = "stub-client-secret";
+    """,
+}
 
 
 def workspace_version() -> str:
@@ -161,6 +242,62 @@ def cmd_extract_quickstart(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_extract_auth_flow_fragments(args: argparse.Namespace) -> int:
+    out_dir = Path(args.out)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    text = AUTH_FLOW_GUIDE.read_text()
+
+    fragments = list(FRAGMENT_RE.finditer(text))
+    if not fragments:
+        print(f"No `<!-- onramp-fragment: ... -->` markers found in {AUTH_FLOW_GUIDE}", file=sys.stderr)
+        return 1
+
+    seen_names: set[str] = set()
+    manifest_lines = []
+    for i, m in enumerate(fragments, start=1):
+        name = m.group("name")
+        if name in seen_names:
+            print(f"Duplicate onramp-fragment name '{name}' in {AUTH_FLOW_GUIDE}", file=sys.stderr)
+            return 1
+        seen_names.add(name)
+
+        if name not in FRAGMENT_PREAMBLES:
+            print(
+                f"No stub preamble registered for onramp-fragment '{name}' "
+                f"(scripts/onramp/onramp_snippets.py: FRAGMENT_PREAMBLES). "
+                "Every fragment must have one so it can type-check standalone.",
+                file=sys.stderr,
+            )
+            return 1
+
+        body = m.group("body")
+        preamble = textwrap.dedent(FRAGMENT_PREAMBLES[name]).strip()
+        program = (
+            "#[tokio::main]\n"
+            "async fn main() -> anyhow::Result<()> {\n"
+            f"    {preamble}\n\n"
+            f"{textwrap.indent(body, '    ')}\n"
+            "    Ok(())\n"
+            "}\n"
+        )
+        out_file = out_dir / f"fragment_{i:03d}_{name}.rs"
+        out_file.write_text(program)
+        manifest_lines.append(f"{out_file.name}\t{name}")
+
+    (out_dir / "MANIFEST.tsv").write_text("\n".join(manifest_lines) + "\n")
+    print(f"Extracted {len(fragments)} auth-flow fragment(s) from {AUTH_FLOW_GUIDE} into {out_dir}")
+
+    unused = set(FRAGMENT_PREAMBLES) - seen_names
+    if unused:
+        print(
+            f"Note: FRAGMENT_PREAMBLES has {len(unused)} entry(ies) with no matching "
+            f"marker in the doc (stale after an edit?): {sorted(unused)}",
+            file=sys.stderr,
+        )
+        return 1
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -177,6 +314,10 @@ def main() -> int:
     p_quickstart = sub.add_parser("extract-quickstart")
     p_quickstart.add_argument("--out", required=True)
     p_quickstart.set_defaults(func=cmd_extract_quickstart)
+
+    p_auth_fragments = sub.add_parser("extract-auth-flow-fragments")
+    p_auth_fragments.add_argument("--out", required=True)
+    p_auth_fragments.set_defaults(func=cmd_extract_auth_flow_fragments)
 
     args = parser.parse_args()
     return args.func(args)
