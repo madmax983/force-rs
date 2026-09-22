@@ -252,6 +252,24 @@ def cmd_extract_auth_flow_fragments(args: argparse.Namespace) -> int:
         print(f"No `<!-- onramp-fragment: ... -->` markers found in {AUTH_FLOW_GUIDE}", file=sys.stderr)
         return 1
 
+    # FRAGMENT_RE only finds fences immediately preceded by a marker, so a
+    # new ```rust fence added without one would otherwise be silently
+    # skipped instead of failing loudly -- defeating the point of this
+    # harness for exactly the fence that's newest and least reviewed. Count
+    # every ```rust fence in the file independently and require the two
+    # counts to match.
+    all_rust_fences = len(extract_rust_fences(text))
+    if all_rust_fences != len(fragments):
+        print(
+            f"{AUTH_FLOW_GUIDE} has {all_rust_fences} ```rust fence(s) but only "
+            f"{len(fragments)} carry a `<!-- onramp-fragment: NAME -->` marker "
+            "immediately above them. Every rust fence in this file must be "
+            "marked (and registered in FRAGMENT_PREAMBLES) so it's covered by "
+            "this harness -- an unmarked fence is invisible to it.",
+            file=sys.stderr,
+        )
+        return 1
+
     seen_names: set[str] = set()
     manifest_lines = []
     for i, m in enumerate(fragments, start=1):
