@@ -78,6 +78,9 @@ jobs:
       - name: Check docs/vantage/ backlog specs against shipped surfaces
         run: python3 scripts/folio/vantage_backlog_drift_scan.py
 
+      - name: Check corpus internal links and root-reachability of every docs page
+        run: python3 scripts/folio/link_orphan_scan.py
+
   force-sync-postgres:
     name: force-sync Postgres Integration
     runs-on: ubuntu-latest
