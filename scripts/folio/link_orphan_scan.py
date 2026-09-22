@@ -21,10 +21,10 @@ scripts/onramp's snippet harness).
 
 Usage:
     python3 scripts/folio/link_orphan_scan.py
-Exit status is nonzero iff any broken link is found, so this can gate CI.
-Orphan pages are reported but do not fail the exit code on their own, since
-a freshly-added page is briefly unreachable until it's cross-linked in the
-same change -- but any nonzero orphan count belongs in the next audit pass.
+Exit status is nonzero if any broken link or any orphan page is found, so
+this can gate CI: an orphan is exactly the kind of regression this harness
+exists to catch (see the docs/README.md fix this harness was built for), so
+a page that goes unreachable again must fail the job, not just print.
 """
 from __future__ import annotations
 
@@ -37,7 +37,18 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 CORPUS_GLOBS = ["docs/**/*.md", "README.md", "CHANGELOG.md"]
 ENTRY_POINTS = ["README.md", "docs/README.md", "CHANGELOG.md"]
 
-LINK_RE = re.compile(r"\[([^\]]*)\]\(([^)]+)\)")
+# Inline links: [text](target). Reference-style links: [label]: target, the
+# form used for e.g. `[`RestOperation`]: ../../../crates/.../rest_operation.rs`
+# in the surface guides and `[ADR-025]: 025-username-password-auth.md` in the
+# ADRs. Both forms are load-bearing in this corpus and must be checked.
+INLINE_LINK_RE = re.compile(r"\[([^\]]*)\]\(([^)]+)\)")
+REFERENCE_LINK_RE = re.compile(r"^[ ]{0,3}\[[^\]]+\]:\s*<?([^\s>]+)>?", re.MULTILINE)
+
+
+def iter_link_targets(text: str) -> list[str]:
+    targets = [m.group(2) for m in INLINE_LINK_RE.finditer(text)]
+    targets += [m.group(1) for m in REFERENCE_LINK_RE.finditer(text)]
+    return targets
 
 
 def is_external(target: str) -> bool:
@@ -76,8 +87,8 @@ def main() -> int:
     for f in files:
         rel_f = f.relative_to(REPO_ROOT)
         text = f.read_text(encoding="utf-8", errors="replace")
-        for m in LINK_RE.finditer(text):
-            target = m.group(2).strip()
+        for raw_target in iter_link_targets(text):
+            target = raw_target.strip()
             if is_external(target) or target.startswith("#"):
                 continue
             total_links += 1
@@ -116,7 +127,7 @@ def main() -> int:
     for o in orphans:
         print(f"  ORPHAN  {o}")
 
-    return 1 if broken else 0
+    return 1 if (broken or orphans) else 0
 
 
 if __name__ == "__main__":
