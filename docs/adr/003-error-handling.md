@@ -537,5 +537,5 @@ This decision will be validated through:
 
 - [thiserror crate](https://docs.rs/thiserror/)
 - [Rust Error Handling](https://doc.rust-lang.org/book/ch09-00-error-handling.html)
-- [Mark's Standards](C:\Users\markm\.claude\CLAUDE.md) - "thiserror for library errors"
+- [Mark's Standards](../../CLAUDE.md) - "thiserror for library errors"
 - [Error Handling Survey](https://blog.burntsushi.net/rust-error-handling/)
