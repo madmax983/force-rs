@@ -41,6 +41,7 @@ Connected App user. Simplest flow; no user interaction, no certificate.
 **Credentials:** `client_id`, `client_secret`, and the org token URL (or a My
 Domain base URL).
 
+<!-- onramp-fragment: client_credentials -->
 ```rust
 use force::auth::ClientCredentials;
 use force::client::ForceClientBuilder;
@@ -78,6 +79,7 @@ interactive login and no stored secret in the request.
 **Credentials:** `client_id` (consumer key), Salesforce `username`, and the RSA
 private key in PEM form. The audience is the login host.
 
+<!-- onramp-fragment: jwt_bearer -->
 ```rust
 use force::auth::JwtBearerFlow;
 use force::client::ForceClientBuilder;
@@ -117,6 +119,7 @@ browser round-trip — the single-use `code` plus the matching PKCE
 The flow is three stages; see the full runnable example at
 [`examples/auth_code_pkce.rs`](../../crates/force/examples/auth_code_pkce.rs).
 
+<!-- onramp-fragment: auth_code_stages -->
 ```rust
 use force::auth::{AuthorizationCode, AuthorizeUrlBuilder, PkceChallenge};
 use force::client::ForceClientBuilder;
@@ -152,6 +155,7 @@ persisted across the HTTP redirect. `AuthorizationCode` mirrors the constructors
 Convenience shortcut on the builder — skip constructing `AuthorizationCode`
 yourself:
 
+<!-- onramp-fragment: auth_code_builder_shortcut -->
 ```rust
 let client = ForceClientBuilder::new()
     .with_authorization_code(client_id, None, redirect_uri, code, pkce.verifier(), token_url)
@@ -184,6 +188,7 @@ Client Credentials for anything new.
 password; pass an empty string only when the caller's IP is whitelisted in the
 Connected App.
 
+<!-- onramp-fragment: username_password -->
 ```rust
 use force::auth::UsernamePassword;
 use force::client::ForceClientBuilder;
@@ -223,6 +228,7 @@ you already configured. `DataCloudAuthenticator` wraps the platform
 `TokenManager` and performs the two-step exchange; the result is a separate
 DC-tenant session managed by its own `TokenManager`.
 
+<!-- onramp-fragment: data_cloud -->
 ```rust
 use force::auth::{ClientCredentials, DataCloudConfig};
 use force::client::ForceClientBuilder;
@@ -260,6 +266,7 @@ body, per-tenant auth subdomain, MID-scoped tenancy).
 (`client_id` + `client_secret`), the tenant subdomain, and optionally a default
 business unit (MID / `account_id`).
 
+<!-- onramp-fragment: marketing_cloud -->
 ```rust
 use force_marketingcloud::MarketingCloudClient;
 
@@ -298,7 +305,9 @@ Einstein/Models platform scopes enabled, and the agent must be linked to it.
 version-less paths (override via `with_host(...)` for Government Cloud
 `api.gov.salesforce.com` or testing), not the org `instance_url`.
 
+<!-- onramp-fragment: agentforce -->
 ```rust
+use force::api::models::{GenerateTextRequest, ModelName};
 use force::auth::ClientCredentials;
 use force::client::ForceClientBuilder;
 
@@ -306,7 +315,13 @@ let client = ForceClientBuilder::new()
     .authenticate(ClientCredentials::new_production(client_id, client_secret))
     .build()
     .await?;
-let reply = client.models().generate_text(/* ... */).await?;
+let reply = client
+    .models()
+    .generate_text(
+        ModelName::DEFAULT_GPT4_OMNI,
+        &GenerateTextRequest::new("Invent 3 fun names for donuts"),
+    )
+    .await?;
 ```
 
 See [surfaces/agentforce.md](surfaces/agentforce.md) and
