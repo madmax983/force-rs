@@ -19,4 +19,4 @@ ignore:
   - "crates/force/tests/live_soap.rs"
   - "crates/force/tests/live_account_engagement.rs"
   - "crates/force-marketingcloud/tests/live_marketingcloud.rs"
-  - "crates/force/benches/*_profile.rs"
+  - "crates/force/benches/.*_profile\\.rs"
