@@ -185,3 +185,8 @@ required-features = ["data_utility"]
 name = "data_masker_profile"
 harness = false
 required-features = ["data_utility"]
+
+[[bench]]
+name = "files_upload_profile"
+harness = false
+required-features = ["files"]

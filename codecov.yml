@@ -3,6 +3,14 @@
 # The live_* test binaries and the shared tests/common harness are #[ignore]
 # and cannot run in hermetic CI without live org credentials. Tarpaulin still
 # reports their lines as source, so they are excluded from coverage here.
+#
+# `crates/force/benches/*_profile.rs` are one-shot valgrind (callgrind/dhat)
+# profiling harnesses, not criterion benchmarks: each is a plain `fn main()`
+# binary meant to be run once directly (`cargo bench --bench <name>`) or
+# under valgrind, and is never invoked by `cargo test`. Tarpaulin still
+# counts their lines as coverable source, so every one of them shows as 0%
+# covered and drags project coverage down by its own line count -- ignored
+# here for the same reason as the live_* tests above.
 ignore:
   - "crates/force/tests/common/mod.rs"
   - "crates/force/tests/live_salesforce.rs"
@@ -11,3 +19,4 @@ ignore:
   - "crates/force/tests/live_soap.rs"
   - "crates/force/tests/live_account_engagement.rs"
   - "crates/force-marketingcloud/tests/live_marketingcloud.rs"
+  - "crates/force/benches/.*_profile\\.rs"
