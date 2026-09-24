@@ -94,11 +94,17 @@ pub async fn read_capped_body_bytes(
     response: Response,
     limit_bytes: usize,
 ) -> Result<Vec<u8>, HttpError> {
+    // ⚡ Bolt: Pre-allocate using the response's declared Content-Length when
+    // present (capped at the limit), instead of a fixed 4096-byte guess. A
+    // fixed small guess forces `Vec::extend_from_slice` to repeatedly
+    // double-and-copy its way up to the real size on any response larger
+    // than a few KB, which is wasted memcpy/malloc traffic for large
+    // payloads (bulk/report/describe responses routinely run into the MBs).
+    let init_cap = response.content_length().map_or_else(
+        || std::cmp::min(limit_bytes, 4096),
+        |len| std::cmp::min(limit_bytes, usize::try_from(len).unwrap_or(limit_bytes)),
+    );
     let mut stream = response.bytes_stream();
-
-    // ⚡ Bolt: Pre-allocate a reasonable capacity, up to max limit.
-    // If limit is smaller than default, use limit. Default 4096.
-    let init_cap = std::cmp::min(limit_bytes, 4096);
     let mut bytes = Vec::with_capacity(init_cap);
 
     while let Some(chunk) = stream.next().await {
