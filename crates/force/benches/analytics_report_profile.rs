@@ -1,18 +1,24 @@
-//! One-shot profiling harness for `AnalyticsHandler::run_report`
+//! One-shot profiling harness for `AnalyticsHandler::get_report_instance`
 //! (Reports & Dashboards REST API result parsing).
 //!
 //! This is not a criterion benchmark: it is a single realistic run of the
-//! public `client.analytics().run_report()` entry point, meant to be executed
-//! once under `valgrind --tool=callgrind` (instruction counts) and
+//! public `client.analytics().get_report_instance()` entry point, meant to be
+//! executed once under `valgrind --tool=callgrind` (instruction counts) and
 //! `valgrind --tool=dhat` (allocation counts) so those tools attribute cost
 //! to real call stacks instead of a criterion harness loop.
 //!
-//! Workload: run `run_report(id, include_details = true)` `ITER_COUNT` times
-//! against an in-process mock Analytics endpoint, each response a tabular
-//! report with `ROW_COUNT` detail rows of `COLUMN_COUNT` columns (mixed
-//! string/number cell values) under a single `"T!T"` fact-map entry, plus
-//! populated `reportMetadata`/`reportExtendedMetadata` (both of which carry
-//! `#[serde(flatten)]` maps). This is the same public path a caller uses to
+//! Workload: fetch a completed *asynchronous* report instance's results
+//! `ITER_COUNT` times against an in-process mock Analytics endpoint, each
+//! response a tabular report with `ROW_COUNT` detail rows of `COLUMN_COUNT`
+//! columns (mixed string/number cell values) under a single `"T!T"`
+//! fact-map entry, plus populated `reportMetadata`/`reportExtendedMetadata`
+//! (both of which carry `#[serde(flatten)]` maps). The synchronous
+//! `run_report` entry point is capped by the platform at 2,000 detail rows
+//! per the doc comment on `AnalyticsHandler::run_report`, so a 20,000-row
+//! tabular export is only reachable via the asynchronous instance flow
+//! (`run_report_async` + poll + `get_report_instance`) -- this harness
+//! profiles the `get_report_instance` leg, which is the one that actually
+//! decodes the large payload and is the same public path a caller uses to
 //! pull a large tabular report export. Record count, column count, and
 //! content are fixed (no RNG) so repeated runs are byte-for-byte
 //! deterministic, which is required for callgrind/dhat comparisons to be
@@ -38,7 +44,7 @@
 use force::auth::{AccessToken, Authenticator, TokenResponse};
 use force::client::builder;
 use force::error::Result as ForceResult;
-use wiremock::matchers::{method, path, query_param};
+use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 /// Detail rows in the fixture report (a realistic large tabular export).
@@ -172,12 +178,11 @@ fn build_report_body(report_id: &str) -> String {
     out
 }
 
-async fn mount_endpoint(mock_server: &MockServer, report_id: &str, body: &str) {
+async fn mount_endpoint(mock_server: &MockServer, report_id: &str, instance_id: &str, body: &str) {
     Mock::given(method("GET"))
         .and(path(format!(
-            "/services/data/v67.0/analytics/reports/{report_id}"
+            "/services/data/v67.0/analytics/reports/{report_id}/instances/{instance_id}"
         )))
-        .and(query_param("includeDetails", "true"))
         .respond_with(
             ResponseTemplate::new(200)
                 .insert_header("Content-Type", "application/json")
@@ -190,10 +195,11 @@ async fn mount_endpoint(mock_server: &MockServer, report_id: &str, body: &str) {
 #[tokio::main]
 async fn main() {
     let report_id = "00O3000000B5Yn2";
+    let instance_id = "0LG3000000ABCDE";
     let body = build_report_body(report_id);
 
     let mock_server = MockServer::start().await;
-    mount_endpoint(&mock_server, report_id, &body).await;
+    mount_endpoint(&mock_server, report_id, instance_id, &body).await;
 
     let auth = StaticAuthenticator {
         token: "profile-token".to_string(),
@@ -209,9 +215,9 @@ async fn main() {
     let mut total_rows = 0usize;
     for _ in 0..ITER_COUNT {
         let results = analytics
-            .run_report(report_id, true)
+            .get_report_instance(report_id, instance_id)
             .await
-            .expect("run_report failed");
+            .expect("get_report_instance failed");
         total_rows += results.fact_map["T!T"].rows.len();
     }
 
