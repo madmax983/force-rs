@@ -23,6 +23,7 @@ Generates a schema-compliant `DynamicSObject` for any `createable` field,
 skipping `autoNumber`/`calculated` fields and picking a valid picklist value
 where one exists.
 
+<!-- onramp-fragment: data_utility_mock_record -->
 ```rust
 // Fetch the metadata for an Account
 let describe = client.rest().describe("Account").await?;
@@ -41,6 +42,7 @@ dropped silently unless `halt_on_error(true)`, in which case the whole call
 fails with one generic error and no per-record detail (open gap, see
 [the vantage spec](../../vantage/data-seeder.md)).
 
+<!-- onramp-fragment: data_utility_seeder -->
 ```rust
 let seeder = force::data::DataSeeder::new(&client).halt_on_error(true);
 
@@ -69,6 +71,7 @@ SSN-shaped value is **not** masked because neither its name nor its type
 matches; rename or retype the field, or mask it yourself, if you rely on
 this for compliance.
 
+<!-- onramp-fragment: data_utility_masker -->
 ```rust
 let describe = client.rest().describe("Contact").await?;
 let masker = force::data::DataMasker::new(&describe);
@@ -82,6 +85,7 @@ println!("{:?}", contact.get_field_as::<String>("Email")); // Some("***@***.***"
 Checks a record against the describe's required/length/type constraints so
 invalid payloads fail locally instead of burning an API call.
 
+<!-- onramp-fragment: data_utility_validator -->
 ```rust
 let describe = client.rest().describe("Contact").await?;
 let validator = force::data::DataValidator::new(&describe);
@@ -99,6 +103,7 @@ Streams a SOQL query straight to a JSONL file, optionally masking each record
 with `DataMasker` on the way out (`export_masked_to_jsonl` fetches the
 describe for you).
 
+<!-- onramp-fragment: data_utility_archiver -->
 ```rust
 let archiver = force::data::DataArchiver::new(&client);
 

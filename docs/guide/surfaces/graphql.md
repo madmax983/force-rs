@@ -17,6 +17,7 @@ force = { version = "...", features = ["graphql"] }
 Build requests with `GraphqlRequest::new(...)`, optionally chaining
 `.with_variables(json)` and `.with_operation_name(...)`.
 
+<!-- onramp-fragment: graphql_query -->
 ```rust
 use force::api::graphql::GraphqlRequest;
 
@@ -32,6 +33,7 @@ let data: MyType = client.graphql().query(&request).await?;
 
 ## Variants
 
+<!-- onramp-fragment: graphql_variants -->
 ```rust
 // Full envelope (data + errors) for partial success / extensions
 let envelope = client.graphql().query_with_errors::<MyType>(&request).await?;

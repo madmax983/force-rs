@@ -18,6 +18,7 @@ replay support. Authenticates by reusing a `force` `Session` (Client Credentials
 **Entry point:** `PubSubHandler::connect(session, config)`, then `subscribe(topic, replay)` /
 `publish(topic, events)` / `get_schema(id)` / `get_topic(name)`.
 
+<!-- onramp-fragment: pubsub_subscribe -->
 ```rust
 use force_pubsub::{PubSubConfig, PubSubHandler, PubSubEvent, ReplayPreset};
 
@@ -67,6 +68,7 @@ Athena path). MSRV 1.92.
 Config via `LakeConfig::builder()`; catalog is `MockCatalog` (in-memory test double) or
 `S3TablesCatalog` (SigV4-signed S3 Tables REST).
 
+<!-- onramp-fragment: lake_snapshot -->
 ```rust
 use force_lake::{LakeConfig, MockCatalog, SnapshotSink};
 
@@ -99,6 +101,7 @@ hatch (`raw_get` / `raw_post` / `raw_request`). SOAP is out of scope.
 `.transactional()` and `.journeys()`. Target a specific business unit per call with
 `.for_business_unit("MID")`.
 
+<!-- onramp-fragment: marketingcloud_send_email -->
 ```rust
 use force_marketingcloud::{MarketingCloudClient, Recipient, SendEmailRequest};
 

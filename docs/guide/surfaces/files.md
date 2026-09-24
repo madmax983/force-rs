@@ -17,6 +17,7 @@ force = { version = "...", features = ["files"] }
 this is not a chunked/streaming transfer; see [ADR-004](../../adr/004-feature-gates.md)
 for the feature-gate rationale.
 
+<!-- onramp-fragment: files_upload_download_link -->
 ```rust
 // Upload a new ContentVersion
 let content_version_id = client.files()
