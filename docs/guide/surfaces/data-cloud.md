@@ -15,6 +15,7 @@ force = { version = "...", features = ["data_cloud"] }
 
 ## Setup + query
 
+<!-- onramp-fragment: data_cloud_query -->
 ```rust
 use force::auth::DataCloudConfig;
 

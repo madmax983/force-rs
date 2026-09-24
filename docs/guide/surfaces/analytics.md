@@ -11,6 +11,7 @@ dashboards.
 
 Synchronous runs return up to 2000 detail rows; use the async instance flow beyond that.
 
+<!-- onramp-fragment: analytics_reports -->
 ```rust
 // Synchronous run with detail rows.
 let results = client.analytics().run_report("00O3000000B5Yn2", true).await?;
@@ -44,6 +45,7 @@ let done = client.analytics()
 
 ## Dashboards
 
+<!-- onramp-fragment: analytics_dashboards -->
 ```rust
 let dash = client.analytics().get_dashboard_results("01Z3000000ABCDE").await?;
 let status = client.analytics().refresh_dashboard("01Z3000000ABCDE").await?;

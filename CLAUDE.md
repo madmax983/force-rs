@@ -134,7 +134,7 @@ See [ADR-005](docs/adr/005-compile-time-auth-safety.md) for phantom type design 
 ### 3. Handler Pattern for API Organization
 API operations are accessed through lightweight handler objects for clear namespacing:
 ```rust
-use force::api::rest_operation::RestOperation; // Required for CRUD/Query/Describe
+use force::api::RestOperation; // Required for CRUD/Query/Describe (force::api::rest_operation itself is private)
 
 // REST API operations
 let accounts = client.rest().query("SELECT Id FROM Account").await?;

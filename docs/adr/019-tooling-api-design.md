@@ -86,7 +86,7 @@ Consumers must import `RestOperation` to access CRUD, Query, and Describe
 methods on either handler:
 
 ```rust
-use force::api::rest_operation::RestOperation;
+use force::api::RestOperation; // force::api::rest_operation itself is a private module
 
 // Now .create(), .query(), .describe(), etc. are available on both:
 client.rest().create("Account", &data).await?;

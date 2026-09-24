@@ -37,11 +37,27 @@ rest of the codebase:
                       (credentials), so they need a preamble instead of
                       running verbatim.
 
+  extract-surfaces-fragments
+                      Same fragment/preamble mechanism as
+                      extract-auth-flow-fragments, applied to every page
+                      under docs/guide/surfaces/ -- the per-API-surface
+                      reference a reader lands on for "first real
+                      integration" (README.md's own surfaces table links to
+                      all 18 of them). These are the pages most likely to
+                      drift silently: a renamed handler method, an added
+                      required argument, a changed return type in any of
+                      REST/Bulk/Composite/Tooling/UI/GraphQL/Data
+                      Cloud/Apex REST/CPQ/Consent/Analytics/Account
+                      Engagement/SOAP/Agentforce, or the sibling crates
+                      (force-pubsub/force-lake/force-marketingcloud), had no
+                      compile coverage before this command existed.
+
 Usage:
     python3 scripts/onramp/onramp_snippets.py extract-programs --out DIR [FILES...]
     python3 scripts/onramp/onramp_snippets.py check-version-pins [FILES...]
     python3 scripts/onramp/onramp_snippets.py extract-quickstart --out DIR
     python3 scripts/onramp/onramp_snippets.py extract-auth-flow-fragments --out DIR
+    python3 scripts/onramp/onramp_snippets.py extract-surfaces-fragments --out DIR
 """
 from __future__ import annotations
 
@@ -135,6 +151,187 @@ FRAGMENT_PREAMBLES: dict[str, str] = {
         let client_id = "stub-client-id";
         let client_secret = "stub-client-secret";
     """,
+}
+
+SURFACES_DIR = REPO_ROOT / "docs" / "guide" / "surfaces"
+
+# Every non-import fragment under docs/guide/surfaces/ calls a handler off a
+# `client: ForceClient<ClientCredentials>` (or, for the two fragments that
+# build their own client, an `auth`/`force_client` binding under a different
+# name) -- this is the one piece of setup nearly every fragment needs, so it
+# is factored out instead of repeated 30+ times below.
+_SURFACES_CLIENT_STUB = """
+    use force::auth::ClientCredentials;
+    use force::client::ForceClientBuilder;
+    let client = ForceClientBuilder::new()
+        .authenticate(ClientCredentials::new_production("stub-client-id", "stub-client-secret"))
+        .build()
+        .await?;
+"""
+
+# CRUD/Query/Describe on the REST and Tooling handlers come from the shared
+# `RestOperation` trait (`force::api::RestOperation` -- the module it lives
+# in, `force::api::rest_operation`, is `pub(crate)`, not part of the public
+# API). Each surfaces page shows the `use` once at the top and assumes it
+# stays in scope for the rest of the page, but every fragment here is
+# extracted and compiled standalone, so any fragment calling a trait method
+# needs its own copy.
+_REST_OPERATION_IMPORT = """
+    use force::api::RestOperation;
+"""
+
+# Keyed by `onramp-fragment:` marker name (unique across every file under
+# docs/guide/surfaces/, not just within one file -- see the fragment/marker
+# count check in cmd_extract_surfaces_fragments). Fragments with no free
+# variables beyond `client` reuse _SURFACES_CLIENT_STUB verbatim; fragments
+# that reference a handler or value the prose builds in a *different*
+# fragment (e.g. `ae`, `tooling`, `cpq`, `records`) get that binding here too
+# -- each fragment must type-check standalone.
+SURFACES_FRAGMENT_PREAMBLES: dict[str, str] = {
+    "surfaces_readme_import": "",
+    "account_engagement_query": _SURFACES_CLIENT_STUB,
+    "account_engagement_raw": _SURFACES_CLIENT_STUB
+    + """
+        let ae = client.account_engagement("0Uv000000000001AAA");
+    """,
+    "agentforce_models": _SURFACES_CLIENT_STUB,
+    "agentforce_agent": _SURFACES_CLIENT_STUB,
+    "analytics_reports": _SURFACES_CLIENT_STUB,
+    "analytics_dashboards": _SURFACES_CLIENT_STUB,
+    "apex_rest_methods": _SURFACES_CLIENT_STUB
+    + """
+        #[derive(serde::Deserialize)]
+        struct MyResponse {}
+        #[derive(serde::Serialize)]
+        struct RequestBody {}
+        let request_body = RequestBody {};
+        #[derive(serde::Deserialize)]
+        struct MyRecord {}
+        let body = serde_json::json!({});
+    """,
+    "bulk_ingest": _SURFACES_CLIENT_STUB
+    + """
+        let records: Vec<Account> = vec![];
+    """,
+    "bulk_query_stream": _SURFACES_CLIENT_STUB
+    + """
+        #[derive(serde::Deserialize)]
+        struct Account { #[allow(dead_code)] name: String }
+    """,
+    "composite_batch": _SURFACES_CLIENT_STUB
+    + """
+        use serde_json::json;
+    """,
+    "composite_graph": _SURFACES_CLIENT_STUB
+    + """
+        use serde_json::json;
+    """,
+    "consent_reads": _SURFACES_CLIENT_STUB,
+    "consent_portability": _SURFACES_CLIENT_STUB,
+    "cpq_quote_lifecycle": _SURFACES_CLIENT_STUB,
+    "cpq_products_config": _SURFACES_CLIENT_STUB
+    + """
+        let cpq = client.cpq();
+    """,
+    "data_cloud_query": """
+        use force::auth::ClientCredentials;
+        use force::client::ForceClientBuilder;
+        let auth = ClientCredentials::new_production("stub-client-id", "stub-client-secret");
+    """,
+    "data_utility_mock_record": _SURFACES_CLIENT_STUB + _REST_OPERATION_IMPORT,
+    "data_utility_seeder": _SURFACES_CLIENT_STUB,
+    "data_utility_masker": _SURFACES_CLIENT_STUB
+    + _REST_OPERATION_IMPORT
+    + """
+        let mut contact = force::types::DynamicSObject::new(
+            force::types::Attributes { type_: "Contact".to_string(), url: String::new() }
+        );
+    """,
+    "data_utility_validator": _SURFACES_CLIENT_STUB
+    + _REST_OPERATION_IMPORT
+    + """
+        let contact = force::types::DynamicSObject::new(
+            force::types::Attributes { type_: "Contact".to_string(), url: String::new() }
+        );
+    """,
+    "data_utility_archiver": _SURFACES_CLIENT_STUB,
+    "files_upload_download_link": _SURFACES_CLIENT_STUB
+    + """
+        let file_bytes: Vec<u8> = Vec::new();
+        let content_document_id = "stub-content-document-id";
+        let account_id = "stub-account-id";
+    """,
+    "graphql_query": _SURFACES_CLIENT_STUB
+    + """
+        #[derive(serde::Deserialize)]
+        struct MyType;
+    """,
+    "graphql_variants": _SURFACES_CLIENT_STUB
+    + """
+        #[derive(serde::Deserialize)]
+        struct MyType;
+        let request = force::api::graphql::GraphqlRequest::new("query { placeholder }");
+    """,
+    "rest_operation_import": "",
+    "rest_query": _SURFACES_CLIENT_STUB
+    + _REST_OPERATION_IMPORT
+    + """
+        #[derive(serde::Deserialize)]
+        struct Account;
+    """,
+    "rest_crud": _SURFACES_CLIENT_STUB
+    + _REST_OPERATION_IMPORT
+    + """
+        use serde_json::json;
+    """,
+    "rest_search_describe": _SURFACES_CLIENT_STUB + _REST_OPERATION_IMPORT,
+    "pubsub_subscribe": """
+        use force::auth::ClientCredentials;
+        use force::client::ForceClientBuilder;
+        use tokio_stream::StreamExt;
+        let force_client = ForceClientBuilder::new()
+            .authenticate(ClientCredentials::new_production("stub-client-id", "stub-client-secret"))
+            .build()
+            .await?;
+    """,
+    "lake_snapshot": _SURFACES_CLIENT_STUB,
+    "marketingcloud_send_email": "",
+    "soap_accessor": _SURFACES_CLIENT_STUB,
+    "soap_sobject_builder": "",
+    "soap_usage": _SURFACES_CLIENT_STUB,
+    "soap_pagination": _SURFACES_CLIENT_STUB,
+    "soap_error_handling": _SURFACES_CLIENT_STUB
+    + """
+        let records: Vec<force::api::soap::SObject> = vec![];
+    """,
+    "tooling_import": "",
+    "tooling_shared_ops": _SURFACES_CLIENT_STUB
+    + _REST_OPERATION_IMPORT
+    + """
+        use serde_json::json;
+    """,
+    "tooling_only_endpoints": _SURFACES_CLIENT_STUB
+    + """
+        let tooling = client.tooling();
+    """,
+    "ui_records": _SURFACES_CLIENT_STUB,
+    "ui_metadata_layouts": _SURFACES_CLIENT_STUB
+    + """
+        let ui = client.ui();
+    """,
+}
+
+# Every fragment's stub `main` returns `anyhow::Result<()>` by default (it
+# tolerates `?` on any error type via anyhow's blanket `From` impl). One
+# fragment doesn't fit that: soap.md's error-handling example ends a match
+# arm with a bare `return Err(e)` where `e: ForceError` -- valid Rust for a
+# function that itself returns `force::error::Result<()>` (which the
+# fragment's prose is demonstrating), but `return` (unlike `?`) does not
+# invoke `From`, so it fails to type-check against `anyhow::Result<()>`.
+# Override the wrapper's return type for that one fragment instead of
+# rewriting a correct doc example to work around the harness's default.
+SURFACES_FRAGMENT_RETURN_TYPE: dict[str, str] = {
+    "soap_error_handling": "force::error::Result<()>",
 }
 
 
@@ -316,6 +513,98 @@ def cmd_extract_auth_flow_fragments(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_extract_surfaces_fragments(args: argparse.Namespace) -> int:
+    out_dir = Path(args.out)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    doc_files = sorted(SURFACES_DIR.glob("*.md"))
+    if not doc_files:
+        print(f"No markdown files found under {SURFACES_DIR}", file=sys.stderr)
+        return 1
+
+    all_fragments: list[tuple[Path, re.Match]] = []
+    for doc in doc_files:
+        text = doc.read_text()
+        fragments = list(FRAGMENT_RE.finditer(text))
+
+        # Same drift-safety check as extract-auth-flow-fragments: every
+        # ```rust fence in the file must carry a marker, so a fence added
+        # without one fails extraction loudly instead of being silently
+        # invisible to this harness.
+        all_rust_fences = len(extract_rust_fences(text))
+        if all_rust_fences != len(fragments):
+            print(
+                f"{doc.relative_to(REPO_ROOT)} has {all_rust_fences} ```rust fence(s) but only "
+                f"{len(fragments)} carry a `<!-- onramp-fragment: NAME -->` marker "
+                "immediately above them. Every rust fence in this file must be "
+                "marked (and registered in SURFACES_FRAGMENT_PREAMBLES) so it's "
+                "covered by this harness -- an unmarked fence is invisible to it.",
+                file=sys.stderr,
+            )
+            return 1
+
+        all_fragments.extend((doc, m) for m in fragments)
+
+    if not all_fragments:
+        print(f"No `<!-- onramp-fragment: ... -->` markers found under {SURFACES_DIR}", file=sys.stderr)
+        return 1
+
+    seen_names: set[str] = set()
+    manifest_lines = []
+    for i, (doc, m) in enumerate(all_fragments, start=1):
+        name = m.group("name")
+        if name in seen_names:
+            print(
+                f"Duplicate onramp-fragment name '{name}' in {doc.relative_to(REPO_ROOT)} "
+                f"(names must be unique across every file under {SURFACES_DIR})",
+                file=sys.stderr,
+            )
+            return 1
+        seen_names.add(name)
+
+        if name not in SURFACES_FRAGMENT_PREAMBLES:
+            print(
+                f"No stub preamble registered for onramp-fragment '{name}' "
+                f"(from {doc.relative_to(REPO_ROOT)}) in scripts/onramp/onramp_snippets.py: "
+                "SURFACES_FRAGMENT_PREAMBLES. Every fragment must have one so it can "
+                "type-check standalone.",
+                file=sys.stderr,
+            )
+            return 1
+
+        body = m.group("body")
+        preamble = textwrap.dedent(SURFACES_FRAGMENT_PREAMBLES[name]).strip()
+        preamble_block = f"    {preamble}\n\n" if preamble else ""
+        return_type = SURFACES_FRAGMENT_RETURN_TYPE.get(name, "anyhow::Result<()>")
+        program = (
+            "#[tokio::main]\n"
+            f"async fn main() -> {return_type} {{\n"
+            f"{preamble_block}"
+            f"{textwrap.indent(body, '    ')}\n"
+            "    Ok(())\n"
+            "}\n"
+        )
+        out_file = out_dir / f"fragment_{i:03d}_{name}.rs"
+        out_file.write_text(program)
+        manifest_lines.append(f"{out_file.name}\t{name}\t{doc.relative_to(REPO_ROOT)}")
+
+    (out_dir / "MANIFEST.tsv").write_text("\n".join(manifest_lines) + "\n")
+    print(
+        f"Extracted {len(all_fragments)} surfaces fragment(s) from {len(doc_files)} "
+        f"file(s) under {SURFACES_DIR} into {out_dir}"
+    )
+
+    unused = set(SURFACES_FRAGMENT_PREAMBLES) - seen_names
+    if unused:
+        print(
+            f"Note: SURFACES_FRAGMENT_PREAMBLES has {len(unused)} entry(ies) with no matching "
+            f"marker in any file under {SURFACES_DIR} (stale after an edit?): {sorted(unused)}",
+            file=sys.stderr,
+        )
+        return 1
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -336,6 +625,10 @@ def main() -> int:
     p_auth_fragments = sub.add_parser("extract-auth-flow-fragments")
     p_auth_fragments.add_argument("--out", required=True)
     p_auth_fragments.set_defaults(func=cmd_extract_auth_flow_fragments)
+
+    p_surfaces_fragments = sub.add_parser("extract-surfaces-fragments")
+    p_surfaces_fragments.add_argument("--out", required=True)
+    p_surfaces_fragments.set_defaults(func=cmd_extract_surfaces_fragments)
 
     args = parser.parse_args()
     return args.func(args)

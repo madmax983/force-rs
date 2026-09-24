@@ -17,6 +17,7 @@ force = { version = "...", features = ["composite"] }
 `Result<Self>` (they validate inputs), so chain with `?`. `execute()` sends the
 bundle; inspect `has_errors` and per-subrequest `results`.
 
+<!-- onramp-fragment: composite_batch -->
 ```rust
 let response = client.composite()
     .batch()
@@ -41,13 +42,20 @@ Builder also offers `.halt_on_error(bool)`, `.query(SoqlQueryBuilder)`,
 > the SOQL `/query` resource is **not** a valid graph node and the org rejects it
 > with `OPERATION_NOT_ALLOWED`. `Graph::query` is retained for API completeness only.
 
+<!-- onramp-fragment: composite_graph -->
 ```rust
 // Dependent request graph (feature: composite_graph)
 let graph = client.composite().graph();
 
-// SoqlMassOp: query records, then update them all via chunked composite batches
+// SoqlMassOp: query records, then update them all via chunked composite batches.
+// It takes a `SoqlQueryBuilder`, not a raw SOQL string -- `Id` must be selected.
 use force::api::composite::SoqlMassOp;
-let stats = SoqlMassOp::new(&client, "SELECT Id FROM Account WHERE Industry = 'Tech'")
+use force::api::rest::SoqlQueryBuilder;
+let query = SoqlQueryBuilder::new()
+    .select(&["Id"])
+    .from("Account")
+    .where_eq("Industry", "Tech");
+let stats = SoqlMassOp::new(&client, query)
     .halt_on_error(false)
     .update_all(json!({ "Description": "bulk-updated" }))
     .await?;
