@@ -15,33 +15,51 @@
 # argument, a changed return type -- across all 18 surfaces, none of which
 # had any compile coverage before this harness existed.
 #
+# Fragments compile under *exactly* the `force` feature(s) their own page
+# documents (grouped by SURFACES_FRAGMENT_FEATURES in onramp_snippets.py),
+# not under a single blanket `--features all` -- otherwise a fragment could
+# pass only because some *other* surface's feature happened to be enabled
+# too (Codex review on #1445: `composite_graph` compiled clean under `all`
+# even though composite.md's own `force = { features = ["composite"] }`
+# block doesn't mention `composite_graph`). The 3 sibling-crate fragments
+# (force-pubsub/force-lake/force-marketingcloud) aren't gated by any
+# `force` feature, so they're compiled in a second, separate pass that
+# includes those sibling crates instead.
+#
 # Exit code is non-zero if any fragment fails to `cargo check`.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 OUT_DIR="${REPO_ROOT}/target/onramp"
 FRAGMENTS_DIR="${OUT_DIR}/surfaces_fragments"
-PROJECT_DIR="${OUT_DIR}/surfaces_compile_project"
+CORE_PROJECT_DIR="${OUT_DIR}/surfaces_compile_project_core"
+SIBLING_PROJECT_DIR="${OUT_DIR}/surfaces_compile_project_sibling"
 
-rm -rf "${FRAGMENTS_DIR}" "${PROJECT_DIR}"
-mkdir -p "${FRAGMENTS_DIR}" "${PROJECT_DIR}/src/bin"
+rm -rf "${FRAGMENTS_DIR}" "${CORE_PROJECT_DIR}" "${SIBLING_PROJECT_DIR}"
+mkdir -p "${FRAGMENTS_DIR}" "${CORE_PROJECT_DIR}/src/bin" "${SIBLING_PROJECT_DIR}/src/bin"
 
 python3 "${REPO_ROOT}/scripts/onramp/onramp_snippets.py" extract-surfaces-fragments --out "${FRAGMENTS_DIR}"
 
-shopt -s nullglob
-fragment_files=("${FRAGMENTS_DIR}"/fragment_*.rs)
-if [ ${#fragment_files[@]} -eq 0 ]; then
+MANIFEST="${FRAGMENTS_DIR}/MANIFEST.tsv"
+if [ ! -s "${MANIFEST}" ]; then
     echo "No surfaces fragments extracted -- nothing to check."
     exit 0
 fi
 
-for f in "${fragment_files[@]}"; do
-    cp "$f" "${PROJECT_DIR}/src/bin/$(basename "$f")"
-done
+common_deps() {
+    cat <<EOF
+tokio = { version = "1", features = ["full"] }
+tokio-stream = "0.1"
+futures = "0.3"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+anyhow = "1.0"
+EOF
+}
 
-cat > "${PROJECT_DIR}/Cargo.toml" <<EOF
+cat > "${CORE_PROJECT_DIR}/Cargo.toml" <<EOF
 [package]
-name = "onramp-surfaces-fragments"
+name = "onramp-surfaces-fragments-core"
 version = "0.0.0"
 publish = false
 edition = "2021"
@@ -51,25 +69,92 @@ edition = "2021"
 [workspace]
 
 [dependencies]
+# default-features = false: each cargo check invocation below turns on
+# exactly the feature(s) its group's fragments document, via
+# --features force/<name>[,force/<name>...] -- never the crate's own
+# "rest" default and never "all".
+force = { path = "${REPO_ROOT}/crates/force", default-features = false }
+$(common_deps)
+EOF
+
+cat > "${SIBLING_PROJECT_DIR}/Cargo.toml" <<EOF
+[package]
+name = "onramp-surfaces-fragments-sibling"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[workspace]
+
+[dependencies]
+# Sibling-crate fragments aren't gated by any \`force\` feature (they use
+# only unconditional core modules: client/auth/session); "all" here is
+# just a convenient default, not the thing under test.
 force = { path = "${REPO_ROOT}/crates/force", features = ["all"] }
 force-pubsub = { path = "${REPO_ROOT}/crates/force-pubsub" }
 force-lake = { path = "${REPO_ROOT}/crates/force-lake" }
 force-marketingcloud = { path = "${REPO_ROOT}/crates/force-marketingcloud" }
-tokio = { version = "1", features = ["full"] }
-tokio-stream = "0.1"
-futures = "0.3"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-anyhow = "1.0"
+$(common_deps)
 EOF
 
-echo "Compiling ${#fragment_files[@]} surfaces fragment(s) against the workspace crates (path dependencies, --features all)..."
-if (cd "${PROJECT_DIR}" && cargo check --quiet --bins); then
-    echo "OK: all surfaces fragments compile."
+core_count=0
+sibling_count=0
+declare -A group_bins   # features -> space-separated bin names
+
+while IFS=$'\t' read -r bin_name fragment_name features doc_path; do
+    [ -z "${bin_name}" ] && continue
+    if [ "${features}" = "SIBLING_CRATE" ]; then
+        cp "${FRAGMENTS_DIR}/${bin_name}.rs" "${SIBLING_PROJECT_DIR}/src/bin/${bin_name}.rs"
+        sibling_count=$((sibling_count + 1))
+    else
+        cp "${FRAGMENTS_DIR}/${bin_name}.rs" "${CORE_PROJECT_DIR}/src/bin/${bin_name}.rs"
+        group_bins["${features}"]="${group_bins["${features}"]:-} ${bin_name}"
+        core_count=$((core_count + 1))
+    fi
+done < "${MANIFEST}"
+
+overall_status=0
+
+if [ "${core_count}" -gt 0 ]; then
+    echo "Compiling ${core_count} core surfaces fragment(s) in $((${#group_bins[@]})) feature group(s) (each against exactly its page's documented \`force\` feature(s))..."
+    for features in "${!group_bins[@]}"; do
+        bin_args=()
+        for bin_name in ${group_bins["${features}"]}; do
+            bin_args+=(--bin "${bin_name}")
+        done
+
+        feature_args=()
+        label="(no optional feature)"
+        if [ "${features}" != "NO_FEATURE" ]; then
+            spec=""
+            IFS=',' read -ra feats <<< "${features}"
+            for feat in "${feats[@]}"; do
+                spec="${spec:+${spec},}force/${feat}"
+            done
+            feature_args=(--features "${spec}")
+            label="--features ${spec}"
+        fi
+
+        echo "  group ${label}: ${group_bins["${features}"]# }"
+        if ! (cd "${CORE_PROJECT_DIR}" && cargo check --quiet "${feature_args[@]}" "${bin_args[@]}"); then
+            overall_status=1
+        fi
+    done
+fi
+
+if [ "${sibling_count}" -gt 0 ]; then
+    echo "Compiling ${sibling_count} sibling-crate fragment(s) (force-pubsub/force-lake/force-marketingcloud)..."
+    if ! (cd "${SIBLING_PROJECT_DIR}" && cargo check --quiet --bins); then
+        overall_status=1
+    fi
+fi
+
+if [ "${overall_status}" -eq 0 ]; then
+    echo "OK: all surfaces fragments compile under their documented feature(s)."
     exit 0
 else
     echo "FAIL: one or more surfaces fragments do not compile. See errors above."
-    echo "Manifest of extracted fragments -> onramp-fragment name -> source doc:"
-    cat "${FRAGMENTS_DIR}/MANIFEST.tsv" 2>/dev/null || true
+    echo "Manifest of extracted fragments -> onramp-fragment name -> features -> source doc:"
+    cat "${MANIFEST}" 2>/dev/null || true
     exit 1
 fi

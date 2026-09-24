@@ -334,6 +334,77 @@ SURFACES_FRAGMENT_RETURN_TYPE: dict[str, str] = {
     "soap_error_handling": "force::error::Result<()>",
 }
 
+# Sentinels for SURFACES_FRAGMENT_FEATURES. Both are non-empty tokens
+# (never "") because compile_surfaces_fragments.sh reads MANIFEST.tsv with
+# `IFS=$'\t' read`, and bash's `read` squeezes *any* run of IFS-whitespace
+# characters -- including a lone tab -- into a single delimiter, the same
+# way it squeezes runs of spaces; an empty field between two tabs would
+# silently swallow a column and shift every field after it.
+#
+# SIBLING_CRATE: this fragment belongs to a sibling crate
+# (force-pubsub / force-lake / force-marketingcloud), not to any of
+# `force`'s own [features] -- it is compiled in a separate pass (see
+# compile_surfaces_fragments.sh) that includes those sibling crates instead
+# of being feature-gate-isolated against `force`.
+SIBLING_CRATE = "SIBLING_CRATE"
+# NO_FEATURE: no optional `force` feature is needed at all (e.g. the bare
+# `use force::api::RestOperation;` import fragments -- that trait re-export
+# is unconditional, not behind `rest`).
+NO_FEATURE = "NO_FEATURE"
+
+# Every surfaces fragment that calls a `force`-feature-gated handler
+# (`client.rest()`, `client.bulk()`, ...) must compile under *exactly* the
+# feature(s) its own page documents -- not under `--features all`, which
+# would silently accept a fragment that only compiles because some other
+# surface's feature happens to be enabled too (Codex review on #1445:
+# `composite_graph` compiled clean under `all` even though its page's own
+# `force = { features = ["composite"] }` block doesn't mention
+# `composite_graph`).
+SURFACES_FRAGMENT_FEATURES: dict[str, str] = {
+    "surfaces_readme_import": NO_FEATURE,
+    "account_engagement_query": "account_engagement",
+    "account_engagement_raw": "account_engagement",
+    "agentforce_models": "agentforce",
+    "agentforce_agent": "agentforce",
+    "analytics_reports": "analytics",
+    "analytics_dashboards": "analytics",
+    "apex_rest_methods": "apex_rest",
+    "bulk_ingest": "bulk",
+    "bulk_query_stream": "bulk",
+    "composite_batch": "composite",
+    "composite_graph": "composite,composite_graph",
+    "consent_reads": "consent",
+    "consent_portability": "consent",
+    "cpq_quote_lifecycle": "cpq",
+    "cpq_products_config": "cpq",
+    "data_cloud_query": "data_cloud",
+    "data_utility_mock_record": "data_utility",
+    "data_utility_seeder": "data_utility",
+    "data_utility_masker": "data_utility",
+    "data_utility_validator": "data_utility",
+    "data_utility_archiver": "data_utility",
+    "files_upload_download_link": "files",
+    "graphql_query": "graphql",
+    "graphql_variants": "graphql",
+    "rest_operation_import": NO_FEATURE,
+    "rest_query": "rest",
+    "rest_crud": "rest",
+    "rest_search_describe": "rest",
+    "pubsub_subscribe": SIBLING_CRATE,
+    "lake_snapshot": SIBLING_CRATE,
+    "marketingcloud_send_email": SIBLING_CRATE,
+    "soap_accessor": "soap",
+    "soap_sobject_builder": "soap",
+    "soap_usage": "soap",
+    "soap_pagination": "soap",
+    "soap_error_handling": "soap",
+    "tooling_import": NO_FEATURE,
+    "tooling_shared_ops": "tooling",
+    "tooling_only_endpoints": "tooling",
+    "ui_records": "ui",
+    "ui_metadata_layouts": "ui",
+}
+
 
 def workspace_version() -> str:
     cargo_toml = REPO_ROOT / "Cargo.toml"
@@ -572,6 +643,17 @@ def cmd_extract_surfaces_fragments(args: argparse.Namespace) -> int:
             )
             return 1
 
+        if name not in SURFACES_FRAGMENT_FEATURES:
+            print(
+                f"No minimal-feature entry registered for onramp-fragment '{name}' "
+                f"(from {doc.relative_to(REPO_ROOT)}) in scripts/onramp/onramp_snippets.py: "
+                "SURFACES_FRAGMENT_FEATURES. Every fragment must declare the exact "
+                "`force` feature(s) its page documents, so the compile check can't pass "
+                "only because some *other* surface's feature happens to be enabled too.",
+                file=sys.stderr,
+            )
+            return 1
+
         body = m.group("body")
         preamble = textwrap.dedent(SURFACES_FRAGMENT_PREAMBLES[name]).strip()
         preamble_block = f"    {preamble}\n\n" if preamble else ""
@@ -586,7 +668,8 @@ def cmd_extract_surfaces_fragments(args: argparse.Namespace) -> int:
         )
         out_file = out_dir / f"fragment_{i:03d}_{name}.rs"
         out_file.write_text(program)
-        manifest_lines.append(f"{out_file.name}\t{name}\t{doc.relative_to(REPO_ROOT)}")
+        features = SURFACES_FRAGMENT_FEATURES[name]
+        manifest_lines.append(f"{out_file.stem}\t{name}\t{features}\t{doc.relative_to(REPO_ROOT)}")
 
     (out_dir / "MANIFEST.tsv").write_text("\n".join(manifest_lines) + "\n")
     print(
@@ -594,13 +677,23 @@ def cmd_extract_surfaces_fragments(args: argparse.Namespace) -> int:
         f"file(s) under {SURFACES_DIR} into {out_dir}"
     )
 
-    unused = set(SURFACES_FRAGMENT_PREAMBLES) - seen_names
-    if unused:
-        print(
-            f"Note: SURFACES_FRAGMENT_PREAMBLES has {len(unused)} entry(ies) with no matching "
-            f"marker in any file under {SURFACES_DIR} (stale after an edit?): {sorted(unused)}",
-            file=sys.stderr,
-        )
+    unused_preambles = set(SURFACES_FRAGMENT_PREAMBLES) - seen_names
+    unused_features = set(SURFACES_FRAGMENT_FEATURES) - seen_names
+    if unused_preambles or unused_features:
+        if unused_preambles:
+            print(
+                f"Note: SURFACES_FRAGMENT_PREAMBLES has {len(unused_preambles)} entry(ies) with no "
+                f"matching marker in any file under {SURFACES_DIR} (stale after an edit?): "
+                f"{sorted(unused_preambles)}",
+                file=sys.stderr,
+            )
+        if unused_features:
+            print(
+                f"Note: SURFACES_FRAGMENT_FEATURES has {len(unused_features)} entry(ies) with no "
+                f"matching marker in any file under {SURFACES_DIR} (stale after an edit?): "
+                f"{sorted(unused_features)}",
+                file=sys.stderr,
+            )
         return 1
     return 0
 
