@@ -86,6 +86,19 @@ pub fn parse_api_error(status_code: u16, body: &str) -> HttpError {
     }
 }
 
+/// Upper bound on the capacity `read_capped_body_bytes` will eagerly
+/// pre-allocate from a response's declared `Content-Length`, regardless of
+/// how large that header claims to be. `Content-Length` is attacker-
+/// controlled (a malicious or misbehaving server can declare a value at or
+/// above `limit_bytes` and then send little or nothing), so trusting it
+/// without a ceiling would let a single response eagerly reserve up to the
+/// full `limit_bytes` before a byte of data has actually arrived -- a
+/// bigger DoS-amplification surface than the fixed 4096-byte guess this
+/// replaced. 1 MiB is large enough to remove most of the doubling
+/// reallocations for realistic multi-MB payloads while bounding the
+/// eager-allocation-per-pending-request cost to a fixed, modest amount.
+const MAX_EAGER_PREALLOC_BYTES: usize = 1024 * 1024;
+
 /// Reads the body of an HTTP response as bytes up to a specified limit.
 /// This prevents memory exhaustion (DoS) attacks from maliciously large error responses.
 ///
@@ -94,11 +107,25 @@ pub async fn read_capped_body_bytes(
     response: Response,
     limit_bytes: usize,
 ) -> Result<Vec<u8>, HttpError> {
+    // ⚡ Bolt: Pre-allocate using the response's declared Content-Length when
+    // present, capped at both `limit_bytes` and `MAX_EAGER_PREALLOC_BYTES`,
+    // instead of a fixed 4096-byte guess. A fixed small guess forces
+    // `Vec::extend_from_slice` to repeatedly double-and-copy its way up to
+    // the real size on any response larger than a few KB, which is wasted
+    // memcpy/malloc traffic for large payloads (bulk/report/describe
+    // responses routinely run into the MBs); the extra `MAX_EAGER_PREALLOC_BYTES`
+    // cap keeps that improvement from becoming a bigger DoS surface than the
+    // guess it replaced (see its doc comment).
+    let init_cap = response.content_length().map_or_else(
+        || std::cmp::min(limit_bytes, 4096),
+        |len| {
+            std::cmp::min(
+                std::cmp::min(limit_bytes, MAX_EAGER_PREALLOC_BYTES),
+                usize::try_from(len).unwrap_or(limit_bytes),
+            )
+        },
+    );
     let mut stream = response.bytes_stream();
-
-    // ⚡ Bolt: Pre-allocate a reasonable capacity, up to max limit.
-    // If limit is smaller than default, use limit. Default 4096.
-    let init_cap = std::cmp::min(limit_bytes, 4096);
     let mut bytes = Vec::with_capacity(init_cap);
 
     while let Some(chunk) = stream.next().await {
