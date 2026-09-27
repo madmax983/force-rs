@@ -9,7 +9,24 @@ archaeology dig through [CHANGELOG.md](../../CHANGELOG.md).
 0.4.0 made three semver-breaking API-shape corrections, all found by live-org
 contract testing: the old shapes compiled but could not deserialize a real
 org's response. If your code accessed any of these three directly, upgrading
-breaks the build until you apply the matching fix below.
+breaks the build until you apply the matching fix below. It also raised the
+workspace's minimum supported Rust version, which is a separate, more common
+way this upgrade breaks a build.
+
+### 0. Minimum supported Rust version: 1.85 → 1.92
+
+0.3.0's workspace built on Rust 1.85; 0.4.0 raised the floor to **1.92**
+(`crates/force/Cargo.toml` inherits `rust-version = "1.92"` from the
+workspace). If your toolchain is older, `cargo build`/`cargo check` fails
+immediately with an MSRV error naming `force`, before any of the API changes
+below are reached. Fix:
+
+```
+rustup update stable
+rustup override set stable   # or pin 1.92+ explicitly
+```
+
+See [Release and Versioning: MSRV policy](05-release-and-versioning.md#msrv-policy).
 
 ### 1. `OrgLimits` fields are now `Option`-wrapped
 
@@ -60,9 +77,12 @@ let account_info = defaults.object_infos.get("Account");
 Previously, a response carrying `errors` alongside null-filled `data` came
 back as `Ok(Value::Null)`-shaped data — the `?` operator never caught
 anything, and callers had to inspect the raw JSON themselves to notice a
-partial failure. `query_raw` now surfaces those errors as
-`Err(ForceError::GraphQL(_))`, matching what `query`/`query_with_errors`
-already did.
+partial failure. `query_raw` is the one method this affects: it now surfaces
+a non-empty `errors` array as `Err(ForceError::GraphQL(_))`, instead of
+silently returning it. If you need to inspect partial success (both `data`
+and `errors` present) rather than treat any error as fatal, use
+`query_with_errors`, which returns the full envelope and never errors on
+your behalf.
 
 Before (0.3), a partial failure was silent:
 
