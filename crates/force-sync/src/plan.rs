@@ -93,18 +93,11 @@ pub fn merge_payload(
 /// Plans how a change should be applied after merge resolution.
 #[must_use]
 pub fn plan_change(context: &PlannerContext, envelope: &ChangeEnvelope) -> PlanDecision {
-    if context
-        .current_payload
-        .as_ref()
-        .is_some_and(|current| envelope.payload_hash_matches(current))
-    {
-        return PlanDecision {
-            lane: ApplyLane::Noop,
-            payload: None,
-            conflicts: Vec::new(),
-        };
-    }
-
+    // `merge_payload` already performs this exact same-hash check as its own
+    // first step when `current_payload` is `Some` (see below), and maps it to
+    // the identical `MergeOutcome::Noop` -> `PlanDecision` this used to
+    // short-circuit to. Checking it here too hashed both payloads twice on
+    // every call.
     match merge_payload(
         &context.object,
         context.current_payload.as_ref(),
