@@ -20,6 +20,7 @@ list memberships, campaigns, custom fields, forms, and emails.
 
 ## Example
 
+<!-- onramp-fragment: account_engagement_query -->
 ```rust
 let ae = client
     .account_engagement("0Uv000000000001AAA")
@@ -49,6 +50,7 @@ forms, and emails each expose their own typed methods (see their modules).
 For objects not yet modeled, use the raw helpers (path relative to `/api/v5/`, BU header
 applied automatically):
 
+<!-- onramp-fragment: account_engagement_raw -->
 ```rust
 let visits = ae.get_raw("objects/visits", Some(&[("fields", "id,prospectId")])).await?;
 ```

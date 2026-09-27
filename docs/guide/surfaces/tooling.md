@@ -16,14 +16,16 @@ force = { version = "...", features = ["tooling"] }
 CRUD/Query/Describe come from the shared [`RestOperation`] trait, so bring it into
 scope:
 
+<!-- onramp-fragment: tooling_import -->
 ```rust
-use force::api::rest_operation::RestOperation; // or force::api::RestOperation
+use force::api::RestOperation; // `force::api::rest_operation` itself is a private module
 ```
 
 ## Shared operations (Tooling objects)
 
 Same methods as REST, routed under `/tooling/`:
 
+<!-- onramp-fragment: tooling_shared_ops -->
 ```rust
 let tooling = client.tooling();
 
@@ -34,6 +36,7 @@ tooling.create("ApexClass", &json!({ "Body": "public class Foo {}" })).await?;
 
 ## Tooling-only endpoints
 
+<!-- onramp-fragment: tooling_only_endpoints -->
 ```rust
 use force::api::tooling::{CompletionsType, RunTestsRequest, TestItem};
 

@@ -9,8 +9,9 @@ types — see [Choosing an auth flow](../02-choosing-an-auth-flow.md) and
 CRUD / Query / Describe on the REST and Tooling handlers come from the shared
 `RestOperation` trait, which must be in scope:
 
+<!-- onramp-fragment: surfaces_readme_import -->
 ```rust
-use force::api::rest_operation::RestOperation; // or the re-export force::api::RestOperation
+use force::api::RestOperation; // `force::api::rest_operation` itself is a private module
 ```
 
 ## Surfaces

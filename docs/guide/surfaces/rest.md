@@ -11,8 +11,9 @@ stack.
 CRUD/Query/Describe live on the shared [`RestOperation`] trait, so it must be in
 scope:
 
+<!-- onramp-fragment: rest_operation_import -->
 ```rust
-use force::api::rest_operation::RestOperation; // or the re-export: force::api::RestOperation
+use force::api::RestOperation; // `force::api::rest_operation` itself is a private module
 ```
 
 ## Query
@@ -21,6 +22,7 @@ use force::api::rest_operation::RestOperation; // or the re-export: force::api::
 `serde_json::Value` or `force::types::DynamicSObject` for dynamic results).
 Paginate with `query_more::<T>` using the `next_records_url` from the prior page.
 
+<!-- onramp-fragment: rest_query -->
 ```rust
 let result = client.rest()
     .query::<Account>("SELECT Id, Name, Industry FROM Account LIMIT 10")
@@ -40,6 +42,7 @@ pages lazily.
 
 ## CRUD & upsert
 
+<!-- onramp-fragment: rest_crud -->
 ```rust
 let created = client.rest().create("Account", &json!({ "Name": "Acme" })).await?;
 let id = created.id.unwrap();
@@ -60,6 +63,7 @@ updates an existing record returns 204 with no body, surfaced as
 
 ## Search, Describe, limits, explain
 
+<!-- onramp-fragment: rest_search_describe -->
 ```rust
 let hits    = client.rest().search("FIND {Acme} IN ALL FIELDS RETURNING Account(Id, Name)").await?;
 let global  = client.rest().describe_global().await?;   // all SObjects

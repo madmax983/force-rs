@@ -22,6 +22,7 @@ Endpoint: `{instance_url}/services/Soap/u/{version}` (the leading `v` is strippe
 
 ## Accessor & config
 
+<!-- onramp-fragment: soap_accessor -->
 ```rust
 let soap = client.soap();                         // owned SoapHandler<A>, cheap to Clone
 
@@ -92,6 +93,7 @@ Partner API returns every field as a **string** — target `T` fields should be 
 
 ## The `SObject` builder
 
+<!-- onramp-fragment: soap_sobject_builder -->
 ```rust
 use force::api::soap::SObject;
 
@@ -110,6 +112,7 @@ Read fields back with `record.get("LastName")` (first non-null match) or `record
 
 ## Usage
 
+<!-- onramp-fragment: soap_usage -->
 ```rust
 use force::api::soap::SObject;
 
@@ -139,6 +142,7 @@ let _ = client.soap().delete(&[id]).await;                 // Vec<DeleteResult>
 
 Manual pagination:
 
+<!-- onramp-fragment: soap_pagination -->
 ```rust
 let mut page = client.soap().query("SELECT Id, Name FROM Account").await?;
 for r in &page.records { println!("{:?}", r.get("Name")); }
@@ -161,6 +165,7 @@ Two distinct failure channels:
   populated `errors: Vec<SoapError>` (`status_code`, `message`, `fields`). Always inspect each
   result, not just the outer `Result`.
 
+<!-- onramp-fragment: soap_error_handling -->
 ```rust
 match client.soap().create(&records).await {
     Ok(results) => {

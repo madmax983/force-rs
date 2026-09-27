@@ -14,6 +14,7 @@ Consent *writes* (creating/updating consent records) go through standard sObject
 `ConsentValue` is `Yes` / `No` / `Unknown`. Any unrecognized wire value deserializes to
 `Unknown` — treat unknown as denied for compliance safety.
 
+<!-- onramp-fragment: consent_reads -->
 ```rust
 use force::api::consent::ConsentValue;
 
@@ -44,6 +45,7 @@ Asynchronous: `request_portability` kicks off compilation and returns a `request
 it with `check_portability_status` until `PortabilityStatus::Complete`, then read
 `download_url`.
 
+<!-- onramp-fragment: consent_portability -->
 ```rust
 use force::api::consent::{PortabilityRequest, PortabilityStatus};
 

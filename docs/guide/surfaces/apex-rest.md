@@ -17,6 +17,7 @@ force = { version = "...", features = ["apex_rest"] }
 `get`, `get_with_params`, `post`, `post_raw`, `patch`, `put`, `delete`. All
 generic over `DeserializeOwned` responses (`delete` returns `()`).
 
+<!-- onramp-fragment: apex_rest_methods -->
 ```rust
 // POST /services/apexrest/MyNamespace/MyEndpoint
 let result: MyResponse = client.apex_rest()

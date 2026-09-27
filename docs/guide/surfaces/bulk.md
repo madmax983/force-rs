@@ -17,6 +17,7 @@ force = { version = "...", features = ["bulk"] }
 `insert` and `update` take any `&[T] where T: Serialize`; each drives a job to
 terminal state and returns the final `JobInfo`.
 
+<!-- onramp-fragment: bulk_ingest -->
 ```rust
 #[derive(serde::Serialize)]
 struct Account { #[serde(rename = "Name")] name: String }
@@ -35,6 +36,7 @@ client.bulk().delete("Account", &["001...".to_string()]).await?; // delete by ID
 
 `query::<T>` polls the query job, then hands back a stream of typed records:
 
+<!-- onramp-fragment: bulk_query_stream -->
 ```rust
 use futures::StreamExt;
 

@@ -28,6 +28,7 @@ Models requests additionally carry two required headers, `x-sfdc-app-context` an
 
 ## Models
 
+<!-- onramp-fragment: agentforce_models -->
 ```rust
 use force::api::models::{GenerateTextRequest, ChatMessage, ChatGenerationRequest, ModelName};
 
@@ -64,6 +65,7 @@ Trust Layer is deliberately permissive.
 
 ## Agent
 
+<!-- onramp-fragment: agentforce_agent -->
 ```rust
 use force::api::agent_api::SessionEndReason;
 
