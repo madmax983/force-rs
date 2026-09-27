@@ -108,5 +108,6 @@ Summary:
 ## See also
 
 - [Live Contract Testing](04-live-contract-testing.md)
+- [Upgrading](06-upgrading.md) — breaking changes per release, with a before/after fix for each.
 - [ADR-033: Tiered, Env-Gated Live-Contract Test Harness](../adr/033-live-contract-test-harness.md)
 - [API Stability and SemVer Policy](../governance/api-stability-policy.md)
