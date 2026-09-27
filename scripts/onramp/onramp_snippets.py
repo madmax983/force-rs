@@ -37,11 +37,24 @@ rest of the codebase:
                       (credentials), so they need a preamble instead of
                       running verbatim.
 
+  extract-operations-fragments
+                      Same mechanism as extract-auth-flow-fragments, applied
+                      to docs/guide/03-operations.md -- the page every auth
+                      flow in 02-choosing-an-auth-flow.md links back to for
+                      the request-retry loop, and the page a reader hits the
+                      moment they need to handle a real error, tune a
+                      timeout, or wire up tracing. Its 4 fragments reference
+                      caller-supplied variables (`client`, `soql`) or bare
+                      statements missing the `use` their own file's earlier
+                      fragment already brought into scope, so they need the
+                      same stub-preamble treatment.
+
 Usage:
     python3 scripts/onramp/onramp_snippets.py extract-programs --out DIR [FILES...]
     python3 scripts/onramp/onramp_snippets.py check-version-pins [FILES...]
     python3 scripts/onramp/onramp_snippets.py extract-quickstart --out DIR
     python3 scripts/onramp/onramp_snippets.py extract-auth-flow-fragments --out DIR
+    python3 scripts/onramp/onramp_snippets.py extract-operations-fragments --out DIR
 """
 from __future__ import annotations
 
@@ -73,6 +86,7 @@ VERSION_PIN_RE = re.compile(
 )
 
 AUTH_FLOW_GUIDE = REPO_ROOT / "docs" / "guide" / "02-choosing-an-auth-flow.md"
+OPERATIONS_GUIDE = REPO_ROOT / "docs" / "guide" / "03-operations.md"
 # Matches a `<!-- onramp-fragment: NAME -->` marker immediately followed by
 # the ```rust fence it names. The marker lives in the doc itself (not in a
 # side-table here) so a reordered or deleted fragment can't silently go
@@ -135,6 +149,31 @@ FRAGMENT_PREAMBLES: dict[str, str] = {
         let client_id = "stub-client-id";
         let client_secret = "stub-client-secret";
     """,
+}
+
+# docs/guide/03-operations.md's 4 fragments, same treatment as
+# FRAGMENT_PREAMBLES above: only the *types* the fragment body references
+# need to resolve, so credentials/query text are throwaway stubs.
+OPERATIONS_FRAGMENT_PREAMBLES: dict[str, str] = {
+    "client_config": """
+        use force::auth::ClientCredentials;
+        use force::client::ForceClientBuilder;
+        let auth = ClientCredentials::new_production("stub-client-id", "stub-client-secret");
+    """,
+    "error_handling": """
+        use force::api::RestOperation;
+        use force::auth::ClientCredentials;
+        use force::client::ForceClientBuilder;
+        let client = ForceClientBuilder::new()
+            .authenticate(ClientCredentials::new_production("stub-client-id", "stub-client-secret"))
+            .build()
+            .await?;
+        let soql = "SELECT Id FROM Account";
+    """,
+    "api_version_pin": """
+        use force::config::ClientConfig;
+    """,
+    "tracing_subscriber_init": "",
 }
 
 
@@ -242,14 +281,15 @@ def cmd_extract_quickstart(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_extract_auth_flow_fragments(args: argparse.Namespace) -> int:
-    out_dir = Path(args.out)
-    out_dir.mkdir(parents=True, exist_ok=True)
-    text = AUTH_FLOW_GUIDE.read_text()
+def extract_marked_fragments(doc_path: Path, preambles: dict[str, str], out_dir: Path) -> int:
+    """Shared extraction for any doc using the `<!-- onramp-fragment: NAME -->`
+    marker convention (see FRAGMENT_PREAMBLES / OPERATIONS_FRAGMENT_PREAMBLES).
+    """
+    text = doc_path.read_text()
 
     fragments = list(FRAGMENT_RE.finditer(text))
     if not fragments:
-        print(f"No `<!-- onramp-fragment: ... -->` markers found in {AUTH_FLOW_GUIDE}", file=sys.stderr)
+        print(f"No `<!-- onramp-fragment: ... -->` markers found in {doc_path}", file=sys.stderr)
         return 1
 
     # FRAGMENT_RE only finds fences immediately preceded by a marker, so a
@@ -261,11 +301,11 @@ def cmd_extract_auth_flow_fragments(args: argparse.Namespace) -> int:
     all_rust_fences = len(extract_rust_fences(text))
     if all_rust_fences != len(fragments):
         print(
-            f"{AUTH_FLOW_GUIDE} has {all_rust_fences} ```rust fence(s) but only "
+            f"{doc_path} has {all_rust_fences} ```rust fence(s) but only "
             f"{len(fragments)} carry a `<!-- onramp-fragment: NAME -->` marker "
             "immediately above them. Every rust fence in this file must be "
-            "marked (and registered in FRAGMENT_PREAMBLES) so it's covered by "
-            "this harness -- an unmarked fence is invisible to it.",
+            "marked (and registered in its FRAGMENT_PREAMBLES dict) so it's "
+            "covered by this harness -- an unmarked fence is invisible to it.",
             file=sys.stderr,
         )
         return 1
@@ -275,21 +315,21 @@ def cmd_extract_auth_flow_fragments(args: argparse.Namespace) -> int:
     for i, m in enumerate(fragments, start=1):
         name = m.group("name")
         if name in seen_names:
-            print(f"Duplicate onramp-fragment name '{name}' in {AUTH_FLOW_GUIDE}", file=sys.stderr)
+            print(f"Duplicate onramp-fragment name '{name}' in {doc_path}", file=sys.stderr)
             return 1
         seen_names.add(name)
 
-        if name not in FRAGMENT_PREAMBLES:
+        if name not in preambles:
             print(
                 f"No stub preamble registered for onramp-fragment '{name}' "
-                f"(scripts/onramp/onramp_snippets.py: FRAGMENT_PREAMBLES). "
+                f"(scripts/onramp/onramp_snippets.py: preamble dict for {doc_path.name}). "
                 "Every fragment must have one so it can type-check standalone.",
                 file=sys.stderr,
             )
             return 1
 
         body = m.group("body")
-        preamble = textwrap.dedent(FRAGMENT_PREAMBLES[name]).strip()
+        preamble = textwrap.dedent(preambles[name]).strip()
         program = (
             "#[tokio::main]\n"
             "async fn main() -> anyhow::Result<()> {\n"
@@ -303,17 +343,29 @@ def cmd_extract_auth_flow_fragments(args: argparse.Namespace) -> int:
         manifest_lines.append(f"{out_file.name}\t{name}")
 
     (out_dir / "MANIFEST.tsv").write_text("\n".join(manifest_lines) + "\n")
-    print(f"Extracted {len(fragments)} auth-flow fragment(s) from {AUTH_FLOW_GUIDE} into {out_dir}")
+    print(f"Extracted {len(fragments)} fragment(s) from {doc_path} into {out_dir}")
 
-    unused = set(FRAGMENT_PREAMBLES) - seen_names
+    unused = set(preambles) - seen_names
     if unused:
         print(
-            f"Note: FRAGMENT_PREAMBLES has {len(unused)} entry(ies) with no matching "
-            f"marker in the doc (stale after an edit?): {sorted(unused)}",
+            f"Note: the preamble dict for {doc_path.name} has {len(unused)} entry(ies) "
+            f"with no matching marker in the doc (stale after an edit?): {sorted(unused)}",
             file=sys.stderr,
         )
         return 1
     return 0
+
+
+def cmd_extract_auth_flow_fragments(args: argparse.Namespace) -> int:
+    out_dir = Path(args.out)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    return extract_marked_fragments(AUTH_FLOW_GUIDE, FRAGMENT_PREAMBLES, out_dir)
+
+
+def cmd_extract_operations_fragments(args: argparse.Namespace) -> int:
+    out_dir = Path(args.out)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    return extract_marked_fragments(OPERATIONS_GUIDE, OPERATIONS_FRAGMENT_PREAMBLES, out_dir)
 
 
 def main() -> int:
@@ -336,6 +388,10 @@ def main() -> int:
     p_auth_fragments = sub.add_parser("extract-auth-flow-fragments")
     p_auth_fragments.add_argument("--out", required=True)
     p_auth_fragments.set_defaults(func=cmd_extract_auth_flow_fragments)
+
+    p_ops_fragments = sub.add_parser("extract-operations-fragments")
+    p_ops_fragments.add_argument("--out", required=True)
+    p_ops_fragments.set_defaults(func=cmd_extract_operations_fragments)
 
     args = parser.parse_args()
     return args.func(args)

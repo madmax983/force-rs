@@ -68,6 +68,9 @@ jobs:
       - name: Compile every auth-flow-guide fragment against the workspace crate
         run: bash scripts/onramp/compile_auth_flow_fragments.sh
 
+      - name: Compile every operations-guide fragment against the workspace crate
+        run: bash scripts/onramp/compile_operations_fragments.sh
+
   folio-docs-drift:
     name: Folio (surfaces table drift scan)
     runs-on: ubuntu-latest
