@@ -536,6 +536,48 @@ mod tests {
     }
 
     #[test]
+    fn parse_ymd_fast_rejects_malformed_shapes() {
+        // Wrong length.
+        assert_eq!(parse_ymd_fast(b"2024-01-1"), None);
+        assert_eq!(parse_ymd_fast(b"2024-01-155"), None);
+        // Dashes in the wrong place.
+        assert_eq!(parse_ymd_fast(b"2024/01/15"), None);
+        // Non-digit characters.
+        assert_eq!(parse_ymd_fast(b"202x-01-15"), None);
+        // Shape-valid but not a real calendar date.
+        assert_eq!(parse_ymd_fast(b"2024-02-30"), None);
+        assert_eq!(parse_ymd_fast(b"2024-13-01"), None);
+        // Shape-valid, real date: matches what NaiveDate::parse_from_str would produce.
+        assert_eq!(
+            parse_ymd_fast(b"2024-01-15"),
+            NaiveDate::from_ymd_opt(2024, 1, 15)
+        );
+    }
+
+    #[test]
+    fn parse_sf_datetime_fast_rejects_malformed_shapes() {
+        // Wrong length (this is also the `Z`-suffixed / colon-offset case,
+        // which falls back to the already-efficient RFC 3339 fast path).
+        assert_eq!(parse_sf_datetime_fast("2024-06-30T23:59:59.500Z"), None);
+        // Missing/misplaced separators.
+        assert_eq!(parse_sf_datetime_fast("2024-01-15 10:30:00.000+0000"), None);
+        assert_eq!(parse_sf_datetime_fast("2024-01-15T10-30-00.000+0000"), None);
+        assert_eq!(parse_sf_datetime_fast("2024-01-15T10:30:00,000+0000"), None);
+        // Non-digit time component.
+        assert_eq!(parse_sf_datetime_fast("2024-01-15Tab:30:00.000+0000"), None);
+        // Invalid calendar date in the date portion.
+        assert_eq!(parse_sf_datetime_fast("2024-02-30T10:30:00.000+0000"), None);
+        // Invalid sign byte.
+        assert_eq!(parse_sf_datetime_fast("2024-01-15T10:30:00.000~0000"), None);
+        // Shape- and range-valid: matches the value builds_batch_with_values_and_nulls
+        // already asserts for the same input via the public build_record_batch path.
+        assert_eq!(
+            parse_sf_datetime_fast("2024-01-15T10:30:00.000+0000"),
+            Some(1_705_314_600_000_000)
+        );
+    }
+
+    #[test]
     fn rejects_out_of_range_offset_instead_of_silently_shifting() {
         // Shape-valid (28 bytes, right separators/digit positions) but the
         // offset hour/minute are out of range. The fast path must bail out
