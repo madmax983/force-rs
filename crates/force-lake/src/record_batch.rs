@@ -259,13 +259,43 @@ fn parse_date32(name: &str, value: &Value) -> Result<i32> {
     let text = value.as_str().ok_or_else(|| {
         LakeError::record_mapping(name, format!("expected date string, got {value}"))
     })?;
-    let date = NaiveDate::parse_from_str(text, "%Y-%m-%d")
-        .map_err(|e| LakeError::record_mapping(name, format!("invalid date `{text}`: {e}")))?;
+    let date = match parse_ymd_fast(text.as_bytes()) {
+        Some(date) => date,
+        None => NaiveDate::parse_from_str(text, "%Y-%m-%d")
+            .map_err(|e| LakeError::record_mapping(name, format!("invalid date `{text}`: {e}")))?,
+    };
     let epoch = NaiveDate::from_ymd_opt(1970, 1, 1)
         .ok_or_else(|| LakeError::record_mapping(name, "epoch date construction failed"))?;
     let days = (date - epoch).num_days();
     i32::try_from(days)
         .map_err(|_| LakeError::record_mapping(name, format!("date `{text}` out of range")))
+}
+
+/// Fast path for the fixed `YYYY-MM-DD` shape Salesforce always emits for
+/// Date fields. `NaiveDate::parse_from_str` re-tokenizes its format string
+/// (`"%Y-%m-%d"`) into a fresh `StrftimeItems` sequence on every call, which
+/// shows up as real, non-trivial cost when parsing thousands of dates in a
+/// batch. Parsing the known-fixed shape directly via byte slicing skips that
+/// tokenization entirely. Returns `None` for anything that doesn't match
+/// this exact shape (including a not-actually-valid calendar date) so the
+/// caller falls back to the general parser, which preserves the exact
+/// original error behavior for irregular input.
+fn parse_ymd_fast(bytes: &[u8]) -> Option<NaiveDate> {
+    if bytes.len() != 10 || bytes[4] != b'-' || bytes[7] != b'-' {
+        return None;
+    }
+    if !bytes[0..4]
+        .iter()
+        .chain(&bytes[5..7])
+        .chain(&bytes[8..10])
+        .all(u8::is_ascii_digit)
+    {
+        return None;
+    }
+    let year: i32 = std::str::from_utf8(&bytes[0..4]).ok()?.parse().ok()?;
+    let month: u32 = std::str::from_utf8(&bytes[5..7]).ok()?.parse().ok()?;
+    let day: u32 = std::str::from_utf8(&bytes[8..10]).ok()?.parse().ok()?;
+    NaiveDate::from_ymd_opt(year, month, day)
 }
 
 /// Parses a Salesforce time (`HH:MM:SS(.fff)?Z?`) into microseconds past midnight.
@@ -287,10 +317,74 @@ fn parse_timestamp_micros(name: &str, value: &Value) -> Result<i64> {
     let text = value.as_str().ok_or_else(|| {
         LakeError::record_mapping(name, format!("expected datetime string, got {value}"))
     })?;
+    if let Some(micros) = parse_sf_datetime_fast(text) {
+        return Ok(micros);
+    }
     let parsed = chrono::DateTime::parse_from_rfc3339(text)
         .or_else(|_| chrono::DateTime::parse_from_str(text, "%Y-%m-%dT%H:%M:%S%.f%z"))
         .map_err(|e| LakeError::record_mapping(name, format!("invalid datetime `{text}`: {e}")))?;
     Ok(parsed.timestamp_micros())
+}
+
+/// Fast path for the fixed `YYYY-MM-DDTHH:MM:SS.mmm+HHMM` (or `-HHMM`) shape
+/// the Salesforce REST/Bulk APIs emit for datetime fields (millisecond
+/// precision, sign-and-4-digit UTC offset, no colon in the offset). This
+/// shape fails `DateTime::parse_from_rfc3339` (which requires a colon in the
+/// offset, or `Z`) and falls through to `DateTime::parse_from_str`, which
+/// re-tokenizes its format string into a fresh `StrftimeItems` sequence on
+/// every call -- real, non-trivial cost when parsing thousands of timestamps
+/// in a batch. Parsing the known-fixed shape directly via byte slicing skips
+/// both the failed RFC 3339 attempt and the tokenization. Returns `None` for
+/// anything that doesn't match this exact shape so the caller falls back to
+/// the general two-step parser above, which preserves the exact original
+/// error behavior (and handles `Z`-suffixed / colon-offset input, which the
+/// RFC 3339 fast path already parses efficiently on its own).
+fn parse_sf_datetime_fast(text: &str) -> Option<i64> {
+    let bytes = text.as_bytes();
+    if bytes.len() != 28
+        || bytes[10] != b'T'
+        || bytes[13] != b':'
+        || bytes[16] != b':'
+        || bytes[19] != b'.'
+    {
+        return None;
+    }
+    let date = parse_ymd_fast(&bytes[0..10])?;
+    if !bytes[11..13].iter().all(u8::is_ascii_digit)
+        || !bytes[14..16].iter().all(u8::is_ascii_digit)
+        || !bytes[17..19].iter().all(u8::is_ascii_digit)
+        || !bytes[20..23].iter().all(u8::is_ascii_digit)
+        || !bytes[24..28].iter().all(u8::is_ascii_digit)
+    {
+        return None;
+    }
+    let sign: i64 = match bytes[23] {
+        b'+' => 1,
+        b'-' => -1,
+        _ => return None,
+    };
+    let hour: u32 = std::str::from_utf8(&bytes[11..13]).ok()?.parse().ok()?;
+    let minute: u32 = std::str::from_utf8(&bytes[14..16]).ok()?.parse().ok()?;
+    let second: u32 = std::str::from_utf8(&bytes[17..19]).ok()?.parse().ok()?;
+    let millis: i64 = std::str::from_utf8(&bytes[20..23]).ok()?.parse().ok()?;
+    let offset_hh: i64 = std::str::from_utf8(&bytes[24..26]).ok()?.parse().ok()?;
+    let offset_mm: i64 = std::str::from_utf8(&bytes[26..28]).ok()?.parse().ok()?;
+    if !(0..24).contains(&offset_hh) || !(0..60).contains(&offset_mm) {
+        return None;
+    }
+
+    let time = NaiveTime::from_hms_opt(hour, minute, second)?;
+    let local_micros = date.and_time(time).and_utc().timestamp_micros();
+    let offset_micros = sign
+        .checked_mul(
+            offset_hh
+                .checked_mul(3600)?
+                .checked_add(offset_mm.checked_mul(60)?)?,
+        )?
+        .checked_mul(MICROS_PER_SECOND)?;
+    local_micros
+        .checked_sub(offset_micros)?
+        .checked_add(millis.checked_mul(1000)?)
 }
 
 #[cfg(test)]
@@ -439,5 +533,65 @@ mod tests {
         assert_eq!(parse_decimal_str("0.01", 2), Some(1));
         assert_eq!(parse_decimal_str("100", 2), Some(10_000));
         assert_eq!(parse_decimal_str("abc", 2), None);
+    }
+
+    #[test]
+    fn parse_ymd_fast_rejects_malformed_shapes() {
+        // Wrong length.
+        assert_eq!(parse_ymd_fast(b"2024-01-1"), None);
+        assert_eq!(parse_ymd_fast(b"2024-01-155"), None);
+        // Dashes in the wrong place.
+        assert_eq!(parse_ymd_fast(b"2024/01/15"), None);
+        // Non-digit characters.
+        assert_eq!(parse_ymd_fast(b"202x-01-15"), None);
+        // Shape-valid but not a real calendar date.
+        assert_eq!(parse_ymd_fast(b"2024-02-30"), None);
+        assert_eq!(parse_ymd_fast(b"2024-13-01"), None);
+        // Shape-valid, real date: matches what NaiveDate::parse_from_str would produce.
+        assert_eq!(
+            parse_ymd_fast(b"2024-01-15"),
+            NaiveDate::from_ymd_opt(2024, 1, 15)
+        );
+    }
+
+    #[test]
+    fn parse_sf_datetime_fast_rejects_malformed_shapes() {
+        // Wrong length (this is also the `Z`-suffixed / colon-offset case,
+        // which falls back to the already-efficient RFC 3339 fast path).
+        assert_eq!(parse_sf_datetime_fast("2024-06-30T23:59:59.500Z"), None);
+        // Missing/misplaced separators.
+        assert_eq!(parse_sf_datetime_fast("2024-01-15 10:30:00.000+0000"), None);
+        assert_eq!(parse_sf_datetime_fast("2024-01-15T10-30-00.000+0000"), None);
+        assert_eq!(parse_sf_datetime_fast("2024-01-15T10:30:00,000+0000"), None);
+        // Non-digit time component.
+        assert_eq!(parse_sf_datetime_fast("2024-01-15Tab:30:00.000+0000"), None);
+        // Invalid calendar date in the date portion.
+        assert_eq!(parse_sf_datetime_fast("2024-02-30T10:30:00.000+0000"), None);
+        // Invalid sign byte.
+        assert_eq!(parse_sf_datetime_fast("2024-01-15T10:30:00.000~0000"), None);
+        // Shape- and range-valid: matches the value builds_batch_with_values_and_nulls
+        // already asserts for the same input via the public build_record_batch path.
+        assert_eq!(
+            parse_sf_datetime_fast("2024-01-15T10:30:00.000+0000"),
+            Some(1_705_314_600_000_000)
+        );
+    }
+
+    #[test]
+    fn rejects_out_of_range_offset_instead_of_silently_shifting() {
+        // Shape-valid (28 bytes, right separators/digit positions) but the
+        // offset hour/minute are out of range. The fast path must bail out
+        // to `None` rather than computing a silently-wrong timestamp; the
+        // general parser it falls back to also rejects this as invalid.
+        assert_eq!(parse_sf_datetime_fast("2024-01-15T10:30:00.000+9999"), None);
+
+        let schema = Arc::new(Schema::new(vec![Field::new(
+            "CreatedDate",
+            DataType::Timestamp(TimeUnit::Microsecond, Some("+00:00".into())),
+            true,
+        )]));
+        let records = vec![json!({ "CreatedDate": "2024-01-15T10:30:00.000+9999" })];
+        let err = build_record_batch(&schema, &records).expect_err("invalid offset must error");
+        assert!(err.to_string().contains("CreatedDate"));
     }
 }

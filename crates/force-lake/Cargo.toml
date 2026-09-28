@@ -42,3 +42,7 @@ criterion = { workspace = true }
 [[bench]]
 name = "record_batch_bench"
 harness = false
+
+[[bench]]
+name = "record_batch_profile"
+harness = false
