@@ -369,6 +369,9 @@ fn parse_sf_datetime_fast(text: &str) -> Option<i64> {
     let millis: i64 = std::str::from_utf8(&bytes[20..23]).ok()?.parse().ok()?;
     let offset_hh: i64 = std::str::from_utf8(&bytes[24..26]).ok()?.parse().ok()?;
     let offset_mm: i64 = std::str::from_utf8(&bytes[26..28]).ok()?.parse().ok()?;
+    if !(0..24).contains(&offset_hh) || !(0..60).contains(&offset_mm) {
+        return None;
+    }
 
     let time = NaiveTime::from_hms_opt(hour, minute, second)?;
     let local_micros = date.and_time(time).and_utc().timestamp_micros();
@@ -530,5 +533,23 @@ mod tests {
         assert_eq!(parse_decimal_str("0.01", 2), Some(1));
         assert_eq!(parse_decimal_str("100", 2), Some(10_000));
         assert_eq!(parse_decimal_str("abc", 2), None);
+    }
+
+    #[test]
+    fn rejects_out_of_range_offset_instead_of_silently_shifting() {
+        // Shape-valid (28 bytes, right separators/digit positions) but the
+        // offset hour/minute are out of range. The fast path must bail out
+        // to `None` rather than computing a silently-wrong timestamp; the
+        // general parser it falls back to also rejects this as invalid.
+        assert_eq!(parse_sf_datetime_fast("2024-01-15T10:30:00.000+9999"), None);
+
+        let schema = Arc::new(Schema::new(vec![Field::new(
+            "CreatedDate",
+            DataType::Timestamp(TimeUnit::Microsecond, Some("+00:00".into())),
+            true,
+        )]));
+        let records = vec![json!({ "CreatedDate": "2024-01-15T10:30:00.000+9999" })];
+        let err = build_record_batch(&schema, &records).expect_err("invalid offset must error");
+        assert!(err.to_string().contains("CreatedDate"));
     }
 }
