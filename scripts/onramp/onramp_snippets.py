@@ -37,11 +37,23 @@ rest of the codebase:
                       (credentials), so they need a preamble instead of
                       running verbatim.
 
+  extract-upgrade-fragments
+                      Pull each ```rust "after" fragment out of
+                      docs/guide/06-upgrading.md -- the page CHANGELOG.md's
+                      0.4.0 entry itself links to -- and wrap it with a stub
+                      preamble, same mechanism as extract-auth-flow-fragments.
+                      That page's "before" snippets are deliberately fenced
+                      as ```rust,ignore (old-shape code that must NOT
+                      compile against the current crate); only the "after"
+                      fragments carry an `onramp-fragment:` marker and are
+                      checked here.
+
 Usage:
     python3 scripts/onramp/onramp_snippets.py extract-programs --out DIR [FILES...]
     python3 scripts/onramp/onramp_snippets.py check-version-pins [FILES...]
     python3 scripts/onramp/onramp_snippets.py extract-quickstart --out DIR
     python3 scripts/onramp/onramp_snippets.py extract-auth-flow-fragments --out DIR
+    python3 scripts/onramp/onramp_snippets.py extract-upgrade-fragments --out DIR
 """
 from __future__ import annotations
 
@@ -134,6 +146,27 @@ FRAGMENT_PREAMBLES: dict[str, str] = {
     "agentforce": """
         let client_id = "stub-client-id";
         let client_secret = "stub-client-secret";
+    """,
+}
+
+
+UPGRADING_GUIDE = REPO_ROOT / "docs" / "guide" / "06-upgrading.md"
+# The upgrading guide's "after" fragments -- the "before" snippets are fenced
+# ```rust,ignore (old-shape code that must NOT compile against the current
+# crate) and so are invisible to FENCE_RE / FRAGMENT_RE by construction, not
+# by an exclusion list.
+UPGRADE_CLIENT_STUB = """
+    use force::auth::ClientCredentials;
+    use force::client::ForceClientBuilder;
+    let auth = ClientCredentials::new_production("stub-client-id", "stub-client-secret");
+    let client = ForceClientBuilder::new().authenticate(auth).build().await?;
+"""
+UPGRADE_FRAGMENT_PREAMBLES: dict[str, str] = {
+    "upgrade_org_limits": UPGRADE_CLIENT_STUB,
+    "upgrade_object_infos": UPGRADE_CLIENT_STUB,
+    "upgrade_query_raw": UPGRADE_CLIENT_STUB
+    + """
+        let query = "query { uiapi { query { Account { edges { node { Id } } } } } }";
     """,
 }
 
@@ -242,14 +275,25 @@ def cmd_extract_quickstart(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_extract_auth_flow_fragments(args: argparse.Namespace) -> int:
-    out_dir = Path(args.out)
+def extract_marked_fragments(
+    doc_path: Path,
+    preambles: dict[str, str],
+    preambles_name: str,
+    out_dir: Path,
+    label: str,
+) -> int:
+    """Shared implementation behind extract-auth-flow-fragments and
+    extract-upgrade-fragments: pull every `<!-- onramp-fragment: NAME -->`
+    +```rust fence out of `doc_path`, wrap each with its registered stub
+    preamble so free variables type-check, and write one standalone .rs file
+    per fragment into `out_dir`.
+    """
     out_dir.mkdir(parents=True, exist_ok=True)
-    text = AUTH_FLOW_GUIDE.read_text()
+    text = doc_path.read_text()
 
     fragments = list(FRAGMENT_RE.finditer(text))
     if not fragments:
-        print(f"No `<!-- onramp-fragment: ... -->` markers found in {AUTH_FLOW_GUIDE}", file=sys.stderr)
+        print(f"No `<!-- onramp-fragment: ... -->` markers found in {doc_path}", file=sys.stderr)
         return 1
 
     # FRAGMENT_RE only finds fences immediately preceded by a marker, so a
@@ -261,11 +305,13 @@ def cmd_extract_auth_flow_fragments(args: argparse.Namespace) -> int:
     all_rust_fences = len(extract_rust_fences(text))
     if all_rust_fences != len(fragments):
         print(
-            f"{AUTH_FLOW_GUIDE} has {all_rust_fences} ```rust fence(s) but only "
+            f"{doc_path} has {all_rust_fences} ```rust fence(s) but only "
             f"{len(fragments)} carry a `<!-- onramp-fragment: NAME -->` marker "
             "immediately above them. Every rust fence in this file must be "
-            "marked (and registered in FRAGMENT_PREAMBLES) so it's covered by "
-            "this harness -- an unmarked fence is invisible to it.",
+            f"marked (and registered in {preambles_name}) so it's covered by "
+            "this harness -- an unmarked fence is invisible to it. (A "
+            "```rust,ignore fence is deliberately not a ```rust fence and "
+            "is not counted here.)",
             file=sys.stderr,
         )
         return 1
@@ -275,21 +321,21 @@ def cmd_extract_auth_flow_fragments(args: argparse.Namespace) -> int:
     for i, m in enumerate(fragments, start=1):
         name = m.group("name")
         if name in seen_names:
-            print(f"Duplicate onramp-fragment name '{name}' in {AUTH_FLOW_GUIDE}", file=sys.stderr)
+            print(f"Duplicate onramp-fragment name '{name}' in {doc_path}", file=sys.stderr)
             return 1
         seen_names.add(name)
 
-        if name not in FRAGMENT_PREAMBLES:
+        if name not in preambles:
             print(
                 f"No stub preamble registered for onramp-fragment '{name}' "
-                f"(scripts/onramp/onramp_snippets.py: FRAGMENT_PREAMBLES). "
+                f"(scripts/onramp/onramp_snippets.py: {preambles_name}). "
                 "Every fragment must have one so it can type-check standalone.",
                 file=sys.stderr,
             )
             return 1
 
         body = m.group("body")
-        preamble = textwrap.dedent(FRAGMENT_PREAMBLES[name]).strip()
+        preamble = textwrap.dedent(preambles[name]).strip()
         program = (
             "#[tokio::main]\n"
             "async fn main() -> anyhow::Result<()> {\n"
@@ -303,17 +349,33 @@ def cmd_extract_auth_flow_fragments(args: argparse.Namespace) -> int:
         manifest_lines.append(f"{out_file.name}\t{name}")
 
     (out_dir / "MANIFEST.tsv").write_text("\n".join(manifest_lines) + "\n")
-    print(f"Extracted {len(fragments)} auth-flow fragment(s) from {AUTH_FLOW_GUIDE} into {out_dir}")
+    print(f"Extracted {len(fragments)} {label} fragment(s) from {doc_path} into {out_dir}")
 
-    unused = set(FRAGMENT_PREAMBLES) - seen_names
+    unused = set(preambles) - seen_names
     if unused:
         print(
-            f"Note: FRAGMENT_PREAMBLES has {len(unused)} entry(ies) with no matching "
+            f"Note: {preambles_name} has {len(unused)} entry(ies) with no matching "
             f"marker in the doc (stale after an edit?): {sorted(unused)}",
             file=sys.stderr,
         )
         return 1
     return 0
+
+
+def cmd_extract_auth_flow_fragments(args: argparse.Namespace) -> int:
+    return extract_marked_fragments(
+        AUTH_FLOW_GUIDE, FRAGMENT_PREAMBLES, "FRAGMENT_PREAMBLES", Path(args.out), "auth-flow"
+    )
+
+
+def cmd_extract_upgrade_fragments(args: argparse.Namespace) -> int:
+    return extract_marked_fragments(
+        UPGRADING_GUIDE,
+        UPGRADE_FRAGMENT_PREAMBLES,
+        "UPGRADE_FRAGMENT_PREAMBLES",
+        Path(args.out),
+        "upgrade-guide",
+    )
 
 
 def main() -> int:
@@ -336,6 +398,10 @@ def main() -> int:
     p_auth_fragments = sub.add_parser("extract-auth-flow-fragments")
     p_auth_fragments.add_argument("--out", required=True)
     p_auth_fragments.set_defaults(func=cmd_extract_auth_flow_fragments)
+
+    p_upgrade_fragments = sub.add_parser("extract-upgrade-fragments")
+    p_upgrade_fragments.add_argument("--out", required=True)
+    p_upgrade_fragments.set_defaults(func=cmd_extract_upgrade_fragments)
 
     args = parser.parse_args()
     return args.func(args)

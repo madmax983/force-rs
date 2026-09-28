@@ -36,6 +36,7 @@ rationale see the [architecture overview](../../CLAUDE.md) and the
 - [03 — Operations](03-operations.md) — retries, rate limits, token refresh, observability.
 - [04 — Live Contract Testing](04-live-contract-testing.md) — validating against real orgs.
 - [05 — Release and Versioning](05-release-and-versioning.md) — semver, feature stability, publishing.
+- [06 — Upgrading](06-upgrading.md) — breaking changes per release, with a before/after fix for each.
 
 ## See also
 
