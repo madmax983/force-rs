@@ -40,6 +40,53 @@ jobs:
       - name: Unit-focused tests (all features)
         run: cargo test --workspace --all-features --lib --tests -- --test-threads=1
 
+  onramp-docs-snippets:
+    name: Onramp (README snippet CI)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Check README/docs `force` version pins match the workspace version
+        run: bash scripts/onramp/check_version_pins.sh
+
+      - name: Compile every runnable README code sample against the workspace crate
+        run: bash scripts/onramp/compile_readme_snippets.sh
+
+      - name: Compile every README "More Examples" row with its documented single feature flag
+        run: python3 scripts/onramp/check_examples_table.py
+
+      - name: Check getting-started feature-flag matrix against Cargo.toml
+        run: python3 scripts/onramp/check_feature_matrix.py
+
+      - name: Compile every auth-flow-guide fragment against the workspace crate
+        run: bash scripts/onramp/compile_auth_flow_fragments.sh
+
+      - name: Compile every upgrade-guide "after" fragment against the workspace crate
+        run: bash scripts/onramp/compile_upgrade_fragments.sh
+
+  folio-docs-drift:
+    name: Folio (surfaces table drift scan)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check docs/guide/surfaces/README.md against shipped client accessors
+        run: python3 scripts/folio/surfaces_drift_scan.py
+
+      - name: Check docs/vantage/ backlog specs against shipped surfaces
+        run: python3 scripts/folio/vantage_backlog_drift_scan.py
+
+      - name: Check corpus internal links and root-reachability of every docs page
+        run: python3 scripts/folio/link_orphan_scan.py
+
   force-sync-postgres:
     name: force-sync Postgres Integration
     runs-on: ubuntu-latest

@@ -30,6 +30,7 @@
 
 use crate::types::describe::{FieldType, SObjectDescribe};
 use crate::types::{Attributes, DynamicSObject, SalesforceId};
+use serde_json::Value;
 
 /// Utility for generating mock data based on Salesforce schema metadata.
 ///
@@ -63,65 +64,58 @@ pub fn generate_mock_record(describe: &SObjectDescribe) -> DynamicSObject {
             continue;
         }
 
-        // Generate a sensible default mock value based on the field type
-        match field.type_ {
+        // Generate a sensible default mock value based on the field type.
+        //
+        // Values are inserted directly as `Value` (`record.fields.insert(...)`)
+        // rather than through `DynamicSObject::set_field`, which routes every
+        // value through `serde_json::to_value`'s generic `Serialize` path. For
+        // an already-owned `String` (the `format!(...)` cases below), that path
+        // allocates a second copy via `Serializer::serialize_str` and then
+        // immediately drops the original -- a clone-through-Serialize the
+        // caller doesn't need, matching the same class of fix already applied
+        // to `DataSeeder::seed` and `RelationalSeeder::seed_hierarchy`.
+        let value = match field.type_ {
             FieldType::String | FieldType::Id | FieldType::Reference | FieldType::AnyType => {
-                record.set_field(&field.name, format!("Mock {}", field.label));
+                Some(Value::String(format!("Mock {}", field.label)))
             }
-            FieldType::Textarea | FieldType::Encryptedstring => {
-                record.set_field(
-                    &field.name,
-                    format!("Detailed mock description for {}", field.label),
-                );
-            }
-            FieldType::Int => {
-                record.set_field(&field.name, 42);
-            }
+            FieldType::Textarea | FieldType::Encryptedstring => Some(Value::String(format!(
+                "Detailed mock description for {}",
+                field.label
+            ))),
+            FieldType::Int => Some(Value::from(42)),
             FieldType::Double | FieldType::Currency | FieldType::Percent => {
-                record.set_field(&field.name, 42.42);
+                Some(Value::from(42.42))
             }
-            FieldType::Boolean => {
-                record.set_field(&field.name, true);
-            }
-            FieldType::Date => {
-                record.set_field(&field.name, "2024-01-01");
-            }
-            FieldType::Datetime => {
-                record.set_field(&field.name, "2024-01-01T12:00:00.000+0000");
-            }
-            FieldType::Time => {
-                record.set_field(&field.name, "12:00:00.000Z");
-            }
-            FieldType::Email => {
-                record.set_field(&field.name, "mock@example.com");
-            }
-            FieldType::Phone => {
-                record.set_field(&field.name, "555-0100");
-            }
-            FieldType::Url => {
-                record.set_field(&field.name, "https://example.com");
-            }
+            FieldType::Boolean => Some(Value::from(true)),
+            FieldType::Date => Some(Value::from("2024-01-01")),
+            FieldType::Datetime => Some(Value::from("2024-01-01T12:00:00.000+0000")),
+            FieldType::Time => Some(Value::from("12:00:00.000Z")),
+            FieldType::Email => Some(Value::from("mock@example.com")),
+            FieldType::Phone => Some(Value::from("555-0100")),
+            FieldType::Url => Some(Value::from("https://example.com")),
             FieldType::Picklist | FieldType::Multipicklist | FieldType::Combobox => {
                 // Try to use the first available picklist value if it exists
                 if let Some(ref values) = field.picklist_values {
                     if let Some(first_active) = values.iter().find(|v| v.active) {
-                        record.set_field(&field.name, &first_active.value);
+                        Some(Value::from(first_active.value.as_str()))
                     } else if let Some(first) = values.first() {
-                        record.set_field(&field.name, &first.value);
+                        Some(Value::from(first.value.as_str()))
                     } else {
-                        record.set_field(&field.name, "Mock Selection");
+                        Some(Value::from("Mock Selection"))
                     }
                 } else {
-                    record.set_field(&field.name, "Mock Selection");
+                    Some(Value::from("Mock Selection"))
                 }
             }
             // Handle unsupported or complex types gracefully by ignoring them
             FieldType::Base64
             | FieldType::Datacategorygroupreference
             | FieldType::Location
-            | FieldType::Address => {
-                continue;
-            }
+            | FieldType::Address => None,
+        };
+
+        if let Some(value) = value {
+            record.fields.insert(field.name.clone(), value);
         }
     }
 

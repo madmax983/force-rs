@@ -30,8 +30,6 @@ ADRs follow this structure:
 
 ## Index
 
-### Foundation Phase
-
 | ADR | Title | Status | Date |
 |-----|-------|--------|------|
 | [001](001-workspace-structure.md) | Workspace Structure and Module Organization | Accepted | 2026-02-07 |
@@ -194,4 +192,4 @@ When adding a new ADR:
 
 - [ADR Template](https://github.com/joelparkerhenderson/architecture-decision-record)
 - [Why ADRs](https://cognitect.com/blog/2011/11/15/documenting-architecture-decisions)
-- [Mark's Coding Standards](C:\Users\markm\.claude\CLAUDE.md) - "ADRs for significant decisions"
+- [Mark's Coding Standards](../../CLAUDE.md) - "ADRs for significant decisions"

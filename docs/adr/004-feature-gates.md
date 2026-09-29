@@ -297,7 +297,7 @@ impl<Auth: Authenticator> ForceClient<Auth> {
 #### Minimal REST Client (Default)
 ```toml
 [dependencies]
-force = "0.1"
+force = "0.4"
 ```
 
 ```rust
@@ -314,7 +314,7 @@ let accounts = client.query("SELECT Id FROM Account").await?;
 #### REST + Bulk API
 ```toml
 [dependencies]
-force = { version = "0.1", features = ["bulk"] }
+force = { version = "0.4", features = ["bulk"] }
 ```
 
 ```rust
@@ -325,7 +325,7 @@ let job_id = client.bulk_query("SELECT Id FROM Contact").await?;
 #### JWT Authentication
 ```toml
 [dependencies]
-force = { version = "0.1", features = ["jwt"] }
+force = { version = "0.4", features = ["jwt"] }
 ```
 
 ```rust
@@ -337,7 +337,7 @@ let client = ForceClient::builder()
 #### Full-Featured Client
 ```toml
 [dependencies]
-force = { version = "0.1", features = ["full"] }
+force = { version = "0.4", features = ["full"] }
 ```
 
 ```rust
@@ -347,7 +347,7 @@ force = { version = "0.1", features = ["full"] }
 #### Everything (Including Heavy Deps)
 ```toml
 [dependencies]
-force = { version = "0.1", features = ["all"] }
+force = { version = "0.4", features = ["all"] }
 ```
 
 ```rust
@@ -369,11 +369,11 @@ force = { version = "0.1", features = ["all"] }
 ### Cargo.toml Comments
 ```toml
 # Common feature combinations:
-# - REST only (default): force = "0.1"
-# - REST + Bulk: force = { version = "0.1", features = ["bulk"] }
-# - REST + JWT auth: force = { version = "0.1", features = ["jwt"] }
-# - All common APIs: force = { version = "0.1", features = ["full"] }
-# - Everything: force = { version = "0.1", features = ["all"] }
+# - REST only (default): force = "0.4"
+# - REST + Bulk: force = { version = "0.4", features = ["bulk"] }
+# - REST + JWT auth: force = { version = "0.4", features = ["jwt"] }
+# - All common APIs: force = { version = "0.4", features = ["full"] }
+# - Everything: force = { version = "0.4", features = ["all"] }
 ```
 
 ### API Docs with #[doc]

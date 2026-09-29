@@ -398,9 +398,9 @@ If you hit rate limits:
 
 After exploring these examples:
 
-1. Read the [ADRs](../docs/adr/) to understand design decisions
+1. Read the [ADRs](../../../docs/adr/) to understand design decisions
 2. Check the [API documentation](https://docs.rs/force) (once published)
-3. Review the [CLAUDE.md](../CLAUDE.md) for architecture overview
+3. Review the [CLAUDE.md](../../../CLAUDE.md) for architecture overview
 4. Explore the source code in `crates/force/src/`
 
 ## Contributing Examples

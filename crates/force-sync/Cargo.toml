@@ -37,3 +37,7 @@ anyhow = { workspace = true }
 async-trait = { workspace = true }
 proptest = "1.7"
 wiremock = { workspace = true }
+
+[[bench]]
+name = "plan_change_profile"
+harness = false

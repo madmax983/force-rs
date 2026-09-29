@@ -160,3 +160,43 @@ required-features = ["bulk"]
 name = "data_seeder_profile"
 harness = false
 required-features = ["data_utility"]
+
+[[bench]]
+name = "relational_seeder_profile"
+harness = false
+required-features = ["data_utility", "composite_graph"]
+
+[[bench]]
+name = "data_faker_profile"
+harness = false
+required-features = ["data_utility"]
+
+[[bench]]
+name = "soap_query_profile"
+harness = false
+required-features = ["soap"]
+
+[[bench]]
+name = "data_archiver_profile"
+harness = false
+required-features = ["data_utility"]
+
+[[bench]]
+name = "data_validator_profile"
+harness = false
+required-features = ["data_utility"]
+
+[[bench]]
+name = "data_masker_profile"
+harness = false
+required-features = ["data_utility"]
+
+[[bench]]
+name = "files_upload_profile"
+harness = false
+required-features = ["files"]
+
+[[bench]]
+name = "analytics_report_profile"
+harness = false
+required-features = ["analytics"]

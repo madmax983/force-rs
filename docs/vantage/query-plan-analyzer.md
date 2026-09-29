@@ -1,23 +1,39 @@
-# 🔭 Vantage: Spec for Query Plan Analyzer
+# 🔭 Vantage: Spec for Query Plan Analyzer — configurable cost threshold
+
+> **Status:** `force::api::rest::analyze_query_plan` shipped — it consumes an
+> `ExplainResponse`, flags `TableScan` operations, surfaces plan notes, and
+> warns on high relative cost; see the crate's rustdoc for
+> `force::api::rest::query_plan_analyzer`. What's below is the part of the
+> original spec that did **not** ship: a caller-configurable cost threshold.
+> `analyze_query_plan` hard-codes the warning trigger at
+> `plan.relative_cost > 1.0` with no parameter to change it.
 
 **Business problem:**
-Salesforce REST API SOQL queries can become massive performance bottlenecks or trigger timeouts if they lack proper indexing or involve full table scans. Developers currently lack a built-in mechanism to automatically analyze the performance implications and cost of their queries before execution, leading to degraded application performance and poor user experiences.
+Not every org or query pattern treats `relative_cost > 1.0` as the right
+warning line — a team running mostly large-object reports may want a higher
+bar, and a team optimizing a hot path may want a lower one. Today that
+threshold can't be changed without forking the analyzer.
 
 **Gap Analysis:**
-The Salesforce REST API provides a Query Explain endpoint (`/services/data/vXX.X/query/?explain=...`) which returns raw cost and execution plan data. However, there is no automated, developer-friendly way to validate this output against configurable thresholds (e.g., throwing a warning if `relative_cost > 1.0` or if `leading_operation_type` is `TableScan`). Developers are left to interpret these JSON payloads manually.
-
-**Success metric:**
-Success = Ability to execute an `explain()` analysis on a SOQL query and produce an actionable evaluation report (pass/warning) based on configurable cost thresholds in under 20ms.
+`analyze_query_plan` (`crates/force/src/api/rest/query_plan_analyzer.rs`)
+takes only an `&ExplainResponse` and compares `plan.relative_cost` against
+the literal `1.0`. There is no way to pass a different threshold in.
 
 👤 **User Story:**
-As a Backend Developer, I want to automatically analyze the execution plan of my SOQL queries before they run in production, so that I can detect and prevent inefficient table scans and high-cost operations.
+As a Backend Developer, I want to set my own relative-cost warning
+threshold, so that `analyze_query_plan` matches what "too expensive" means
+for my queries instead of a fixed default.
 
 ✅ **Acceptance Criteria:**
-- Must expose an analyzer module that consumes a `QueryPlan` response payload.
-- Must identify non-indexed queries (e.g., `TableScan`).
-- Must flag query plans with a `relative_cost` that exceeds a configurable threshold (e.g., `relative_cost > 1.0`).
-- Must output actionable warnings and context from the plan's `notes` property.
+- Must accept a configurable relative-cost threshold (defaulting to `1.0`
+  to preserve today's behavior for existing callers).
+- Must not change the `TableScan` detection or `notes` surfacing that
+  already ships.
+- Must not require a second network round-trip; the threshold is applied to
+  the `ExplainResponse` the caller already has.
 
 🚫 **Out of Scope:**
+- Configurable thresholds for anything other than `relative_cost` (e.g., a
+  configurable cardinality bound) unless a future gap analysis shows a real
+  need.
 - Automatically rewriting the SOQL query to be more efficient.
-- Applying index modifications directly to the Salesforce org.

@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.4.0] - 2026-07-15
 
-This release adds five new Salesforce API surfaces and two new workspace crates, raises the workspace MSRV to Rust 1.92, and includes API-shape corrections driven by live-org contract testing (see Changed).
+This release adds five new Salesforce API surfaces and two new workspace crates, raises the workspace MSRV to Rust 1.92, and includes API-shape corrections driven by live-org contract testing (see Changed). See [docs/guide/06-upgrading.md](docs/guide/06-upgrading.md) for a before/after fix for each breaking change below.
 
 ### Added
 
