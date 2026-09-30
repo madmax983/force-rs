@@ -394,6 +394,32 @@ mod tests {
     // Unit tests for serialization logic
 
     #[test]
+    fn test_is_api_version_prefixed() {
+        let test_cases = vec![
+            ("v60.0", true),
+            ("v60.0/sobjects/Account", true),
+            ("v1.0", true),
+            ("60.0", false),
+            ("v60", false),
+            ("v60.0.1", false),
+            ("v.0", false),
+            ("v60.", false),
+            ("vA.0", false),
+            ("v60.B", false),
+            ("services/data/v60.0", false),
+        ];
+
+        for (url, expected) in test_cases {
+            assert_eq!(
+                is_api_version_prefixed(url),
+                expected,
+                "Failed for url: {}",
+                url
+            );
+        }
+    }
+
+    #[test]
     fn test_batch_request_serialization() {
         let req = BatchRequestBody {
             halt_on_error: true,
