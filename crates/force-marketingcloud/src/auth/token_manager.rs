@@ -73,6 +73,8 @@ impl TokenManager {
     /// Useful for handling a `401` where the server invalidated the token early.
     pub async fn invalidate(&self, account_id: Option<&str>) {
         let key: CacheKey = account_id.map(ToString::to_string);
+        let key_lock = self.key_lock(&key).await;
+        let _guard = key_lock.lock().await;
         self.cache.write().await.remove(&key);
     }
 
@@ -176,6 +178,38 @@ mod tests {
         manager.invalidate(None).await;
         let _ = manager.token(None).await.unwrap();
         assert_eq!(auth.calls.load(Ordering::SeqCst), 2);
+    }
+
+    #[tokio::test]
+    async fn invalidate_race_prevention() {
+        let auth = Arc::new(CountingAuth::new(Duration::hours(1)));
+        let manager = Arc::new(TokenManager::new(auth.clone()));
+
+        // T1 starts an auth request
+        let m1 = manager.clone();
+        let t1 = tokio::spawn(async move { m1.token(None).await.unwrap() });
+
+        // Give T1 time to acquire the single-flight lock
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+
+        // T2 clears the cache
+        let m2 = manager.clone();
+        let t2 = tokio::spawn(async move {
+            m2.invalidate(None).await;
+        });
+
+        t2.await.unwrap();
+        let tok_t1 = t1.await.unwrap();
+
+        // T3 now asks for a token
+        let m3 = manager.clone();
+        let tok_t3 = m3.token(None).await.unwrap();
+
+        assert_ne!(
+            tok_t1.as_str(),
+            tok_t3.as_str(),
+            "The TokenManager resurrected a cleared cache!"
+        );
     }
 
     #[tokio::test]
