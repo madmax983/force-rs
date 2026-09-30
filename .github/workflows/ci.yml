@@ -71,6 +71,9 @@ jobs:
       - name: Compile every upgrade-guide "after" fragment against the workspace crate
         run: bash scripts/onramp/compile_upgrade_fragments.sh
 
+      - name: Resolve every `use force::` import in the guides against the workspace crate
+        run: python3 scripts/onramp/check_guide_imports.py
+
   folio-docs-drift:
     name: Folio (surfaces table drift scan)
     runs-on: ubuntu-latest
