@@ -82,8 +82,14 @@ impl MarketingCloudClient {
     /// Removes the cached token for the given business unit (`None` = default).
     ///
     /// Call after receiving a `401` to force re-authentication on the next request.
-    pub async fn invalidate_token(&self, account_id: Option<&str>) {
-        self.token_manager.invalidate(account_id).await;
+    pub async fn invalidate_token(
+        &self,
+        account_id: Option<&str>,
+        token_to_invalidate: std::sync::Arc<crate::auth::token::AccessToken>,
+    ) {
+        self.token_manager
+            .invalidate(account_id, token_to_invalidate)
+            .await;
     }
 
     // ---- Raw escape hatch --------------------------------------------------

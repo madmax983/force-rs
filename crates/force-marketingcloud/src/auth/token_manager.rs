@@ -71,9 +71,18 @@ impl TokenManager {
     /// Removes any cached token for the given business unit.
     ///
     /// Useful for handling a `401` where the server invalidated the token early.
-    pub async fn invalidate(&self, account_id: Option<&str>) {
+    pub async fn invalidate(
+        &self,
+        account_id: Option<&str>,
+        token_to_invalidate: Arc<AccessToken>,
+    ) {
         let key: CacheKey = account_id.map(ToString::to_string);
-        self.cache.write().await.remove(&key);
+        let mut cache = self.cache.write().await;
+        if let Some(cached) = cache.get(&key) {
+            if Arc::ptr_eq(cached, &token_to_invalidate) {
+                cache.remove(&key);
+            }
+        }
     }
 
     /// Returns the cached token for `key` if present and not due for refresh.
@@ -172,8 +181,8 @@ mod tests {
         let auth = Arc::new(CountingAuth::new(Duration::hours(1)));
         let manager = TokenManager::new(auth.clone());
 
-        let _ = manager.token(None).await.unwrap();
-        manager.invalidate(None).await;
+        let token = manager.token(None).await.unwrap();
+        manager.invalidate(None, token).await;
         let _ = manager.token(None).await.unwrap();
         assert_eq!(auth.calls.load(Ordering::SeqCst), 2);
     }
