@@ -29,6 +29,8 @@ async-trait = { workspace = true }
 wiremock = { workspace = true }
 anyhow = { workspace = true }
 tokio = { workspace = true }
+loom = "0.7.2"
+
 
 [[bench]]
 name = "data_extensions_insert_rows_profile"
