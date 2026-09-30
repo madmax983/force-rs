@@ -251,3 +251,85 @@ impl<A: crate::auth::authenticator::Authenticator> Session<A> {
         self.http_client.request(method, url)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::client::builder;
+    use crate::test_utils::mock_auth::MockAuthenticator;
+    use crate::test_utils::must::Must;
+
+    async fn create_test_session() -> Arc<Session<MockAuthenticator>> {
+        let auth = MockAuthenticator::new("my_token", "https://mock.salesforce.com");
+        let client = builder().authenticate(auth).build().await.must();
+        client.session()
+    }
+
+    #[tokio::test]
+    async fn test_resolve_url_empty_path() {
+        let session = create_test_session().await;
+        let url = session.resolve_url("").await.must();
+        // default API version is v67.0
+        assert_eq!(url, "https://mock.salesforce.com/services/data/v67.0");
+    }
+
+    #[tokio::test]
+    async fn test_resolve_url_with_leading_slash() {
+        let session = create_test_session().await;
+        let url = session.resolve_url("/query/?q=SELECT+Id").await.must();
+        assert_eq!(
+            url,
+            "https://mock.salesforce.com/services/data/v67.0/query/?q=SELECT+Id"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_resolve_url_without_leading_slash() {
+        let session = create_test_session().await;
+        let url = session.resolve_url("query").await.must();
+        assert_eq!(url, "https://mock.salesforce.com/services/data/v67.0/query");
+    }
+
+    #[cfg(feature = "apex_rest")]
+    #[tokio::test]
+    async fn test_resolve_apex_rest_url_empty_path() {
+        let session = create_test_session().await;
+        let url = session.resolve_apex_rest_url("").await.must();
+        assert_eq!(url, "https://mock.salesforce.com/services/apexrest");
+    }
+
+    #[cfg(feature = "apex_rest")]
+    #[tokio::test]
+    async fn test_resolve_apex_rest_url_with_leading_slash() {
+        let session = create_test_session().await;
+        let url = session
+            .resolve_apex_rest_url("/MyCustomEndpoint")
+            .await
+            .must();
+        assert_eq!(
+            url,
+            "https://mock.salesforce.com/services/apexrest/MyCustomEndpoint"
+        );
+    }
+
+    #[cfg(feature = "apex_rest")]
+    #[tokio::test]
+    async fn test_resolve_apex_rest_url_without_leading_slash() {
+        let session = create_test_session().await;
+        let url = session
+            .resolve_apex_rest_url("MyCustomEndpoint/details")
+            .await
+            .must();
+        assert_eq!(
+            url,
+            "https://mock.salesforce.com/services/apexrest/MyCustomEndpoint/details"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_instance_url() {
+        let session = create_test_session().await;
+        let url = session.instance_url().await.must();
+        assert_eq!(url, "https://mock.salesforce.com");
+    }
+}
