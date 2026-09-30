@@ -43,6 +43,8 @@ Design backlog and product-spec notes for incubating `force-rs` capabilities. Th
 - [`soql-query-builder.md`](soql-query-builder.md): nested relationship (subquery) support for the shipped `SoqlQueryBuilder` (narrowed — see the status banner in that file).
 - [`schema-analyzer.md`](schema-analyzer.md): zombie-field detection and an org-wide report for the shipped `analyze_schema` (narrowed — see the status banner in that file).
 
+- [`composite-graph-api.md`](composite-graph-api.md): transactional multi-record operations via Composite Graph API.
+
 ## Authentication
 
 - [`saml-bearer-flow.md`](saml-bearer-flow.md): OAuth 2.0 SAML Bearer Assertion Flow for Salesforce authentication.
