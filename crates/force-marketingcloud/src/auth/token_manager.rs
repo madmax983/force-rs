@@ -56,14 +56,46 @@ impl TokenManager {
         }
 
         let key_lock = self.key_lock(&key).await;
-        let _guard = key_lock.lock().await;
+
+        let soft_expired_token = {
+            let cache = self.cache.read().await;
+            cache.get(&key).cloned()
+        };
+
+        let _guard = if let Ok(g) = key_lock.try_lock() {
+            g
+        } else {
+            if let Some(token) = soft_expired_token {
+                if !token.is_expired() {
+                    return Ok(token);
+                }
+            }
+            key_lock.lock().await
+        };
 
         // Double-check: another task may have refreshed while we waited.
         if let Some(token) = self.cached_valid(&key).await {
             return Ok(token);
         }
 
-        let token = Arc::new(self.authenticator.authenticate(account_id).await?);
+        let token_result = self.authenticator.authenticate(account_id).await;
+
+        let token = match token_result {
+            Ok(t) => Arc::new(t),
+            Err(e) => {
+                let cached = {
+                    let cache = self.cache.read().await;
+                    cache.get(&key).cloned()
+                };
+                if let Some(token) = cached {
+                    if !token.is_expired() {
+                        return Ok(token);
+                    }
+                }
+                return Err(e);
+            }
+        };
+
         self.cache.write().await.insert(key, token.clone());
         Ok(token)
     }
