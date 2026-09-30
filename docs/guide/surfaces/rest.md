@@ -12,7 +12,7 @@ CRUD/Query/Describe live on the shared [`RestOperation`] trait, so it must be in
 scope:
 
 ```rust
-use force::api::rest_operation::RestOperation; // or the re-export: force::api::RestOperation
+use force::api::RestOperation;
 ```
 
 ## Query
