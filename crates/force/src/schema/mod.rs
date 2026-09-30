@@ -83,3 +83,7 @@ pub use llm_context_generator::{LlmContextOptions, generate_llm_context};
 pub(crate) mod dbt_generator;
 #[cfg(feature = "schema")]
 pub use dbt_generator::{generate_dbt_source_yml, generate_dbt_staging_model};
+#[cfg(feature = "schema")]
+pub(crate) mod go_generator;
+#[cfg(feature = "schema")]
+pub use go_generator::{generate_go_struct, write_go_struct};
