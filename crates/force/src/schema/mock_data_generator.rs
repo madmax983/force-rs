@@ -136,6 +136,10 @@ mod tests {
                 mock_field("Name", FieldType::String, true),
                 mock_field("IsActive", FieldType::Boolean, true),
                 mock_field("NumberOfEmployees", FieldType::Int, true),
+                mock_field("Revenue", FieldType::Currency, true),
+                mock_field("CreatedDate", FieldType::Datetime, true),
+                mock_field("Birthdate", FieldType::Date, true),
+                mock_field("UnknownField", FieldType::Base64, true),
             ],
         };
 
@@ -169,6 +173,31 @@ mod tests {
                 .as_i64()
                 .unwrap_or_else(|| panic!("Expected Int")),
             42
+        );
+        let revenue = obj
+            .get("Revenue")
+            .unwrap_or_else(|| panic!("Expected Revenue"))
+            .as_f64()
+            .unwrap_or_else(|| panic!("Expected Double"));
+        assert!((revenue - 42.0).abs() < f64::EPSILON);
+        assert_eq!(
+            obj.get("CreatedDate")
+                .unwrap_or_else(|| panic!("Expected CreatedDate"))
+                .as_str()
+                .unwrap_or_else(|| panic!("Expected String")),
+            "2023-01-01T00:00:00Z"
+        );
+        assert_eq!(
+            obj.get("Birthdate")
+                .unwrap_or_else(|| panic!("Expected Birthdate"))
+                .as_str()
+                .unwrap_or_else(|| panic!("Expected String")),
+            "2023-01-01"
+        );
+        assert!(
+            obj.get("UnknownField")
+                .unwrap_or_else(|| panic!("Expected UnknownField"))
+                .is_null()
         );
     }
 }
