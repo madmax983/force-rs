@@ -68,12 +68,23 @@ impl TokenManager {
         Ok(token)
     }
 
-    /// Removes any cached token for the given business unit.
+    /// Removes the cached token for the given business unit, but only if it matches the `old_token`.
     ///
     /// Useful for handling a `401` where the server invalidated the token early.
-    pub async fn invalidate(&self, account_id: Option<&str>) {
+    /// By requiring the caller to pass the token that failed, we prevent a race condition
+    /// where a concurrent request successfully refreshes the token, only for this thread
+    /// to blindly invalidate the newly fetched valid token.
+    pub async fn invalidate(&self, account_id: Option<&str>, old_token: &Arc<AccessToken>) {
         let key: CacheKey = account_id.map(ToString::to_string);
-        self.cache.write().await.remove(&key);
+        let mut cache = self.cache.write().await;
+
+        // Only remove the token if the cache still holds the exact token that failed.
+        if let Some(cached) = cache.get(&key) {
+            // Because AccessToken contains a random token string, we can simply compare the strings.
+            if cached.as_str() == old_token.as_str() {
+                cache.remove(&key);
+            }
+        }
     }
 
     /// Returns the cached token for `key` if present and not due for refresh.
@@ -172,8 +183,8 @@ mod tests {
         let auth = Arc::new(CountingAuth::new(Duration::hours(1)));
         let manager = TokenManager::new(auth.clone());
 
-        let _ = manager.token(None).await.unwrap();
-        manager.invalidate(None).await;
+        let tok = manager.token(None).await.unwrap();
+        manager.invalidate(None, &tok).await;
         let _ = manager.token(None).await.unwrap();
         assert_eq!(auth.calls.load(Ordering::SeqCst), 2);
     }
