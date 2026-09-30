@@ -1580,6 +1580,83 @@ mod tests {
         assert!(err.to_string().contains("Security Error"));
     }
 
+    #[tokio::test]
+    async fn test_create_invalid_sobject_name() {
+        use crate::client::builder;
+        use crate::test_utils::must::Must;
+        use wiremock::MockServer;
+
+        let mock_server = MockServer::start().await;
+        let auth =
+            crate::test_utils::mock_auth::MockAuthenticator::new("test_token", &mock_server.uri());
+        let client = builder().authenticate(auth).build().await.must();
+        let rest = client.rest();
+
+        let result = rest
+            .create("Invalid SObject!", &serde_json::json!({}))
+            .await;
+        let Err(err) = result else {
+            panic!("Expected Err");
+        };
+        assert!(
+            err.to_string()
+                .contains("SObject name contains invalid characters")
+        );
+    }
+
+    #[tokio::test]
+    async fn test_get_invalid_sobject_name() {
+        use crate::client::builder;
+        use crate::test_utils::must::Must;
+        use crate::types::SalesforceId;
+        use wiremock::MockServer;
+
+        let mock_server = MockServer::start().await;
+        let auth =
+            crate::test_utils::mock_auth::MockAuthenticator::new("test_token", &mock_server.uri());
+        let client = builder().authenticate(auth).build().await.must();
+        let rest = client.rest();
+
+        let id = SalesforceId::new("001000000000001AAA").must();
+        let result = rest.get("Invalid SObject!", &id).await;
+        let Err(err) = result else {
+            panic!("Expected Err");
+        };
+        assert!(
+            err.to_string()
+                .contains("SObject name contains invalid characters")
+        );
+    }
+
+    #[tokio::test]
+    async fn test_upsert_invalid_external_id_field() {
+        use crate::client::builder;
+        use crate::test_utils::must::Must;
+        use wiremock::MockServer;
+
+        let mock_server = MockServer::start().await;
+        let auth =
+            crate::test_utils::mock_auth::MockAuthenticator::new("test_token", &mock_server.uri());
+        let client = builder().authenticate(auth).build().await.must();
+        let rest = client.rest();
+
+        let result = rest
+            .upsert(
+                "Account",
+                "Invalid Field!",
+                "ext123",
+                &serde_json::json!({}),
+            )
+            .await;
+        let Err(err) = result else {
+            panic!("Expected Err");
+        };
+        assert!(
+            err.to_string()
+                .contains("External ID field name contains invalid characters")
+        );
+    }
+
     #[test]
     fn test_query_more_security_check_password_mismatch() {
         let result = resolve_next_records_url(
