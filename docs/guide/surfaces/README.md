@@ -10,7 +10,7 @@ CRUD / Query / Describe on the REST and Tooling handlers come from the shared
 `RestOperation` trait, which must be in scope:
 
 ```rust
-use force::api::rest_operation::RestOperation; // or the re-export force::api::RestOperation
+use force::api::RestOperation;
 ```
 
 ## Surfaces

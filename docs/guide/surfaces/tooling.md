@@ -17,7 +17,7 @@ CRUD/Query/Describe come from the shared [`RestOperation`] trait, so bring it in
 scope:
 
 ```rust
-use force::api::rest_operation::RestOperation; // or force::api::RestOperation
+use force::api::RestOperation;
 ```
 
 ## Shared operations (Tooling objects)
