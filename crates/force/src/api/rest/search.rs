@@ -867,11 +867,31 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "unbalanced parentheses (unclosed opening) in field")]
-    fn test_returning_invalid_unclosed_parenthesis() {
+    #[should_panic(expected = "unclosed quote in field: 'unclosed")]
+    fn test_returning_invalid_unclosed_quote() {
+        let _ = SearchQueryBuilder::new()
+            .find("test")
+            .returning("Account", &["'unclosed"])
+            .build();
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "unbalanced parentheses (unclosed opening) in field: toLabel(Industry"
+    )]
+    fn test_returning_invalid_unclosed_opening_parenthesis() {
         let _ = SearchQueryBuilder::new()
             .find("test")
             .returning("Account", &["toLabel(Industry"])
+            .build();
+    }
+
+    #[test]
+    #[should_panic(expected = "unbalanced parentheses (unexpected closing) in field: Name)")]
+    fn test_returning_invalid_unexpected_closing_parenthesis() {
+        let _ = SearchQueryBuilder::new()
+            .find("test")
+            .returning("Account", &["Name)"])
             .build();
     }
 
