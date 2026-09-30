@@ -57,7 +57,7 @@ def main() -> int:
     (OUT / "src" / "lib.rs").write_text("\n".join(lines) + "\n")
 
     proc = subprocess.run(
-        ["cargo", "check", "--keep-going", "--message-format", "short"],
+        ["cargo", "check", "--keep-going", "--color", "never", "--message-format", "short"],
         cwd=OUT, capture_output=True, text=True,
     )
     bad: dict[int, str] = {}
