@@ -18,7 +18,7 @@ force = { version = "...", features = ["bulk"] }
 terminal state and returns the final `JobInfo`.
 
 ```rust
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, serde::Deserialize)]
 struct Account { #[serde(rename = "Name")] name: String }
 
 let accounts = vec![Account { name: "Acme".into() }];

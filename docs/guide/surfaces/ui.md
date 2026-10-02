@@ -36,7 +36,7 @@ Other record methods: `get_records_batch`, `create_record`, `update_record`,
 let info    = ui.object_info("Account").await?;          // object metadata
 let batch   = ui.object_infos_batch(&["Account", "Contact"]).await?;
 let layout  = ui.layout("Account", None, None).await?;   // page layout
-let records = ui.list_records("Account", "MyListView", None).await?;
+let records = ui.list_records("00B000000000001AAA", None, None).await?;
 ```
 
 List-view methods: `list_ui`, `list_views`, `list_records`, `list_info`.

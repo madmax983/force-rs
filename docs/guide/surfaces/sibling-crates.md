@@ -20,6 +20,7 @@ replay support. Authenticates by reusing a `force` `Session` (Client Credentials
 
 ```rust
 use force_pubsub::{PubSubConfig, PubSubHandler, PubSubEvent, ReplayPreset};
+use futures::StreamExt; // for `stream.next()`
 
 let handler = PubSubHandler::connect(force_client.session(), PubSubConfig::default()).await?;
 let mut stream = handler.subscribe("/data/AccountChangeEvent", ReplayPreset::Latest).await?;

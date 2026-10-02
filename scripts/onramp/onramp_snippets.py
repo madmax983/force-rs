@@ -48,7 +48,19 @@ rest of the codebase:
                       fragments carry an `onramp-fragment:` marker and are
                       checked here.
 
+  extract-surface-fragments
+                      Pull every ```rust fence out of docs/guide/surfaces/*.md
+                      and docs/guide/03-operations.md -- the pages a developer
+                      opens after the quickstart, for their actual use case
+                      ("first real integration") -- and wrap each in a shared
+                      stub (authenticated `client`, `Account`, `MyType`) so it
+                      type-checks standalone. No per-fence markers: these pages
+                      are reference-style and grow often, so *every* fence is
+                      checked by default, and a fence needing extra context
+                      gets an entry in SURFACE_EXTRA_PREAMBLES, not a skip.
+
 Usage:
+    python3 scripts/onramp/onramp_snippets.py extract-surface-fragments --out DIR
     python3 scripts/onramp/onramp_snippets.py extract-programs --out DIR [FILES...]
     python3 scripts/onramp/onramp_snippets.py check-version-pins [FILES...]
     python3 scripts/onramp/onramp_snippets.py extract-quickstart --out DIR
@@ -159,7 +171,7 @@ UPGRADE_CLIENT_STUB = """
     use force::auth::ClientCredentials;
     use force::client::ForceClientBuilder;
     let auth = ClientCredentials::new_production("stub-client-id", "stub-client-secret");
-    let client = ForceClientBuilder::new().authenticate(auth).build().await?;
+    let client = ForceClientBuilder::new().authenticate(auth.clone()).build().await?;
 """
 UPGRADE_FRAGMENT_PREAMBLES: dict[str, str] = {
     "upgrade_org_limits": UPGRADE_CLIENT_STUB,
@@ -169,6 +181,68 @@ UPGRADE_FRAGMENT_PREAMBLES: dict[str, str] = {
         let query = "query { uiapi { query { Account { edges { node { Id } } } } } }";
     """,
 }
+
+
+SURFACE_DOCS_DIR = REPO_ROOT / "docs" / "guide" / "surfaces"
+SURFACE_DOCS = sorted(SURFACE_DOCS_DIR.glob("*.md")) + [REPO_ROOT / "docs" / "guide" / "03-operations.md"]
+# Items shared by every surface fragment: crate-level lint relaxation, an
+# `Account` row type (the guides use it as the example `T`), and `MyType`
+# (the guides' placeholder for "your own deserialize type").
+SURFACE_HEADER = """#![allow(unused, clippy::all)]
+use force::api::RestOperation; // each REST/Tooling page tells the reader once, up top, to import this
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
+#[derive(Debug, Clone, Deserialize, Serialize)]
+struct Account {
+    #[serde(rename = "Id")]
+    id: String,
+    #[serde(rename = "Name")]
+    name: String,
+}
+type MyType = Value;
+type MyResponse = Value;
+type MyRecord = Value;
+"""
+SURFACE_CLIENT_STUB = """
+    // `auth` is reader-supplied on some pages; keep it unconsumed so a fence
+    // that moves it into its own builder still type-checks.
+    let auth = force::auth::ClientCredentials::new_production("stub-client-id", "stub-client-secret");
+    let stub_auth = force::auth::ClientCredentials::new_production("stub-client-id", "stub-client-secret");
+    let client = force::client::ForceClientBuilder::new().authenticate(stub_auth).build().await?;
+"""
+# Page-specific stubs, keyed by doc stem, for pages that reference variables the page deliberately leaves to the
+# reader. Values are types-only throwaways.
+SURFACE_EXTRA_PREAMBLES: dict[str, str] = {
+    "03-operations": """
+        let soql = "SELECT Id FROM Account";
+    """,
+    "apex-rest": """
+        let request_body = json!({});
+        let body = json!({});
+    """,
+    "bulk": """
+        let records: Vec<Value> = vec![];
+    """,
+    "data-utility": """
+        let mut contact: force::types::DynamicSObject = serde_json::from_value(json!({}))?;
+    """,
+    "files": """
+        let file_bytes: Vec<u8> = vec![];
+        let content_document_id = "069000000000001AAA";
+        let account_id = "001000000000001AAA";
+    """,
+    "sibling-crates": """
+        let force_client = &client;
+    """,
+    "soap": """
+        let records: Vec<force::api::soap::SObject> = vec![];
+    """,
+}
+
+
+# Pages whose fences `return Err(e)` a bare ForceError (no anyhow conversion),
+# so the stub `main` has to return that type instead of anyhow::Result.
+SURFACE_MAIN_RETURN: dict[str, str] = {"soap": "force::error::Result<()>"}
 
 
 def workspace_version() -> str:
@@ -378,9 +452,60 @@ def cmd_extract_upgrade_fragments(args: argparse.Namespace) -> int:
     )
 
 
+def cmd_extract_surface_fragments(args: argparse.Namespace) -> int:
+    """One program per page, fences concatenated in page order: these pages
+    are read top to bottom and later fences use variables an earlier fence
+    bound (`let ae = ...` once, then `ae.get_raw(...)`), so a fence-at-a-time
+    check would flag every continuation as a false positive."""
+    out_dir = Path(args.out)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    manifest = []
+    used: set[str] = set()
+    for doc in SURFACE_DOCS:
+        fences = extract_rust_fences(doc.read_text())
+        if not fences:
+            continue
+        uses: list[str] = []
+        body: list[str] = []
+        for fence in fences:
+            for line in fence.split("\n"):
+                if line.startswith("use "):
+                    if line not in uses and line != "use force::api::RestOperation;":
+                        uses.append(line)
+                else:
+                    body.append(line)
+        if doc.stem in SURFACE_EXTRA_PREAMBLES:
+            used.add(doc.stem)
+        extra = SURFACE_EXTRA_PREAMBLES.get(doc.stem, "")
+        program = (
+            SURFACE_HEADER
+            + "\n".join(uses)
+            + f"\n#[tokio::main]\nasync fn main() -> {SURFACE_MAIN_RETURN.get(doc.stem, 'anyhow::Result<()>')} {{"
+            + SURFACE_CLIENT_STUB
+            + textwrap.dedent(extra)
+            + "\n"
+            + "\n".join(body)
+            + "\n    Ok(())\n}\n"
+        )
+        name = f"page_{doc.stem}.rs".replace("-", "_")
+        (out_dir / name).write_text(program)
+        manifest.append(f"{name}\t{len(fences)} fence(s)\t{doc.relative_to(REPO_ROOT)}")
+    (out_dir / "MANIFEST.tsv").write_text("\n".join(manifest) + "\n")
+    print(f"Extracted {len(manifest)} page program(s) from {len(SURFACE_DOCS)} doc(s) into {out_dir}")
+    stale = set(SURFACE_EXTRA_PREAMBLES) - used
+    if stale:
+        print(f"SURFACE_EXTRA_PREAMBLES has stale keys: {sorted(stale)}", file=sys.stderr)
+        return 1
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
+
+    p_surface = sub.add_parser("extract-surface-fragments")
+    p_surface.add_argument("--out", required=True)
+    p_surface.set_defaults(func=cmd_extract_surface_fragments)
 
     p_extract = sub.add_parser("extract-programs")
     p_extract.add_argument("--out", required=True)

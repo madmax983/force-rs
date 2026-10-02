@@ -47,7 +47,12 @@ let graph = client.composite().graph();
 
 // SoqlMassOp: query records, then update them all via chunked composite batches
 use force::api::composite::SoqlMassOp;
-let stats = SoqlMassOp::new(&client, "SELECT Id FROM Account WHERE Industry = 'Tech'")
+use force::api::SoqlQueryBuilder;
+let query = SoqlQueryBuilder::new()
+    .select(&["Id"])
+    .from("Account")
+    .where_eq("Industry", "Tech");
+let stats = SoqlMassOp::new(&client, query)
     .halt_on_error(false)
     .update_all(json!({ "Description": "bulk-updated" }))
     .await?;
