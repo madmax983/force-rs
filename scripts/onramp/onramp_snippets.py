@@ -171,7 +171,7 @@ UPGRADE_CLIENT_STUB = """
     use force::auth::ClientCredentials;
     use force::client::ForceClientBuilder;
     let auth = ClientCredentials::new_production("stub-client-id", "stub-client-secret");
-    let client = ForceClientBuilder::new().authenticate(auth).build().await?;
+    let client = ForceClientBuilder::new().authenticate(auth.clone()).build().await?;
 """
 UPGRADE_FRAGMENT_PREAMBLES: dict[str, str] = {
     "upgrade_org_limits": UPGRADE_CLIENT_STUB,
@@ -204,8 +204,11 @@ type MyResponse = Value;
 type MyRecord = Value;
 """
 SURFACE_CLIENT_STUB = """
+    // `auth` is reader-supplied on some pages; keep it unconsumed so a fence
+    // that moves it into its own builder still type-checks.
     let auth = force::auth::ClientCredentials::new_production("stub-client-id", "stub-client-secret");
-    let client = force::client::ForceClientBuilder::new().authenticate(auth).build().await?;
+    let stub_auth = force::auth::ClientCredentials::new_production("stub-client-id", "stub-client-secret");
+    let client = force::client::ForceClientBuilder::new().authenticate(stub_auth).build().await?;
 """
 # Page-specific stubs, keyed by doc stem, for pages that reference variables the page deliberately leaves to the
 # reader. Values are types-only throwaways.

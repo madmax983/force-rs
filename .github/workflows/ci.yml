@@ -74,6 +74,9 @@ jobs:
       - name: Resolve every `use force::` import in the guides against the workspace crate
         run: python3 scripts/onramp/check_guide_imports.py
 
+      - name: Compile every surface-guide and operations-guide rust fence (page at a time) against the workspace crate
+        run: bash scripts/onramp/compile_surface_fragments.sh
+
   folio-docs-drift:
     name: Folio (surfaces table drift scan)
     runs-on: ubuntu-latest

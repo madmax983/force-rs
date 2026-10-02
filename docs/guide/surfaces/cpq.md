@@ -31,7 +31,7 @@ let updated = cpq.add_products("a0x000000000001AAA", &request).await?;
 
 ```rust
 let product  = cpq.load_product("01t000000000001AAA").await?;
-let config   = cpq.load_config(/* ... */).await?;
+let config   = cpq.load_config("a0x000000000001AAA", "01t000000000001AAA").await?;
 let valid    = cpq.validate_config(&config).await?;
 let amended  = cpq.amend_contract("800000000000001AAA").await?;
 
