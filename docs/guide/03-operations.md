@@ -10,6 +10,7 @@ and the `HttpExecutor` (`crates/force/src/http/executor.rs`).
 
 ```rust
 use std::time::Duration;
+use force::client::ForceClientBuilder;
 use force::config::{ClientConfig, Environment};
 
 let config = ClientConfig {
@@ -185,9 +186,10 @@ Handling pattern — match the top-level variant, then drill into `HttpError` fo
 operational decisions:
 
 ```rust
+use force::api::RestOperation; // brings `query` into scope
 use force::error::{ForceError, HttpError, AuthenticationError};
 
-match client.rest().query(soql).await {
+match client.rest().query::<serde_json::Value>(soql).await {
     Ok(result) => { /* ... */ }
 
     // Org-wide 24h limit hit: back off for the advertised window.

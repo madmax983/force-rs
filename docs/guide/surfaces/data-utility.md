@@ -24,6 +24,8 @@ skipping `autoNumber`/`calculated` fields and picking a valid picklist value
 where one exists.
 
 ```rust
+use force::api::RestOperation; // brings `describe` into scope
+
 // Fetch the metadata for an Account
 let describe = client.rest().describe("Account").await?;
 
