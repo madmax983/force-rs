@@ -54,14 +54,16 @@ PREAMBLES: dict[str, str] = {
     "cpq": "let cpq = client.cpq();",
     "tooling": "let tooling = client.tooling();",
     "account-engagement": "let ae = client.account_engagement(\"0Uv000000000001AAA\");",
+    "data-cloud": "let auth = force::auth::ClientCredentials::new(\"client_id\", \"client_secret\", \"https://login.salesforce.com/services/oauth2/token\");",
+    "sibling-crates": "let force_client = &client;",
     "soap": "let records: Vec<force::api::soap::SObject> = vec![];",
 }
 
+# Pages whose calls return a sibling-crate error type, not ForceError.
+BOXED_ERR = {"sibling-crates"}
+
 # Fences that cannot be a plain async fn body. Each needs a reason.
-SKIP: dict[str, str] = {
-    "sibling-crates": "separate crates (tonic/arrow/parquet); each crate's own README is the compile surface",
-    "data-cloud": "builder fragment: needs a caller-supplied `auth` of a concrete authenticator type",
-}
+SKIP: dict[str, str] = {}
 
 FENCE = re.compile(r"```rust\n(.*?)```", re.S)
 
@@ -77,9 +79,10 @@ def build() -> list[tuple[str, int, str]]:
             continue
         for i, body in enumerate(FENCE.findall(page.read_text()), 1):
             name = f"{stem.replace('-', '_')}__{i}"
+            ret = "std::result::Result<(), Box<dyn std::error::Error>>" if stem in BOXED_ERR else "force::error::Result<()>"
             src = (
                 HEAD
-                + "async fn run(client: force::client::ForceClient<force::auth::ClientCredentials>) -> force::error::Result<()> {\n"
+                + f"async fn run(client: force::client::ForceClient<force::auth::ClientCredentials>) -> {ret} {{\n"
                 + PREAMBLES.get(stem, "")
                 + "\n"
                 + body
@@ -108,6 +111,9 @@ anyhow = "1"
 serde = {{ version = "1", features = ["derive"] }}
 serde_json = "1"
 futures = "0.3"
+force-pubsub = {{ path = "{REPO}/crates/force-pubsub" }}
+force-lake = {{ path = "{REPO}/crates/force-lake" }}
+force-marketingcloud = {{ path = "{REPO}/crates/force-marketingcloud" }}
 """
     )
     env_args = ["cargo", "check", "--bins", "--keep-going", "--message-format", "short", "--color", "never"]
