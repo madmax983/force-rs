@@ -389,12 +389,15 @@ cargo doc --no-deps --all-features
 - Mock external dependencies
 
 ### Integration Tests
+Live in `crates/force/tests/` (see its `README.md`):
 ```
-tests/
-├── auth_flows.rs          # End-to-end auth flows
-├── rest_api.rs            # REST API integration
+crates/force/tests/
+├── live_*.rs              # Env-gated live-contract tests (ADR-033)
+├── havoc_*.rs             # Concurrency / DoS / panic hardening
+├── security_*.rs          # Injection regressions (SOQL/SOSL/upsert/bulk)
+├── regression_*.rs        # Pinned bug regressions
 └── common/
-    └── fixtures.rs        # Shared test fixtures
+    └── mod.rs             # Shared test helpers
 ```
 
 ### Test Doubles
