@@ -402,7 +402,7 @@ mod tests {
         let req = build_fetch_request("/event/Test__e", &ReplayPreset::Latest, 50);
         assert_eq!(req.topic_name, "/event/Test__e");
         assert_eq!(req.replay_preset, 0);
-        assert!(req.replay_id.is_empty());
+        assert_eq!(req.replay_id, [] as [u8; 0]);
         assert_eq!(req.num_requested, 50);
     }
 
@@ -410,7 +410,7 @@ mod tests {
     fn test_build_fetch_request_earliest() {
         let req = build_fetch_request("/event/Test__e", &ReplayPreset::Earliest, 10);
         assert_eq!(req.replay_preset, 1);
-        assert!(req.replay_id.is_empty());
+        assert_eq!(req.replay_id, [] as [u8; 0]);
     }
 
     #[test]

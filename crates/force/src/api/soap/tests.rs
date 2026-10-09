@@ -261,7 +261,7 @@ async fn test_query_sends_soql_in_body() {
     let result = client.soap().query("SELECT Id FROM Account").await.must();
     assert!(result.done);
     assert_eq!(result.size, 0);
-    assert!(result.records.is_empty());
+    assert_eq!(result.records.len(), 0);
 }
 
 #[tokio::test]
@@ -322,7 +322,7 @@ async fn test_create_partial_failure() {
     assert_eq!(results.len(), 2);
     assert!(results[0].success);
     assert_eq!(results[0].id.as_deref(), Some("001AAA"));
-    assert!(results[0].errors.is_empty());
+    assert_eq!(results[0].errors.len(), 0);
 
     assert!(!results[1].success);
     assert_eq!(results[1].id, None);

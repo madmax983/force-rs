@@ -351,7 +351,7 @@ mod tests {
         assert_eq!(result.successes[0].method_name, "testMethod1");
         assert_eq!(result.successes[0].name, "MyTestClass");
         assert!((result.successes[0].time - 500.0).abs() < f64::EPSILON);
-        assert!(result.failures.is_empty());
+        assert_eq!(result.failures.len(), 0);
     }
 
     #[tokio::test]

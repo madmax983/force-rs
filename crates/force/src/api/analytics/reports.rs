@@ -321,7 +321,7 @@ mod tests {
 
         let results = client.analytics().run_report("00O000", false).await.must();
         assert!(!results.has_detail_rows);
-        assert!(results.fact_map["T!T"].rows.is_empty());
+        assert_eq!(results.fact_map["T!T"].rows.len(), 0);
     }
 
     #[tokio::test]

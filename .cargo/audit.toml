@@ -1,0 +1,10 @@
+# cargo-audit configuration. Mirrors the advisory ignores in deny.toml so the
+# `Security Audit` workflow (`cargo audit --deny warnings`) agrees with the
+# `cargo deny` job. See deny.toml for the rationale on each entry.
+[advisories]
+ignore = [
+    "RUSTSEC-2025-0134", # rustls-pemfile unmaintained (tonic 0.12.x, force-pubsub)
+    "RUSTSEC-2024-0436", # paste unmaintained (parquet -> iceberg tree)
+    "RUSTSEC-2026-0194", # quick-xml < 0.41 (opendal 0.55 / reqsign 0.16 pin; force-lake only)
+    "RUSTSEC-2026-0195", # quick-xml < 0.41 (same pin)
+]

@@ -195,3 +195,8 @@ required-features = ["files"]
 name = "analytics_report_profile"
 harness = false
 required-features = ["analytics"]
+
+[[bench]]
+name = "rest_query_profile"
+harness = false
+required-features = ["rest"]

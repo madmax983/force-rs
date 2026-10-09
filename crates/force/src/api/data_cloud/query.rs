@@ -107,7 +107,7 @@ mod tests {
         }"#;
 
         let response: SqlQueryResponse = serde_json::from_str(json).must();
-        assert!(response.data.is_empty());
+        assert_eq!(response.data.len(), 0);
         assert_eq!(response.row_count, Some(0));
     }
 
@@ -223,7 +223,7 @@ mod tests {
             let dc = client.data_cloud().must();
             let result = dc.query_sql("SELECT Id FROM Empty__dlm").await.must();
 
-            assert!(result.data.is_empty());
+            assert_eq!(result.data.len(), 0);
             assert_eq!(result.row_count, Some(0));
         }
 

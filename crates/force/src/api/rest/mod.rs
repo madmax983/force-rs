@@ -351,6 +351,6 @@ mod tests {
         let handler = client.rest();
 
         let debug_str = format!("{:?}", handler);
-        assert!(!debug_str.is_empty());
+        assert_ne!(debug_str.len(), 0);
     }
 }

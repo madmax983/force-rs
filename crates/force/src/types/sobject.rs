@@ -77,7 +77,7 @@ impl Attributes {
 ///
 /// assert_eq!(account.get_field("Name").and_then(|v| v.as_str()), Some("Acme Corp"));
 /// ```
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct DynamicSObject {
     /// Standard SObject attributes.
     pub attributes: Attributes,
@@ -85,6 +85,48 @@ pub struct DynamicSObject {
     /// Dynamic fields stored as a JSON map.
     #[serde(flatten)]
     pub fields: Map<String, Value>,
+}
+
+/// Hand-written to avoid `#[serde(flatten)]`, which buffers every field of
+/// every record through serde's `Content` tree before converting to `Value`.
+impl<'de> Deserialize<'de> for DynamicSObject {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct SObjectVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for SObjectVisitor {
+            type Value = DynamicSObject;
+
+            fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                f.write_str("a Salesforce SObject record")
+            }
+
+            fn visit_map<A>(self, mut map: A) -> Result<DynamicSObject, A::Error>
+            where
+                A: serde::de::MapAccess<'de>,
+            {
+                let mut attributes: Option<Attributes> = None;
+                let mut fields = Map::new();
+                while let Some(key) = map.next_key::<std::borrow::Cow<'de, str>>()? {
+                    if key == "attributes" {
+                        if attributes.is_some() {
+                            return Err(serde::de::Error::duplicate_field("attributes"));
+                        }
+                        attributes = Some(map.next_value()?);
+                    } else {
+                        fields.insert(key.into_owned(), map.next_value::<Value>()?);
+                    }
+                }
+                let attributes =
+                    attributes.ok_or_else(|| serde::de::Error::missing_field("attributes"))?;
+                Ok(DynamicSObject { attributes, fields })
+            }
+        }
+
+        deserializer.deserialize_map(SObjectVisitor)
+    }
 }
 
 impl DynamicSObject {
@@ -179,10 +221,51 @@ impl DynamicSObject {
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
     use crate::test_utils::must::Must;
     use serde_json::json;
 
+    #[test]
+    fn dynamic_sobject_deserialize_keeps_extra_fields_and_nested_values() {
+        let json = r#"{"attributes":{"type":"Account","url":"/u"},"Name":"A","N":1,"Owner":{"Name":"B"},"X":null}"#;
+        let rec: DynamicSObject = serde_json::from_str(json).must();
+        assert_eq!(rec.attributes.type_, "Account");
+        assert_eq!(rec.fields.len(), 4);
+        assert_eq!(rec.fields["Owner"]["Name"], "B");
+        assert!(rec.fields["X"].is_null());
+        // key order independence
+        let rec2: DynamicSObject =
+            serde_json::from_str(r#"{"Name":"A","attributes":{"type":"T","url":"/u"}}"#).must();
+        assert_eq!(rec2.fields["Name"], "A");
+    }
+
+    #[test]
+    fn dynamic_sobject_deserialize_rejects_non_object_with_expectation() {
+        let err = serde_json::from_str::<DynamicSObject>("3").err().must();
+        assert!(err.to_string().contains("a Salesforce SObject record"));
+        let err = serde_json::from_str::<DynamicSObject>(r#"{"Name":"A"}"#)
+            .err()
+            .must();
+        assert!(err.to_string().contains("attributes"));
+        let err = serde_json::from_str::<DynamicSObject>(
+            r#"{"attributes":{"type":"T","url":"/u"},"attributes":{"type":"T","url":"/u"}}"#,
+        )
+        .err()
+        .must();
+        assert!(err.to_string().contains("duplicate field"));
+    }
+
+    #[test]
+    fn dynamic_sobject_deserialize_requires_single_attributes() {
+        assert!(serde_json::from_str::<DynamicSObject>(r#"{"Name":"A"}"#).is_err());
+        assert!(
+            serde_json::from_str::<DynamicSObject>(
+                r#"{"attributes":{"type":"T","url":"/u"},"attributes":{"type":"T","url":"/u"}}"#
+            )
+            .is_err()
+        );
+    }
     // RED PHASE - Write failing tests first
 
     #[test]

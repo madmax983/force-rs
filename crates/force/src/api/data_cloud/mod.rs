@@ -175,7 +175,7 @@ mod tests {
         let client = test_dc_client().await;
         let handler = client.data_cloud().must();
         let debug = format!("{handler:?}");
-        assert!(!debug.is_empty());
+        assert_ne!(debug.len(), 0);
     }
 
     #[tokio::test]

@@ -1039,7 +1039,7 @@ mod tests {
         let json_str = r#"{"hasErrors": false, "results": []}"#;
         let result: BatchResultRepresentation = serde_json::from_str(json_str).must();
         assert!(!result.has_errors);
-        assert!(result.results.is_empty());
+        assert_eq!(result.results.len(), 0);
     }
 
     #[test]

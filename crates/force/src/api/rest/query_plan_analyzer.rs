@@ -158,7 +158,7 @@ mod tests {
         let insights = analyze_query_plan(&response);
 
         assert_eq!(insights.evaluated_plans, 0);
-        assert!(insights.insights.is_empty());
+        assert_eq!(insights.insights.len(), 0);
         assert_eq!(insights.best_operation_type, None);
     }
 
@@ -197,7 +197,7 @@ mod tests {
         assert_eq!(insights.evaluated_plans, 1);
         assert_eq!(insights.best_operation_type, Some("IndexScan"));
         assert!((insights.lowest_cost - 0.1).abs() < f64::EPSILON);
-        assert!(insights.insights.is_empty()); // Clean, highly selective index scan
+        assert_eq!(insights.insights.len(), 0); // Clean, highly selective index scan
     }
 
     #[test]

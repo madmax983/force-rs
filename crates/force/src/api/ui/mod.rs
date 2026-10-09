@@ -242,7 +242,7 @@ mod tests {
         let client = test_client().await;
         let handler = client.ui();
         let debug = format!("{handler:?}");
-        assert!(!debug.is_empty());
+        assert_ne!(debug.len(), 0);
     }
 
     #[tokio::test]

@@ -55,7 +55,7 @@ fn identical_hashes_become_noop() {
 
     assert_eq!(decision.lane, ApplyLane::Noop);
     assert!(decision.payload.is_none());
-    assert!(decision.conflicts.is_empty());
+    assert_eq!(decision.conflicts, [] as [std::string::String; 0]);
 }
 
 #[test]
@@ -97,7 +97,7 @@ fn postgres_owned_field_wins_when_salesforce_changes_it() {
     );
     assert_eq!(decision.lane, ApplyLane::Noop);
     assert!(decision.payload.is_none());
-    assert!(decision.conflicts.is_empty());
+    assert_eq!(decision.conflicts, [] as [std::string::String; 0]);
 }
 
 #[test]
