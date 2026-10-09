@@ -241,6 +241,22 @@ mod tests {
     }
 
     #[test]
+    fn dynamic_sobject_deserialize_rejects_non_object_with_expectation() {
+        let err = serde_json::from_str::<DynamicSObject>("3").err().must();
+        assert!(err.to_string().contains("a Salesforce SObject record"));
+        let err = serde_json::from_str::<DynamicSObject>(r#"{"Name":"A"}"#)
+            .err()
+            .must();
+        assert!(err.to_string().contains("attributes"));
+        let err = serde_json::from_str::<DynamicSObject>(
+            r#"{"attributes":{"type":"T","url":"/u"},"attributes":{"type":"T","url":"/u"}}"#,
+        )
+        .err()
+        .must();
+        assert!(err.to_string().contains("duplicate field"));
+    }
+
+    #[test]
     fn dynamic_sobject_deserialize_requires_single_attributes() {
         assert!(serde_json::from_str::<DynamicSObject>(r#"{"Name":"A"}"#).is_err());
         assert!(
