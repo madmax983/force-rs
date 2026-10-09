@@ -16,7 +16,12 @@
 //! valgrind --tool=callgrind --callgrind-out-file=callgrind.out "$BIN"
 //! valgrind --tool=dhat --dhat-out-file=dhat.out "$BIN"
 //! ```
-#![allow(clippy::unwrap_used, clippy::expect_used, missing_docs)]
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::format_push_string,
+    missing_docs
+)]
 
 use force::api::RestOperation;
 use force::auth::{AccessToken, Authenticator, TokenResponse};
