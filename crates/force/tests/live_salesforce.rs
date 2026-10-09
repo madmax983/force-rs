@@ -781,8 +781,8 @@ mod jwt_auth_tests {
                 timeout_seconds: 30,
             })??;
 
-        assert!(!token1.as_str().is_empty());
-        assert!(!token2.as_str().is_empty());
+        assert_ne!(token1.as_str(), "");
+        assert_ne!(token2.as_str(), "");
         assert_eq!(
             token1.instance_url(),
             token2.instance_url(),
@@ -908,8 +908,8 @@ mod client_credentials_auth_tests {
                 timeout_seconds: 30,
             })??;
 
-        assert!(!token1.as_str().is_empty());
-        assert!(!token2.as_str().is_empty());
+        assert_ne!(token1.as_str(), "");
+        assert_ne!(token2.as_str(), "");
         assert_eq!(
             token1.instance_url(),
             token2.instance_url(),
@@ -1033,8 +1033,8 @@ mod username_password_auth_tests {
                 timeout_seconds: 30,
             })??;
 
-        assert!(!token1.as_str().is_empty());
-        assert!(!token2.as_str().is_empty());
+        assert_ne!(token1.as_str(), "");
+        assert_ne!(token2.as_str(), "");
         assert_eq!(
             token1.instance_url(),
             token2.instance_url(),
@@ -1293,7 +1293,7 @@ async fn live_bulk_query_stream_smoke() -> Result<()> {
 
         let mut seen = 0usize;
         while let Some(row) = stream.next().await? {
-            assert!(!row.id.is_empty());
+            assert_ne!(row.id, "");
             seen += 1;
             if seen >= config.runtime.bulk_query_row_limit {
                 break;

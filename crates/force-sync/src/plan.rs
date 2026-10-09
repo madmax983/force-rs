@@ -465,7 +465,7 @@ mod tests {
         let decision = plan_change(&ctx, &envelope);
         assert_eq!(decision.lane, ApplyLane::Noop);
         assert!(decision.payload.is_none());
-        assert!(decision.conflicts.is_empty());
+        assert_eq!(decision.conflicts, Vec::<String>::new());
     }
 
     #[test]
@@ -541,7 +541,7 @@ mod tests {
         let decision = plan_change(&ctx, &envelope);
         assert_eq!(decision.lane, ApplyLane::Conflict);
         assert!(decision.payload.is_none());
-        assert!(!decision.conflicts.is_empty());
+        assert_ne!(decision.conflicts, Vec::<String>::new());
     }
 
     #[test]
