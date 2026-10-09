@@ -300,7 +300,7 @@ mod tests {
         assert!(response.is_success());
         assert!(!response.is_failure());
         assert_eq!(response.id, Some(id));
-        assert!(response.errors.is_empty());
+        assert_eq!(response.errors.len(), 0);
     }
 
     #[test]
@@ -343,7 +343,7 @@ mod tests {
 
         assert!(response.is_success());
         assert!(!response.is_failure());
-        assert!(response.errors.is_empty());
+        assert_eq!(response.errors.len(), 0);
     }
 
     #[test]
@@ -362,7 +362,7 @@ mod tests {
 
         assert!(response.is_success());
         assert!(!response.is_failure());
-        assert!(response.errors.is_empty());
+        assert_eq!(response.errors.len(), 0);
     }
 
     #[test]
@@ -384,7 +384,7 @@ mod tests {
         assert!(response.is_created());
         assert!(!response.is_updated());
         assert_eq!(response.id, id);
-        assert!(response.errors.is_empty());
+        assert_eq!(response.errors.len(), 0);
     }
 
     #[test]
@@ -396,7 +396,7 @@ mod tests {
         assert!(!response.is_created());
         assert!(response.is_updated());
         assert_eq!(response.id, id);
-        assert!(response.errors.is_empty());
+        assert_eq!(response.errors.len(), 0);
     }
 
     #[test]
@@ -417,7 +417,7 @@ mod tests {
 
         assert_eq!(error.message, "Test message");
         assert_eq!(error.error_code, "TEST_CODE");
-        assert!(error.fields.is_empty());
+        assert_eq!(error.fields.len(), 0);
     }
 
     #[test]

@@ -128,7 +128,7 @@ mod tests {
         let client = create_test_client().await;
         let handler = client.tooling();
         let debug = format!("{:?}", handler);
-        assert!(!debug.is_empty());
+        assert_ne!(debug.len(), 0);
     }
 
     #[tokio::test]
@@ -324,6 +324,6 @@ mod tests {
 
         assert_eq!(global.encoding, "UTF-8");
         assert_eq!(global.max_batch_size, 200);
-        assert!(global.sobjects.is_empty());
+        assert_eq!(global.sobjects.len(), 0);
     }
 }

@@ -202,7 +202,7 @@ mod tests {
         let json = json!({ "completions": [] });
 
         let result: CompletionsResult = serde_json::from_value(json).must();
-        assert!(result.completions.is_empty());
+        assert_eq!(result.completions.len(), 0);
     }
 
     #[test]
@@ -320,7 +320,7 @@ mod tests {
             .await
             .must();
 
-        assert!(result.completions.is_empty());
+        assert_eq!(result.completions.len(), 0);
     }
 
     #[tokio::test]

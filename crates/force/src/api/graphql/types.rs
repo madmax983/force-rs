@@ -275,8 +275,8 @@ mod tests {
         let err: GraphqlError = serde_json::from_str(json_str).must();
 
         assert_eq!(err.message, "Something went wrong");
-        assert!(err.locations.is_empty());
-        assert!(err.path.is_empty());
+        assert_eq!(err.locations.len(), 0);
+        assert_eq!(err.path.len(), 0);
         assert!(err.extensions.is_empty());
     }
 

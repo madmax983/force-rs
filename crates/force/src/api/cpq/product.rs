@@ -112,7 +112,7 @@ mod tests {
             .await;
 
         let product = client.cpq().load_product("01t000000000001AAA").await.must();
-        assert!(product.features.is_empty());
-        assert!(product.options.is_empty());
+        assert_eq!(product.features.len(), 0);
+        assert_eq!(product.options.len(), 0);
     }
 }

@@ -1312,8 +1312,8 @@ mod tests {
         let mut count = 0;
         while let Some(record) = results.next().await.must() {
             count += 1;
-            assert!(!record.id.is_empty());
-            assert!(!record.name.is_empty());
+            assert_ne!(record.id.len(), 0);
+            assert_ne!(record.name.len(), 0);
         }
         assert_eq!(count, 2);
     }

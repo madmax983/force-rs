@@ -64,7 +64,7 @@ mod tests {
     fn round_trips_through_parquet() {
         let (schema, batch) = sample();
         let bytes = write_parquet(&schema, std::slice::from_ref(&batch)).expect("parquet writes");
-        assert!(!bytes.is_empty());
+        assert_ne!(bytes, [] as [u8; 0]);
 
         let reader = ParquetRecordBatchReaderBuilder::try_new(bytes::Bytes::from(bytes))
             .expect("reader builds")

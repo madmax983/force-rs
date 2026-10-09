@@ -235,7 +235,7 @@ mod tests {
         let client = test_client().await;
         let handler = client.graphql();
         let debug = format!("{handler:?}");
-        assert!(!debug.is_empty());
+        assert_ne!(debug.len(), 0);
     }
 
     #[tokio::test]
@@ -329,11 +329,12 @@ mod integration_tests {
         .with_variables(json!({"limit": 5}));
 
         let data: Value = handler.query(&req).await.must();
-        assert!(
+        assert_eq!(
             data["uiapi"]["query"]["Account"]["edges"]
                 .as_array()
                 .must()
-                .is_empty()
+                .len(),
+            0
         );
     }
 

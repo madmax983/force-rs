@@ -123,7 +123,7 @@ mod tests {
         let response: ExplainResponse = serde_json::from_value(json).must();
         let plan = &response.plans[0];
 
-        assert!(plan.fields.is_empty());
+        assert_eq!(plan.fields.len(), 0);
         assert!(plan.notes.is_empty());
         assert_eq!(plan.leading_operation_type, "IndexScan");
     }

@@ -47,7 +47,7 @@ mod tests {
 
         assert!(response.is_success());
         assert_eq!(response.id.must().as_str(), "001xx000003DHP0AAO");
-        assert!(response.errors.is_empty());
+        assert_eq!(response.errors.len(), 0);
     }
 
     #[tokio::test]
@@ -193,7 +193,7 @@ mod tests {
             .must();
 
         assert!(response.is_success());
-        assert!(response.errors.is_empty());
+        assert_eq!(response.errors.len(), 0);
     }
 
     #[tokio::test]
@@ -280,7 +280,7 @@ mod tests {
         let response = rest.delete("Account", &id).await.must();
 
         assert!(response.is_success());
-        assert!(response.errors.is_empty());
+        assert_eq!(response.errors.len(), 0);
     }
 
     #[tokio::test]

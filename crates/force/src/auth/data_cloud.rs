@@ -321,7 +321,7 @@ mod tests {
         );
         assert_eq!(token_response.token_type, "Bearer");
         assert_eq!(token_response.expires_in, Some(3600));
-        assert!(token_response.signature.is_empty());
+        assert_eq!(token_response.signature.len(), 0);
         assert!(token_response.refresh_token.is_none());
         // issued_at should be a valid timestamp (numeric string)
         assert!(token_response.issued_at.parse::<i64>().is_ok());

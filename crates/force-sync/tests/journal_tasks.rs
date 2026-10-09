@@ -195,7 +195,7 @@ async fn worker_guarded_task_updates_require_the_current_lease_and_clear_retry_s
     let not_ready_yet = store
         .lease_ready_tasks("worker-1", 1, Duration::from_secs(60))
         .await?;
-    assert!(not_ready_yet.is_empty());
+    assert_eq!(not_ready_yet, [] as [force_sync::LeasedTask; 0]);
 
     assert_eq!(
         store
@@ -342,7 +342,7 @@ async fn retry_task_with_future_next_attempt_at_is_not_leasable_until_due()
     let available = store
         .lease_ready_tasks("worker-1", 10, Duration::from_secs(60))
         .await?;
-    assert!(available.is_empty());
+    assert_eq!(available, [] as [force_sync::LeasedTask; 0]);
 
     // Manually set next_attempt_at to the past so we can re-lease.
     let past = Utc::now() - chrono::Duration::seconds(1);
@@ -382,7 +382,7 @@ async fn done_task_cannot_be_re_leased() -> Result<(), force_sync::ForceSyncErro
     let leased_again = store
         .lease_ready_tasks("worker-1", 10, Duration::from_secs(60))
         .await?;
-    assert!(leased_again.is_empty());
+    assert_eq!(leased_again, [] as [force_sync::LeasedTask; 0]);
     Ok(())
 }
 
@@ -531,6 +531,6 @@ async fn failed_task_cannot_be_re_leased() -> Result<(), force_sync::ForceSyncEr
     let leased_again = store
         .lease_ready_tasks("worker-1", 10, Duration::from_secs(60))
         .await?;
-    assert!(leased_again.is_empty());
+    assert_eq!(leased_again, [] as [force_sync::LeasedTask; 0]);
     Ok(())
 }

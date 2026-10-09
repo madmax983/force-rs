@@ -886,7 +886,7 @@ mod tests {
         // Groupings.
         assert_eq!(results.groupings_down.groupings[0].key, "0");
         assert_eq!(results.groupings_down.groupings[0].label, "Prospecting");
-        assert!(results.groupings_across.groupings.is_empty());
+        assert_eq!(results.groupings_across.groupings.len(), 0);
     }
 
     #[test]
