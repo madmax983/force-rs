@@ -71,3 +71,7 @@ pub use auth::{
 pub use client::{MarketingCloudClient, MarketingCloudClientBuilder};
 pub use error::{MarketingCloudError, Result};
 pub use types::{Attributes, Paged};
+
+#[cfg(doctest)]
+#[doc = include_str!("../README.md")]
+struct ReadmeDoctests;
