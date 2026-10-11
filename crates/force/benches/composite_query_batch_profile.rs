@@ -10,7 +10,7 @@
 //! Sizes are fixed (no RNG) so runs are deterministic.
 //!
 //! ```bash
-//! CARGO_PROFILE_RELEASE_DEBUG=true cargo build --release -p force --bench composite_query_batch_profile
+//! CARGO_PROFILE_RELEASE_DEBUG=true cargo build --release -p force --features composite --bench composite_query_batch_profile
 //! BIN=$(find target/release/deps -maxdepth 1 -name 'composite_query_batch_profile-*' -executable -not -name '*.d')
 //! valgrind --tool=callgrind --callgrind-out-file=callgrind.out "$BIN"
 //! valgrind --tool=dhat --dhat-out-file=dhat.out "$BIN"
