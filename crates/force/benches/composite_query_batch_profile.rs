@@ -15,7 +15,12 @@
 //! valgrind --tool=callgrind --callgrind-out-file=callgrind.out "$BIN"
 //! valgrind --tool=dhat --dhat-out-file=dhat.out "$BIN"
 //! ```
-#![allow(clippy::unwrap_used, clippy::expect_used, missing_docs)]
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::format_push_string,
+    missing_docs
+)]
 
 use force::api::composite::{BatchOp, QueryBatch};
 use force::auth::{AccessToken, Authenticator, TokenResponse};
@@ -121,9 +126,7 @@ async fn main() {
         .await;
     for p in 1..PAGES {
         Mock::given(method("GET"))
-            .and(path(format!(
-                "/services/data/v67.0/query/01gPAGE{p:04}"
-            )))
+            .and(path(format!("/services/data/v67.0/query/01gPAGE{p:04}")))
             .respond_with(
                 ResponseTemplate::new(200)
                     .insert_header("Content-Type", "application/json")
