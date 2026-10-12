@@ -120,6 +120,14 @@ fn validate_field_name_internal(name: &str, allow_functions: bool) -> crate::err
     Ok(())
 }
 
+/// Shared base URL for `Url::join` checks, parsed once instead of per call.
+fn url_path_base() -> &'static url::Url {
+    static BASE: std::sync::LazyLock<url::Url> = std::sync::LazyLock::new(|| {
+        url::Url::parse("http://localhost").unwrap_or_else(|_| unreachable!("valid base url"))
+    });
+    &BASE
+}
+
 /// Validates an API URL path.
 ///
 /// # Rules
@@ -145,9 +153,7 @@ pub fn validate_url_path(path: &str) -> crate::error::Result<()> {
 
     // Parse the URL to extract the path without resolving/normalizing it,
     // so we can catch explicit ".." components in the raw path.
-    let base =
-        url::Url::parse("http://localhost").unwrap_or_else(|_| unreachable!("valid base url"));
-    let _parsed = base
+    let _parsed = url_path_base()
         .join(path)
         .map_err(|_| ForceError::InvalidInput(format!("Invalid URL path: {path}")))?;
 
