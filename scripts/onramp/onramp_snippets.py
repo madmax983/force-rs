@@ -48,7 +48,13 @@ rest of the codebase:
                       fragments carry an `onramp-fragment:` marker and are
                       checked here.
 
+  extract-operations-fragments
+                      Same mechanism for docs/guide/03-operations.md, the
+                      page every auth-flow link sends a reader to for retry
+                      and error handling.
+
 Usage:
+    python3 scripts/onramp/onramp_snippets.py extract-operations-fragments --out DIR
     python3 scripts/onramp/onramp_snippets.py extract-programs --out DIR [FILES...]
     python3 scripts/onramp/onramp_snippets.py check-version-pins [FILES...]
     python3 scripts/onramp/onramp_snippets.py extract-quickstart --out DIR
@@ -168,6 +174,29 @@ UPGRADE_FRAGMENT_PREAMBLES: dict[str, str] = {
     + """
         let query = "query { uiapi { query { Account { edges { node { Id } } } } } }";
     """,
+}
+
+
+OPERATIONS_GUIDE = REPO_ROOT / "docs" / "guide" / "03-operations.md"
+# The operations guide is where every auth-flow page sends a reader for
+# retry/error handling. Preambles supply only what the reader must bring
+# (`auth`, `client`, `soql`) -- deliberately NOT the imports the page itself
+# is responsible for, so a missing `use` in the doc fails here.
+OPS_AUTH_STUB = """
+    let auth = force::auth::ClientCredentials::new_production("stub-client-id", "stub-client-secret");
+"""
+OPS_CLIENT_STUB = """
+    use force::auth::ClientCredentials;
+    use force::client::ForceClientBuilder;
+    let auth = ClientCredentials::new_production("stub-client-id", "stub-client-secret");
+    let client = ForceClientBuilder::new().authenticate(auth).build().await?;
+    let soql = "SELECT Id FROM Account";
+"""
+OPERATIONS_FRAGMENT_PREAMBLES: dict[str, str] = {
+    "ops_client_config": OPS_AUTH_STUB,
+    "ops_error_handling": OPS_CLIENT_STUB,
+    "ops_pin_api_version": "use force::config::ClientConfig;",
+    "ops_tracing_subscriber": "",
 }
 
 
@@ -378,6 +407,16 @@ def cmd_extract_upgrade_fragments(args: argparse.Namespace) -> int:
     )
 
 
+def cmd_extract_operations_fragments(args: argparse.Namespace) -> int:
+    return extract_marked_fragments(
+        OPERATIONS_GUIDE,
+        OPERATIONS_FRAGMENT_PREAMBLES,
+        "OPERATIONS_FRAGMENT_PREAMBLES",
+        Path(args.out),
+        "operations-guide",
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -402,6 +441,10 @@ def main() -> int:
     p_upgrade_fragments = sub.add_parser("extract-upgrade-fragments")
     p_upgrade_fragments.add_argument("--out", required=True)
     p_upgrade_fragments.set_defaults(func=cmd_extract_upgrade_fragments)
+
+    p_ops_fragments = sub.add_parser("extract-operations-fragments")
+    p_ops_fragments.add_argument("--out", required=True)
+    p_ops_fragments.set_defaults(func=cmd_extract_operations_fragments)
 
     args = parser.parse_args()
     return args.func(args)
