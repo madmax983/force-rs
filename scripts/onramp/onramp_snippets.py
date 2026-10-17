@@ -195,7 +195,7 @@ OPS_CLIENT_STUB = """
 OPERATIONS_FRAGMENT_PREAMBLES: dict[str, str] = {
     "ops_client_config": OPS_AUTH_STUB,
     "ops_error_handling": OPS_CLIENT_STUB,
-    "ops_pin_api_version": "use force::config::ClientConfig;",
+    "ops_pin_api_version": "",
     "ops_tracing_subscriber": "",
 }
 

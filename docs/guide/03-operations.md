@@ -238,6 +238,8 @@ Pin per client by setting the field:
 
 <!-- onramp-fragment: ops_pin_api_version -->
 ```rust
+use force::config::ClientConfig;
+
 let config = ClientConfig { api_version: "v66.0".to_string(), ..Default::default() };
 ```
 
