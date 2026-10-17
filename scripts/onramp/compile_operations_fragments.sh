@@ -46,6 +46,7 @@ force = { path = "${REPO_ROOT}/crates/force", features = ["all"] }
 tokio = { version = "1", features = ["full"] }
 anyhow = "1.0"
 tracing = "0.1"
+serde_json = "1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 EOF
 
