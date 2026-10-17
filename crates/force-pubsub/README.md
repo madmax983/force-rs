@@ -19,22 +19,27 @@
 ## Quick Start
 
 ```rust
+use force::auth::Authenticator;
+use force::client::ForceClient;
 use force_pubsub::{PubSubConfig, PubSubHandler, ReplayPreset};
+use futures::StreamExt;
 
-// Build a force Session first (see force crate docs)
-let session = /* ... */;
-
-let config = PubSubConfig::default();
-let handler = PubSubHandler::connect(session, config).await?;
+# async fn run<A: Authenticator + Send + Sync + 'static>(
+#     client: ForceClient<A>,
+# ) -> Result<(), Box<dyn std::error::Error>> {
+// `client` is any authenticated `force::ForceClient` (see the force crate docs).
+let handler = PubSubHandler::connect(client.session(), PubSubConfig::default()).await?;
 
 // Subscribe to Change Data Capture events
 let mut stream = handler
-    .subscribe("/data/AccountChangeEvent", ReplayPreset::Latest, None)
+    .subscribe("/data/AccountChangeEvent", ReplayPreset::Latest)
     .await?;
 
 while let Some(event) = stream.next().await {
     println!("Received: {:?}", event?);
 }
+# Ok(())
+# }
 ```
 
 ## Dependencies

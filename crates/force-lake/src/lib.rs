@@ -84,3 +84,7 @@ pub use snapshot::{SnapshotReport, SnapshotSink};
 pub const fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")
 }
+
+#[cfg(doctest)]
+#[doc = include_str!("../README.md")]
+struct ReadmeDoctests;
