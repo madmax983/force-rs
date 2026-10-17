@@ -205,3 +205,8 @@ required-features = ["rest"]
 name = "composite_query_batch_profile"
 harness = false
 required-features = ["composite"]
+
+[[bench]]
+name = "rest_describe_profile"
+harness = false
+required-features = ["rest"]
