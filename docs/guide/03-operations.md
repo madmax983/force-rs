@@ -8,8 +8,10 @@ and the `HttpExecutor` (`crates/force/src/http/executor.rs`).
 `ClientConfig` is a plain struct with public fields, constructed by literal +
 `..Default::default()`. There is no fluent `ClientConfig::builder()`.
 
+<!-- onramp-fragment: ops_client_config -->
 ```rust
 use std::time::Duration;
+use force::client::ForceClientBuilder;
 use force::config::{ClientConfig, Environment};
 
 let config = ClientConfig {
@@ -184,10 +186,12 @@ Sub-taxonomies:
 Handling pattern — match the top-level variant, then drill into `HttpError` for
 operational decisions:
 
+<!-- onramp-fragment: ops_error_handling -->
 ```rust
+use force::api::RestOperation; // brings `query` into scope
 use force::error::{ForceError, HttpError, AuthenticationError};
 
-match client.rest().query(soql).await {
+match client.rest().query::<serde_json::Value>(soql).await {
     Ok(result) => { /* ... */ }
 
     // Org-wide 24h limit hit: back off for the advertised window.
@@ -232,7 +236,10 @@ versions such as `v62.0`; the shipped default is `v67.0`.)
 
 Pin per client by setting the field:
 
+<!-- onramp-fragment: ops_pin_api_version -->
 ```rust
+use force::config::ClientConfig;
+
 let config = ClientConfig { api_version: "v66.0".to_string(), ..Default::default() };
 ```
 
@@ -278,6 +285,7 @@ Within that span the executor emits:
 
 Subscribe with `tracing-subscriber`:
 
+<!-- onramp-fragment: ops_tracing_subscriber -->
 ```rust
 tracing_subscriber::fmt()
     .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
