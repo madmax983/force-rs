@@ -16,13 +16,23 @@ use tokio::sync::{Mutex, RwLock};
 type CacheKey = Option<String>;
 
 /// Thread-safe, per-MID token cache with proactive re-authentication.
+/// Represents the cached state for a specific business unit.
+#[derive(Debug, Clone, Default)]
+struct CacheState {
+    /// The cached token, if any.
+    token: Option<Arc<AccessToken>>,
+    /// Number of times the token has been cleared. Used to prevent race conditions during invalidation.
+    clear_count: u64,
+}
+
+/// Thread-safe, per-MID token cache with proactive re-authentication.
 #[derive(Debug)]
 pub struct TokenManager {
     /// The underlying authenticator.
     authenticator: Arc<dyn Authenticator>,
 
-    /// Cached tokens keyed by business-unit override.
-    cache: RwLock<HashMap<CacheKey, Arc<AccessToken>>>,
+    /// Cached states keyed by business-unit override.
+    cache: RwLock<HashMap<CacheKey, CacheState>>,
 
     /// Per-key single-flight locks serializing concurrent refreshes.
     locks: Mutex<HashMap<CacheKey, Arc<Mutex<()>>>>,
@@ -63,8 +73,22 @@ impl TokenManager {
             return Ok(token);
         }
 
+        let clear_count_before = {
+            let cache = self.cache.read().await;
+            cache.get(&key).map_or(0, |state| state.clear_count)
+        };
+
         let token = Arc::new(self.authenticator.authenticate(account_id).await?);
-        self.cache.write().await.insert(key, token.clone());
+
+        let mut cache_guard = self.cache.write().await;
+        let state = cache_guard.entry(key).or_default();
+
+        if state.clear_count == clear_count_before {
+            state.token = Some(token.clone());
+        }
+
+        drop(cache_guard);
+
         Ok(token)
     }
 
@@ -73,13 +97,20 @@ impl TokenManager {
     /// Useful for handling a `401` where the server invalidated the token early.
     pub async fn invalidate(&self, account_id: Option<&str>) {
         let key: CacheKey = account_id.map(ToString::to_string);
-        self.cache.write().await.remove(&key);
+        let mut cache_guard = self.cache.write().await;
+        let state = cache_guard.entry(key).or_default();
+        state.token = None;
+        state.clear_count += 1;
+        drop(cache_guard);
     }
 
     /// Returns the cached token for `key` if present and not due for refresh.
     async fn cached_valid(&self, key: &CacheKey) -> Option<Arc<AccessToken>> {
         let cache = self.cache.read().await;
-        cache.get(key).filter(|t| !t.needs_refresh()).cloned()
+        cache
+            .get(key)
+            .and_then(|state| state.token.clone())
+            .filter(|t| !t.needs_refresh())
     }
 
     /// Fetches (creating if necessary) the single-flight lock for `key`.
@@ -176,6 +207,64 @@ mod tests {
         manager.invalidate(None).await;
         let _ = manager.token(None).await.unwrap();
         assert_eq!(auth.calls.load(Ordering::SeqCst), 2);
+    }
+
+    #[tokio::test]
+    async fn havoc_test_stale_resurrection() {
+        // Red test for Havoc: invalidate during in-flight auth shouldn't resurrect stale token.
+        // If an auth is in-flight, and invalidate is called, the in-flight auth should not
+        // overwrite the cache with its now-stale token when it completes.
+
+        #[derive(Debug)]
+        struct DelayedAuth {
+            calls: AtomicUsize,
+        }
+        #[async_trait]
+        impl Authenticator for DelayedAuth {
+            async fn authenticate(&self, _account_id: Option<&str>) -> Result<AccessToken> {
+                let n = self.calls.fetch_add(1, Ordering::SeqCst) + 1;
+                tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+                Ok(AccessToken::new_for_test(
+                    &format!("token-{n}"),
+                    "https://sub.rest.marketingcloudapis.com/",
+                    Utc::now() + Duration::hours(1),
+                )
+                .unwrap())
+            }
+        }
+
+        let auth = Arc::new(DelayedAuth {
+            calls: AtomicUsize::new(0),
+        });
+        let manager = Arc::new(TokenManager::new(auth.clone()));
+
+        // Start token fetch (will take 50ms)
+        let m = manager.clone();
+        let handle = tokio::spawn(async move { m.token(None).await.unwrap() });
+
+        // Wait 10ms (auth is in progress)
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+
+        // Invalidate! We expect the cache to be empty, and any in-flight auths to not pollute it,
+        // or at least require a NEW auth next time.
+        manager.invalidate(None).await;
+
+        // The first auth completes
+        let first_token = handle.await.unwrap();
+        assert_eq!(first_token.as_str(), "token-1");
+
+        // The cache shouldn't have token-1 because it was invalidated!
+        // A subsequent call should fetch a new token (token-2).
+        let m2 = manager.clone();
+        let handle2 = tokio::spawn(async move { m2.token(None).await.unwrap() });
+
+        let second_token = handle2.await.unwrap();
+        assert_eq!(
+            second_token.as_str(),
+            "token-2",
+            "👺 Havoc: Stale token resurrected! Expected token-2, got {}",
+            second_token.as_str()
+        );
     }
 
     #[tokio::test]
