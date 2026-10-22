@@ -79,11 +79,15 @@ impl MarketingCloudClient {
         JourneysHandler::new(self)
     }
 
-    /// Removes the cached token for the given business unit (`None` = default).
+    /// Removes the cached token for the given business unit (`None` = default), but only if it matches `old_token`.
     ///
     /// Call after receiving a `401` to force re-authentication on the next request.
-    pub async fn invalidate_token(&self, account_id: Option<&str>) {
-        self.token_manager.invalidate(account_id).await;
+    pub async fn invalidate_token(
+        &self,
+        account_id: Option<&str>,
+        old_token: &Arc<crate::auth::token::AccessToken>,
+    ) {
+        self.token_manager.invalidate(account_id, old_token).await;
     }
 
     // ---- Raw escape hatch --------------------------------------------------
