@@ -83,3 +83,8 @@ pub use llm_context_generator::{LlmContextOptions, generate_llm_context};
 pub(crate) mod dbt_generator;
 #[cfg(feature = "schema")]
 pub use dbt_generator::{generate_dbt_source_yml, generate_dbt_staging_model};
+
+#[cfg(feature = "schema")]
+pub(crate) mod csv_template_generator;
+#[cfg(feature = "schema")]
+pub use csv_template_generator::generate_csv_template;
