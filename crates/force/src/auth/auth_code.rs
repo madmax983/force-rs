@@ -573,7 +573,9 @@ impl AuthorizationCode {
         if let Some(rt) = stored {
             self.revoke(rt.expose_secret()).await?;
             let mut guard = self.refresh_token.write().await;
-            *guard = None;
+            if guard.as_ref().map(|s| s.expose_secret()) == Some(rt.expose_secret()) {
+                *guard = None;
+            }
         }
         Ok(())
     }
