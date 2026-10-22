@@ -1545,50 +1545,41 @@ mod tests {
     }
 
     #[test]
-    fn test_query_more_security_check_scheme_mismatch() {
-        let result = resolve_next_records_url(
-            "https://na1.salesforce.com",
-            "http://na1.salesforce.com/services/data/v67.0/query/01g",
-        );
-        let Err(err) = result else {
-            panic!("Expected Err");
-        };
-        assert!(err.to_string().contains("Security Error"));
-    }
+    fn test_query_more_security_checks_table_driven() {
+        let instance_url = "https://na1.salesforce.com";
+        let test_cases = vec![
+            (
+                "http://na1.salesforce.com/services/data/v67.0/query/01g",
+                "scheme mismatch",
+            ),
+            (
+                "https://evil.com/services/data/v67.0/query/01g",
+                "host mismatch",
+            ),
+            (
+                "https://na1.salesforce.com:8080/services/data/v67.0/query/01g",
+                "port mismatch",
+            ),
+            (
+                "https://user@na1.salesforce.com/services/data/v67.0/query/01g",
+                "username mismatch",
+            ),
+            (
+                "https://:password@na1.salesforce.com/services/data/v67.0/query/01g",
+                "password mismatch",
+            ),
+        ];
 
-    #[test]
-    fn test_query_more_security_check_port_mismatch() {
-        let result = resolve_next_records_url(
-            "https://na1.salesforce.com",
-            "https://na1.salesforce.com:8080/services/data/v67.0/query/01g",
-        );
-        let Err(err) = result else {
-            panic!("Expected Err");
-        };
-        assert!(err.to_string().contains("Security Error"));
-    }
-
-    #[test]
-    fn test_query_more_security_check_username_mismatch() {
-        let result = resolve_next_records_url(
-            "https://na1.salesforce.com",
-            "https://user@na1.salesforce.com/services/data/v67.0/query/01g",
-        );
-        let Err(err) = result else {
-            panic!("Expected Err");
-        };
-        assert!(err.to_string().contains("Security Error"));
-    }
-
-    #[test]
-    fn test_query_more_security_check_password_mismatch() {
-        let result = resolve_next_records_url(
-            "https://na1.salesforce.com",
-            "https://:password@na1.salesforce.com/services/data/v67.0/query/01g",
-        );
-        let Err(err) = result else {
-            panic!("Expected Err");
-        };
-        assert!(err.to_string().contains("Security Error"));
+        for (next_url, reason) in test_cases {
+            let result = resolve_next_records_url(instance_url, next_url);
+            let Err(err) = result else {
+                panic!("Expected Err for {} but got success", reason);
+            };
+            assert!(
+                err.to_string().contains("Security Error"),
+                "Expected Security Error for {}",
+                reason
+            );
+        }
     }
 }
