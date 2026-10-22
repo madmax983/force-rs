@@ -157,6 +157,11 @@ harness = false
 required-features = ["bulk"]
 
 [[bench]]
+name = "data_seeder_profile"
+harness = false
+required-features = ["data_utility"]
+
+[[bench]]
 name = "relational_seeder_profile"
 harness = false
 required-features = ["data_utility", "composite_graph"]
