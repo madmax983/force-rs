@@ -114,6 +114,12 @@ impl MockFieldDescribeBuilder {
     }
 
     #[must_use]
+    pub fn encrypted(mut self, encrypted: bool) -> Self {
+        self.field.encrypted = encrypted;
+        self
+    }
+
+    #[must_use]
     pub fn defaulted_on_create(mut self, defaulted_on_create: bool) -> Self {
         self.field.defaulted_on_create = defaulted_on_create;
         self
