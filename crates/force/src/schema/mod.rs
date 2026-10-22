@@ -7,6 +7,8 @@ pub(crate) mod bigquery_generator;
 pub(crate) mod data_dictionary;
 #[cfg(feature = "schema")]
 pub(crate) mod dbml_generator;
+#[cfg(feature = "schema")]
+pub(crate) mod elasticsearch_generator;
 pub(crate) mod graphql_generator;
 #[cfg(feature = "schema")]
 pub(crate) mod iceberg_generator;
@@ -49,6 +51,8 @@ pub use bigquery_generator::generate_bigquery_schema;
 pub use data_dictionary::DataDictionary;
 #[cfg(feature = "schema")]
 pub use dbml_generator::{generate_dbml, write_dbml};
+#[cfg(feature = "schema")]
+pub use elasticsearch_generator::generate_elasticsearch_mapping;
 pub use graphql_generator::{generate_graphql_schema, write_graphql_schema};
 #[cfg(feature = "schema")]
 pub use iceberg_generator::generate_iceberg_schema;
