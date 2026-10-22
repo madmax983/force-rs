@@ -16,3 +16,5 @@ pub use data_validator::{DataValidator, ValidationError};
 pub(crate) mod relational_seeder;
 #[cfg(all(feature = "data_utility", feature = "composite_graph"))]
 pub use relational_seeder::RelationalSeeder;
+pub(crate) mod data_profiler;
+pub use data_profiler::{DataProfiler, FieldProfile, ProfilerReport};
