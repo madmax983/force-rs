@@ -168,6 +168,18 @@ impl<A: Authenticator> TokenManager<A> {
             self.authenticator.authenticate().await?
         };
 
+        // Re-check the clear_count to see if we were cleared while we were awaiting the auth/refresh.
+        let (current_clear_count, current_has_token) = {
+            let state = self.state.read().await;
+            (state.clear_count, state.token.is_some())
+        };
+
+        if current_clear_count != clear_count && !current_has_token {
+            return Err(crate::error::ForceError::Authentication(
+                crate::error::AuthenticationError::InvalidToken,
+            ));
+        }
+
         // ⚡ Bolt: Moving `new_token` directly into `Arc` avoids an unnecessary `.clone()` allocation
         // when transferring ownership, saving one heap allocation per token refresh/auth.
         let arc_token = Arc::new(new_token);
@@ -190,6 +202,18 @@ impl<A: Authenticator> TokenManager<A> {
         };
 
         let refresh_result = self.authenticator.refresh().await;
+
+        // Re-check the clear_count to see if we were cleared while we were awaiting the auth/refresh.
+        let (current_clear_count, current_has_token) = {
+            let state = self.state.read().await;
+            (state.clear_count, state.token.is_some())
+        };
+
+        if current_clear_count != clear_count && !current_has_token {
+            return Err(crate::error::ForceError::Authentication(
+                crate::error::AuthenticationError::InvalidToken,
+            ));
+        }
 
         match refresh_result {
             Ok(new_token) => {
