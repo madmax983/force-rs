@@ -46,3 +46,8 @@ pub mod proto {
 }
 pub use codec::decode_avro_typed;
 pub use codec::encode_avro;
+
+/// Compiles every `rust` fence in the crate README so the front-door snippet cannot rot.
+#[cfg(doctest)]
+#[doc = include_str!("../README.md")]
+mod readme_doctest {}
