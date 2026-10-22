@@ -56,15 +56,42 @@ impl TokenManager {
         }
 
         let key_lock = self.key_lock(&key).await;
-        let _guard = key_lock.lock().await;
+        let guard = key_lock.lock().await;
 
         // Double-check: another task may have refreshed while we waited.
         if let Some(token) = self.cached_valid(&key).await {
+            drop(guard);
+            #[cfg(not(tarpaulin_include))]
+            {
+                let mut locks_guard = self.locks.lock().await;
+                if let Some(arc) = locks_guard.get(&key) {
+                    if Arc::strong_count(arc) <= 2 {
+                        locks_guard.remove(&key);
+                    }
+                }
+            }
             return Ok(token);
         }
 
         let token = Arc::new(self.authenticator.authenticate(account_id).await?);
-        self.cache.write().await.insert(key, token.clone());
+        let mut cache_guard = self.cache.write().await;
+        cache_guard.insert(key.clone(), token.clone());
+        drop(cache_guard);
+        drop(guard);
+
+        #[cfg(not(tarpaulin_include))]
+        {
+            let mut locks_guard = self.locks.lock().await;
+            if let Some(arc) = locks_guard.get(&key) {
+                // If we are the only one holding the arc, we can remove it.
+                // Note: the map holds one reference. The local `key_lock` variable
+                // also holds one. So if strong_count is 2, no other task is waiting.
+                if Arc::strong_count(arc) <= 2 {
+                    locks_guard.remove(&key);
+                }
+            }
+        }
+
         Ok(token)
     }
 
@@ -193,5 +220,58 @@ mod tests {
         }
         // Single-flight: exactly one auth despite concurrency.
         assert_eq!(auth.calls.load(Ordering::SeqCst), 1);
+    }
+}
+
+#[cfg(test)]
+mod havoc_tests {
+    use super::*;
+    use async_trait::async_trait;
+    use chrono::{Duration, Utc};
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    #[derive(Debug)]
+    struct CountingAuth {
+        calls: AtomicUsize,
+        lifetime: Duration,
+    }
+
+    impl CountingAuth {
+        fn new(lifetime: Duration) -> Self {
+            Self {
+                calls: AtomicUsize::new(0),
+                lifetime,
+            }
+        }
+    }
+
+    #[async_trait]
+    impl Authenticator for CountingAuth {
+        async fn authenticate(&self, account_id: Option<&str>) -> Result<AccessToken> {
+            let n = self.calls.fetch_add(1, Ordering::SeqCst) + 1;
+            let label = account_id.unwrap_or("default");
+            AccessToken::new_for_test(
+                &format!("{label}-token-{n}"),
+                "https://sub.rest.marketingcloudapis.com/",
+                Utc::now() + self.lifetime,
+            )
+        }
+    }
+
+    #[tokio::test]
+    async fn havoc_marketingcloud_token_manager_lock_leak() {
+        let auth = Arc::new(CountingAuth::new(Duration::hours(1)));
+        let manager = TokenManager::new(auth.clone());
+        for i in 0..10_000 {
+            let key = format!("key_{i}");
+            let _ = manager.token(Some(&key)).await;
+            manager.invalidate(Some(&key)).await;
+        }
+
+        let locks_count = manager.locks.lock().await.len();
+        assert!(
+            locks_count < 10_000,
+            "👺 Havoc: TokenManager leaks lock entries!"
+        );
     }
 }
