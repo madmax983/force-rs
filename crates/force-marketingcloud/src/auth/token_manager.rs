@@ -15,6 +15,13 @@ use tokio::sync::{Mutex, RwLock};
 /// Cache key: the effective per-call account id override (`None` = builder default).
 type CacheKey = Option<String>;
 
+/// Internal state for caching a token along with an invalidation epoch.
+#[derive(Debug)]
+struct CacheState {
+    token: Option<Arc<AccessToken>>,
+    clear_count: u64,
+}
+
 /// Thread-safe, per-MID token cache with proactive re-authentication.
 #[derive(Debug)]
 pub struct TokenManager {
@@ -22,7 +29,7 @@ pub struct TokenManager {
     authenticator: Arc<dyn Authenticator>,
 
     /// Cached tokens keyed by business-unit override.
-    cache: RwLock<HashMap<CacheKey, Arc<AccessToken>>>,
+    cache: RwLock<HashMap<CacheKey, CacheState>>,
 
     /// Per-key single-flight locks serializing concurrent refreshes.
     locks: Mutex<HashMap<CacheKey, Arc<Mutex<()>>>>,
@@ -63,8 +70,28 @@ impl TokenManager {
             return Ok(token);
         }
 
+        let clear_count = {
+            self.cache
+                .read()
+                .await
+                .get(&key)
+                .map_or(0, |s| s.clear_count)
+        };
+
         let token = Arc::new(self.authenticator.authenticate(account_id).await?);
-        self.cache.write().await.insert(key, token.clone());
+
+        {
+            let mut cache = self.cache.write().await;
+            let entry = cache.entry(key).or_insert_with(|| CacheState {
+                token: None,
+                clear_count: 0,
+            });
+            if entry.clear_count == clear_count {
+                entry.token = Some(token.clone());
+            }
+            drop(cache);
+        }
+
         Ok(token)
     }
 
@@ -73,13 +100,24 @@ impl TokenManager {
     /// Useful for handling a `401` where the server invalidated the token early.
     pub async fn invalidate(&self, account_id: Option<&str>) {
         let key: CacheKey = account_id.map(ToString::to_string);
-        self.cache.write().await.remove(&key);
+        let mut cache = self.cache.write().await;
+        let entry = cache.entry(key).or_insert_with(|| CacheState {
+            token: None,
+            clear_count: 0,
+        });
+        entry.token = None;
+        entry.clear_count += 1;
+        drop(cache);
     }
 
     /// Returns the cached token for `key` if present and not due for refresh.
     async fn cached_valid(&self, key: &CacheKey) -> Option<Arc<AccessToken>> {
         let cache = self.cache.read().await;
-        cache.get(key).filter(|t| !t.needs_refresh()).cloned()
+        cache
+            .get(key)
+            .and_then(|s| s.token.as_ref())
+            .filter(|t| !t.needs_refresh())
+            .cloned()
     }
 
     /// Fetches (creating if necessary) the single-flight lock for `key`.
