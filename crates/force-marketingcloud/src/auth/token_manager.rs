@@ -51,9 +51,17 @@ impl TokenManager {
     pub async fn token(&self, account_id: Option<&str>) -> Result<Arc<AccessToken>> {
         let key: CacheKey = account_id.map(ToString::to_string);
 
-        if let Some(token) = self.cached_valid(&key).await {
-            return Ok(token);
-        }
+        let current_token = {
+            let cache = self.cache.read().await;
+            if let Some(token) = cache.get(&key) {
+                if !token.needs_refresh() {
+                    return Ok(token.clone());
+                }
+                Some(token.clone())
+            } else {
+                None
+            }
+        };
 
         let key_lock = self.key_lock(&key).await;
         let _guard = key_lock.lock().await;
@@ -63,9 +71,21 @@ impl TokenManager {
             return Ok(token);
         }
 
-        let token = Arc::new(self.authenticator.authenticate(account_id).await?);
-        self.cache.write().await.insert(key, token.clone());
-        Ok(token)
+        match self.authenticator.authenticate(account_id).await {
+            Ok(new_token) => {
+                let token = Arc::new(new_token);
+                self.cache.write().await.insert(key, token.clone());
+                Ok(token)
+            }
+            Err(e) => {
+                if let Some(old_token) = current_token {
+                    if !old_token.is_expired() {
+                        return Ok(old_token);
+                    }
+                }
+                Err(e)
+            }
+        }
     }
 
     /// Removes any cached token for the given business unit.
