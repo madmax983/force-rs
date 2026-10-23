@@ -71,3 +71,9 @@ pub use auth::{
 pub use client::{MarketingCloudClient, MarketingCloudClientBuilder};
 pub use error::{MarketingCloudError, Result};
 pub use types::{Attributes, Paged};
+
+/// Compiles this crate's README.md code fences under `cargo test --doc` so the
+/// crates.io landing page cannot drift from the API (Onramp snippet CI).
+#[cfg(doctest)]
+#[doc = include_str!("../README.md")]
+struct ReadmeDoctests;

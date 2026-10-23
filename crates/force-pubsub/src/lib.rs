@@ -46,3 +46,9 @@ pub mod proto {
 }
 pub use codec::decode_avro_typed;
 pub use codec::encode_avro;
+
+/// Compiles this crate's README.md code fences under `cargo test --doc` so the
+/// crates.io landing page cannot drift from the API (Onramp snippet CI).
+#[cfg(doctest)]
+#[doc = include_str!("../README.md")]
+struct ReadmeDoctests;

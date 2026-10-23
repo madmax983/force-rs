@@ -18,24 +18,45 @@
 
 ## Quick Start
 
-```rust
-use force_pubsub::{PubSubConfig, PubSubHandler, ReplayPreset};
+```toml
+[dependencies]
+force = "0.4"
+force-pubsub = "0.4"
+tokio = { version = "1", features = ["full"] }
+tokio-stream = "0.1"   # for `StreamExt::next`
+```
 
-// Build a force Session first (see force crate docs)
-let session = /* ... */;
+```rust,no_run
+use force::auth::ClientCredentials;
+use force::client::ForceClientBuilder;
+use force_pubsub::{PubSubConfig, PubSubEvent, PubSubHandler, ReplayPreset};
+use tokio_stream::StreamExt;
 
-let config = PubSubConfig::default();
-let handler = PubSubHandler::connect(session, config).await?;
+# async fn run() -> Result<(), Box<dyn std::error::Error>> {
+// Authenticate with the `force` crate, then hand its session to Pub/Sub.
+let auth = ClientCredentials::new_production("client_id", "client_secret");
+let client = ForceClientBuilder::new().authenticate(auth).build().await?;
+
+let handler = PubSubHandler::connect(client.session(), PubSubConfig::default()).await?;
 
 // Subscribe to Change Data Capture events
 let mut stream = handler
-    .subscribe("/data/AccountChangeEvent", ReplayPreset::Latest, None)
+    .subscribe("/data/AccountChangeEvent", ReplayPreset::Latest)
     .await?;
 
-while let Some(event) = stream.next().await {
-    println!("Received: {:?}", event?);
+while let Some(item) = stream.next().await {
+    match item? {
+        PubSubEvent::Event(msg) => println!("Received event {}", msg.event_id),
+        PubSubEvent::Reconnected { attempt, .. } => println!("Reconnected (attempt {attempt})"),
+        PubSubEvent::KeepAlive => {}
+    }
 }
+# Ok(())
+# }
 ```
+
+A complete runnable version (env-var config, reconnect policy) is in
+[`examples/subscribe_events.rs`](examples/subscribe_events.rs).
 
 ## Dependencies
 
