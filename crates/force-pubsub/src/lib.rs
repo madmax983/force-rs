@@ -46,3 +46,8 @@ pub mod proto {
 }
 pub use codec::decode_avro_typed;
 pub use codec::encode_avro;
+
+/// Compiles the crate README's fences as doctests so the crates.io front door cannot rot.
+#[cfg(doctest)]
+#[doc = include_str!("../README.md")]
+struct ReadmeDoctests;

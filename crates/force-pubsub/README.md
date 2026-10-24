@@ -18,22 +18,35 @@
 
 ## Quick Start
 
-```rust
-use force_pubsub::{PubSubConfig, PubSubHandler, ReplayPreset};
+```rust,no_run
+use force::auth::ClientCredentials;
+use force::client::builder;
+use force_pubsub::{PubSubConfig, PubSubEvent, PubSubHandler, ReplayPreset};
+use futures::StreamExt;
 
-// Build a force Session first (see force crate docs)
-let session = /* ... */;
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    // Authenticate with the `force` crate; the Pub/Sub handler reuses its session.
+    let auth = ClientCredentials::new(
+        "client_id",
+        "client_secret",
+        "https://login.salesforce.com/services/oauth2/token",
+    );
+    let client = builder().authenticate(auth).build().await?;
 
-let config = PubSubConfig::default();
-let handler = PubSubHandler::connect(session, config).await?;
+    let handler = PubSubHandler::connect(client.session(), PubSubConfig::default()).await?;
 
-// Subscribe to Change Data Capture events
-let mut stream = handler
-    .subscribe("/data/AccountChangeEvent", ReplayPreset::Latest, None)
-    .await?;
+    // Subscribe to Change Data Capture events (`subscribe` takes topic + replay preset).
+    let mut stream = handler
+        .subscribe("/data/AccountChangeEvent", ReplayPreset::Latest)
+        .await?;
 
-while let Some(event) = stream.next().await {
-    println!("Received: {:?}", event?);
+    while let Some(item) = stream.next().await {
+        if let PubSubEvent::Event(msg) = item? {
+            println!("event_id={}", msg.event_id);
+        }
+    }
+    Ok(())
 }
 ```
 
