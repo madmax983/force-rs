@@ -71,3 +71,8 @@ pub use auth::{
 pub use client::{MarketingCloudClient, MarketingCloudClientBuilder};
 pub use error::{MarketingCloudError, Result};
 pub use types::{Attributes, Paged};
+
+/// Compiles the crate README's fences as doctests so the crates.io front door cannot rot.
+#[cfg(doctest)]
+#[doc = include_str!("../README.md")]
+struct ReadmeDoctests;

@@ -84,3 +84,8 @@ pub use snapshot::{SnapshotReport, SnapshotSink};
 pub const fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")
 }
+
+/// Compiles the crate README's fences as doctests so the crates.io front door cannot rot.
+#[cfg(doctest)]
+#[doc = include_str!("../README.md")]
+struct ReadmeDoctests;
