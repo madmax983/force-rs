@@ -142,11 +142,26 @@ impl<'a, A: crate::auth::Authenticator> SmartIngest<'a, A> {
     /// # Returns
     ///
     /// A `SmartIngestResult` containing every completed job.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ForceError::InvalidInput`](crate::error::ForceError::InvalidInput)
+    /// for `JobOperation::Refresh`, because a split refresh loses data.
     pub async fn execute_stream<S, T>(self, stream: S) -> Result<SmartIngestResult>
     where
         S: Stream<Item = T> + Unpin + Send,
         T: Serialize + Send + Sync,
     {
+        // SmartIngest can split the input into many jobs. Each refresh job
+        // replaces the whole data set, so only the last chunk would stay.
+        if self.operation == JobOperation::Refresh {
+            return Err(crate::error::ForceError::InvalidInput(
+                "SmartIngest does not support refresh: each job replaces the data set. \
+                 Use one IngestJob instead"
+                    .to_string(),
+            ));
+        }
+
         if self.batch_size == 0 {
             return Err(crate::error::ForceError::InvalidInput(
                 "Batch size must be greater than 0".to_string(),
@@ -589,6 +604,29 @@ mod tests {
         assert_eq!(info.number_records_processed, Some(1));
         assert_eq!(result.job_count(), 1);
         assert_eq!(result.total_records_processed(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_smart_ingest_rejects_refresh_without_request() {
+        // Regression: SmartIngest splits uploads into many jobs, and each
+        // refresh job replaces the whole data set. Only the last chunk would stay.
+        let mock_server = MockServer::start().await;
+        let client = create_test_client(mock_server.uri()).await;
+        let handler = client.bulk();
+        let records = vec![TestRecord {
+            id: "001".to_string(),
+            name: "Test".to_string(),
+        }];
+
+        let result = SmartIngest::new(&handler, "MyMarketingObject", JobOperation::Refresh)
+            .execute_stream(futures::stream::iter(records))
+            .await;
+
+        assert!(matches!(
+            result,
+            Err(crate::error::ForceError::InvalidInput(_))
+        ));
+        assert_eq!(mock_server.received_requests().await.must().len(), 0);
     }
 
     #[tokio::test]

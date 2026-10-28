@@ -36,6 +36,8 @@ client.bulk().delete("Account", &["001...".to_string()]).await?; // delete by ID
 `JobOperation::Refresh` replaces all data in a marketing object data set.
 `JobOperation::ConsentImport` ingests consent data and has no `object`.
 `CreateJobRequest::validate` checks these rules before the request is sent.
+Use one `IngestJob` for `Refresh`: `SmartIngest` rejects it, because it can split
+the input into many jobs and each refresh job replaces the data set.
 
 ```rust
 use force::api::bulk::{CreateJobRequest, JobOperation};

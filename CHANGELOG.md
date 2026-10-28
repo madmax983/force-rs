@@ -21,6 +21,7 @@ is 0.5.0.
 - `GraphqlRequest` sends `operationName` (was `operation_name`, which the server ignored). Tests that assert the request body must change the key.
 - A DPoP-bound token (`token_type: DPoP`) now fails with `AuthenticationError::UnsupportedTokenType` before any request, on every path (REST, SOAP, Data Cloud exchange, Pub/Sub).
 - The SOAP handler returns `InvalidInput` when `api_version` is `latest`.
+- `SmartIngest` returns `InvalidInput` for `JobOperation::Refresh`. It splits input into many jobs, and each refresh job replaces the data set.
 - Agent API methods return `InvalidInput` for an agent or session ID with characters other than `[A-Za-z0-9_-]`.
 
 ### Added
