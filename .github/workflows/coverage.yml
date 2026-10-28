@@ -38,6 +38,7 @@ jobs:
             --workspace \
             --all-features \
             --timeout 600 \
+            --exclude-files 'vendor/*' \
             --out Xml \
             --out Html \
             --output-dir ./coverage \

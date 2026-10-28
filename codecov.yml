@@ -11,7 +11,11 @@
 # counts their lines as coverable source, so every one of them shows as 0%
 # covered and drags project coverage down by its own line count -- ignored
 # here for the same reason as the live_* tests above.
+#
+# `vendor/` holds third-party crates patched in via [patch.crates-io] (for
+# example zstd security backports). They are not project code.
 ignore:
+  - "vendor/.*"
   - "crates/force/tests/common/mod.rs"
   - "crates/force/tests/live_salesforce.rs"
   - "crates/force/tests/live_core.rs"
