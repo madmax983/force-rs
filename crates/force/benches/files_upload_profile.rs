@@ -96,7 +96,7 @@ async fn run() {
     let mock_server = MockServer::start().await;
 
     Mock::given(method("POST"))
-        .and(path("/services/data/v67.0/sobjects/ContentVersion"))
+        .and(path("/services/data/v68.0/sobjects/ContentVersion"))
         .respond_with(ResponseTemplate::new(201).set_body_json(serde_json::json!({
             "id": "068000000000001AAA",
             "success": true,

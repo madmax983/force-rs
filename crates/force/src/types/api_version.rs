@@ -81,37 +81,91 @@ impl ApiVersion {
     pub const MIN_SUPPORTED: Self = Self::V55;
 
     /// Highest API version covered by the crate's compatibility test matrix.
-    pub const MAX_TESTED: Self = Self::V67;
+    pub const MAX_TESTED: Self = Self::V68;
 
     /// Default API version used by client configuration.
-    pub const DEFAULT: Self = Self::V67;
+    pub const DEFAULT: Self = Self::V68;
 
-    /// API version 67.0 (Summer '25).
+    /// Version alias that resolves to the newest org version (v68.0+).
+    ///
+    /// Use as `ClientConfig.api_version` for scripts. Pin a number in production.
+    pub const LATEST_ALIAS: &'static str = "latest";
+
+    /// API version 68.0 (Winter '27).
+    pub const V68: Self = Self::new(68);
+    /// API version 67.0 (Summer '26).
     pub const V67: Self = Self::new(67);
-    /// API version 66.0 (Spring '25).
+    /// API version 66.0 (Spring '26).
     pub const V66: Self = Self::new(66);
-    /// API version 65.0 (Winter '25).
+    /// API version 65.0 (Winter '26).
     pub const V65: Self = Self::new(65);
-    /// API version 64.0 (Summer '24).
+    /// API version 64.0 (Summer '25).
     pub const V64: Self = Self::new(64);
-    /// API version 63.0 (Spring '24).
+    /// API version 63.0 (Spring '25).
     pub const V63: Self = Self::new(63);
-    /// API version 62.0 (Winter '24).
+    /// API version 62.0 (Winter '25).
     pub const V62: Self = Self::new(62);
     /// API version 61.0 (Summer '24).
     pub const V61: Self = Self::new(61);
-    /// API version 60.0 (Winter '24).
+    /// API version 60.0 (Spring '24).
     pub const V60: Self = Self::new(60);
-    /// API version 59.0 (Summer '23).
+    /// API version 59.0 (Winter '24).
     pub const V59: Self = Self::new(59);
-    /// API version 58.0 (Spring '23).
+    /// API version 58.0 (Summer '23).
     pub const V58: Self = Self::new(58);
-    /// API version 57.0 (Winter '23).
+    /// API version 57.0 (Spring '23).
     pub const V57: Self = Self::new(57);
-    /// API version 56.0 (Summer '22).
+    /// API version 56.0 (Winter '23).
     pub const V56: Self = Self::new(56);
-    /// API version 55.0 (Spring '22).
+    /// API version 55.0 (Summer '22).
     pub const V55: Self = Self::new(55);
+
+    /// Oldest version that `release_name` labels (Winter '18).
+    const FIRST_NAMED: u16 = 41;
+
+    /// Returns the Salesforce release name, for example `"Winter '27"`.
+    ///
+    /// Salesforce ships three releases per year (Spring, Summer, Winter).
+    /// Returns `None` below v41.0 or more than three versions above
+    /// [`MAX_TESTED`](Self::MAX_TESTED).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use force::types::ApiVersion;
+    ///
+    /// assert_eq!(ApiVersion::V68.release_name().as_deref(), Some("Winter '27"));
+    /// ```
+    #[must_use]
+    pub fn release_name(self) -> Option<String> {
+        if self.major < Self::FIRST_NAMED || self.major > Self::MAX_TESTED.major + 3 {
+            return None;
+        }
+        // v55.0 is Summer '22. Each step is one release in the cycle
+        // Summer -> Winter (next year label) -> Spring.
+        let step = i32::from(self.major) - 55;
+        let season = match step.rem_euclid(3) {
+            0 => "Summer",
+            1 => "Winter",
+            _ => "Spring",
+        };
+        let year = 22 + (step + 2).div_euclid(3);
+        Some(format!("{season} '{year:02}"))
+    }
+
+    /// Returns true if `value` is the `latest` version alias.
+    #[must_use]
+    pub fn is_latest_alias(value: &str) -> bool {
+        value == Self::LATEST_ALIAS
+    }
+
+    /// Returns the major number of a configured version string.
+    ///
+    /// Returns `None` for the `latest` alias and for invalid strings.
+    #[must_use]
+    pub(crate) fn config_major(value: &str) -> Option<u16> {
+        value.parse::<Self>().ok().map(|v| v.major)
+    }
 
     /// Returns true if this version is supported by the crate.
     #[must_use]
@@ -282,8 +336,82 @@ mod tests {
         assert_eq!(ApiVersion::V56.major(), 56);
         assert_eq!(ApiVersion::V55.major(), 55);
         assert_eq!(ApiVersion::MIN_SUPPORTED, ApiVersion::V55);
-        assert_eq!(ApiVersion::MAX_TESTED, ApiVersion::V67);
-        assert_eq!(ApiVersion::DEFAULT, ApiVersion::V67);
+        assert_eq!(ApiVersion::V68.major(), 68);
+        assert_eq!(ApiVersion::MAX_TESTED, ApiVersion::V68);
+        assert_eq!(ApiVersion::DEFAULT, ApiVersion::V68);
+    }
+
+    #[test]
+    fn test_release_name_maps_known_versions() {
+        let expected = [
+            (55, "Summer '22"),
+            (56, "Winter '23"),
+            (57, "Spring '23"),
+            (58, "Summer '23"),
+            (59, "Winter '24"),
+            (60, "Spring '24"),
+            (61, "Summer '24"),
+            (62, "Winter '25"),
+            (63, "Spring '25"),
+            (64, "Summer '25"),
+            (65, "Winter '26"),
+            (66, "Spring '26"),
+            (67, "Summer '26"),
+            (68, "Winter '27"),
+        ];
+        for (major, name) in expected {
+            assert_eq!(
+                ApiVersion::new(major).release_name().as_deref(),
+                Some(name),
+                "v{major}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_release_name_unknown_versions() {
+        assert_eq!(ApiVersion::new(1).release_name(), None);
+        assert_eq!(ApiVersion::new(9).release_name(), None);
+        assert_eq!(ApiVersion::new(999).release_name(), None);
+    }
+
+    #[test]
+    fn test_release_name_cycle_extends_forward() {
+        // Three releases per year: v69 is Spring '27, v70 is Summer '27.
+        assert_eq!(
+            ApiVersion::new(69).release_name().as_deref(),
+            Some("Spring '27")
+        );
+        assert_eq!(
+            ApiVersion::new(70).release_name().as_deref(),
+            Some("Summer '27")
+        );
+        assert_eq!(
+            ApiVersion::new(71).release_name().as_deref(),
+            Some("Winter '28")
+        );
+        assert_eq!(ApiVersion::new(72).release_name(), None);
+        // Lower edge: v41.0 is Winter '18.
+        assert_eq!(
+            ApiVersion::new(41).release_name().as_deref(),
+            Some("Winter '18")
+        );
+        assert_eq!(ApiVersion::new(40).release_name(), None);
+    }
+
+    #[test]
+    fn test_latest_alias_constant() {
+        assert_eq!(ApiVersion::LATEST_ALIAS, "latest");
+        assert!(ApiVersion::is_latest_alias("latest"));
+        assert!(!ApiVersion::is_latest_alias("Latest"));
+        assert!(!ApiVersion::is_latest_alias("v68.0"));
+    }
+
+    #[test]
+    fn test_parse_config_major() {
+        assert_eq!(ApiVersion::config_major("v68.0"), Some(68));
+        assert_eq!(ApiVersion::config_major("latest"), None);
+        assert_eq!(ApiVersion::config_major("garbage"), None);
     }
 
     #[test]
@@ -292,7 +420,9 @@ mod tests {
         assert!(ApiVersion::V55.is_tested());
         assert!(ApiVersion::V60.is_tested());
         assert!(ApiVersion::new(68).is_supported());
-        assert!(!ApiVersion::new(68).is_tested());
+        assert!(ApiVersion::new(68).is_tested());
+        assert!(ApiVersion::new(69).is_supported());
+        assert!(!ApiVersion::new(69).is_tested());
         assert!(!ApiVersion::new(54).is_supported());
     }
 
@@ -311,7 +441,11 @@ mod tests {
             ApiVersionSupportTier::Tested
         );
         assert_eq!(
-            ApiVersion::new(68).support_tier(),
+            ApiVersion::V68.support_tier(),
+            ApiVersionSupportTier::Tested
+        );
+        assert_eq!(
+            ApiVersion::new(69).support_tier(),
             ApiVersionSupportTier::SupportedUntested
         );
     }
@@ -378,6 +512,24 @@ mod tests {
 
                 prop_assert_eq!(parsed, version);
                 prop_assert_eq!(parsed.major(), major);
+            }
+
+            // Property: consecutive versions follow Summer -> Winter -> Spring,
+            // and the year label goes up by one at Winter.
+            #[test]
+            fn prop_release_name_cycle(major in 41u16..ApiVersion::MAX_TESTED.major() + 3) {
+                let a = ApiVersion::new(major).release_name().must();
+                let b = ApiVersion::new(major + 1).release_name().must();
+                let (sa, ya) = a.split_once(" '").must();
+                let (sb, yb) = b.split_once(" '").must();
+                let ya: u16 = ya.parse().must();
+                let yb: u16 = yb.parse().must();
+                let expected = match sa {
+                    "Summer" => ("Winter", ya + 1),
+                    "Winter" => ("Spring", ya),
+                    _ => ("Summer", ya),
+                };
+                prop_assert_eq!((sb, yb), expected);
             }
 
             // Property 2: to_string() matches Display format

@@ -457,6 +457,32 @@ mod tests {
         }
 
         #[tokio::test]
+        async fn test_dpop_platform_token_is_never_exchanged() {
+            let mock_server = MockServer::start().await;
+            let platform_auth = MockAuthenticator::new("platform_token", &mock_server.uri())
+                .with_token_type("DPoP");
+            let auth = DataCloudAuthenticator::new(
+                Arc::new(TokenManager::new(platform_auth)),
+                reqwest::Client::new(),
+                DataCloudConfig {
+                    token_exchange_url: Some(format!("{}/services/a360/token", mock_server.uri())),
+                    ..Default::default()
+                },
+            );
+
+            let err = auth.authenticate().await.err().must();
+            assert!(
+                matches!(
+                    err,
+                    ForceError::Authentication(AuthenticationError::UnsupportedTokenType(_))
+                ),
+                "{err:?}"
+            );
+            // The DPoP-bound token must not leave the process.
+            assert!(mock_server.received_requests().await.must().is_empty());
+        }
+
+        #[tokio::test]
         async fn test_authenticate_oauth_error() {
             let mock_server = MockServer::start().await;
 

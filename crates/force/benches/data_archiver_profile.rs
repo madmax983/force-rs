@@ -97,7 +97,7 @@ fn record(page: usize, index: usize) -> Value {
     json!({
         "attributes": {
             "type": "Account",
-            "url": format!("/services/data/v67.0/sobjects/Account/001xx00000000{n}AAA"),
+            "url": format!("/services/data/v68.0/sobjects/Account/001xx00000000{n}AAA"),
         },
         "Id": format!("001xx00000000{n}AAA"),
         "Name": format!("Account Number {n}"),
@@ -117,12 +117,12 @@ fn page_records(page: usize) -> Vec<Value> {
 }
 
 fn page_url(page: usize) -> String {
-    format!("/services/data/v67.0/query/page{page}")
+    format!("/services/data/v68.0/query/page{page}")
 }
 
 async fn mount_endpoints(mock_server: &MockServer) {
     Mock::given(method("GET"))
-        .and(path("/services/data/v67.0/query"))
+        .and(path("/services/data/v68.0/query"))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
             "totalSize": TOTAL_RECORDS,
             "done": false,

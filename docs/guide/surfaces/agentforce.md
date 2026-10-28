@@ -83,13 +83,33 @@ agents.end_session(&session.session_id, SessionEndReason::UserRequest).await?;
 | `start_session_default(agent_id)` | Start with sensible defaults (generated key + My Domain endpoint) |
 | `send_message(session_id, &req)` | Send a structured `SendMessageRequest` |
 | `send_text(session_id, sequence_id, text)` | Send a plain-text turn |
+| `send_message_stream(session_id, &req)` | Send a turn and stream the reply (SSE) |
+| `send_text_stream(session_id, sequence_id, text)` | Stream a plain-text turn |
 | `end_session(session_id, reason)` | End the session (sends `x-session-end-reason` header) |
 
 `end_session` carries the `SessionEndReason` as the `x-session-end-reason` header.
 `AgentResponse::reply_text()` pulls the agent's text out of the polymorphic response.
 
-**Streaming:** only the synchronous message endpoint is implemented; the streaming SSE
-endpoint (`.../messages/stream`) is a documented follow-up and out of scope today.
+**Streaming:** `send_message_stream` posts to `.../messages/stream` and returns a
+stream of `AgentStreamEvent`. The order is `ProgressIndicator`, `TextChunk` (when
+chunking is on), `Inform`, `EndOfTurn`. On `ValidationFailureChunk`, discard the
+chunks that you showed. The stream has its own time limit
+(`with_stream_timeout`, default 5 minutes).
+
+```rust
+use futures::StreamExt;
+use force::api::agent_api::AgentStreamEventKind;
+
+let mut events = client.agents().send_text_stream("session-id", 2, "Hi").await?;
+while let Some(event) = events.next().await {
+    let event = event?;
+    match event.kind {
+        AgentStreamEventKind::TextChunk => print!("{}", event.text().unwrap_or_default()),
+        AgentStreamEventKind::EndOfTurn => break,
+        _ => {}
+    }
+}
+```
 
 ## See also
 

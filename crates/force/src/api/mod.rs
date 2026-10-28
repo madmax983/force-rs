@@ -51,12 +51,17 @@ pub mod analytics;
 #[cfg(feature = "soap")]
 pub mod soap;
 
+#[cfg(feature = "api_catalog")]
+pub mod api_catalog;
+
 pub(crate) mod query_stream;
 pub(crate) mod rest_operation;
 pub(crate) mod soql;
 
 pub use rest_operation::RestOperation;
-pub use soql::{SoqlQueryBuilder, escape_soql};
+pub use soql::{
+    ComparisonOperator, FormulaLiteral, FormulaOperator, SoqlQueryBuilder, escape_soql,
+};
 
 pub(crate) mod builder_unwrap;
 pub(crate) mod path_utils;

@@ -61,6 +61,17 @@ impl<A: Authenticator> TokenManager<A> {
         arc_token: Arc<AccessToken>,
         clear_count_at_start: u64,
     ) -> Result<Arc<AccessToken>> {
+        // A DPoP-bound token needs a proof on every call. force-rs sends no
+        // proof, and a call without one revokes the token. Reject it here, so
+        // no consumer (REST, SOAP, Data Cloud, Pub/Sub) can send it.
+        if arc_token.is_dpop_bound() {
+            return Err(crate::error::ForceError::Authentication(
+                crate::error::AuthenticationError::UnsupportedTokenType(
+                    crate::auth::token::DPOP_UNSUPPORTED.to_string(),
+                ),
+            ));
+        }
+
         let mut state = self.state.write().await;
 
         if state.clear_count != clear_count_at_start {
@@ -960,5 +971,27 @@ mod tests {
             refresh_count, 1,
             "👺 Havoc: force_refresh triggered a stampede!"
         );
+    }
+
+    #[tokio::test]
+    async fn test_dpop_bound_token_is_rejected_on_every_path() {
+        use crate::error::{AuthenticationError, ForceError};
+        let auth = crate::test_utils::mock_auth::MockAuthenticator::new("t", "https://x")
+            .with_token_type("DPoP");
+        let manager = TokenManager::new(auth);
+
+        for result in [
+            manager.token().await.map(|_| ()),
+            manager.force_refresh().await.map(|_| ()),
+        ] {
+            let err = result.err().must();
+            assert!(
+                matches!(
+                    err,
+                    ForceError::Authentication(AuthenticationError::UnsupportedTokenType(_))
+                ),
+                "{err:?}"
+            );
+        }
     }
 }

@@ -23,7 +23,7 @@ async fn setup() -> (MockServer, crate::client::ForceClient<MockAuthenticator>) 
 /// Mounts a single POST responder on the SOAP endpoint returning the given XML.
 async fn mount_soap(server: &MockServer, status: u16, xml: &str) {
     Mock::given(method("POST"))
-        .and(path("/services/Soap/u/67.0"))
+        .and(path("/services/Soap/u/68.0"))
         .respond_with(
             ResponseTemplate::new(status)
                 .insert_header("Content-Type", "text/xml; charset=utf-8")
@@ -59,11 +59,43 @@ async fn test_handler_is_cloneable_and_debug() {
 async fn test_soap_url_strips_version_prefix() {
     let (_server, client) = setup().await;
     let handler = client.soap();
-    let url = handler.soap_url("https://na1.salesforce.com");
-    assert_eq!(url, "https://na1.salesforce.com/services/Soap/u/67.0");
+    let url = handler.soap_url("https://na1.salesforce.com").must();
+    assert_eq!(url, "https://na1.salesforce.com/services/Soap/u/68.0");
     // Trailing slash is normalized away.
-    let url2 = handler.soap_url("https://na1.salesforce.com/");
-    assert_eq!(url2, "https://na1.salesforce.com/services/Soap/u/67.0");
+    let url2 = handler.soap_url("https://na1.salesforce.com/").must();
+    assert_eq!(url2, "https://na1.salesforce.com/services/Soap/u/68.0");
+}
+
+#[tokio::test]
+async fn test_soap_rejects_latest_alias_without_request() {
+    let server = MockServer::start().await;
+    let client = crate::client::builder()
+        .authenticate(MockAuthenticator::new("test_token", &server.uri()))
+        .config(crate::config::ClientConfig {
+            api_version: crate::types::ApiVersion::LATEST_ALIAS.to_string(),
+            ..Default::default()
+        })
+        .build()
+        .await
+        .must();
+    let err = client.soap().get_server_timestamp().await.err().must();
+    assert!(
+        matches!(err, crate::error::ForceError::InvalidInput(_)),
+        "{err:?}"
+    );
+    assert!(server.received_requests().await.must().is_empty());
+}
+
+#[tokio::test]
+async fn test_soap_dpop_token_sends_nothing() {
+    let server = MockServer::start().await;
+    let client = crate::client::builder()
+        .authenticate(MockAuthenticator::new("test_token", &server.uri()).with_token_type("DPoP"))
+        .build()
+        .await
+        .must();
+    assert!(client.soap().get_server_timestamp().await.is_err());
+    assert!(server.received_requests().await.must().is_empty());
 }
 
 // ── Envelope construction (unit) ─────────────────────────────────────
@@ -244,7 +276,7 @@ async fn test_query_success() {
 async fn test_query_sends_soql_in_body() {
     let (server, client) = setup().await;
     Mock::given(method("POST"))
-        .and(path("/services/Soap/u/67.0"))
+        .and(path("/services/Soap/u/68.0"))
         .and(header("SOAPAction", "\"\""))
         .and(body_string_contains(
             "<urn:queryString>SELECT Id FROM Account</urn:queryString>",
@@ -335,7 +367,7 @@ async fn test_create_partial_failure() {
 async fn test_create_sends_sobject_body() {
     let (server, client) = setup().await;
     Mock::given(method("POST"))
-        .and(path("/services/Soap/u/67.0"))
+        .and(path("/services/Soap/u/68.0"))
         .and(body_string_contains(
             "<urn:create><urn:sObjects><sf:type>Account</sf:type>",
         ))
@@ -393,7 +425,7 @@ async fn test_upsert_success() {
 async fn test_upsert_sends_external_id_field() {
     let (server, client) = setup().await;
     Mock::given(method("POST"))
-        .and(path("/services/Soap/u/67.0"))
+        .and(path("/services/Soap/u/68.0"))
         .and(body_string_contains(
             "<urn:externalIDFieldName>Ext__c</urn:externalIDFieldName>",
         ))
@@ -653,7 +685,7 @@ async fn test_invalid_session_refreshes_and_retries_once() {
 
     // First call: HTTP 500 INVALID_SESSION_ID fault (served exactly once).
     Mock::given(method("POST"))
-        .and(path("/services/Soap/u/67.0"))
+        .and(path("/services/Soap/u/68.0"))
         .respond_with(ResponseTemplate::new(500).set_body_string(fault))
         .up_to_n_times(1)
         .with_priority(1)
@@ -668,7 +700,7 @@ async fn test_invalid_session_refreshes_and_retries_once() {
         </result></queryResponse>"#,
     );
     Mock::given(method("POST"))
-        .and(path("/services/Soap/u/67.0"))
+        .and(path("/services/Soap/u/68.0"))
         .respond_with(ResponseTemplate::new(200).set_body_string(ok))
         .with_priority(2)
         .expect(1)
@@ -719,7 +751,7 @@ async fn test_query_typed_auto_paginates_two_pages() {
 
     // Page 1 (query): done=false with a locator, one record.
     Mock::given(method("POST"))
-        .and(path("/services/Soap/u/67.0"))
+        .and(path("/services/Soap/u/68.0"))
         .and(body_string_contains("<urn:query>"))
         .respond_with(ResponseTemplate::new(200).set_body_string(envelope(
             r#"<queryResponse><result>
@@ -734,7 +766,7 @@ async fn test_query_typed_auto_paginates_two_pages() {
 
     // Page 2 (queryMore): done=true, one record.
     Mock::given(method("POST"))
-        .and(path("/services/Soap/u/67.0"))
+        .and(path("/services/Soap/u/68.0"))
         .and(body_string_contains(
             "<urn:queryMore><urn:queryLocator>01gLOC-PAGE2</urn:queryLocator>",
         ))
@@ -811,7 +843,7 @@ async fn test_query_more_typed_page_returns_records() {
 async fn test_create_typed_null_field_becomes_fields_to_null() {
     let (server, client) = setup().await;
     Mock::given(method("POST"))
-        .and(path("/services/Soap/u/67.0"))
+        .and(path("/services/Soap/u/68.0"))
         .and(body_string_contains(
             "<urn:create><urn:sObjects><sf:type>Account</sf:type>",
         ))
@@ -838,7 +870,7 @@ async fn test_create_typed_null_field_becomes_fields_to_null() {
 async fn test_update_typed_sends_id() {
     let (server, client) = setup().await;
     Mock::given(method("POST"))
-        .and(path("/services/Soap/u/67.0"))
+        .and(path("/services/Soap/u/68.0"))
         .and(body_string_contains(
             "<urn:update><urn:sObjects><sf:type>Account</sf:type>",
         ))
@@ -863,7 +895,7 @@ async fn test_update_typed_sends_id() {
 async fn test_upsert_typed_delegates() {
     let (server, client) = setup().await;
     Mock::given(method("POST"))
-        .and(path("/services/Soap/u/67.0"))
+        .and(path("/services/Soap/u/68.0"))
         .and(body_string_contains(
             "<urn:externalIDFieldName>Ext__c</urn:externalIDFieldName>",
         ))

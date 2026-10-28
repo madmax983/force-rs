@@ -475,7 +475,7 @@ mod tests {
                 {
                     "attributes": {
                         "type": "Account",
-                        "url": "/services/data/v67.0/sobjects/Account/001000000000001AAA"
+                        "url": "/services/data/v68.0/sobjects/Account/001000000000001AAA"
                     },
                     "records": [
                         {
@@ -500,7 +500,7 @@ mod tests {
                 {
                     "attributes": {
                         "type": "Account",
-                        "url": "/services/data/v67.0/sobjects/Account"
+                        "url": "/services/data/v68.0/sobjects/Account"
                     },
                     "records": [
                         {"Id": "001000000000001AAA", "Name": "Acme"}
@@ -509,7 +509,7 @@ mod tests {
                 {
                     "attributes": {
                         "type": "Contact",
-                        "url": "/services/data/v67.0/sobjects/Contact"
+                        "url": "/services/data/v68.0/sobjects/Contact"
                     },
                     "records": [
                         {"Id": "003000000000001AAA", "Name": "John Doe"}
@@ -1053,7 +1053,7 @@ mod integration_tests {
                 {
                     "attributes": {
                         "type": "Account",
-                        "url": "/services/data/v67.0/sobjects/Account/001000000000001AAA"
+                        "url": "/services/data/v68.0/sobjects/Account/001000000000001AAA"
                     },
                     "records": [
                         {
@@ -1071,7 +1071,7 @@ mod integration_tests {
                 {
                     "attributes": {
                         "type": "Contact",
-                        "url": "/services/data/v67.0/sobjects/Contact/003000000000001AAA"
+                        "url": "/services/data/v68.0/sobjects/Contact/003000000000001AAA"
                     },
                     "records": [
                         {
@@ -1093,7 +1093,7 @@ mod integration_tests {
         let sosl = "FIND {Acme} IN ALL FIELDS RETURNING Account(Id, Name), Contact(Id, Name)";
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v67.0/search"))
+            .and(path("/services/data/v68.0/search"))
             .and(query_param("q", sosl))
             .and(bearer_token("test_token"))
             .respond_with(ResponseTemplate::new(200).set_body_json(sample_search_response()))
@@ -1128,7 +1128,7 @@ mod integration_tests {
             .build();
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v67.0/search"))
+            .and(path("/services/data/v68.0/search"))
             .and(query_param("q", query.as_str()))
             .respond_with(ResponseTemplate::new(200).set_body_json(sample_search_response()))
             .mount(&mock_server)
@@ -1154,7 +1154,7 @@ mod integration_tests {
         });
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v67.0/search"))
+            .and(path("/services/data/v68.0/search"))
             .respond_with(ResponseTemplate::new(200).set_body_json(empty_response))
             .mount(&mock_server)
             .await;
@@ -1180,7 +1180,7 @@ mod integration_tests {
         let auth = MockAuthenticator::new("invalid_token", &mock_server.uri());
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v67.0/search"))
+            .and(path("/services/data/v68.0/search"))
             .respond_with(ResponseTemplate::new(401))
             .mount(&mock_server)
             .await;
@@ -1207,7 +1207,7 @@ mod integration_tests {
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v67.0/search"))
+            .and(path("/services/data/v68.0/search"))
             .respond_with(ResponseTemplate::new(400).set_body_json(serde_json::json!({
                 "message": "Malformed SOSL query",
                 "errorCode": "MALFORMED_QUERY"
@@ -1238,7 +1238,7 @@ mod integration_tests {
                 {
                     "attributes": {
                         "type": "Account",
-                        "url": "/services/data/v67.0/sobjects/Account"
+                        "url": "/services/data/v68.0/sobjects/Account"
                     },
                     "records": [
                         {"Id": "001000000000001AAA", "Name": "Test Account"}
@@ -1248,7 +1248,7 @@ mod integration_tests {
         });
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v67.0/search"))
+            .and(path("/services/data/v68.0/search"))
             .respond_with(ResponseTemplate::new(200).set_body_json(single_object_response))
             .mount(&mock_server)
             .await;
@@ -1312,7 +1312,7 @@ mod integration_tests {
             .build();
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v67.0/search"))
+            .and(path("/services/data/v68.0/search"))
             .and(query_param(
                 "q",
                 "FIND {test@example.com} IN EMAIL FIELDS RETURNING Contact(Id, Email)",
@@ -1342,7 +1342,7 @@ mod integration_tests {
             .build();
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v67.0/search"))
+            .and(path("/services/data/v68.0/search"))
             .respond_with(ResponseTemplate::new(200).set_body_json(sample_search_response()))
             .mount(&mock_server)
             .await;
@@ -1370,7 +1370,7 @@ mod integration_tests {
             .build();
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v67.0/search"))
+            .and(path("/services/data/v68.0/search"))
             .and(query_param(
                 "q",
                 "FIND {Acme} IN ALL FIELDS RETURNING Account(Id) LIMIT 10 OFFSET 20",
@@ -1394,7 +1394,7 @@ mod integration_tests {
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v67.0/search"))
+            .and(path("/services/data/v68.0/search"))
             .respond_with(ResponseTemplate::new(200).set_body_json(sample_search_response()))
             .expect(3)
             .mount(&mock_server)
@@ -1422,7 +1422,7 @@ mod integration_tests {
         let auth = MockAuthenticator::new("test_token", &mock_server.uri());
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v67.0/search"))
+            .and(path("/services/data/v68.0/search"))
             .respond_with(ResponseTemplate::new(200).set_body_json(sample_search_response()))
             .expect(2)
             .mount(&mock_server)

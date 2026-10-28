@@ -31,6 +31,24 @@ client.bulk().update("Account", &records).await?;
 client.bulk().delete("Account", &["001...".to_string()]).await?; // delete by IDs
 ```
 
+### Winter '27 (v68.0) operations
+
+`JobOperation::Refresh` replaces all data in a marketing object data set.
+`JobOperation::ConsentImport` ingests consent data and has no `object`.
+`CreateJobRequest::validate` checks these rules before the request is sent.
+Use one `IngestJob` for `Refresh`: `SmartIngest` rejects it, because it can split
+the input into many jobs and each refresh job replaces the data set.
+
+```rust
+use force::api::bulk::{CreateJobRequest, JobOperation};
+
+let consent = client.bulk().create_job(CreateJobRequest::consent_import()).await?;
+let refresh = client
+    .bulk()
+    .create_job(CreateJobRequest::new("MyMarketingObject", JobOperation::Refresh))
+    .await?;
+```
+
 ## Query (streaming)
 
 `query::<T>` polls the query job, then hands back a stream of typed records:

@@ -7,6 +7,7 @@ use async_trait::async_trait;
 pub struct MockAuthenticator {
     token: String,
     instance_url: String,
+    token_type: String,
 }
 
 impl MockAuthenticator {
@@ -15,7 +16,14 @@ impl MockAuthenticator {
         Self {
             token: token.to_string(),
             instance_url: instance_url.to_string(),
+            token_type: "Bearer".to_string(),
         }
+    }
+
+    /// Sets the `token_type` of issued tokens (for example `DPoP`).
+    pub fn with_token_type(mut self, token_type: &str) -> Self {
+        self.token_type = token_type.to_string();
+        self
     }
 }
 
@@ -25,7 +33,7 @@ impl Authenticator for MockAuthenticator {
         Ok(AccessToken::from_response(TokenResponse {
             access_token: self.token.clone().into(),
             instance_url: self.instance_url.clone(),
-            token_type: "Bearer".to_string(),
+            token_type: self.token_type.clone(),
             issued_at: "1704067200000".to_string(),
             signature: "test_sig".to_string(),
             expires_in: Some(7200),

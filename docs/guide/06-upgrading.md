@@ -4,6 +4,29 @@ Guide for upgrading between `force` releases: what breaks and the minimal
 before/after fix, so upgrading is a search-and-replace instead of an
 archaeology dig through [CHANGELOG.md](../../CHANGELOG.md).
 
+## 0.4 → Unreleased (Winter '27, API v68.0)
+
+See [ADR-035](../adr/035-winter-27-v68-adoption.md) and the CHANGELOG `Breaking` list.
+
+1. **Default API version is v68.0.** Code that pins `api_version` does not
+   change. Tests that mock `/services/data/v67.0/...` with the default config
+   must use `v68.0`, or pin `api_version: "v67.0"`.
+2. **`JobOperation` has two new variants** (`Refresh`, `ConsentImport`). A
+   `match` without a `_` arm does not compile. Add the arms or a `_` arm.
+3. **`AuthenticationError` has a new variant** (`UnsupportedTokenType`). Same
+   fix as item 2.
+4. **`CreateJobRequest` with an empty `object`** no longer sends `"object":""`.
+   Set `object` for every operation except `ConsentImport`.
+5. **`GraphqlRequest` sends `operationName`.** Before, it sent
+   `operation_name`, which the server ignored. If you assert on the request
+   body in tests, change the key.
+6. **DPoP tokens fail early.** If an app has "Require DPoP" on, token fetch
+   now returns `AuthenticationError::UnsupportedTokenType`, and no API request
+   is sent. Turn the setting off for apps that `force-rs` uses.
+7. **SOAP and `latest`.** The SOAP handler rejects `api_version = "latest"`.
+   Pin a number for SOAP.
+8. **Agent API IDs.** Agent and session IDs must match `[A-Za-z0-9_-]`.
+
 ## 0.3 → 0.4
 
 0.4.0 made three semver-breaking API-shape corrections, all found by live-org

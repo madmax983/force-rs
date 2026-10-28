@@ -17,8 +17,8 @@ force = { version = "*", features = ["soap"] }   # soap = ["dep:quick-xml"]
 `soap` is included in the `full` (and `all`) aggregate. XML is parsed with `quick-xml` 0.41
 (event-based, no serde-derive, rustls-only posture).
 
-Endpoint: `{instance_url}/services/Soap/u/{version}` (the leading `v` is stripped, e.g. `v67.0`
-→ `67.0`).
+Endpoint: `{instance_url}/services/Soap/u/{version}` (the leading `v` is stripped, e.g. `v68.0`
+→ `68.0`).
 
 ## Accessor & config
 

@@ -92,7 +92,7 @@ fn page_body(page: usize, base: &str) -> String {
     b.push_str(&format!("{{\"totalSize\":{total},\"done\":{done},"));
     if !done {
         b.push_str(&format!(
-            "\"nextRecordsUrl\":\"/services/data/v67.0/query/01gxx-{}\",",
+            "\"nextRecordsUrl\":\"/services/data/v68.0/query/01gxx-{}\",",
             page + 1
         ));
     }
@@ -103,7 +103,7 @@ fn page_body(page: usize, base: &str) -> String {
         }
         let n = page * PAGE_SIZE + i;
         b.push_str(&format!(
-            "{{\"attributes\":{{\"type\":\"Account\",\"url\":\"/services/data/v67.0/sobjects/Account/001xx00000{n:06}AAA\"}},\"Id\":\"001xx00000{n:06}AAA\",\"Name\":\"Account Number {n}\",\"Industry\":\"Technology\",\"Type\":\"Customer - Direct\",\"Phone\":\"+1-555-01{}\",\"Website\":\"https://example{n}.com\",\"BillingCity\":\"Springfield\",\"BillingState\":\"IL\",\"AnnualRevenue\":1000000.0,\"NumberOfEmployees\":250}}",
+            "{{\"attributes\":{{\"type\":\"Account\",\"url\":\"/services/data/v68.0/sobjects/Account/001xx00000{n:06}AAA\"}},\"Id\":\"001xx00000{n:06}AAA\",\"Name\":\"Account Number {n}\",\"Industry\":\"Technology\",\"Type\":\"Customer - Direct\",\"Phone\":\"+1-555-01{}\",\"Website\":\"https://example{n}.com\",\"BillingCity\":\"Springfield\",\"BillingState\":\"IL\",\"AnnualRevenue\":1000000.0,\"NumberOfEmployees\":250}}",
             n % 100
         ));
     }
@@ -119,14 +119,14 @@ async fn mount(server: &MockServer) {
             .set_body_string(s)
     };
     Mock::given(method("GET"))
-        .and(path("/services/data/v67.0/query"))
+        .and(path("/services/data/v68.0/query"))
         .and(query_param("q", "SELECT Id FROM Account"))
         .respond_with(json(page_body(0, "")))
         .mount(server)
         .await;
     for i in 1..=MORE_PAGES {
         Mock::given(method("GET"))
-            .and(path(format!("/services/data/v67.0/query/01gxx-{i}")))
+            .and(path(format!("/services/data/v68.0/query/01gxx-{i}")))
             .respond_with(json(page_body(i, "")))
             .mount(server)
             .await;

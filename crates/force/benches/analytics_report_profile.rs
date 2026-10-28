@@ -134,9 +134,9 @@ fn build_report_body(report_id: &str) -> String {
     let mut out = String::with_capacity(ROW_COUNT * 320 + 4096);
     out.push_str(r#"{"attributes":{"type":"Report","reportId":""#);
     out.push_str(report_id);
-    out.push_str(r#"","reportName":"Accounts By Industry","describeUrl":"/services/data/v67.0/analytics/reports/"#);
+    out.push_str(r#"","reportName":"Accounts By Industry","describeUrl":"/services/data/v68.0/analytics/reports/"#);
     out.push_str(report_id);
-    out.push_str(r#"/describe","instancesUrl":"/services/data/v67.0/analytics/reports/"#);
+    out.push_str(r#"/describe","instancesUrl":"/services/data/v68.0/analytics/reports/"#);
     out.push_str(report_id);
     out.push_str(r#"/instances"},"allData":true,"factMap":{"T!T":{"aggregates":[{"label":""#);
     out.push_str(&ROW_COUNT.to_string());
@@ -181,7 +181,7 @@ fn build_report_body(report_id: &str) -> String {
 async fn mount_endpoint(mock_server: &MockServer, report_id: &str, instance_id: &str, body: &str) {
     Mock::given(method("GET"))
         .and(path(format!(
-            "/services/data/v67.0/analytics/reports/{report_id}/instances/{instance_id}"
+            "/services/data/v68.0/analytics/reports/{report_id}/instances/{instance_id}"
         )))
         .respond_with(
             ResponseTemplate::new(200)

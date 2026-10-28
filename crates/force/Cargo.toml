@@ -106,12 +106,15 @@ analytics = []
 # SOAP Partner API surface
 soap = ["dep:quick-xml"]
 
+# API Catalog surface (MCP server registry, v68.0+)
+api_catalog = []
+
 # Internal-only: exposes crate-private hot-path functions to benchmarks.
 # Not part of the public API; never enable in downstream builds.
 bench-internals = ["soap"]
 
 # Meta features
-full = ["rest", "files", "bulk", "composite", "tooling", "jwt", "auth_code", "ui", "graphql", "data_cloud", "apex_rest", "consent", "models", "agent_api", "account_engagement", "analytics", "soap"]
+full = ["rest", "files", "bulk", "composite", "tooling", "jwt", "auth_code", "ui", "graphql", "data_cloud", "apex_rest", "consent", "models", "agent_api", "account_engagement", "analytics", "soap", "api_catalog"]
 all = ["full", "schema", "data_utility", "composite_graph", "cpq"]
 
 [[example]]

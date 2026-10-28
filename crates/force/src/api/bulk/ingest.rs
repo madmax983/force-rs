@@ -44,7 +44,6 @@ use crate::api::bulk::types::{
 };
 use crate::auth::Authenticator;
 use crate::error::Result;
-use crate::types::validator::{validate_external_id_field, validate_sobject_name};
 use std::marker::PhantomData;
 use std::sync::Arc;
 
@@ -154,20 +153,9 @@ impl<A: Authenticator> IngestJob<Open, A> {
         operation: JobOperation,
         external_id_field_name: Option<String>,
     ) -> Result<Self> {
-        let object = object.into();
-        validate_sobject_name(&object)?;
-        if let Some(field) = &external_id_field_name {
-            validate_external_id_field(field)?;
-        }
-
-        let request = CreateJobRequest {
-            object,
-            operation,
-            content_type: None,
-            external_id_field_name,
-            line_ending: None,
-            column_delimiter: None,
-        };
+        let mut request = CreateJobRequest::new(object, operation);
+        request.external_id_field_name = external_id_field_name;
+        request.validate()?;
 
         let job_info = handler.create_job(request).await?;
         Ok(Self::new(job_info.id, Arc::clone(&handler.inner)))
@@ -462,10 +450,7 @@ impl<A: Authenticator> BulkHandler<A> {
     /// println!("Created job: {}", job.id);
     /// ```
     pub async fn create_job(&self, request: CreateJobRequest) -> Result<JobInfo> {
-        validate_sobject_name(&request.object)?;
-        if let Some(field) = &request.external_id_field_name {
-            validate_external_id_field(field)?;
-        }
+        request.validate()?;
 
         let url = self.base_url().await?;
         let request = self
@@ -848,7 +833,7 @@ mod tests {
         let mock_server = MockServer::start().await;
 
         Mock::given(method("POST"))
-            .and(path("/services/data/v67.0/jobs/ingest"))
+            .and(path("/services/data/v68.0/jobs/ingest"))
             .and(bearer_token("test_token"))
             .and(header("content-type", "application/json"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
@@ -883,7 +868,7 @@ mod tests {
         let mock_server = MockServer::start().await;
 
         Mock::given(method("POST"))
-            .and(path("/services/data/v67.0/jobs/ingest"))
+            .and(path("/services/data/v68.0/jobs/ingest"))
             .and(bearer_token("test_token"))
             .and(header("content-type", "application/json"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
@@ -919,11 +904,89 @@ mod tests {
 
     #[cfg(feature = "bulk")]
     #[tokio::test]
+    async fn test_create_consent_import_job_sends_no_object() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/services/data/v68.0/jobs/ingest"))
+            .and(wiremock::matchers::body_json(serde_json::json!({
+                "operation": "consentImport",
+                "contentType": "CSV"
+            })))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "id": "750xx0000000009AAA",
+                "operation": "consentImport",
+                "createdDate": "2026-10-01T00:00:00.000Z",
+                "createdById": "005xx0000000001AAA",
+                "state": "Open",
+                "contentType": "CSV"
+            })))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let client = create_test_client(mock_server.uri()).await;
+        let mut request = CreateJobRequest::consent_import();
+        request.content_type = Some(ContentType::Csv);
+
+        let job = client.bulk().create_job(request).await.must();
+        assert_eq!(job.operation, JobOperation::ConsentImport);
+        assert_eq!(job.object.len(), 0);
+    }
+
+    #[cfg(feature = "bulk")]
+    #[tokio::test]
+    async fn test_ingest_job_create_refresh_validates_object() {
+        let mock_server = MockServer::start().await;
+        let client = create_test_client(mock_server.uri()).await;
+        let handler = client.bulk();
+
+        // Empty object is invalid for refresh. No request is sent.
+        let result = IngestJob::create(&handler, "", JobOperation::Refresh, None).await;
+        assert!(matches!(
+            result,
+            Err(crate::error::ForceError::InvalidInput(_))
+        ));
+        // consentImport with an object is invalid too.
+        let mut bad = CreateJobRequest::consent_import();
+        bad.object = "Account".into();
+        assert!(handler.create_job(bad).await.is_err());
+        assert!(mock_server.received_requests().await.must().is_empty());
+    }
+
+    #[cfg(feature = "bulk")]
+    #[tokio::test]
+    async fn test_ingest_job_create_consent_import_happy_path() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/services/data/v68.0/jobs/ingest"))
+            .and(wiremock::matchers::body_json(
+                serde_json::json!({"operation": "consentImport"}),
+            ))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "id": "750xx000000000AAAA",
+                "operation": "consentImport",
+                "createdDate": "2026-10-01T00:00:00.000Z",
+                "createdById": "005xx0000000001AAA",
+                "state": "Open"
+            })))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+        let client = create_test_client(mock_server.uri()).await;
+        let handler = client.bulk();
+        IngestJob::create(&handler, "", JobOperation::ConsentImport, None)
+            .await
+            .must();
+    }
+
+    #[cfg(feature = "bulk")]
+    #[tokio::test]
     async fn test_create_job_with_upsert() {
         let mock_server = MockServer::start().await;
 
         Mock::given(method("POST"))
-            .and(path("/services/data/v67.0/jobs/ingest"))
+            .and(path("/services/data/v68.0/jobs/ingest"))
             .and(bearer_token("test_token"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "750xx0000000002AAA",
@@ -963,7 +1026,7 @@ mod tests {
         let mock_server = MockServer::start().await;
 
         Mock::given(method("POST"))
-            .and(path("/services/data/v67.0/jobs/ingest"))
+            .and(path("/services/data/v68.0/jobs/ingest"))
             .respond_with(
                 ResponseTemplate::new(400).set_body_json(serde_json::json!([{
                     "message": "Invalid job request",
@@ -1007,7 +1070,7 @@ mod tests {
         let mock_server = MockServer::start().await;
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v67.0/jobs/ingest/750xx0000000001AAA"))
+            .and(path("/services/data/v68.0/jobs/ingest/750xx0000000001AAA"))
             .and(bearer_token("test_token"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "750xx0000000001AAA",
@@ -1038,7 +1101,7 @@ mod tests {
         let mock_server = MockServer::start().await;
 
         Mock::given(method("GET"))
-            .and(path_regex("/services/data/v67.0/jobs/ingest/.*"))
+            .and(path_regex("/services/data/v68.0/jobs/ingest/.*"))
             .respond_with(
                 ResponseTemplate::new(404).set_body_json(serde_json::json!([{
                     "errorCode": "NOT_FOUND",
@@ -1073,7 +1136,7 @@ mod tests {
         let mock_server = MockServer::start().await;
 
         Mock::given(method("PATCH"))
-            .and(path("/services/data/v67.0/jobs/ingest/750xx0000000001AAA"))
+            .and(path("/services/data/v68.0/jobs/ingest/750xx0000000001AAA"))
             .and(bearer_token("test_token"))
             .and(header("content-type", "application/json"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
@@ -1107,7 +1170,7 @@ mod tests {
         let mock_server = MockServer::start().await;
 
         Mock::given(method("PATCH"))
-            .and(path_regex("/services/data/v67.0/jobs/ingest/.*"))
+            .and(path_regex("/services/data/v68.0/jobs/ingest/.*"))
             .respond_with(
                 ResponseTemplate::new(400).set_body_json(serde_json::json!([{
                     "errorCode": "INVALID_STATE",
@@ -1146,7 +1209,7 @@ mod tests {
         let mock_server = MockServer::start().await;
 
         Mock::given(method("DELETE"))
-            .and(path("/services/data/v67.0/jobs/ingest/750xx0000000001AAA"))
+            .and(path("/services/data/v68.0/jobs/ingest/750xx0000000001AAA"))
             .and(bearer_token("test_token"))
             .respond_with(ResponseTemplate::new(204))
             .mount(&mock_server)
@@ -1165,7 +1228,7 @@ mod tests {
         let mock_server = MockServer::start().await;
 
         Mock::given(method("DELETE"))
-            .and(path_regex("/services/data/v67.0/jobs/ingest/.*"))
+            .and(path_regex("/services/data/v68.0/jobs/ingest/.*"))
             .respond_with(
                 ResponseTemplate::new(404).set_body_json(serde_json::json!([{
                     "errorCode": "NOT_FOUND",
@@ -1211,7 +1274,7 @@ mod tests {
 
         // Mock: Create job
         Mock::given(method("POST"))
-            .and(path("/services/data/v67.0/jobs/ingest"))
+            .and(path("/services/data/v68.0/jobs/ingest"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "750xx0000000001AAA",
                 "operation": "insert",
@@ -1226,7 +1289,7 @@ mod tests {
         // Mock: Upload CSV
         Mock::given(method("PUT"))
             .and(path(
-                "/services/data/v67.0/jobs/ingest/750xx0000000001AAA/batches",
+                "/services/data/v68.0/jobs/ingest/750xx0000000001AAA/batches",
             ))
             .respond_with(ResponseTemplate::new(201))
             .mount(&mock_server)
@@ -1234,7 +1297,7 @@ mod tests {
 
         // Mock: Close job
         Mock::given(method("PATCH"))
-            .and(path("/services/data/v67.0/jobs/ingest/750xx0000000001AAA"))
+            .and(path("/services/data/v68.0/jobs/ingest/750xx0000000001AAA"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "750xx0000000001AAA",
                 "operation": "insert",
@@ -1248,7 +1311,7 @@ mod tests {
 
         // Mock: Poll job (complete immediately)
         Mock::given(method("GET"))
-            .and(path("/services/data/v67.0/jobs/ingest/750xx0000000001AAA"))
+            .and(path("/services/data/v68.0/jobs/ingest/750xx0000000001AAA"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "750xx0000000001AAA",
                 "operation": "insert",
@@ -1297,7 +1360,7 @@ mod tests {
 
         // Mock: Create, upload, close
         Mock::given(method("POST"))
-            .and(path("/services/data/v67.0/jobs/ingest"))
+            .and(path("/services/data/v68.0/jobs/ingest"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "750xx0000000002AAA",
                 "operation": "insert",
@@ -1311,14 +1374,14 @@ mod tests {
 
         Mock::given(method("PUT"))
             .and(path(
-                "/services/data/v67.0/jobs/ingest/750xx0000000002AAA/batches",
+                "/services/data/v68.0/jobs/ingest/750xx0000000002AAA/batches",
             ))
             .respond_with(ResponseTemplate::new(201))
             .mount(&mock_server)
             .await;
 
         Mock::given(method("PATCH"))
-            .and(path("/services/data/v67.0/jobs/ingest/750xx0000000002AAA"))
+            .and(path("/services/data/v68.0/jobs/ingest/750xx0000000002AAA"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "750xx0000000002AAA",
                 "operation": "insert",
@@ -1331,7 +1394,7 @@ mod tests {
             .await;
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v67.0/jobs/ingest/750xx0000000002AAA"))
+            .and(path("/services/data/v68.0/jobs/ingest/750xx0000000002AAA"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "750xx0000000002AAA",
                 "operation": "insert",
@@ -1379,7 +1442,7 @@ mod tests {
 
         // Mock: Create job with update operation
         Mock::given(method("POST"))
-            .and(path("/services/data/v67.0/jobs/ingest"))
+            .and(path("/services/data/v68.0/jobs/ingest"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "750xx0000000003AAA",
                 "operation": "update",
@@ -1393,14 +1456,14 @@ mod tests {
 
         Mock::given(method("PUT"))
             .and(path(
-                "/services/data/v67.0/jobs/ingest/750xx0000000003AAA/batches",
+                "/services/data/v68.0/jobs/ingest/750xx0000000003AAA/batches",
             ))
             .respond_with(ResponseTemplate::new(201))
             .mount(&mock_server)
             .await;
 
         Mock::given(method("PATCH"))
-            .and(path("/services/data/v67.0/jobs/ingest/750xx0000000003AAA"))
+            .and(path("/services/data/v68.0/jobs/ingest/750xx0000000003AAA"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "750xx0000000003AAA",
                 "operation": "update",
@@ -1413,7 +1476,7 @@ mod tests {
             .await;
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v67.0/jobs/ingest/750xx0000000003AAA"))
+            .and(path("/services/data/v68.0/jobs/ingest/750xx0000000003AAA"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "750xx0000000003AAA",
                 "operation": "update",
@@ -1453,7 +1516,7 @@ mod tests {
 
         // Mock: Create job with delete operation
         Mock::given(method("POST"))
-            .and(path("/services/data/v67.0/jobs/ingest"))
+            .and(path("/services/data/v68.0/jobs/ingest"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "750xx0000000004AAA",
                 "operation": "delete",
@@ -1467,14 +1530,14 @@ mod tests {
 
         Mock::given(method("PUT"))
             .and(path(
-                "/services/data/v67.0/jobs/ingest/750xx0000000004AAA/batches",
+                "/services/data/v68.0/jobs/ingest/750xx0000000004AAA/batches",
             ))
             .respond_with(ResponseTemplate::new(201))
             .mount(&mock_server)
             .await;
 
         Mock::given(method("PATCH"))
-            .and(path("/services/data/v67.0/jobs/ingest/750xx0000000004AAA"))
+            .and(path("/services/data/v68.0/jobs/ingest/750xx0000000004AAA"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "750xx0000000004AAA",
                 "operation": "delete",
@@ -1487,7 +1550,7 @@ mod tests {
             .await;
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v67.0/jobs/ingest/750xx0000000004AAA"))
+            .and(path("/services/data/v68.0/jobs/ingest/750xx0000000004AAA"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "750xx0000000004AAA",
                 "operation": "delete",
@@ -1522,7 +1585,7 @@ mod tests {
         let mock_server = MockServer::start().await;
 
         Mock::given(method("POST"))
-            .and(path("/services/data/v67.0/jobs/ingest"))
+            .and(path("/services/data/v68.0/jobs/ingest"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "750xx0000000005AAA",
                 "operation": "delete",
@@ -1536,14 +1599,14 @@ mod tests {
 
         Mock::given(method("PUT"))
             .and(path(
-                "/services/data/v67.0/jobs/ingest/750xx0000000005AAA/batches",
+                "/services/data/v68.0/jobs/ingest/750xx0000000005AAA/batches",
             ))
             .respond_with(ResponseTemplate::new(201))
             .mount(&mock_server)
             .await;
 
         Mock::given(method("PATCH"))
-            .and(path("/services/data/v67.0/jobs/ingest/750xx0000000005AAA"))
+            .and(path("/services/data/v68.0/jobs/ingest/750xx0000000005AAA"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "750xx0000000005AAA",
                 "operation": "delete",
@@ -1556,7 +1619,7 @@ mod tests {
             .await;
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v67.0/jobs/ingest/750xx0000000005AAA"))
+            .and(path("/services/data/v68.0/jobs/ingest/750xx0000000005AAA"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "750xx0000000005AAA",
                 "operation": "delete",
@@ -1593,7 +1656,7 @@ mod tests {
         let mock_server = MockServer::start().await;
 
         Mock::given(method("POST"))
-            .and(path("/services/data/v67.0/jobs/ingest"))
+            .and(path("/services/data/v68.0/jobs/ingest"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "750xx0000000008AAA",
                 "operation": "insert",
@@ -1607,14 +1670,14 @@ mod tests {
 
         Mock::given(method("PUT"))
             .and(path(
-                "/services/data/v67.0/jobs/ingest/750xx0000000008AAA/batches",
+                "/services/data/v68.0/jobs/ingest/750xx0000000008AAA/batches",
             ))
             .respond_with(ResponseTemplate::new(201))
             .mount(&mock_server)
             .await;
 
         Mock::given(method("PATCH"))
-            .and(path("/services/data/v67.0/jobs/ingest/750xx0000000008AAA"))
+            .and(path("/services/data/v68.0/jobs/ingest/750xx0000000008AAA"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "750xx0000000008AAA",
                 "operation": "insert",
@@ -1628,7 +1691,7 @@ mod tests {
 
         // Job fails during processing
         Mock::given(method("GET"))
-            .and(path("/services/data/v67.0/jobs/ingest/750xx0000000008AAA"))
+            .and(path("/services/data/v68.0/jobs/ingest/750xx0000000008AAA"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "750xx0000000008AAA",
                 "operation": "insert",
@@ -1670,7 +1733,7 @@ mod tests {
 
         // Mock job creation
         Mock::given(method("POST"))
-            .and(path("/services/data/v67.0/jobs/ingest"))
+            .and(path("/services/data/v68.0/jobs/ingest"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "750xx0000000001AAA",
                 "operation": "insert",
@@ -1686,7 +1749,7 @@ mod tests {
         // Mock CSV upload
         Mock::given(method("PUT"))
             .and(path(
-                "/services/data/v67.0/jobs/ingest/750xx0000000001AAA/batches",
+                "/services/data/v68.0/jobs/ingest/750xx0000000001AAA/batches",
             ))
             .and(bearer_token("test_token"))
             .and(header("content-type", "text/csv"))
@@ -1715,7 +1778,7 @@ mod tests {
 
         // Mock job creation
         Mock::given(method("POST"))
-            .and(path("/services/data/v67.0/jobs/ingest"))
+            .and(path("/services/data/v68.0/jobs/ingest"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "750xx0000000009AAA",
                 "operation": "insert",
@@ -1731,7 +1794,7 @@ mod tests {
         // Mock CSV upload
         Mock::given(method("PUT"))
             .and(path(
-                "/services/data/v67.0/jobs/ingest/750xx0000000009AAA/batches",
+                "/services/data/v68.0/jobs/ingest/750xx0000000009AAA/batches",
             ))
             .and(bearer_token("test_token"))
             .and(header("content-type", "text/csv"))
@@ -1760,7 +1823,7 @@ mod tests {
         let mock_server = MockServer::start().await;
 
         Mock::given(method("PATCH"))
-            .and(path("/services/data/v67.0/jobs/ingest/750xx0000000009AAA"))
+            .and(path("/services/data/v68.0/jobs/ingest/750xx0000000009AAA"))
             .and(bearer_token("test_token"))
             .and(header("content-type", "application/json"))
             .and(body_json(serde_json::json!({
@@ -1793,7 +1856,7 @@ mod tests {
         // Mock successful results
         Mock::given(method("GET"))
             .and(path(
-                "/services/data/v67.0/jobs/ingest/750xx0000000009AAA/successfulResults",
+                "/services/data/v68.0/jobs/ingest/750xx0000000009AAA/successfulResults",
             ))
             .and(bearer_token("test_token"))
             .respond_with(ResponseTemplate::new(200).set_body_bytes(b"success_data".to_vec()))
@@ -1803,7 +1866,7 @@ mod tests {
         // Mock failed results
         Mock::given(method("GET"))
             .and(path(
-                "/services/data/v67.0/jobs/ingest/750xx0000000009AAA/failedResults",
+                "/services/data/v68.0/jobs/ingest/750xx0000000009AAA/failedResults",
             ))
             .and(bearer_token("test_token"))
             .respond_with(ResponseTemplate::new(200).set_body_bytes(b"failed_data".to_vec()))
@@ -1813,7 +1876,7 @@ mod tests {
         // Mock unprocessed results
         Mock::given(method("GET"))
             .and(path(
-                "/services/data/v67.0/jobs/ingest/750xx0000000009AAA/unprocessedrecords",
+                "/services/data/v68.0/jobs/ingest/750xx0000000009AAA/unprocessedrecords",
             ))
             .and(bearer_token("test_token"))
             .respond_with(ResponseTemplate::new(200).set_body_bytes(b"unprocessed_data".to_vec()))
