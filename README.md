@@ -63,13 +63,13 @@ Add force-rs to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-force = "0.4"
+force = "0.5"
 tokio = { version = "1", features = ["full"] }
 serde = { version = "1", features = ["derive"] }
 anyhow = "1.0"
 
 # Or enable specific features:
-force = { version = "0.4", features = ["rest", "bulk", "jwt"] }
+force = { version = "0.5", features = ["rest", "bulk", "jwt"] }
 ```
 
 ## Quick Start
@@ -132,7 +132,7 @@ async fn main() -> anyhow::Result<()> {
 Query specific fields and nested relationships in a single request:
 
 ```rust
-// Requires the "graphql" feature: force = { version = "0.4", features = ["graphql"] }
+// Requires the "graphql" feature: force = { version = "0.5", features = ["graphql"] }
 use force::api::graphql::GraphqlRequest;
 use force::auth::ClientCredentials;
 use force::client::ForceClientBuilder;
@@ -174,7 +174,7 @@ async fn main() -> anyhow::Result<()> {
 The Bulk API uses Rust's type system to enforce the correct job lifecycle at compile time:
 
 ```rust
-// Requires the "bulk" feature: force = { version = "0.4", features = ["bulk"] }
+// Requires the "bulk" feature: force = { version = "0.5", features = ["bulk"] }
 use force::client::ForceClientBuilder;
 use force::auth::ClientCredentials;
 use serde::Serialize;
@@ -218,7 +218,7 @@ async fn main() -> anyhow::Result<()> {
 Stream millions of records without loading the entire dataset into memory:
 
 ```rust
-// Requires the "bulk" feature: force = { version = "0.4", features = ["bulk"] }
+// Requires the "bulk" feature: force = { version = "0.5", features = ["bulk"] }
 use force::client::ForceClientBuilder;
 use force::auth::ClientCredentials;
 use serde::Deserialize;
@@ -327,11 +327,11 @@ The Query Plan API allows you to inspect the performance cost of a SOQL query be
 
 ```toml
 [dependencies]
-force = "0.4"
+force = "0.5"
 ```
 
 ```rust
-// Available with the default "rest" feature: force = "0.4"
+// Available with the default "rest" feature: force = "0.5"
 use force::client::ForceClientBuilder;
 use force::auth::ClientCredentials;
 
