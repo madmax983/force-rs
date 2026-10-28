@@ -19,6 +19,7 @@ replay support. Authenticates by reusing a `force` `Session` (Client Credentials
 `publish(topic, events)` / `get_schema(id)` / `get_topic(name)`.
 
 ```rust
+use futures::StreamExt;
 use force_pubsub::{PubSubConfig, PubSubHandler, PubSubEvent, ReplayPreset};
 
 let handler = PubSubHandler::connect(force_client.session(), PubSubConfig::default()).await?;

@@ -106,12 +106,15 @@ analytics = []
 # SOAP Partner API surface
 soap = ["dep:quick-xml"]
 
+# API Catalog surface (MCP server registry, v68.0+)
+api_catalog = []
+
 # Internal-only: exposes crate-private hot-path functions to benchmarks.
 # Not part of the public API; never enable in downstream builds.
 bench-internals = ["soap"]
 
 # Meta features
-full = ["rest", "files", "bulk", "composite", "tooling", "jwt", "auth_code", "ui", "graphql", "data_cloud", "apex_rest", "consent", "models", "agent_api", "account_engagement", "analytics", "soap"]
+full = ["rest", "files", "bulk", "composite", "tooling", "jwt", "auth_code", "ui", "graphql", "data_cloud", "apex_rest", "consent", "models", "agent_api", "account_engagement", "analytics", "soap", "api_catalog"]
 all = ["full", "schema", "data_utility", "composite_graph", "cpq"]
 
 [[example]]
@@ -150,3 +153,58 @@ required-features = ["auth_code"]
 name = "soap_bench"
 harness = false
 required-features = ["soap", "bench-internals"]
+
+[[bench]]
+name = "smart_ingest_profile"
+harness = false
+required-features = ["bulk"]
+
+[[bench]]
+name = "relational_seeder_profile"
+harness = false
+required-features = ["data_utility", "composite_graph"]
+
+[[bench]]
+name = "data_faker_profile"
+harness = false
+required-features = ["data_utility"]
+
+[[bench]]
+name = "soap_query_profile"
+harness = false
+required-features = ["soap"]
+
+[[bench]]
+name = "data_archiver_profile"
+harness = false
+required-features = ["data_utility"]
+
+[[bench]]
+name = "data_validator_profile"
+harness = false
+required-features = ["data_utility"]
+
+[[bench]]
+name = "data_masker_profile"
+harness = false
+required-features = ["data_utility"]
+
+[[bench]]
+name = "files_upload_profile"
+harness = false
+required-features = ["files"]
+
+[[bench]]
+name = "analytics_report_profile"
+harness = false
+required-features = ["analytics"]
+
+[[bench]]
+name = "rest_query_profile"
+harness = false
+required-features = ["rest"]
+
+[[bench]]
+name = "composite_query_batch_profile"
+harness = false
+required-features = ["composite"]

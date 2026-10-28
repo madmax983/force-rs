@@ -17,7 +17,7 @@ readme = "README.md"
 workspace = true
 
 [dependencies]
-force = { path = "../force", version = "0.4.0", features = ["rest", "bulk", "schema"] }
+force = { path = "../force", version = "0.5.0", features = ["rest", "bulk", "schema"] }
 tokio = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -35,10 +35,14 @@ bytes.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
-force = { path = "../force", version = "0.4.0", features = ["rest", "bulk", "schema"] }
+force = { path = "../force", version = "0.5.0", features = ["rest", "bulk", "schema"] }
 bytes.workspace = true
 criterion = { workspace = true }
 
 [[bench]]
 name = "record_batch_bench"
+harness = false
+
+[[bench]]
+name = "record_batch_profile"
 harness = false

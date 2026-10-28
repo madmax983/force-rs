@@ -358,12 +358,15 @@ impl HttpExecutor {
         retry_attempt: u32,
         ctx: &TelemetryContext,
     ) -> Result<Response> {
-        let result = tokio::time::timeout(self.timeout, self.client.execute(request)).await;
+        // A per-request timeout (for example a streamed turn) wins over the
+        // executor default.
+        let timeout = request.timeout().copied().unwrap_or(self.timeout);
+        let result = tokio::time::timeout(timeout, self.client.execute(request)).await;
 
         let Ok(req_result) = result else {
             self.record_completion(ctx, None, Some(RequestErrorKind::Timeout), retry_attempt);
             return Err(HttpError::Timeout {
-                timeout_seconds: self.timeout.as_secs(),
+                timeout_seconds: timeout.as_secs(),
             }
             .into());
         };
@@ -569,7 +572,7 @@ mod tests {
         let mock_server = MockServer::start().await;
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v67.0/query"))
+            .and(path("/services/data/v68.0/query"))
             .and(header("Authorization", "Bearer test_token"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "totalSize": 1,
@@ -591,7 +594,7 @@ mod tests {
             .client
             .request(
                 Method::GET,
-                format!("{}/services/data/v67.0/query", mock_server.uri()),
+                format!("{}/services/data/v68.0/query", mock_server.uri()),
             )
             .build()
             .must();
@@ -605,12 +608,47 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_dpop_bound_token_sends_no_request() {
+        let mock_server = MockServer::start().await;
+        let executor = HttpExecutor::new();
+        let token = AccessToken::from_response(
+            serde_json::from_value(serde_json::json!({
+                "access_token": "00Dxx!dpop_bound",
+                "instance_url": mock_server.uri(),
+                "token_type": "DPoP",
+                "issued_at": "1704067200000",
+                "signature": "sig"
+            }))
+            .must(),
+        );
+        let request = executor
+            .client
+            .request(
+                Method::GET,
+                format!("{}/services/data/v68.0/limits", mock_server.uri()),
+            )
+            .build()
+            .must();
+
+        let result = executor
+            .execute_response(request, &token, || async {
+                panic!("refresh must not run");
+            })
+            .await;
+
+        let err = result.err().must();
+        assert!(err.to_string().contains("DPoP"), "{err}");
+        // A proof-less DPoP call revokes the token, so nothing may be sent.
+        assert!(mock_server.received_requests().await.must().is_empty());
+    }
+
+    #[tokio::test]
     async fn test_execute_401_retry() {
         let mock_server = MockServer::start().await;
 
         // First attempt fails with 401
         Mock::given(method("GET"))
-            .and(path("/services/data/v67.0/query"))
+            .and(path("/services/data/v68.0/query"))
             .and(header("Authorization", "Bearer expired_token"))
             .respond_with(
                 ResponseTemplate::new(401).set_body_json(serde_json::json!([{
@@ -624,7 +662,7 @@ mod tests {
 
         // Second attempt succeeds with new token
         Mock::given(method("GET"))
-            .and(path("/services/data/v67.0/query"))
+            .and(path("/services/data/v68.0/query"))
             .and(header("Authorization", "Bearer test_token"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "totalSize": 1,
@@ -658,7 +696,7 @@ mod tests {
             .client
             .request(
                 Method::GET,
-                format!("{}/services/data/v67.0/query", mock_server.uri()),
+                format!("{}/services/data/v68.0/query", mock_server.uri()),
             )
             .build()
             .must();
@@ -677,7 +715,7 @@ mod tests {
         let mock_server = MockServer::start().await;
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v67.0/query"))
+            .and(path("/services/data/v68.0/query"))
             .respond_with(
                 ResponseTemplate::new(429)
                     .insert_header("Retry-After", "60")
@@ -701,7 +739,7 @@ mod tests {
             .client
             .request(
                 Method::GET,
-                format!("{}/services/data/v67.0/query", mock_server.uri()),
+                format!("{}/services/data/v68.0/query", mock_server.uri()),
             )
             .build()
             .must();
@@ -725,7 +763,7 @@ mod tests {
 
         // Mock a 503 Service Unavailable response
         Mock::given(method("GET"))
-            .and(path("/services/data/v67.0/query"))
+            .and(path("/services/data/v68.0/query"))
             .respond_with(
                 ResponseTemplate::new(503).set_body_json(serde_json::json!([{
                     "message": "Service Unavailable",
@@ -753,7 +791,7 @@ mod tests {
             .client
             .request(
                 Method::GET,
-                format!("{}/services/data/v67.0/query", mock_server.uri()),
+                format!("{}/services/data/v68.0/query", mock_server.uri()),
             )
             .build()
             .must();
@@ -768,12 +806,40 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_request_timeout_overrides_executor_timeout() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/slow"))
+            .respond_with(ResponseTemplate::new(200).set_delay(Duration::from_millis(100)))
+            .mount(&mock_server)
+            .await;
+
+        // Executor limit 10ms; the request asks for 5s (a streamed turn).
+        let executor = HttpExecutor::with_config(0, Duration::from_millis(10));
+        let token = create_test_token();
+        let request = executor
+            .client
+            .get(format!("{}/slow", mock_server.uri()))
+            .timeout(Duration::from_secs(5))
+            .build()
+            .must();
+
+        let response = executor
+            .execute_response(request, &token, || async {
+                panic!("Should not be called");
+            })
+            .await
+            .must();
+        assert_eq!(response.status(), reqwest::StatusCode::OK);
+    }
+
+    #[tokio::test]
     async fn test_execute_timeout() {
         let mock_server = MockServer::start().await;
 
         // Mock a delayed response that exceeds our timeout
         Mock::given(method("GET"))
-            .and(path("/services/data/v67.0/query"))
+            .and(path("/services/data/v68.0/query"))
             .respond_with(
                 ResponseTemplate::new(200)
                     .set_delay(Duration::from_millis(100))
@@ -798,7 +864,7 @@ mod tests {
             .client
             .request(
                 Method::GET,
-                format!("{}/services/data/v67.0/query", mock_server.uri()),
+                format!("{}/services/data/v68.0/query", mock_server.uri()),
             )
             .build()
             .must();
@@ -818,7 +884,7 @@ mod tests {
     #[tokio::test]
     async fn test_execute_transport_error() {
         // Use an unroutable local address to force a transport/connection error
-        let unroutable_url = "http://127.0.0.1:0/services/data/v67.0/query";
+        let unroutable_url = "http://127.0.0.1:0/services/data/v68.0/query";
 
         // We only want 0 retries here so we can assert the final error directly
         let executor = HttpExecutor::with_config(0, Duration::from_millis(100));
@@ -852,7 +918,7 @@ mod tests {
     async fn test_execute_transport_error_retries_transient_failure() {
         // We use an unroutable local address to force a transport/connection error.
         // It will fail every time, but we test that it actually retries up to the limit.
-        let unroutable_url = "http://127.0.0.1:0/services/data/v67.0/query";
+        let unroutable_url = "http://127.0.0.1:0/services/data/v68.0/query";
 
         // Set max retries to 3
         let executor = HttpExecutor::with_config(3, Duration::from_millis(100))
@@ -1005,7 +1071,7 @@ mod tests {
         let mock_server = MockServer::start().await;
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v67.0/query"))
+            .and(path("/services/data/v68.0/query"))
             .and(header("Authorization", "Bearer test_token"))
             .respond_with(
                 ResponseTemplate::new(400).set_body_json(serde_json::json!([{
@@ -1028,7 +1094,7 @@ mod tests {
             .client
             .request(
                 Method::GET,
-                format!("{}/services/data/v67.0/query", mock_server.uri()),
+                format!("{}/services/data/v68.0/query", mock_server.uri()),
             )
             .build()
             .must();
@@ -1053,7 +1119,7 @@ mod tests {
 
         // Both attempts return 401 -- initial token and refreshed token both fail.
         Mock::given(method("GET"))
-            .and(path("/services/data/v67.0/query"))
+            .and(path("/services/data/v68.0/query"))
             .respond_with(
                 ResponseTemplate::new(401).set_body_json(serde_json::json!([{
                     "message": "Session expired or invalid",
@@ -1072,7 +1138,7 @@ mod tests {
             .client
             .request(
                 Method::GET,
-                format!("{}/services/data/v67.0/query", mock_server.uri()),
+                format!("{}/services/data/v68.0/query", mock_server.uri()),
             )
             .build()
             .must();

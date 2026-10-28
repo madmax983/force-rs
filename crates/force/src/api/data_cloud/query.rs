@@ -1,7 +1,8 @@
 //! Data Cloud SQL Query API.
 //!
 //! Provides access to the Data Cloud SQL query endpoint at
-//! `POST /services/data/vXX.0/ssot/query-sql`.
+//! `POST /services/data/vXX.0/ssot/query` (Query API v2, now legacy). The
+//! Query Connect API (`ssot/query-sql`) is a follow-up; see ADR-035.
 
 use super::types::{ColumnMetadata, DataCloudRecord, SqlQueryRequest};
 use crate::error::Result;
@@ -107,7 +108,7 @@ mod tests {
         }"#;
 
         let response: SqlQueryResponse = serde_json::from_str(json).must();
-        assert!(response.data.is_empty());
+        assert_eq!(response.data.len(), 0);
         assert_eq!(response.row_count, Some(0));
     }
 
@@ -182,7 +183,7 @@ mod tests {
             });
 
             Mock::given(method("POST"))
-                .and(path("/services/data/v67.0/ssot/query"))
+                .and(path("/services/data/v68.0/ssot/query"))
                 .respond_with(ResponseTemplate::new(200).set_body_json(query_response))
                 .expect(1)
                 .mount(&mock_server)
@@ -214,7 +215,7 @@ mod tests {
             });
 
             Mock::given(method("POST"))
-                .and(path("/services/data/v67.0/ssot/query"))
+                .and(path("/services/data/v68.0/ssot/query"))
                 .respond_with(ResponseTemplate::new(200).set_body_json(query_response))
                 .mount(&mock_server)
                 .await;
@@ -223,7 +224,7 @@ mod tests {
             let dc = client.data_cloud().must();
             let result = dc.query_sql("SELECT Id FROM Empty__dlm").await.must();
 
-            assert!(result.data.is_empty());
+            assert_eq!(result.data.len(), 0);
             assert_eq!(result.row_count, Some(0));
         }
 
@@ -232,7 +233,7 @@ mod tests {
             let mock_server = MockServer::start().await;
 
             Mock::given(method("POST"))
-                .and(path("/services/data/v67.0/ssot/query"))
+                .and(path("/services/data/v68.0/ssot/query"))
                 .respond_with(
                     ResponseTemplate::new(400).set_body_string(
                         r#"[{"message":"Invalid SQL","errorCode":"INVALID_QUERY"}]"#,
@@ -260,7 +261,7 @@ mod tests {
             });
 
             Mock::given(method("POST"))
-                .and(path("/services/data/v67.0/ssot/query"))
+                .and(path("/services/data/v68.0/ssot/query"))
                 .respond_with(ResponseTemplate::new(200).set_body_json(query_response))
                 .mount(&mock_server)
                 .await;

@@ -7,7 +7,7 @@ adds development-only endpoints: execute-anonymous, run-tests, and code
 completions.
 
 - **Feature flag:** `tooling` (independent of `rest` — enable it on its own)
-- **Accessor:** `client.tooling()` → `ToolingHandler`
+- **ApexAccessor:** `client.tooling()` → `ToolingHandler`
 
 ```toml
 force = { version = "...", features = ["tooling"] }
@@ -17,7 +17,7 @@ CRUD/Query/Describe come from the shared [`RestOperation`] trait, so bring it in
 scope:
 
 ```rust
-use force::api::rest_operation::RestOperation; // or force::api::RestOperation
+use force::api::RestOperation;
 ```
 
 ## Shared operations (Tooling objects)
@@ -52,6 +52,37 @@ let job_id  = tooling.run_tests_async(&request).await?; // String
 
 // Code completions
 let completions = tooling.completions(CompletionsType::Apex, "System.d").await?;
+```
+
+### Winter '27 (v68.0) endpoints
+
+```rust
+use force::api::tooling::{
+    DiscoveryTestLevel, SymbolCategory, SymbolsRequest, TestDiscoveryRequest,
+};
+
+// Compile errors of Apex that is not valid (GA). Does not change IsValid.
+let compile = tooling.apex_compile_results().await?;
+for failed in &compile.results {
+    println!("{}: {} problem(s)", failed.name, failed.problems.len());
+}
+
+// Apex type metadata (Beta). One request per org at a time.
+let request = SymbolsRequest::new(SymbolCategory::Builtin)
+    .namespace("System")
+    .name("ApexPages");
+let symbols = tooling.symbols(&request).await?;
+
+// Test Discovery. `test_level` needs v68.0+; `show_all_methods` is v67.0 and earlier.
+let request = TestDiscoveryRequest {
+    test_level: Some(DiscoveryTestLevel::RunLocalTests),
+    page_size: Some(500),
+    ..Default::default()
+};
+let mut page = tooling.discover_tests(&request).await?;
+while let Some(next) = page.next_records_url.clone() {
+    page = tooling.discover_tests_next(&next).await?;
+}
 ```
 
 ## See also

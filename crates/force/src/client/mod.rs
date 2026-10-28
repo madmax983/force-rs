@@ -194,6 +194,15 @@ impl<A: crate::auth::authenticator::Authenticator> ForceClient<A> {
         pub fn soap -> crate::api::soap::SoapHandler<A>
     }
 
+    handler_accessor! {
+        /// Creates an API Catalog handler for this client (v68.0+).
+        ///
+        /// Manages the MCP server registry under
+        /// `/services/data/vXX.X/api-catalog/`.
+        #[cfg(feature = "api_catalog")]
+        pub fn api_catalog -> crate::api::api_catalog::ApiCatalogHandler<A>
+    }
+
     /// Creates a Data Cloud API handler for this client.
     ///
     /// The Data Cloud handler provides access to the Salesforce Data Cloud

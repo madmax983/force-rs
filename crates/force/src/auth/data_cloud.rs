@@ -321,7 +321,7 @@ mod tests {
         );
         assert_eq!(token_response.token_type, "Bearer");
         assert_eq!(token_response.expires_in, Some(3600));
-        assert!(token_response.signature.is_empty());
+        assert_eq!(token_response.signature.len(), 0);
         assert!(token_response.refresh_token.is_none());
         // issued_at should be a valid timestamp (numeric string)
         assert!(token_response.issued_at.parse::<i64>().is_ok());
@@ -454,6 +454,32 @@ mod tests {
             assert_eq!(token.instance_url(), "https://tenant.c360a.salesforce.com");
             assert_eq!(token.token_type(), "Bearer");
             assert!(token.expires_at().is_some());
+        }
+
+        #[tokio::test]
+        async fn test_dpop_platform_token_is_never_exchanged() {
+            let mock_server = MockServer::start().await;
+            let platform_auth = MockAuthenticator::new("platform_token", &mock_server.uri())
+                .with_token_type("DPoP");
+            let auth = DataCloudAuthenticator::new(
+                Arc::new(TokenManager::new(platform_auth)),
+                reqwest::Client::new(),
+                DataCloudConfig {
+                    token_exchange_url: Some(format!("{}/services/a360/token", mock_server.uri())),
+                    ..Default::default()
+                },
+            );
+
+            let err = auth.authenticate().await.err().must();
+            assert!(
+                matches!(
+                    err,
+                    ForceError::Authentication(AuthenticationError::UnsupportedTokenType(_))
+                ),
+                "{err:?}"
+            );
+            // The DPoP-bound token must not leave the process.
+            assert!(mock_server.received_requests().await.must().is_empty());
         }
 
         #[tokio::test]

@@ -2,6 +2,33 @@
 //!
 //! Provides `DataArchiver`, a utility for seamlessly exporting Salesforce data
 //! to local disk formats (JSONL, CSV).
+//!
+//! # Example
+//!
+//! ```no_run
+//! # use force::client::ForceClientBuilder;
+//! # use force::data::DataArchiver;
+//! # use force::auth::ClientCredentials;
+//! # #[tokio::main]
+//! # async fn main() -> anyhow::Result<()> {
+//! # let auth = ClientCredentials::new("id", "secret", "url");
+//! # let client = ForceClientBuilder::new().authenticate(auth).build().await?;
+//! let archiver = DataArchiver::new(&client);
+//!
+//! // Plain export
+//! let count = archiver
+//!     .export_to_jsonl::<serde_json::Value>("SELECT Id, Name FROM Account", "accounts.jsonl")
+//!     .await?;
+//! println!("Exported {count} Accounts");
+//!
+//! // PII-masked export, driven by the Contact describe metadata
+//! let count = archiver
+//!     .export_masked_to_jsonl("Contact", "SELECT Id, Name, Email FROM Contact", "contacts.jsonl")
+//!     .await?;
+//! println!("Exported {count} masked Contacts");
+//! # Ok(())
+//! # }
+//! ```
 
 use super::DataMasker;
 use crate::api::rest_operation::RestOperation;
@@ -50,13 +77,15 @@ impl<'a, A: Authenticator> DataArchiver<'a, A> {
         let mut stream = self.client.rest().query_stream::<T>(soql);
         let mut file = File::create(path).await?;
         let mut count = 0;
+        let mut buf = Vec::new();
 
         while let Some(record) = stream.next().await? {
-            let json = serde_json::to_string(&record)
+            buf.clear();
+            serde_json::to_writer(&mut buf, &record)
                 .map_err(|e| ForceError::from(SerializationError::from(e)))?;
+            buf.push(b'\n');
 
-            file.write_all(json.as_bytes()).await?;
-            file.write_all(b"\n").await?;
+            file.write_all(&buf).await?;
 
             count += 1;
         }
@@ -96,15 +125,17 @@ impl<'a, A: Authenticator> DataArchiver<'a, A> {
 
         let mut file = File::create(path).await?;
         let mut count = 0;
+        let mut buf = Vec::new();
 
         while let Some(mut record) = stream.next().await? {
             masker.mask_record(&mut record);
 
-            let json = serde_json::to_string(&record)
+            buf.clear();
+            serde_json::to_writer(&mut buf, &record)
                 .map_err(|e| ForceError::from(SerializationError::from(e)))?;
+            buf.push(b'\n');
 
-            file.write_all(json.as_bytes()).await?;
-            file.write_all(b"\n").await?;
+            file.write_all(&buf).await?;
 
             count += 1;
         }
@@ -134,12 +165,12 @@ mod tests {
             "done": true,
             "records": [
                 {
-                    "attributes": {"type": "Account", "url": "/services/data/v67.0/sobjects/Account/001xx000000001AAA"},
+                    "attributes": {"type": "Account", "url": "/services/data/v68.0/sobjects/Account/001xx000000001AAA"},
                     "Id": "001xx000000001AAA",
                     "Name": "Acme"
                 },
                 {
-                    "attributes": {"type": "Account", "url": "/services/data/v67.0/sobjects/Account/001xx000000002AAA"},
+                    "attributes": {"type": "Account", "url": "/services/data/v68.0/sobjects/Account/001xx000000002AAA"},
                     "Id": "001xx000000002AAA",
                     "Name": "Globex"
                 }
@@ -147,7 +178,7 @@ mod tests {
         });
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v67.0/query"))
+            .and(path("/services/data/v68.0/query"))
             .respond_with(ResponseTemplate::new(200).set_body_json(query_response))
             .mount(&mock_server)
             .await;
@@ -234,7 +265,7 @@ mod tests {
         }"#).must();
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v67.0/sobjects/Contact/describe"))
+            .and(path("/services/data/v68.0/sobjects/Contact/describe"))
             .respond_with(ResponseTemplate::new(200).set_body_json(describe_json))
             .mount(&mock_server)
             .await;
@@ -244,7 +275,7 @@ mod tests {
             "done": true,
             "records": [
                 {
-                    "attributes": {"type": "Contact", "url": "/services/data/v67.0/sobjects/Contact/003xx000000001AAA"},
+                    "attributes": {"type": "Contact", "url": "/services/data/v68.0/sobjects/Contact/003xx000000001AAA"},
                     "Id": "003xx000000001AAA",
                     "Name": "Jane Doe",
                     "Email": "jane.doe@example.com"
@@ -253,7 +284,7 @@ mod tests {
         });
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v67.0/query"))
+            .and(path("/services/data/v68.0/query"))
             .respond_with(ResponseTemplate::new(200).set_body_json(query_response))
             .mount(&mock_server)
             .await;

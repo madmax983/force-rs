@@ -41,6 +41,7 @@ Connected App user. Simplest flow; no user interaction, no certificate.
 **Credentials:** `client_id`, `client_secret`, and the org token URL (or a My
 Domain base URL).
 
+<!-- onramp-fragment: client_credentials -->
 ```rust
 use force::auth::ClientCredentials;
 use force::client::ForceClientBuilder;
@@ -78,6 +79,7 @@ interactive login and no stored secret in the request.
 **Credentials:** `client_id` (consumer key), Salesforce `username`, and the RSA
 private key in PEM form. The audience is the login host.
 
+<!-- onramp-fragment: jwt_bearer -->
 ```rust
 use force::auth::JwtBearerFlow;
 use force::client::ForceClientBuilder;
@@ -117,6 +119,7 @@ browser round-trip — the single-use `code` plus the matching PKCE
 The flow is three stages; see the full runnable example at
 [`examples/auth_code_pkce.rs`](../../crates/force/examples/auth_code_pkce.rs).
 
+<!-- onramp-fragment: auth_code_stages -->
 ```rust
 use force::auth::{AuthorizationCode, AuthorizeUrlBuilder, PkceChallenge};
 use force::client::ForceClientBuilder;
@@ -152,6 +155,7 @@ persisted across the HTTP redirect. `AuthorizationCode` mirrors the constructors
 Convenience shortcut on the builder — skip constructing `AuthorizationCode`
 yourself:
 
+<!-- onramp-fragment: auth_code_builder_shortcut -->
 ```rust
 let client = ForceClientBuilder::new()
     .with_authorization_code(client_id, None, redirect_uri, code, pkce.verifier(), token_url)
@@ -177,6 +181,11 @@ let client = ForceClientBuilder::new()
 Salesforce.** The feature gate is a deliberate speed bump — prefer JWT Bearer or
 Client Credentials for anything new.
 
+> **Retirement:** Salesforce retires this flow for connected apps on
+> **2027-02-20**. Orgs created in Summer '26 or later already block it.
+> External Client Apps never support it. Move to Client Credentials, JWT
+> Bearer, or Authorization Code + PKCE before that date.
+
 **Feature gate:** `username_password`.
 
 **Credentials:** `client_id`, `client_secret`, `username`, `password`, and a
@@ -184,6 +193,7 @@ Client Credentials for anything new.
 password; pass an empty string only when the caller's IP is whitelisted in the
 Connected App.
 
+<!-- onramp-fragment: username_password -->
 ```rust
 use force::auth::UsernamePassword;
 use force::client::ForceClientBuilder;
@@ -223,6 +233,7 @@ you already configured. `DataCloudAuthenticator` wraps the platform
 `TokenManager` and performs the two-step exchange; the result is a separate
 DC-tenant session managed by its own `TokenManager`.
 
+<!-- onramp-fragment: data_cloud -->
 ```rust
 use force::auth::{ClientCredentials, DataCloudConfig};
 use force::client::ForceClientBuilder;
@@ -260,6 +271,7 @@ body, per-tenant auth subdomain, MID-scoped tenancy).
 (`client_id` + `client_secret`), the tenant subdomain, and optionally a default
 business unit (MID / `account_id`).
 
+<!-- onramp-fragment: marketing_cloud -->
 ```rust
 use force_marketingcloud::MarketingCloudClient;
 
@@ -298,7 +310,9 @@ Einstein/Models platform scopes enabled, and the agent must be linked to it.
 version-less paths (override via `with_host(...)` for Government Cloud
 `api.gov.salesforce.com` or testing), not the org `instance_url`.
 
+<!-- onramp-fragment: agentforce -->
 ```rust
+use force::api::models::{GenerateTextRequest, ModelName};
 use force::auth::ClientCredentials;
 use force::client::ForceClientBuilder;
 
@@ -306,7 +320,13 @@ let client = ForceClientBuilder::new()
     .authenticate(ClientCredentials::new_production(client_id, client_secret))
     .build()
     .await?;
-let reply = client.models().generate_text(/* ... */).await?;
+let reply = client
+    .models()
+    .generate_text(
+        ModelName::DEFAULT_GPT4_OMNI,
+        &GenerateTextRequest::new("Invent 3 fun names for donuts"),
+    )
+    .await?;
 ```
 
 See [surfaces/agentforce.md](surfaces/agentforce.md) and
@@ -353,6 +373,28 @@ For flows with refresh tokens, `force-rs` stores the token, uses it on refresh,
 rotates to any newly returned refresh token, and **gracefully falls back to a
 full re-authentication** if the refresh token has been revoked. Marketing Cloud
 has no refresh concept at all — its `TokenManager` only ever re-authenticates.
+
+### Winter '27 OAuth changes
+
+- **Refresh-token idle limit.** A refresh token that is not used for 30 days
+  expires (sandbox 2026-10-21, production 2026-11-04). At enforcement, Salesforce
+  also revokes access tokens. `force-rs` refreshes on 401. For Authorization
+  Code, an expired refresh token needs a new browser login.
+- **Refresh-token rotation.** New External Client Apps always rotate refresh
+  tokens. `force-rs` stores each new refresh token and serializes refreshes, so
+  it does not replay an old token.
+- **External Client Apps.** New connected apps need a Support request. Support
+  for connected apps ends in Summer '27. Create an External Client App. The
+  credentials for Client Credentials, JWT Bearer, and Authorization Code + PKCE
+  stay the same.
+- **DPoP.** An app can require DPoP (RFC 9449). Then the token response has
+  `token_type: "DPoP"`. `force-rs` does not send DPoP proofs. It stops with an
+  error before it sends a request, because a request without a proof revokes
+  the token. Keep "Require DPoP" off for apps that `force-rs` uses.
+- **Instanced URLs.** Salesforce will reject API calls to an old instanced host
+  (for example `na139.salesforce.com`) from Spring '27. `force-rs` sends API
+  calls to the `instance_url` from the token response. Use your My Domain URL
+  as the login host.
 
 ---
 

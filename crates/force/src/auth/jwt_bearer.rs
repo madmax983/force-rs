@@ -333,7 +333,7 @@ QcWLHR6ul3bFRWNhXoThNBQ=
             .as_secs();
 
         let jwt = flow.generate_jwt().must();
-        assert!(!jwt.is_empty());
+        assert_ne!(jwt.len(), 0);
 
         // JWT should have 3 parts separated by dots
         let parts: Vec<&str> = jwt.split('.').collect();

@@ -1,0 +1,35 @@
+name: Onramp Clean-Room Quickstart
+
+# Journey #1 (zero -> hello world): builds README.md's own "Installation" +
+# "Quick Start" sections, verbatim, against the *published* force crate on
+# crates.io -- not the local workspace. This is the one CI job that exercises
+# the same path an external developer takes, which is why it lives in its
+# own nightly/manual lane rather than blocking every PR: it depends on
+# crates.io publish timing and network conditions, matching the tiering
+# rationale already used by live-contract.yml.
+#
+# See docs/adr/033-live-contract-test-harness.md for the tiered-CI precedent
+# and scripts/onramp/cleanroom_quickstart.sh for the harness itself.
+
+on:
+  schedule:
+    - cron: "30 4 * * *"
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  cleanroom-quickstart:
+    name: Clean-Room Quickstart (crates.io)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Run clean-room quickstart harness
+        run: bash scripts/onramp/cleanroom_quickstart.sh

@@ -10,11 +10,15 @@ pub(crate) mod limits;
 pub(crate) mod query;
 pub(crate) mod query_plan_analyzer;
 pub(crate) mod search;
+pub(crate) mod versions;
 
-pub use crate::api::soql::{SoqlQueryBuilder, escape_soql};
+pub use crate::api::soql::{
+    ComparisonOperator, FormulaLiteral, FormulaOperator, SoqlQueryBuilder, escape_soql,
+};
 pub use limits::{LimitInfo, OrgLimits};
 pub use query_plan_analyzer::{InsightSeverity, QueryInsight, QueryInsights, analyze_query_plan};
 pub use search::{SearchAttributes, SearchQueryBuilder, SearchRecords, SearchResult};
+pub use versions::ApiVersionInfo;
 
 use crate::api::rest_operation::RestOperation;
 use crate::error::Result;
@@ -87,7 +91,7 @@ impl<A: crate::auth::Authenticator> RestHandler<A> {
     ///
     /// ```ignore
     /// let base = handler.base_url().await?;
-    /// // Returns: "https://na1.salesforce.com/services/data/v67.0"
+    /// // Returns: "https://na1.salesforce.com/services/data/v68.0"
     /// ```
     pub async fn base_url(&self) -> Result<String> {
         self.inner.resolve_url("").await
@@ -273,7 +277,7 @@ mod tests {
         let base_url: String = handler.base_url().await.must();
         assert!(base_url.starts_with("https://test.salesforce.com"));
         assert!(base_url.contains("/services/data/"));
-        assert!(base_url.ends_with("v67.0")); // Default API version
+        assert!(base_url.ends_with("v68.0")); // Default API version
     }
 
     #[tokio::test]
@@ -351,6 +355,6 @@ mod tests {
         let handler = client.rest();
 
         let debug_str = format!("{:?}", handler);
-        assert!(!debug_str.is_empty());
+        assert_ne!(debug_str.len(), 0);
     }
 }

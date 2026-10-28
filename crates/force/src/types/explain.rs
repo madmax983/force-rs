@@ -123,7 +123,7 @@ mod tests {
         let response: ExplainResponse = serde_json::from_value(json).must();
         let plan = &response.plans[0];
 
-        assert!(plan.fields.is_empty());
+        assert_eq!(plan.fields.len(), 0);
         assert!(plan.notes.is_empty());
         assert_eq!(plan.leading_operation_type, "IndexScan");
     }
@@ -157,7 +157,7 @@ mod tests {
         });
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v67.0/query"))
+            .and(path("/services/data/v68.0/query"))
             .and(query_param("explain", soql))
             .respond_with(ResponseTemplate::new(200).set_body_json(json_response))
             .mount(&mock_server)

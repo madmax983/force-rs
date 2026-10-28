@@ -46,6 +46,8 @@ The Agent API `messages[]` array is **polymorphic** — its `type` field (`Infor
 
 ### 5. Synchronous only; streaming is a documented follow-up
 
+> **Update (ADR-035, Winter '27):** streaming is now implemented as `send_message_stream`. See [ADR-035](035-winter-27-v68-adoption.md) §6.
+
 The Agent API exposes a streaming SSE endpoint (`.../messages/stream`). It is intentionally out of scope for this iteration — it requires an SSE-capable byte-stream response path and eventsource parsing. Only the synchronous `messages` endpoint is implemented; a module-level doc comment records streaming as a follow-up. Keeping `AgentMessage.message_type` an open `String` means the existing types already accommodate streaming event variants when that work lands. The Models `feedback` endpoint is likewise deferred.
 
 ### 6. The special Models headers

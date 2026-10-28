@@ -7,6 +7,19 @@ use crate::error::ApiError;
 use crate::types::SalesforceId;
 use serde::{Deserialize, Serialize};
 
+/// Decodes JSON `null` as `T::default()`.
+///
+/// Use with `#[serde(default, deserialize_with = "...")]` for fields that the
+/// server can omit or send as `null`.
+pub fn null_as_default<'de, D, T>(deserializer: D) -> Result<T, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: serde::Deserialize<'de> + Default,
+{
+    use serde::Deserialize;
+    Ok(Option::<T>::deserialize(deserializer)?.unwrap_or_default())
+}
+
 /// Response from a create operation.
 ///
 /// When creating a record in Salesforce, the API returns information about
@@ -300,7 +313,7 @@ mod tests {
         assert!(response.is_success());
         assert!(!response.is_failure());
         assert_eq!(response.id, Some(id));
-        assert!(response.errors.is_empty());
+        assert_eq!(response.errors.len(), 0);
     }
 
     #[test]
@@ -343,7 +356,7 @@ mod tests {
 
         assert!(response.is_success());
         assert!(!response.is_failure());
-        assert!(response.errors.is_empty());
+        assert_eq!(response.errors.len(), 0);
     }
 
     #[test]
@@ -362,7 +375,7 @@ mod tests {
 
         assert!(response.is_success());
         assert!(!response.is_failure());
-        assert!(response.errors.is_empty());
+        assert_eq!(response.errors.len(), 0);
     }
 
     #[test]
@@ -384,7 +397,7 @@ mod tests {
         assert!(response.is_created());
         assert!(!response.is_updated());
         assert_eq!(response.id, id);
-        assert!(response.errors.is_empty());
+        assert_eq!(response.errors.len(), 0);
     }
 
     #[test]
@@ -396,7 +409,7 @@ mod tests {
         assert!(!response.is_created());
         assert!(response.is_updated());
         assert_eq!(response.id, id);
-        assert!(response.errors.is_empty());
+        assert_eq!(response.errors.len(), 0);
     }
 
     #[test]
@@ -417,7 +430,7 @@ mod tests {
 
         assert_eq!(error.message, "Test message");
         assert_eq!(error.error_code, "TEST_CODE");
-        assert!(error.fields.is_empty());
+        assert_eq!(error.fields.len(), 0);
     }
 
     #[test]
@@ -477,5 +490,21 @@ mod tests {
         // Empty errors array should still be serialized
         let parsed: serde_json::Value = serde_json::from_str(&json).must();
         assert!(parsed.get("errors").is_some());
+    }
+
+    #[test]
+    fn test_null_as_default() {
+        #[derive(serde::Deserialize)]
+        struct T {
+            #[serde(default, deserialize_with = "super::null_as_default")]
+            v: Vec<u8>,
+            #[serde(default, deserialize_with = "super::null_as_default")]
+            s: String,
+        }
+        let t: T = serde_json::from_str(r#"{"v": null, "s": null}"#).must();
+        assert!(t.v.is_empty() && t.s.is_empty());
+        let t: T = serde_json::from_str(r#"{"v": [1]}"#).must();
+        assert_eq!(t.v, vec![1]);
+        assert_eq!(t.s.len(), 0);
     }
 }

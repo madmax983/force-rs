@@ -8,9 +8,10 @@
 
 ## Project Status
 
-🚧 **Foundation Phase** - Building core authentication and HTTP infrastructure with strict TDD discipline.
-
-Current milestone: Authentication layer and type system foundation
+**v0.5.0 released** (2026-10-28) - REST, Bulk 2.0, Composite, Tooling, UI, GraphQL, Data Cloud, Apex REST,
+CPQ, Consent, Agentforce (Models + Agent API), Account Engagement, Analytics, and SOAP Partner API surfaces
+are implemented and live-contract tested. See the [Feature Roadmap](#feature-roadmap) below for what's still
+open and [CHANGELOG.md](CHANGELOG.md) for release history.
 
 ## Architecture Overview
 
@@ -104,17 +105,16 @@ Only compile what you use. Each API surface is behind a feature flag:
 - `account_engagement` - Account Engagement (Pardot) API v5 (separate `pi.pardot.com` host, business-unit-scoped prospects/lists/campaigns/etc.)
 - `analytics` - Reports & Dashboards REST API (report runs/instances/describe, dashboard results/refresh/status)
 - `soap` - Classic SOAP Partner API (untyped generic CRUD/query/search/describe over `/services/Soap/u/`, OAuth token in `SessionHeader`)
+- `api_catalog` - API Catalog MCP server registry (`/api-catalog/mcp-servers`, v68.0+)
 - `jwt` - JWT Bearer authentication flow
 - `auth_code` - OAuth 2.0 Authorization Code + PKCE flow (interactive/browser-based clients)
 - `username_password` - Username-password flow (deprecated by Salesforce, feature-gated as speed bump)
 - `mock` - Testing utilities (wiremock-backed test doubles)
-- `full` - All common features (rest + files + tooling + bulk + composite + jwt + auth_code + ui + graphql + data_cloud + apex_rest + consent + models + agent_api + account_engagement + analytics)
+- `full` - All common features (rest + files + tooling + bulk + composite + jwt + auth_code + ui + graphql + data_cloud + apex_rest + consent + models + agent_api + account_engagement + analytics + soap + api_catalog)
 - `all` - Everything: `full` plus specialized APIs (schema + data_utility + composite_graph + cpq)
 
 > **Note:** Pub/Sub is **not** a `force` feature. The gRPC Pub/Sub API lives in the separate `force-pubsub` sibling crate (see [ADR-018](docs/adr/018-force-pubsub-crate.md)).
 - `pub_sub` - gRPC Pub/Sub API (separate `force-pubsub` crate)
-- `full` - All common features (rest + tooling + bulk + composite + jwt + auth_code + ui + graphql + data_cloud + apex_rest + consent + models + agent_api + account_engagement + analytics + soap)
-- `all` - Everything including specialized APIs (+ cpq)
 
 ### 2. Compile-Time Auth Safety (Phantom Type State Pattern)
 The builder uses phantom types to enforce authentication at compile time:
@@ -199,7 +199,7 @@ crates/force/src/
 ├── types.rs               # types module root (re-exports)
 ├── types/
 │   ├── salesforce_id.rs   # SalesforceId newtype (15/18 char validation)
-│   ├── api_version.rs     # ApiVersion newtype (v67.0 format)
+│   ├── api_version.rs     # ApiVersion newtype (v68.0 format, release_name, latest alias)
 │   ├── query.rs           # QueryResult, DynamicSObject
 │   ├── sobject.rs
 │   ├── describe.rs
@@ -271,7 +271,8 @@ crates/force/src/
     │   ├── mod.rs         # ModelsHandler + AI_PLATFORM_HOST + with_host + Models headers
     │   └── types.rs       # ModelName, GenerateText/ChatGeneration/Embedding req+resp
     ├── agent_api/         # Feature: agent_api (Agentforce Agent API, api.salesforce.com host)
-    │   ├── mod.rs         # AgentHandler + start/send/end session (sync; streaming is follow-up)
+    │   ├── mod.rs         # AgentHandler + start/send/end session + send_message_stream (SSE)
+    │   ├── stream.rs      # Crate-private WHATWG SSE decoder (1 MiB/event) + AgentStreamEvent
     │   └── types.rs       # StartSessionRequest, SendMessageRequest, AgentMessage, SessionEndReason
     ├── account_engagement/ # Feature: account_engagement (Pardot API v5)
     │   ├── mod.rs         # AccountEngagementHandler + host selection + BU header + escape hatch
@@ -287,6 +288,9 @@ crates/force/src/
     │   ├── types.rs       # ReportResults, FactMapEntry, ReportMetadata, ReportInstance, Dashboard* types
     │   ├── reports.rs     # run_report(_async/_with_metadata), instances, describe, list, query, report types
     │   └── dashboards.rs  # list/describe/get_results/refresh/status
+    ├── api_catalog/       # Feature: api_catalog (MCP server registry, v68.0+)
+    │   ├── mod.rs         # ApiCatalogHandler: list/create/get/update/delete/fetch + assets
+    │   └── types.rs       # McpServer, McpFetchedAsset, inputs (secret-safe OAuth input)
     ├── soap/              # Feature: soap (classic SOAP Partner API)
     │   ├── mod.rs         # SoapHandler + send/dispatch + fault-retry + endpoint URL
     │   ├── envelope.rs    # SOAP envelope + SessionHeader/CallOptions + sObject serialization + escaping
@@ -508,7 +512,7 @@ use force::testing::{MockForceClient, MockAuthenticator};
   - [x] send_message + send_text (POST sessions/{sessionId}/messages)
   - [x] end_session with `x-session-end-reason` header (DELETE sessions/{sessionId}, 204)
   - [x] Polymorphic AgentMessage (open String type), SessionEndReason enum
-  - [ ] Streaming SSE endpoint (documented follow-up)
+  - [x] Streaming SSE endpoint (send_message_stream; size-limited decoder)
 - [x] Account Engagement (Pardot) API v5 (feature: account_engagement) - See [ADR-029](docs/adr/029-account-engagement-api-design.md)
   - [x] AccountEngagementHandler on separate host (pi.pardot.com / pi.demo.pardot.com), env-derived + `with_host` override
   - [x] Required `Pardot-Business-Unit-Id` header + `pardot_api` scope; mandatory `fields` param
@@ -532,8 +536,6 @@ use force::testing::{MockForceClient, MockAuthenticator};
 ### Phase 5: Specialized Features
 - [ ] Pub/Sub API via gRPC (feature: pub_sub)
 - [ ] Streaming API (feature: streaming)
-- [ ] SOAP API (feature: soap)
-- [x] Marketing Cloud Engagement REST API (sibling crate: `force-marketingcloud`) - See [ADR-034](docs/adr/034-marketing-cloud-engagement-crate.md)
 - [x] SOAP Partner API (feature: soap) - See [ADR-032](docs/adr/032-soap-api-design.md)
   - [x] Untyped generic `SObject` model (Partner WSDL; no per-org codegen)
   - [x] CRUD: create, update, upsert (external-id), delete, retrieve
@@ -546,7 +548,7 @@ use force::testing::{MockForceClient, MockAuthenticator};
   - [x] `INVALID_SESSION_ID` (HTTP 500) manual refresh-and-retry once
   - [x] quick-xml parsing on patched 0.41.0 (RUSTSEC-2026-0194/0195)
   - [ ] merge, convert_lead, set_password, nested relationship records (follow-ups)
-- [x] Marketing Cloud Engagement REST API (sibling crate: `force-marketingcloud`) - See [ADR-027](docs/adr/027-marketing-cloud-engagement-crate.md)
+- [x] Marketing Cloud Engagement REST API (sibling crate: `force-marketingcloud`) - See [ADR-034](docs/adr/034-marketing-cloud-engagement-crate.md)
   - [x] Installed-Package server-to-server (JSON client credentials) auth
   - [x] Proactive, per-business-unit (MID) token cache with single-flight refresh
   - [x] Transactional Messaging (email/SMS send + status)
@@ -567,6 +569,18 @@ use force::testing::{MockForceClient, MockAuthenticator};
 - [ ] CDC ingestion via force-pubsub (documented follow-up)
 - [ ] Row-level upsert via Athena `MERGE` (documented follow-up)
 
+### Phase 7: Winter '27 (API v68.0) - See [ADR-035](docs/adr/035-winter-27-v68-adoption.md)
+- [x] Default API version v68.0; `release_name()`; opt-in `latest` alias
+- [x] REST Versions resource (`versions`, `highest_version`)
+- [x] Bulk 2.0 `refresh` + `consentImport` operations
+- [x] Tooling `apexCompileResults`, `symbols` (Beta), Test Discovery with `testLevel` gate
+- [x] GraphQL `lookupValues`; `operationName` wire fix
+- [x] SOQL `FORMULA()` builder (Beta)
+- [x] API Catalog MCP server registry (feature: api_catalog)
+- [x] DPoP fail-fast guard
+- [ ] Full DPoP support (follow-up)
+- [ ] Data Cloud Query Connect (`ssot/query-sql`) (follow-up)
+
 ## Configuration
 
 ### Environment-Based Config
@@ -585,7 +599,7 @@ use force::{ClientConfig, ForceClient};
 
 let config = ClientConfig::builder()
     .instance_url("https://custom.my.salesforce.com")
-    .api_version("v67.0")
+    .api_version("v68.0")
     .timeout_seconds(30)
     .max_retries(3)
     .build()?;
@@ -785,6 +799,7 @@ Significant architectural decisions are documented in `docs/adr/`:
 - [ADR-033](docs/adr/033-live-contract-test-harness.md) - Tiered, env-gated live-contract test harness
 - [ADR-034](docs/adr/034-marketing-cloud-engagement-crate.md) - Standalone `force-marketingcloud` crate for Marketing Cloud Engagement
 - [ADR-032](docs/adr/032-soap-api-design.md) - SOAP Partner API design (untyped generic client, OAuth in SessionHeader, INVALID_SESSION retry)
+- [ADR-035](docs/adr/035-winter-27-v68-adoption.md) - Winter '27 (API v68.0) adoption (v68 default, latest alias, new surfaces, DPoP guard)
 
 ## Contributing
 

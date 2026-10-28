@@ -242,7 +242,7 @@ mod tests {
         let client = test_client().await;
         let handler = client.ui();
         let debug = format!("{handler:?}");
-        assert!(!debug.is_empty());
+        assert_ne!(debug.len(), 0);
     }
 
     #[tokio::test]
@@ -250,6 +250,6 @@ mod tests {
         let client = test_client().await;
         let handler = client.ui();
         let url = handler.resolve_ui_url("records/001test").await.must();
-        assert!(url.contains("v67.0"), "URL should contain API version");
+        assert!(url.contains("v68.0"), "URL should contain API version");
     }
 }

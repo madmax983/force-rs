@@ -7,7 +7,7 @@ API surfaces and auth flows explicitly.
 
 ```toml
 [dependencies]
-force = { version = "0.3", features = ["rest", "bulk", "jwt"] }
+force = { version = "0.5", features = ["rest", "bulk", "jwt"] }
 ```
 
 To opt out of the default REST surface, disable default features and select only
@@ -15,7 +15,7 @@ what you need:
 
 ```toml
 [dependencies]
-force = { version = "0.3", default-features = false, features = ["tooling"] }
+force = { version = "0.5", default-features = false, features = ["tooling"] }
 ```
 
 ## Feature-flag matrix
@@ -27,7 +27,7 @@ literal dependency edges from the `[features]` table.
 | --- | --- | --- |
 | `default` | `rest` | Default feature set (REST only). |
 | `rest` | — | REST API: SOQL/SOSL, CRUD, describe, query plan. |
-| `files` | `rest` | Salesforce Files (ContentVersion/Document) helpers. |
+| `files` | `rest`, `reqwest/multipart` | Salesforce Files (ContentVersion/Document) helpers. |
 | `tooling` | — | Tooling API: Apex classes, execute anonymous, run tests, completions. |
 | `bulk` | `dep:csv` | Bulk API 2.0 (CSV ingest/query jobs). |
 | `composite` | `rest` | Composite API (batch, tree, sub-requests). |
@@ -49,6 +49,8 @@ literal dependency edges from the `[features]` table.
 | `agentforce` | `models`, `agent_api` | Umbrella for the full Agentforce surface. |
 | `account_engagement` | — | Account Engagement (Pardot) API v5 on `pi.pardot.com`. |
 | `analytics` | — | Reports & Dashboards REST API. |
+| `soap` | `dep:quick-xml` | Classic SOAP Partner API: CRUD, query/search, describe (see [ADR-032](../adr/032-soap-api-design.md)). |
+| `api_catalog` | — | API Catalog MCP server registry (v68.0+, see [ADR-035](../adr/035-winter-27-v68-adoption.md)). |
 | `full` | see below | Common set of surfaces + auth flows. |
 | `all` | `full` + extras | Everything, including specialized/heavier surfaces. |
 
@@ -59,7 +61,8 @@ From the actual definitions:
 ```toml
 full = ["rest", "files", "bulk", "composite", "tooling", "jwt", "auth_code",
         "ui", "graphql", "data_cloud", "apex_rest", "consent", "models",
-        "agent_api", "account_engagement", "analytics"]
+        "agent_api", "account_engagement", "analytics", "soap",
+        "api_catalog"]
 all  = ["full", "schema", "data_utility", "composite_graph", "cpq"]
 ```
 

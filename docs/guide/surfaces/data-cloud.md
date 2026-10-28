@@ -17,6 +17,7 @@ force = { version = "...", features = ["data_cloud"] }
 
 ```rust
 use force::auth::DataCloudConfig;
+use force::client::ForceClientBuilder;
 
 let client = ForceClientBuilder::new()
     .authenticate(auth)

@@ -480,7 +480,7 @@ async fn live_pubsub_get_topic_and_schema_smoke() -> Result<()> {
     })??;
 
     assert_eq!(topic.topic_name, config.pubsub_topic);
-    assert!(!topic.schema_id.is_empty());
+    assert_ne!(topic.schema_id, "");
     assert_eq!(schema.schema_id, topic.schema_id);
     apache_avro::Schema::parse_str(&schema.schema_json)
         .with_context(|| format!("Pub/Sub returned invalid Avro schema {}", schema.schema_id))?;

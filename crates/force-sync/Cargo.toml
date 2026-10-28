@@ -17,8 +17,8 @@ readme = "README.md"
 workspace = true
 
 [dependencies]
-force = { path = "../force", version = "0.4.0", features = ["rest", "bulk", "composite"] }
-force-pubsub = { path = "../force-pubsub", version = "0.4.0" }
+force = { path = "../force", version = "0.5.0", features = ["rest", "bulk", "composite"] }
+force-pubsub = { path = "../force-pubsub", version = "0.5.0" }
 tokio = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -37,3 +37,7 @@ anyhow = { workspace = true }
 async-trait = { workspace = true }
 proptest = "1.7"
 wiremock = { workspace = true }
+
+[[bench]]
+name = "plan_change_profile"
+harness = false

@@ -4,6 +4,10 @@
 //! or Client Credentials for new integrations. This flow is provided for
 //! backward compatibility with orgs that still require it.
 //!
+//! **Retirement:** Salesforce retires this flow for connected apps on
+//! 2027-02-20. Orgs created in Summer '26 or later already block it. External
+//! Client Apps never support it.
+//!
 //! # OAuth 2.0 Resource Owner Password Credentials Flow
 //!
 //! The username-password flow authenticates using a user's credentials directly.

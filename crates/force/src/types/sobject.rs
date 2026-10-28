@@ -19,7 +19,7 @@ use serde_json::{Map, Value};
 ///
 /// let attrs = Attributes {
 ///     type_: "Account".to_string(),
-///     url: "/services/data/v67.0/sobjects/Account/001000000000001AAA".to_string(),
+///     url: "/services/data/v68.0/sobjects/Account/001000000000001AAA".to_string(),
 /// };
 /// assert_eq!(attrs.type_, "Account");
 /// ```
@@ -69,7 +69,7 @@ impl Attributes {
 /// use serde_json::json;
 ///
 /// let id = SalesforceId::new("001000000000001AAA").unwrap();
-/// let attrs = Attributes::new("Account", &id, "v67.0");
+/// let attrs = Attributes::new("Account", &id, "v68.0");
 ///
 /// let mut account = DynamicSObject::new(attrs);
 /// account.set_field("Name", "Acme Corp");
@@ -77,7 +77,7 @@ impl Attributes {
 ///
 /// assert_eq!(account.get_field("Name").and_then(|v| v.as_str()), Some("Acme Corp"));
 /// ```
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct DynamicSObject {
     /// Standard SObject attributes.
     pub attributes: Attributes,
@@ -85,6 +85,48 @@ pub struct DynamicSObject {
     /// Dynamic fields stored as a JSON map.
     #[serde(flatten)]
     pub fields: Map<String, Value>,
+}
+
+/// Hand-written to avoid `#[serde(flatten)]`, which buffers every field of
+/// every record through serde's `Content` tree before converting to `Value`.
+impl<'de> Deserialize<'de> for DynamicSObject {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct SObjectVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for SObjectVisitor {
+            type Value = DynamicSObject;
+
+            fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                f.write_str("a Salesforce SObject record")
+            }
+
+            fn visit_map<A>(self, mut map: A) -> Result<DynamicSObject, A::Error>
+            where
+                A: serde::de::MapAccess<'de>,
+            {
+                let mut attributes: Option<Attributes> = None;
+                let mut fields = Map::new();
+                while let Some(key) = map.next_key::<std::borrow::Cow<'de, str>>()? {
+                    if key == "attributes" {
+                        if attributes.is_some() {
+                            return Err(serde::de::Error::duplicate_field("attributes"));
+                        }
+                        attributes = Some(map.next_value()?);
+                    } else {
+                        fields.insert(key.into_owned(), map.next_value::<Value>()?);
+                    }
+                }
+                let attributes =
+                    attributes.ok_or_else(|| serde::de::Error::missing_field("attributes"))?;
+                Ok(DynamicSObject { attributes, fields })
+            }
+        }
+
+        deserializer.deserialize_map(SObjectVisitor)
+    }
 }
 
 impl DynamicSObject {
@@ -179,28 +221,69 @@ impl DynamicSObject {
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
     use crate::test_utils::must::Must;
     use serde_json::json;
 
+    #[test]
+    fn dynamic_sobject_deserialize_keeps_extra_fields_and_nested_values() {
+        let json = r#"{"attributes":{"type":"Account","url":"/u"},"Name":"A","N":1,"Owner":{"Name":"B"},"X":null}"#;
+        let rec: DynamicSObject = serde_json::from_str(json).must();
+        assert_eq!(rec.attributes.type_, "Account");
+        assert_eq!(rec.fields.len(), 4);
+        assert_eq!(rec.fields["Owner"]["Name"], "B");
+        assert!(rec.fields["X"].is_null());
+        // key order independence
+        let rec2: DynamicSObject =
+            serde_json::from_str(r#"{"Name":"A","attributes":{"type":"T","url":"/u"}}"#).must();
+        assert_eq!(rec2.fields["Name"], "A");
+    }
+
+    #[test]
+    fn dynamic_sobject_deserialize_rejects_non_object_with_expectation() {
+        let err = serde_json::from_str::<DynamicSObject>("3").err().must();
+        assert!(err.to_string().contains("a Salesforce SObject record"));
+        let err = serde_json::from_str::<DynamicSObject>(r#"{"Name":"A"}"#)
+            .err()
+            .must();
+        assert!(err.to_string().contains("attributes"));
+        let err = serde_json::from_str::<DynamicSObject>(
+            r#"{"attributes":{"type":"T","url":"/u"},"attributes":{"type":"T","url":"/u"}}"#,
+        )
+        .err()
+        .must();
+        assert!(err.to_string().contains("duplicate field"));
+    }
+
+    #[test]
+    fn dynamic_sobject_deserialize_requires_single_attributes() {
+        assert!(serde_json::from_str::<DynamicSObject>(r#"{"Name":"A"}"#).is_err());
+        assert!(
+            serde_json::from_str::<DynamicSObject>(
+                r#"{"attributes":{"type":"T","url":"/u"},"attributes":{"type":"T","url":"/u"}}"#
+            )
+            .is_err()
+        );
+    }
     // RED PHASE - Write failing tests first
 
     #[test]
     fn test_attributes_new() {
         let id = SalesforceId::new("001000000000001AAA").must();
-        let attrs = Attributes::new("Account", &id, "v67.0");
+        let attrs = Attributes::new("Account", &id, "v68.0");
 
         assert_eq!(attrs.type_, "Account");
         assert_eq!(
             attrs.url,
-            "/services/data/v67.0/sobjects/Account/001000000000001AAA"
+            "/services/data/v68.0/sobjects/Account/001000000000001AAA"
         );
     }
 
     #[test]
     fn test_attributes_object_type() {
         let id = SalesforceId::new("001000000000001AAA").must();
-        let attrs = Attributes::new("Contact", &id, "v67.0");
+        let attrs = Attributes::new("Contact", &id, "v68.0");
 
         assert_eq!(attrs.object_type(), "Contact");
     }
@@ -208,7 +291,7 @@ mod tests {
     #[test]
     fn test_attributes_serialize() {
         let id = SalesforceId::new("001000000000001AAA").must();
-        let attrs = Attributes::new("Account", &id, "v67.0");
+        let attrs = Attributes::new("Account", &id, "v68.0");
 
         let json = serde_json::to_string(&attrs).must();
         assert!(json.contains("\"type\":\"Account\""));
@@ -219,7 +302,7 @@ mod tests {
     fn test_attributes_deserialize() {
         let json = r#"{
             "type": "Account",
-            "url": "/services/data/v67.0/sobjects/Account/001000000000001AAA"
+            "url": "/services/data/v68.0/sobjects/Account/001000000000001AAA"
         }"#;
 
         let attrs: Attributes = serde_json::from_str(json).must();
@@ -229,7 +312,7 @@ mod tests {
     #[test]
     fn test_dynamic_sobject_new() {
         let id = SalesforceId::new("001000000000001AAA").must();
-        let attrs = Attributes::new("Account", &id, "v67.0");
+        let attrs = Attributes::new("Account", &id, "v68.0");
         let sobject = DynamicSObject::new(attrs);
 
         assert_eq!(sobject.object_type(), "Account");
@@ -239,7 +322,7 @@ mod tests {
     #[test]
     fn test_dynamic_sobject_set_and_get_field() {
         let id = SalesforceId::new("001000000000001AAA").must();
-        let attrs = Attributes::new("Account", &id, "v67.0");
+        let attrs = Attributes::new("Account", &id, "v68.0");
         let mut sobject = DynamicSObject::new(attrs);
 
         sobject.set_field("Name", "Acme Corp");
@@ -258,7 +341,7 @@ mod tests {
     #[test]
     fn test_dynamic_sobject_get_field_as() {
         let id = SalesforceId::new("001000000000001AAA").must();
-        let attrs = Attributes::new("Account", &id, "v67.0");
+        let attrs = Attributes::new("Account", &id, "v68.0");
         let mut sobject = DynamicSObject::new(attrs);
 
         sobject.set_field("AnnualRevenue", 1_000_000);
@@ -270,7 +353,7 @@ mod tests {
     #[test]
     fn test_dynamic_sobject_get_field_as_type_mismatch() {
         let id = SalesforceId::new("001000000000001AAA").must();
-        let attrs = Attributes::new("Account", &id, "v67.0");
+        let attrs = Attributes::new("Account", &id, "v68.0");
         let mut sobject = DynamicSObject::new(attrs);
 
         sobject.set_field("Name", "Acme Corp");
@@ -286,7 +369,7 @@ mod tests {
     #[test]
     fn test_dynamic_sobject_has_field() {
         let id = SalesforceId::new("001000000000001AAA").must();
-        let attrs = Attributes::new("Account", &id, "v67.0");
+        let attrs = Attributes::new("Account", &id, "v68.0");
         let mut sobject = DynamicSObject::new(attrs);
 
         sobject.set_field("Name", "Acme Corp");
@@ -298,7 +381,7 @@ mod tests {
     #[test]
     fn test_dynamic_sobject_remove_field() {
         let id = SalesforceId::new("001000000000001AAA").must();
-        let attrs = Attributes::new("Account", &id, "v67.0");
+        let attrs = Attributes::new("Account", &id, "v68.0");
         let mut sobject = DynamicSObject::new(attrs);
 
         sobject.set_field("Name", "Acme Corp");
@@ -312,7 +395,7 @@ mod tests {
     #[test]
     fn test_dynamic_sobject_field_names() {
         let id = SalesforceId::new("001000000000001AAA").must();
-        let attrs = Attributes::new("Account", &id, "v67.0");
+        let attrs = Attributes::new("Account", &id, "v68.0");
         let mut sobject = DynamicSObject::new(attrs);
 
         sobject.set_field("Name", "Acme Corp");
@@ -327,7 +410,7 @@ mod tests {
     #[test]
     fn test_dynamic_sobject_field_count() {
         let id = SalesforceId::new("001000000000001AAA").must();
-        let attrs = Attributes::new("Account", &id, "v67.0");
+        let attrs = Attributes::new("Account", &id, "v68.0");
         let mut sobject = DynamicSObject::new(attrs);
 
         assert_eq!(sobject.field_count(), 0);
@@ -342,7 +425,7 @@ mod tests {
     #[test]
     fn test_dynamic_sobject_serialize() {
         let id = SalesforceId::new("001000000000001AAA").must();
-        let attrs = Attributes::new("Account", &id, "v67.0");
+        let attrs = Attributes::new("Account", &id, "v68.0");
         let mut sobject = DynamicSObject::new(attrs);
         sobject.set_field("Name", "Acme Corp");
 
@@ -356,7 +439,7 @@ mod tests {
         let json = json!({
             "attributes": {
                 "type": "Account",
-                "url": "/services/data/v67.0/sobjects/Account/001000000000001AAA"
+                "url": "/services/data/v68.0/sobjects/Account/001000000000001AAA"
             },
             "Name": "Acme Corp",
             "Industry": "Technology"
@@ -375,7 +458,7 @@ mod tests {
         let json = json!({
             "attributes": {
                 "type": "Contact",
-                "url": "/services/data/v67.0/sobjects/Contact/003000000000001AAA"
+                "url": "/services/data/v68.0/sobjects/Contact/003000000000001AAA"
             },
             "FirstName": "John",
             "LastName": "Doe"
@@ -389,7 +472,7 @@ mod tests {
     #[test]
     fn test_dynamic_sobject_to_value() {
         let id = SalesforceId::new("001000000000001AAA").must();
-        let attrs = Attributes::new("Account", &id, "v67.0");
+        let attrs = Attributes::new("Account", &id, "v68.0");
         let mut sobject = DynamicSObject::new(attrs);
         sobject.set_field("Name", "Acme Corp");
 
@@ -402,7 +485,7 @@ mod tests {
     #[test]
     fn test_manual_construction_basic() {
         let id = SalesforceId::new("001000000000001AAA").must();
-        let attrs = Attributes::new("Account", &id, "v67.0");
+        let attrs = Attributes::new("Account", &id, "v68.0");
         let mut account = DynamicSObject::new(attrs);
         account.set_field("Name", "Acme Corp");
 
@@ -416,7 +499,7 @@ mod tests {
     #[test]
     fn test_manual_construction_multiple_fields() {
         let id = SalesforceId::new("001000000000001AAA").must();
-        let attrs = Attributes::new("Account", &id, "v67.0");
+        let attrs = Attributes::new("Account", &id, "v68.0");
         let mut account = DynamicSObject::new(attrs);
         account.set_field("Name", "Acme Corp");
         account.set_field("Industry", "Technology");
@@ -428,7 +511,7 @@ mod tests {
     #[test]
     fn test_manual_construction_empty() {
         let id = SalesforceId::new("001000000000001AAA").must();
-        let attrs = Attributes::new("Account", &id, "v67.0");
+        let attrs = Attributes::new("Account", &id, "v68.0");
         let account = DynamicSObject::new(attrs);
 
         assert_eq!(account.field_count(), 0);
@@ -449,7 +532,7 @@ mod tests {
     #[test]
     fn test_dynamic_sobject_remove_field_nonexistent() {
         let id = SalesforceId::new("001000000000001AAA").must();
-        let attrs = Attributes::new("Account", &id, "v67.0");
+        let attrs = Attributes::new("Account", &id, "v68.0");
         let mut sobject = DynamicSObject::new(attrs);
 
         // Removing a field that doesn't exist should return None
@@ -460,7 +543,7 @@ mod tests {
     #[test]
     fn test_dynamic_sobject_get_field_nonexistent() {
         let id = SalesforceId::new("001000000000001AAA").must();
-        let attrs = Attributes::new("Account", &id, "v67.0");
+        let attrs = Attributes::new("Account", &id, "v68.0");
         let sobject = DynamicSObject::new(attrs);
 
         assert!(sobject.get_field("NonexistentField").is_none());
@@ -471,7 +554,7 @@ mod tests {
     #[test]
     fn test_roundtrip_serialization() {
         let id = SalesforceId::new("001000000000001AAA").must();
-        let attrs = Attributes::new("Account", &id, "v67.0");
+        let attrs = Attributes::new("Account", &id, "v68.0");
         let mut original = DynamicSObject::new(attrs);
         original.set_field("Name", "Acme Corp");
         original.set_field("Industry", "Technology");

@@ -106,7 +106,7 @@ mod tests {
             Ok(enc) => enc,
             Err(e) => panic!("encode failed with: {e:?}"),
         };
-        assert!(!encoded.is_empty());
+        assert_ne!(encoded, [] as [u8; 0]);
 
         let decoded = match decode_avro(&schema, &encoded) {
             Ok(dec) => dec,

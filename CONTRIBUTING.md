@@ -287,7 +287,7 @@ Credential sources:
   - `SF_INSTANCE_URL`
 - or a locally authenticated Salesforce CLI org discovered via `sf org display --verbose --json`
   - optional `SF_TARGET_ORG` to select a non-default org alias or username
-- optional `SF_API_VERSION` (default `v67.0`)
+- optional `SF_API_VERSION` (default `v62.0`)
 
 Optional runtime tuning:
 
@@ -296,6 +296,10 @@ Optional runtime tuning:
 - `SF_LIVE_BULK_POLL_INITIAL_BACKOFF_MS`
 - `SF_LIVE_BULK_POLL_MAX_BACKOFF_MS`
 - `SF_LIVE_BULK_QUERY_ROW_LIMIT`
+
+Full tier breakdown (which binary covers which surface, per-surface gate vars,
+provisioning steps): see the
+[Live Contract Testing guide](docs/guide/04-live-contract-testing.md).
 
 Optional gated scenarios:
 

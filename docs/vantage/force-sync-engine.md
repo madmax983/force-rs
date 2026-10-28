@@ -1,18 +1,42 @@
-# 🔭 Vantage: Spec for force-sync Engine
+# 🔭 Vantage: Spec for force-sync Engine — Composite Graph apply lane
+
+> **Status:** the `force-sync` crate shipped — a Postgres-first, durable sync
+> engine with capture, planning, apply, reconcile, and recovery entry points,
+> external-ID identity, and crash-safe resume; released since v0.1.0 and
+> expanded through v0.4.0 (see `CHANGELOG.md`). What's below is the part of
+> the original spec that did **not** ship: the Composite Graph apply lane.
+> The planner already routes dependent-record workloads to it, but the
+> runtime has no implementation for that lane yet.
 
 **What business problem does this solve?**
-Enterprise teams need a durable, resilient way to synchronize data bidirectionally between Salesforce and PostgreSQL. Relying solely on raw API clients forces developers to reinvent complex control planes (task leasing, reconciliation, conflict resolution, deduplication) for every integration project. A native sync engine reduces this integration boilerplate, guarantees data correctness during transient failures, and provides a warehouse-friendly operational history.
+Records with dependencies (e.g., an Opportunity and its OpportunityLineItems
+created together) need to be applied as a graph so that child records can
+reference a parent's not-yet-committed Salesforce ID within the same
+round-trip. Without that lane, dependent-record sync tasks fail outright
+instead of applying.
+
+**Gap Analysis:**
+`choose_lane` (`crates/force-sync/src/plan.rs`) returns
+`ApplyLane::CompositeGraph` whenever `context.has_dependencies` is true, but
+`apply_task`'s `CompositeGraph` arm (`crates/force-sync/src/runtime.rs`)
+immediately calls `fail_task_for_worker` with `"unsupported runtime lane"`
+and returns `Ok(false)` — the lane is selected but never executed.
 
 👤 **User Story:**
-As a Data Engineer, I want a durable, Postgres-first sync engine integrated with the `force` ecosystem, so that I can reliably orchestrate bidirectional data synchronization between Salesforce and my local database without manually building task queues, journals, or conflict resolution logic.
+As a Data Engineer syncing related Salesforce objects, I want dependent-record
+tasks to apply via the Composite Graph API, so that parent/child records sync
+together instead of every dependent task failing.
 
 ✅ **Acceptance Criteria:**
-- Must use PostgreSQL as the v0.1 durable backend for the sync control plane (storing journals, links, tasks, checkpoints, conflicts).
-- Must use external IDs (e.g., `External_Id__c`) as the canonical identity across systems, treating Salesforce IDs as aliases.
-- Must implement a planner-driven transport architecture that automatically selects the cheapest safe apply lane (REST, Composite Graph, or Bulk) based on workload size.
-- Must be decoupled from the core `force` crate to avoid bloating API-only consumers.
-- Success = Ability to seamlessly resume from a crash and repair drift using an external-ID based upsert strategy without data loss or duplication.
+- Must implement the `CompositeGraph` arm of `apply_task` using
+  `force::api::composite::graph::CompositeGraphRequest` (feature
+  `composite_graph`) to submit dependent records in one graph request.
+- Must resolve child record references to the parent's Salesforce ID from
+  the graph response before recording success.
+- Must report partial-graph failures with the same per-record fidelity the
+  `Rest` and `Bulk` lanes already provide, not a single generic failure.
 
 🚫 **Out of Scope:**
-- SQLite backend support (deferred to later phases).
-- Direct data warehouse sinks (enterprises should load from the Postgres journal downstream).
+- Graphs deeper than the two-level parent/child case `choose_lane` currently
+  detects.
+- SQLite backend support (deferred to later phases, per the original spec).

@@ -23,8 +23,11 @@ equivalents. It is unusual among the crate's surfaces in several ways:
    (`INVALID_SESSION_ID`) — arrives as HTTP 500 with a `<soapenv:Fault>` body,
    not as the HTTP 401 the shared refresh middleware watches for.
 5. **`login()` is retiring.** Salesforce is retiring the SOAP `login()` call
-   (Release Update; end of support Summer '27; unavailable in API v65.0+ and
-   disabled by default in new orgs).
+   (Release Update; end of support Summer '27 for v31.0–v64.0; unavailable in
+   API v65.0+ and disabled by default in orgs created in Winter '26 or later).
+   From 2026-12-01, `login()` also needs the "Use Any API Auth" user
+   permission. Other SOAP calls with an OAuth token in `SessionHeader` are not
+   affected.
 
 ## Decision
 
@@ -76,7 +79,7 @@ vulnerable copy** and does not vendor a second `quick-xml` for `force`.
 The handler does **not** implement SOAP `login()`. It reuses the client's
 existing OAuth `TokenManager` and places the access token
 (`AccessToken::as_str()`) into `<urn:SessionHeader><urn:sessionId>`. Because the
-crate defaults to `v67.0` (> v65.0) `login()` would be unavailable regardless, so
+crate defaults to `v68.0` (> v65.0) `login()` would be unavailable regardless, so
 OAuth-in-`SessionHeader` is the only viable path — and it aligns with
 Salesforce's own migration guidance. An optional `CallOptions` `client` string
 is included by default (`force-rs`) and is overridable via `with_client`.

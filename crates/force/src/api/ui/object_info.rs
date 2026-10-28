@@ -200,7 +200,7 @@ mod tests {
         let client = make_client(&server).await;
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v67.0/ui-api/object-info/Account"))
+            .and(path("/services/data/v68.0/ui-api/object-info/Account"))
             .respond_with(ResponseTemplate::new(200).set_body_json(account_object_info_json()))
             .expect(1)
             .mount(&server)
@@ -222,7 +222,7 @@ mod tests {
         let client = make_client(&server).await;
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v67.0/ui-api/object-info/NoSuchObject"))
+            .and(path("/services/data/v68.0/ui-api/object-info/NoSuchObject"))
             .respond_with(ResponseTemplate::new(404).set_body_json(json!([{
                 "errorCode": "NOT_FOUND",
                 "message": "The requested resource does not exist"
@@ -267,7 +267,7 @@ mod tests {
 
         Mock::given(method("GET"))
             .and(path(
-                "/services/data/v67.0/ui-api/object-info/batch/Account,Contact",
+                "/services/data/v68.0/ui-api/object-info/batch/Account,Contact",
             ))
             .respond_with(ResponseTemplate::new(200).set_body_json(&response_body))
             .expect(1)
@@ -291,7 +291,7 @@ mod tests {
 
         Mock::given(method("GET"))
             .and(path(
-                "/services/data/v67.0/ui-api/object-info/batch/Account,BadObject",
+                "/services/data/v68.0/ui-api/object-info/batch/Account,BadObject",
             ))
             .respond_with(ResponseTemplate::new(400).set_body_json(json!([{
                 "errorCode": "INVALID_TYPE",

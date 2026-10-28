@@ -84,6 +84,10 @@ pub enum AuthenticationError {
     #[error("invalid token state")]
     InvalidToken,
 
+    /// The token type is not supported, for example a DPoP-bound token.
+    #[error("unsupported token type: {0}")]
+    UnsupportedTokenType(String),
+
     /// JWT token creation failed (feature-gated).
     #[cfg(feature = "jwt")]
     #[error("JWT token creation failed: {0}")]

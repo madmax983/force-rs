@@ -54,6 +54,13 @@ impl<A: Authenticator> FilesHandler<A> {
         let session = Arc::clone(&self.session);
         let title = title.to_string();
         let path_on_client = path_on_client.to_string();
+        // ⚡ Bolt: `Bytes` clones are an O(1) refcount bump instead of an
+        // O(file_size) copy, so the per-attempt clone below (needed because
+        // `make_request` is `Fn`, not `FnOnce` -- the executor may call it
+        // again on retry/401) no longer re-copies the whole file on every
+        // attempt, including the common non-retried one every successful
+        // upload takes.
+        let file_bytes = bytes::Bytes::from(file_bytes);
 
         // Rebuild the multipart form (and its body) on every attempt: streaming
         // multipart bodies cannot be cloned, so the executor calls this factory
@@ -68,7 +75,7 @@ impl<A: Authenticator> FilesHandler<A> {
                 .mime_str("application/json")
                 .map_err(|e| ForceError::InvalidInput(e.to_string()))?;
 
-            let version_data_part = Part::bytes(file_bytes.clone())
+            let version_data_part = Part::stream(file_bytes.clone())
                 .file_name(path_on_client.clone())
                 .mime_str("application/octet-stream")
                 .map_err(|e| ForceError::InvalidInput(e.to_string()))?;
@@ -244,7 +251,7 @@ mod tests {
         // First attempt with the stale token is rejected with 401.
         Mock::given(method("GET"))
             .and(path(
-                "/services/data/v67.0/sobjects/ContentVersion/068000000000001AAA/VersionData",
+                "/services/data/v68.0/sobjects/ContentVersion/068000000000001AAA/VersionData",
             ))
             .and(header("Authorization", "Bearer expired_token"))
             .respond_with(ResponseTemplate::new(401).set_body_json(json!([{
@@ -259,7 +266,7 @@ mod tests {
         let expected_bytes = vec![9, 8, 7, 6, 5];
         Mock::given(method("GET"))
             .and(path(
-                "/services/data/v67.0/sobjects/ContentVersion/068000000000001AAA/VersionData",
+                "/services/data/v68.0/sobjects/ContentVersion/068000000000001AAA/VersionData",
             ))
             .and(header("Authorization", "Bearer fresh_token"))
             .respond_with(ResponseTemplate::new(200).set_body_bytes(expected_bytes.clone()))
@@ -295,7 +302,7 @@ mod tests {
         // exercises the non-clonable factory path: the executor must rebuild the
         // multipart body from scratch (via `make_request`) for the retry.
         Mock::given(method("POST"))
-            .and(path("/services/data/v67.0/sobjects/ContentVersion"))
+            .and(path("/services/data/v68.0/sobjects/ContentVersion"))
             .and(header("Authorization", "Bearer expired_token"))
             .respond_with(ResponseTemplate::new(401).set_body_json(json!([{
                 "message": "Session expired or invalid",
@@ -307,7 +314,7 @@ mod tests {
 
         // Second POST with the refreshed token succeeds, returning the new id.
         Mock::given(method("POST"))
-            .and(path("/services/data/v67.0/sobjects/ContentVersion"))
+            .and(path("/services/data/v68.0/sobjects/ContentVersion"))
             .and(header("Authorization", "Bearer fresh_token"))
             .respond_with(ResponseTemplate::new(201).set_body_json(json!({
                 "id": "068000000000001AAA",
@@ -344,7 +351,7 @@ mod tests {
         let client = builder().authenticate(auth).build().await.must();
 
         Mock::given(method("POST"))
-            .and(path("/services/data/v67.0/sobjects/ContentVersion"))
+            .and(path("/services/data/v68.0/sobjects/ContentVersion"))
             .respond_with(ResponseTemplate::new(201).set_body_json(json!({
                 "id": "068000000000001AAA",
                 "success": true,
@@ -372,7 +379,7 @@ mod tests {
 
         Mock::given(method("GET"))
             .and(path(
-                "/services/data/v67.0/sobjects/ContentVersion/068000000000001AAA/VersionData",
+                "/services/data/v68.0/sobjects/ContentVersion/068000000000001AAA/VersionData",
             ))
             .respond_with(ResponseTemplate::new(200).set_body_bytes(expected_bytes.clone()))
             .mount(&mock_server)
@@ -394,7 +401,7 @@ mod tests {
         let client = builder().authenticate(auth).build().await.must();
 
         Mock::given(method("POST"))
-            .and(path("/services/data/v67.0/sobjects/ContentDocumentLink"))
+            .and(path("/services/data/v68.0/sobjects/ContentDocumentLink"))
             .respond_with(ResponseTemplate::new(201).set_body_json(json!({
                 "id": "06A000000000001AAA",
                 "success": true,

@@ -142,11 +142,26 @@ impl<'a, A: crate::auth::Authenticator> SmartIngest<'a, A> {
     /// # Returns
     ///
     /// A `SmartIngestResult` containing every completed job.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ForceError::InvalidInput`](crate::error::ForceError::InvalidInput)
+    /// for `JobOperation::Refresh`, because a split refresh loses data.
     pub async fn execute_stream<S, T>(self, stream: S) -> Result<SmartIngestResult>
     where
         S: Stream<Item = T> + Unpin + Send,
         T: Serialize + Send + Sync,
     {
+        // SmartIngest can split the input into many jobs. Each refresh job
+        // replaces the whole data set, so only the last chunk would stay.
+        if self.operation == JobOperation::Refresh {
+            return Err(crate::error::ForceError::InvalidInput(
+                "SmartIngest does not support refresh: each job replaces the data set. \
+                 Use one IngestJob instead"
+                    .to_string(),
+            ));
+        }
+
         if self.batch_size == 0 {
             return Err(crate::error::ForceError::InvalidInput(
                 "Batch size must be greater than 0".to_string(),
@@ -187,13 +202,23 @@ impl<'a, A: crate::auth::Authenticator> SmartIngest<'a, A> {
         let mut csv_data = Vec::new();
         let mut current_job_id = None;
         let mut jobs = Vec::new();
+        // The CSV header is identical for every record of type T; computing
+        // it once (instead of on every record, only to discard it for all
+        // but the first record of each job) is what append_records relies on.
+        let mut cached_header: Option<Vec<u8>> = None;
 
         while let Some(record) = stream.next().await {
             buffer.push(record);
 
             if buffer.len() >= self.batch_size {
                 if let Err(error) = self
-                    .append_records(&buffer, &mut current_job_id, &mut csv_data, &mut jobs)
+                    .append_records(
+                        &buffer,
+                        &mut current_job_id,
+                        &mut csv_data,
+                        &mut jobs,
+                        &mut cached_header,
+                    )
                     .await
                 {
                     if let Some(job_id) = current_job_id.as_deref() {
@@ -207,7 +232,13 @@ impl<'a, A: crate::auth::Authenticator> SmartIngest<'a, A> {
 
         if !buffer.is_empty() {
             if let Err(error) = self
-                .append_records(&buffer, &mut current_job_id, &mut csv_data, &mut jobs)
+                .append_records(
+                    &buffer,
+                    &mut current_job_id,
+                    &mut csv_data,
+                    &mut jobs,
+                    &mut cached_header,
+                )
                 .await
             {
                 if let Some(job_id) = current_job_id.as_deref() {
@@ -233,12 +264,34 @@ impl<'a, A: crate::auth::Authenticator> SmartIngest<'a, A> {
         current_job_id: &mut Option<String>,
         csv_data: &mut Vec<u8>,
         jobs: &mut Vec<JobInfo>,
+        cached_header: &mut Option<Vec<u8>>,
     ) -> Result<()>
     where
         T: Serialize + Sync,
     {
         for record in records {
-            let (header, row) = Self::serialize_record_parts(record)?;
+            // Only the first record of each job needs a full header+row
+            // serialization; every other record in that job reuses the
+            // cached header and serializes just its row. The header is
+            // recomputed whenever a new job starts (below) rather than
+            // reused across job boundaries: T's Serialize impl can
+            // legitimately emit a different column set per value (e.g.
+            // #[serde(skip_serializing_if = "Option::is_none")]), so a
+            // header cached from an earlier record could silently
+            // misalign columns for a differently-shaped record starting
+            // a new job.
+            let row = if cached_header.is_some() {
+                csv::serialize_row_only(record)?
+            } else {
+                let (header, row) = Self::serialize_record_parts(record)?;
+                *cached_header = Some(header);
+                row
+            };
+            let Some(header) = cached_header.as_ref() else {
+                return Err(crate::error::ForceError::InvalidInput(
+                    "SmartIngest CSV header cache was not populated".to_string(),
+                ));
+            };
             let minimum_payload_size = header.len() + row.len();
 
             if minimum_payload_size > self.max_upload_bytes {
@@ -250,7 +303,7 @@ impl<'a, A: crate::auth::Authenticator> SmartIngest<'a, A> {
 
             if current_job_id.is_none() {
                 *current_job_id = Some(self.create_job_internal().await?);
-                csv_data.extend_from_slice(&header);
+                csv_data.extend_from_slice(header);
             }
 
             if csv_data.len() + row.len() > self.max_upload_bytes {
@@ -263,7 +316,12 @@ impl<'a, A: crate::auth::Authenticator> SmartIngest<'a, A> {
                 jobs.push(self.finish_job(job_id, payload).await?);
 
                 *current_job_id = Some(self.create_job_internal().await?);
-                csv_data.extend_from_slice(&header);
+                // Recompute the header from this record rather than reuse
+                // `header`: it may have a different shape than whichever
+                // earlier record populated the cache (see comment above).
+                let (fresh_header, _) = Self::serialize_record_parts(record)?;
+                csv_data.extend_from_slice(&fresh_header);
+                *cached_header = Some(fresh_header);
             }
 
             csv_data.extend_from_slice(&row);
@@ -425,7 +483,7 @@ mod tests {
     ) {
         Mock::given(method("PUT"))
             .and(path(format!(
-                "/services/data/v67.0/jobs/ingest/{job_id}/batches"
+                "/services/data/v68.0/jobs/ingest/{job_id}/batches"
             )))
             .and(body_string(expected_csv.to_string()))
             .respond_with(ResponseTemplate::new(201))
@@ -434,7 +492,7 @@ mod tests {
             .await;
 
         Mock::given(method("PATCH"))
-            .and(path(format!("/services/data/v67.0/jobs/ingest/{job_id}")))
+            .and(path(format!("/services/data/v68.0/jobs/ingest/{job_id}")))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": job_id,
                 "state": "UploadComplete",
@@ -448,7 +506,7 @@ mod tests {
             .await;
 
         Mock::given(method("GET"))
-            .and(path(format!("/services/data/v67.0/jobs/ingest/{job_id}")))
+            .and(path(format!("/services/data/v68.0/jobs/ingest/{job_id}")))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": job_id,
                 "state": "JobComplete",
@@ -470,7 +528,7 @@ mod tests {
 
         // Mock: Create Job
         Mock::given(method("POST"))
-            .and(path("/services/data/v67.0/jobs/ingest"))
+            .and(path("/services/data/v68.0/jobs/ingest"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "JOB_ID",
                 "state": "Open",
@@ -485,7 +543,7 @@ mod tests {
 
         // Mock: Upload Batch (Expecting Headers)
         Mock::given(method("PUT"))
-            .and(path("/services/data/v67.0/jobs/ingest/JOB_ID/batches"))
+            .and(path("/services/data/v68.0/jobs/ingest/JOB_ID/batches"))
             .and(header("content-type", "text/csv"))
             .and(body_string("id,name\n001,Test\n"))
             .respond_with(ResponseTemplate::new(201))
@@ -495,7 +553,7 @@ mod tests {
 
         // Mock: Close Job
         Mock::given(method("PATCH"))
-            .and(path("/services/data/v67.0/jobs/ingest/JOB_ID"))
+            .and(path("/services/data/v68.0/jobs/ingest/JOB_ID"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "JOB_ID",
                 "state": "UploadComplete",
@@ -510,7 +568,7 @@ mod tests {
 
         // Mock: Poll (Complete)
         Mock::given(method("GET"))
-            .and(path("/services/data/v67.0/jobs/ingest/JOB_ID"))
+            .and(path("/services/data/v68.0/jobs/ingest/JOB_ID"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "JOB_ID",
                 "state": "JobComplete",
@@ -549,12 +607,35 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_smart_ingest_rejects_refresh_without_request() {
+        // Regression: SmartIngest splits uploads into many jobs, and each
+        // refresh job replaces the whole data set. Only the last chunk would stay.
+        let mock_server = MockServer::start().await;
+        let client = create_test_client(mock_server.uri()).await;
+        let handler = client.bulk();
+        let records = vec![TestRecord {
+            id: "001".to_string(),
+            name: "Test".to_string(),
+        }];
+
+        let result = SmartIngest::new(&handler, "MyMarketingObject", JobOperation::Refresh)
+            .execute_stream(futures::stream::iter(records))
+            .await;
+
+        assert!(matches!(
+            result,
+            Err(crate::error::ForceError::InvalidInput(_))
+        ));
+        assert_eq!(mock_server.received_requests().await.must().len(), 0);
+    }
+
+    #[tokio::test]
     async fn test_smart_ingest_multi_batch() {
         let mock_server = MockServer::start().await;
 
         // Mock: Create Job
         Mock::given(method("POST"))
-            .and(path("/services/data/v67.0/jobs/ingest"))
+            .and(path("/services/data/v68.0/jobs/ingest"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "JOB_ID",
                 "state": "Open",
@@ -571,7 +652,7 @@ mod tests {
         // batch size only controls local buffering; it must not create
         // multiple PUTs against the same job.
         Mock::given(method("PUT"))
-            .and(path("/services/data/v67.0/jobs/ingest/JOB_ID/batches"))
+            .and(path("/services/data/v68.0/jobs/ingest/JOB_ID/batches"))
             .and(body_string("id,name\n001,Test1\n002,Test2\n"))
             .respond_with(ResponseTemplate::new(201))
             .expect(1)
@@ -580,7 +661,7 @@ mod tests {
 
         // Mock: Close Job
         Mock::given(method("PATCH"))
-            .and(path("/services/data/v67.0/jobs/ingest/JOB_ID"))
+            .and(path("/services/data/v68.0/jobs/ingest/JOB_ID"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "JOB_ID",
                 "state": "UploadComplete",
@@ -595,7 +676,7 @@ mod tests {
 
         // Mock: Poll (Complete)
         Mock::given(method("GET"))
-            .and(path("/services/data/v67.0/jobs/ingest/JOB_ID"))
+            .and(path("/services/data/v68.0/jobs/ingest/JOB_ID"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "JOB_ID",
                 "state": "JobComplete",
@@ -640,7 +721,7 @@ mod tests {
         let create_job_call_count_for_mock = std::sync::Arc::clone(&create_job_call_count);
 
         Mock::given(method("POST"))
-            .and(path("/services/data/v67.0/jobs/ingest"))
+            .and(path("/services/data/v68.0/jobs/ingest"))
             .respond_with(move |_: &wiremock::Request| {
                 let call_index = create_job_call_count_for_mock
                     .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
@@ -695,11 +776,99 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_smart_ingest_recomputes_header_when_shape_changes_across_job_rotation() {
+        // Regression test: the cached-header optimization must not reuse a
+        // stale header across a job rotation when T's Serialize impl emits a
+        // different column set per value (skip_serializing_if). The record
+        // that starts job 2 (phone: None) has one fewer column than the
+        // record that started job 1 (phone: Some(..)); job 2's uploaded body
+        // must use ITS OWN header, not job 1's.
+        #[derive(Serialize, Clone)]
+        struct VariableShapeRecord {
+            id: String,
+            #[serde(skip_serializing_if = "Option::is_none")]
+            phone: Option<String>,
+            name: String,
+        }
+
+        let mock_server = MockServer::start().await;
+
+        let create_job_call_count = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let create_job_call_count_for_mock = std::sync::Arc::clone(&create_job_call_count);
+
+        Mock::given(method("POST"))
+            .and(path("/services/data/v68.0/jobs/ingest"))
+            .respond_with(move |_: &wiremock::Request| {
+                let call_index = create_job_call_count_for_mock
+                    .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                let id = match call_index {
+                    0 => "JOB_ID_1",
+                    1 => "JOB_ID_2",
+                    _ => "UNEXPECTED_JOB_ID",
+                };
+
+                ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "id": id,
+                    "state": "Open",
+                    "operation": "insert",
+                    "object": "Account",
+                    "createdDate": "2024-01-01T00:00:00.000Z",
+                    "createdById": "005xx0000000001AAA"
+                }))
+            })
+            .expect(2)
+            .mount(&mock_server)
+            .await;
+
+        // job 1: header includes `phone` (record 1 has Some(..)).
+        mount_completed_ingest_job(
+            &mock_server,
+            "JOB_ID_1",
+            "id,phone,name\n001,5550100,First\n",
+            1,
+        )
+        .await;
+        // job 2: header must NOT include `phone` -- record 2 has None, so
+        // skip_serializing_if drops the column entirely for this record.
+        mount_completed_ingest_job(&mock_server, "JOB_ID_2", "id,name\n002,Second\n", 1).await;
+
+        let client = create_test_client(mock_server.uri()).await;
+        let handler = client.bulk();
+
+        let records = vec![
+            VariableShapeRecord {
+                id: "001".to_string(),
+                phone: Some("5550100".to_string()),
+                name: "First".to_string(),
+            },
+            VariableShapeRecord {
+                id: "002".to_string(),
+                phone: None,
+                name: "Second".to_string(),
+            },
+        ];
+        let stream = futures::stream::iter(records);
+
+        // 32 bytes holds job 1's full header+row (id,phone,name\n +
+        // 001,5550100,First\n) but not job 1's content plus record 2's row,
+        // forcing rotation before record 2 is written.
+        let result = SmartIngest::new(&handler, "Account", JobOperation::Insert)
+            .max_upload_bytes(35)
+            .execute_stream(stream)
+            .await
+            .must();
+
+        assert_eq!(result.jobs.len(), 2);
+        assert_eq!(result.jobs[0].id, "JOB_ID_1");
+        assert_eq!(result.jobs[1].id, "JOB_ID_2");
+    }
+
+    #[tokio::test]
     async fn test_smart_ingest_aborts_open_job_when_next_record_exceeds_upload_limit() {
         let mock_server = MockServer::start().await;
 
         Mock::given(method("POST"))
-            .and(path("/services/data/v67.0/jobs/ingest"))
+            .and(path("/services/data/v68.0/jobs/ingest"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "JOB_ID",
                 "state": "Open",
@@ -713,7 +882,7 @@ mod tests {
             .await;
 
         Mock::given(method("PATCH"))
-            .and(path("/services/data/v67.0/jobs/ingest/JOB_ID"))
+            .and(path("/services/data/v68.0/jobs/ingest/JOB_ID"))
             .and(body_string(r#"{"state":"Aborted"}"#))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "JOB_ID",
@@ -759,7 +928,7 @@ mod tests {
 
         // Mock: Create Job (Failure)
         Mock::given(method("POST"))
-            .and(path("/services/data/v67.0/jobs/ingest"))
+            .and(path("/services/data/v68.0/jobs/ingest"))
             .respond_with(
                 ResponseTemplate::new(400).set_body_json(serde_json::json!([{
                     "message": "Bad Request",
@@ -804,7 +973,7 @@ mod tests {
 
         // Mock: Create Job (Success)
         Mock::given(method("POST"))
-            .and(path("/services/data/v67.0/jobs/ingest"))
+            .and(path("/services/data/v68.0/jobs/ingest"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "JOB_ID",
                 "state": "Open",
@@ -819,7 +988,7 @@ mod tests {
 
         // Mock: Upload Batch (Failure)
         Mock::given(method("PUT"))
-            .and(path("/services/data/v67.0/jobs/ingest/JOB_ID/batches"))
+            .and(path("/services/data/v68.0/jobs/ingest/JOB_ID/batches"))
             .respond_with(
                 ResponseTemplate::new(500).set_body_json(serde_json::json!([{
                     "errorCode": "SERVER_ERROR",
@@ -832,7 +1001,7 @@ mod tests {
 
         // Mock: Abort Job (Critical Check)
         Mock::given(method("PATCH"))
-            .and(path("/services/data/v67.0/jobs/ingest/JOB_ID"))
+            .and(path("/services/data/v68.0/jobs/ingest/JOB_ID"))
             .and(body_string(r#"{"state":"Aborted"}"#))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "JOB_ID",
@@ -876,7 +1045,7 @@ mod tests {
 
         // Mock: Create Job (Success)
         Mock::given(method("POST"))
-            .and(path("/services/data/v67.0/jobs/ingest"))
+            .and(path("/services/data/v68.0/jobs/ingest"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "JOB_ID",
                 "state": "Open",
@@ -891,7 +1060,7 @@ mod tests {
 
         // Mock: Upload Batch (Success)
         Mock::given(method("PUT"))
-            .and(path("/services/data/v67.0/jobs/ingest/JOB_ID/batches"))
+            .and(path("/services/data/v68.0/jobs/ingest/JOB_ID/batches"))
             .respond_with(ResponseTemplate::new(201))
             .expect(1)
             .mount(&mock_server)
@@ -899,7 +1068,7 @@ mod tests {
 
         // Mock: Close Job (Failure)
         Mock::given(method("PATCH"))
-            .and(path("/services/data/v67.0/jobs/ingest/JOB_ID"))
+            .and(path("/services/data/v68.0/jobs/ingest/JOB_ID"))
             .respond_with(
                 ResponseTemplate::new(500).set_body_json(serde_json::json!([{
                     "errorCode": "SERVER_ERROR",
@@ -944,7 +1113,7 @@ mod tests {
 
         // Mock: Create Job (Success)
         Mock::given(method("POST"))
-            .and(path("/services/data/v67.0/jobs/ingest"))
+            .and(path("/services/data/v68.0/jobs/ingest"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "JOB_ID",
                 "state": "Open",
@@ -959,7 +1128,7 @@ mod tests {
 
         // Mock: Upload Batch (Success)
         Mock::given(method("PUT"))
-            .and(path("/services/data/v67.0/jobs/ingest/JOB_ID/batches"))
+            .and(path("/services/data/v68.0/jobs/ingest/JOB_ID/batches"))
             .respond_with(ResponseTemplate::new(201))
             .expect(1)
             .mount(&mock_server)
@@ -967,7 +1136,7 @@ mod tests {
 
         // Mock: Close Job (Success)
         Mock::given(method("PATCH"))
-            .and(path("/services/data/v67.0/jobs/ingest/JOB_ID"))
+            .and(path("/services/data/v68.0/jobs/ingest/JOB_ID"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "JOB_ID",
                 "state": "UploadComplete",
@@ -982,7 +1151,7 @@ mod tests {
 
         // Mock: Poll (Failed)
         Mock::given(method("GET"))
-            .and(path("/services/data/v67.0/jobs/ingest/JOB_ID"))
+            .and(path("/services/data/v68.0/jobs/ingest/JOB_ID"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "JOB_ID",
                 "state": "Failed",
@@ -1021,7 +1190,7 @@ mod tests {
 
         // Mock: Create Job (Success)
         Mock::given(method("POST"))
-            .and(path("/services/data/v67.0/jobs/ingest"))
+            .and(path("/services/data/v68.0/jobs/ingest"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "JOB_ID",
                 "state": "Open",
@@ -1036,7 +1205,7 @@ mod tests {
 
         // Mock: Upload Batch (Success)
         Mock::given(method("PUT"))
-            .and(path("/services/data/v67.0/jobs/ingest/JOB_ID/batches"))
+            .and(path("/services/data/v68.0/jobs/ingest/JOB_ID/batches"))
             .respond_with(ResponseTemplate::new(201))
             .expect(1)
             .mount(&mock_server)
@@ -1044,7 +1213,7 @@ mod tests {
 
         // Mock: Close Job (Success)
         Mock::given(method("PATCH"))
-            .and(path("/services/data/v67.0/jobs/ingest/JOB_ID"))
+            .and(path("/services/data/v68.0/jobs/ingest/JOB_ID"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "JOB_ID",
                 "state": "UploadComplete",
@@ -1059,7 +1228,7 @@ mod tests {
 
         // Mock: Poll (Aborted)
         Mock::given(method("GET"))
-            .and(path("/services/data/v67.0/jobs/ingest/JOB_ID"))
+            .and(path("/services/data/v68.0/jobs/ingest/JOB_ID"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "JOB_ID",
                 "state": "Aborted",
@@ -1097,7 +1266,7 @@ mod tests {
 
         // Mock: Create Job
         Mock::given(method("POST"))
-            .and(path("/services/data/v67.0/jobs/ingest"))
+            .and(path("/services/data/v68.0/jobs/ingest"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "JOB_ID",
                 "state": "Open",
@@ -1112,7 +1281,7 @@ mod tests {
 
         // Mock: Upload Batch (Should NOT be called for empty stream)
         Mock::given(method("PUT"))
-            .and(path("/services/data/v67.0/jobs/ingest/JOB_ID/batches"))
+            .and(path("/services/data/v68.0/jobs/ingest/JOB_ID/batches"))
             .respond_with(ResponseTemplate::new(200)) // Needed for type system even if expected 0
             .expect(0) // Should NOT be called
             .mount(&mock_server)
@@ -1120,7 +1289,7 @@ mod tests {
 
         // Mock: Close Job
         Mock::given(method("PATCH"))
-            .and(path("/services/data/v67.0/jobs/ingest/JOB_ID"))
+            .and(path("/services/data/v68.0/jobs/ingest/JOB_ID"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "JOB_ID",
                 "state": "UploadComplete",
@@ -1135,7 +1304,7 @@ mod tests {
 
         // Mock: Poll (Complete)
         Mock::given(method("GET"))
-            .and(path("/services/data/v67.0/jobs/ingest/JOB_ID"))
+            .and(path("/services/data/v68.0/jobs/ingest/JOB_ID"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "JOB_ID",
                 "state": "JobComplete",

@@ -149,14 +149,22 @@ impl<A: crate::auth::Authenticator> SoapHandler<A> {
     }
 
     /// Builds the SOAP endpoint URL, stripping the `v` prefix from the API version.
-    fn soap_url(&self, instance_url: &str) -> String {
+    ///
+    /// The `latest` alias is a REST feature. SOAP needs a numeric version.
+    fn soap_url(&self, instance_url: &str) -> Result<String> {
+        if crate::types::ApiVersion::is_latest_alias(&self.inner.config.api_version) {
+            return Err(crate::error::ForceError::InvalidInput(
+                "SOAP needs a numeric api_version (for example v68.0); 'latest' is a REST alias"
+                    .to_string(),
+            ));
+        }
         let version = self.inner.config.api_version.trim_start_matches('v');
         let base = instance_url.trim_end_matches('/');
         let mut url = String::with_capacity(base.len() + version.len() + 16);
         url.push_str(base);
         url.push_str("/services/Soap/u/");
         url.push_str(version);
-        url
+        Ok(url)
     }
 
     /// Sends a SOAP operation body, handling faults and a single session retry.
@@ -182,7 +190,7 @@ impl<A: crate::auth::Authenticator> SoapHandler<A> {
     /// Performs one SOAP round-trip and classifies the response.
     async fn dispatch(&self, body: &str) -> Result<Dispatch> {
         let token = self.inner.token_manager.get_token_arc().await?;
-        let url = self.soap_url(token.instance_url());
+        let url = self.soap_url(token.instance_url())?;
         let envelope = envelope::build_envelope(token.as_str(), self.client.as_deref(), body);
 
         let request = self

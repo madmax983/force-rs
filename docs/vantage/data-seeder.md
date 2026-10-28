@@ -1,24 +1,47 @@
-# 🔭 Vantage: Spec for Data Seeder
+# 🔭 Vantage: Spec for Data Seeder — structured failure reporting
 
-**Business problem:**
-Testing Salesforce integrations often requires realistic records populated in a sandbox or scratch org. Developers and QA engineers spend excessive time writing custom scripts, using DataLoader, or manually creating records via the UI to establish test data states. This slows down testing cycles and makes it difficult to reliably recreate complex data environments across CI/CD pipelines.
+> **Status:** the `data_utility` feature shipped `DataSeeder` — it already
+> generates mock records via `DataFaker` and inserts them through the
+> Composite Batch API, chunking automatically and supporting
+> `halt_on_error`; see
+> [`docs/guide/surfaces/data-utility.md`](../guide/surfaces/data-utility.md).
+> What's below is the part of the original spec that did **not** ship:
+> structured per-record failure reporting. `DataSeeder::seed` returns only a
+> `usize` count of successful inserts — a failed record is silently dropped
+> when `halt_on_error` is `false`, and when it is `true` the whole call
+> returns one generic `"Seed operation failed"` error with no indication of
+> which record failed or why.
+
+**What business problem does this solve?**
+When seeding hundreds of records, some subset commonly fails validation
+(a required field the faker didn't populate correctly, a duplicate rule, a
+reference field that needs a real ID — see the caveat on
+[`data-utility.md`](../guide/surfaces/data-utility.md)). Today a caller has
+no way to find out *which* records failed or *why* without re-implementing
+the batch loop themselves.
 
 **Gap Analysis:**
-Existing tools like DataLoader require manual CSV preparation and mapping. Apex scripts require deployment and are difficult to maintain. The currently available DataFaker generates in-memory mock data but doesn't persist it. There is a missing link to seamlessly generate and insert hundreds of valid, mock records directly into an org using existing metadata and batch APIs.
-
-**Success metric:**
-Success = Ability to generate and successfully insert 500 valid, schema-compliant records for a standard object like `Account` into a Salesforce org in under 5 seconds using the Composite Batch API.
+`DataSeeder::seed` (`crates/force/src/data/data_seeder.rs`) inspects each
+Composite Batch sub-response's status code to decide whether to count a
+success, but discards the sub-response body entirely — including the
+Salesforce error code/message a failed record would carry.
 
 👤 **User Story:**
-As a Salesforce Developer or QA Engineer, I want a tool to automatically generate and seed a specified number of mock records directly into my sandbox, so that I can quickly establish realistic data states for testing without manual data entry or CSV management.
+As a Salesforce Developer seeding test data, I want `seed()` to tell me
+which records failed and what Salesforce said about each one, so that I can
+fix bad mock data or the target object's validation rules without turning
+on `RUST_LOG=debug` and re-reading raw Composite Batch responses myself.
 
 ✅ **Acceptance Criteria:**
-- Must leverage the `DataFaker` to generate schema-compliant mock data based on live `SObjectDescribe` metadata.
-- Must efficiently insert records into Salesforce using the Composite Batch API to minimize API calls and avoid rate limits.
-- Must handle batch limits automatically (e.g., chunking requests if the count exceeds the maximum allowed subrequests per composite batch).
-- Must provide clear success/failure reporting, including the number of records successfully inserted and any Salesforce API errors encountered.
-- Must support an option to halt processing immediately if a batch operation fails .
+- Must return, in addition to (or instead of) the current success count, the
+  per-record outcome: index, and — for failures — the Salesforce error
+  code(s) and message(s) from that sub-response.
+- Must preserve today's `halt_on_error` behavior for callers who want to
+  stop at the first failure; the structured report applies to both modes.
+- Must not require a second network round-trip to fetch what the Composite
+  Batch response already returned.
 
 🚫 **Out of Scope:**
-- Seeding complex relational data trees (e.g., Accounts with related Contacts and Opportunities) in a single operation (Phase 2).
-- Automatic deletion or rollback of seeded data after tests complete (Phase 2).
+- Automatic retry of failed records.
+- Changing `generate_mock_record`'s field-value heuristics (tracked
+  separately — see the Reference-field caveat in `data-utility.md`).

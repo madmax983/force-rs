@@ -28,6 +28,7 @@ under `--all-features`.
 | `live_salesforce` | `force` | Auth flows (JWT / Client-Credentials / Username-Password authenticate + refresh + failure), REST/tooling/composite/ui/graphql/bulk smokes, error payloads, bulk round-trips, Data Cloud token exchange |
 | `live_core` | `force` | REST CRUD lifecycle, upsert, query + `query_more` pagination, SOSL, describe (global + object), org limits, composite batch, composite graph, bulk 2.0 query stream, tooling query + `execute_anonymous`, UI object-info + create-defaults, GraphQL |
 | `live_special` | `force` | Specialized surfaces (Data Cloud, Apex REST, Consent, Models, Agent API, CPQ), each gated on core creds **and** its own tier var |
+| `live_soap` | `force` | SOAP Partner API (feature `soap`): `get_server_timestamp`, `get_user_info`, describe (global + object), `query` read-only smokes + create→delete `Contact` round-trip |
 | `live_account_engagement` | `force` | Account Engagement (Pardot) v5 `query_lists` (separate host + BU header) |
 | `live_marketingcloud` | `force-marketingcloud` | Marketing Cloud Engagement Installed-Package auth + `assets().list()` |
 
@@ -65,6 +66,11 @@ gate var is unset skip individually.
 | Agent API | `SF_AGENT_ID` | — |
 | CPQ | `SF_CPQ_QUOTE_ID` | — |
 
+### `live_soap` (SOAP Partner API)
+
+Reuses the core creds and OAuth token (placed in `SessionHeader`); no extra gate
+var. Requires `--features soap`. See [ADR-032](../adr/032-soap-api-design.md).
+
 ### `live_account_engagement` (Pardot v5)
 
 | Env var | Required | Notes |
@@ -85,8 +91,8 @@ gate var is unset skip individually.
 
 ## Credential resolution order
 
-`live_core`, `live_special`, and `live_account_engagement` share one loader
-(`crates/force/tests/common/mod.rs`) that mirrors `live_salesforce.rs`. It tries
+`live_core`, `live_special`, `live_soap`, and `live_account_engagement` share one
+loader (`crates/force/tests/common/mod.rs`) that mirrors `live_salesforce.rs`. It tries
 each mechanism in order and uses the first fully-configured one:
 
 1. **JWT Bearer** (feature `jwt`) — `SF_JWT_CLIENT_ID`, `SF_JWT_USERNAME`,
@@ -205,9 +211,10 @@ Run live binaries with `--test-threads=1` so mutating tests do not interleave.
   1. `force` `--test live_salesforce`
   2. `force` `--test live_core`
   3. `force` `--test live_special`
-  4. `force` `--test live_account_engagement`
-  5. `force-marketingcloud` `--test live_marketingcloud`
-  6. `force-pubsub` `--test live_salesforce_pubsub`
+  4. `force` `--test live_soap`
+  5. `force` `--test live_account_engagement`
+  6. `force-marketingcloud` `--test live_marketingcloud`
+  7. `force-pubsub` `--test live_salesforce_pubsub`
 - **Config**: `SF_API_VERSION` defaults to `v62.0`; all secrets/vars are wired
   from `secrets`/`vars`. No secret values are hardcoded; unset tiers skip.
 

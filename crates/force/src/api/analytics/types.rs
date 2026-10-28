@@ -789,8 +789,8 @@ mod tests {
         // Verbatim SUMMARY example from the research doc (abbreviated).
         let json = serde_json::json!({
             "attributes": {
-                "describeUrl": "/services/data/v67.0/analytics/reports/00O3000000B5Yn2/describe",
-                "instancesUrl": "/services/data/v67.0/analytics/reports/00O3000000B5Yn2/instances",
+                "describeUrl": "/services/data/v68.0/analytics/reports/00O3000000B5Yn2/describe",
+                "instancesUrl": "/services/data/v68.0/analytics/reports/00O3000000B5Yn2/instances",
                 "reportId": "00O3000000B5Yn2",
                 "reportName": "Opportunities by Stage",
                 "type": "Report"
@@ -886,7 +886,7 @@ mod tests {
         // Groupings.
         assert_eq!(results.groupings_down.groupings[0].key, "0");
         assert_eq!(results.groupings_down.groupings[0].label, "Prospecting");
-        assert!(results.groupings_across.groupings.is_empty());
+        assert_eq!(results.groupings_across.groupings.len(), 0);
     }
 
     #[test]
@@ -909,7 +909,7 @@ mod tests {
             "ownerId": "005000000000001",
             "queryable": false,
             "hasDetailRows": false,
-            "url": "/services/data/v67.0/analytics/reports/00O/instances/0LG"
+            "url": "/services/data/v68.0/analytics/reports/00O/instances/0LG"
         });
         let inst: ReportInstance = serde_json::from_value(json).must();
         assert_eq!(inst.id, "0LG000000000001");

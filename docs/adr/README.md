@@ -30,8 +30,6 @@ ADRs follow this structure:
 
 ## Index
 
-### Foundation Phase
-
 | ADR | Title | Status | Date |
 |-----|-------|--------|------|
 | [001](001-workspace-structure.md) | Workspace Structure and Module Organization | Accepted | 2026-02-07 |
@@ -68,6 +66,7 @@ ADRs follow this structure:
 | [032](032-soap-api-design.md) | SOAP API Design | Accepted | 2026-07-13 |
 | [033](033-live-contract-test-harness.md) | Tiered, Env-Gated Live-Contract Test Harness | Accepted | 2026-07-13 |
 | [034](034-marketing-cloud-engagement-crate.md) | Create `force-marketingcloud` as a Standalone Engagement Crate | Accepted | 2026-07-12 |
+| [035](035-winter-27-v68-adoption.md) | Winter '27 (API v68.0) Adoption | Accepted | 2026-10-28 |
 
 ## Decision Process
 
@@ -194,4 +193,4 @@ When adding a new ADR:
 
 - [ADR Template](https://github.com/joelparkerhenderson/architecture-decision-record)
 - [Why ADRs](https://cognitect.com/blog/2011/11/15/documenting-architecture-decisions)
-- [Mark's Coding Standards](C:\Users\markm\.claude\CLAUDE.md) - "ADRs for significant decisions"
+- [Mark's Coding Standards](../../CLAUDE.md) - "ADRs for significant decisions"

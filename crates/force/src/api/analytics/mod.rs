@@ -233,7 +233,7 @@ mod tests {
         let client = test_client().await;
         let handler = client.analytics();
         let url = handler.resolve_analytics_url("reports").await.must();
-        assert!(url.contains("v67.0"), "URL should contain API version");
+        assert!(url.contains("v68.0"), "URL should contain API version");
     }
 
     #[tokio::test]

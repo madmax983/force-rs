@@ -415,7 +415,7 @@ mod tests {
         assert_eq!(quote.primary, Some(true));
         assert_eq!(quote.account_id.as_deref(), Some("001000000000001AAA"));
         assert_eq!(quote.opportunity_id.as_deref(), Some("006000000000001AAA"));
-        assert!(quote.line_items.is_empty());
+        assert_eq!(quote.line_items.len(), 0);
     }
 
     #[test]
@@ -486,7 +486,7 @@ mod tests {
     fn test_quote_model_default_line_items() {
         let json = serde_json::json!({"Id": "a0x000000000001AAA"});
         let quote: QuoteModel = serde_json::from_value(json).must();
-        assert!(quote.line_items.is_empty());
+        assert_eq!(quote.line_items.len(), 0);
     }
 
     // ── QuoteLineModel tests ─────────────────────────────────────────
@@ -537,7 +537,7 @@ mod tests {
         let product: ProductModel = serde_json::from_value(json).must();
         assert!(product.record.is_some());
         assert_eq!(product.feature_categories.len(), 1);
-        assert!(product.features.is_empty());
+        assert_eq!(product.features.len(), 0);
         assert_eq!(product.options.len(), 1);
     }
 
@@ -559,7 +559,7 @@ mod tests {
         );
         assert_eq!(config.option_configurations.len(), 1);
         assert_eq!(config.valid, Some(true));
-        assert!(config.validation_messages.is_empty());
+        assert_eq!(config.validation_messages.len(), 0);
     }
 
     #[test]
