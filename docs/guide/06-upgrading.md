@@ -4,6 +4,25 @@ Guide for upgrading between `force` releases: what breaks and the minimal
 before/after fix, so upgrading is a search-and-replace instead of an
 archaeology dig through [CHANGELOG.md](../../CHANGELOG.md).
 
+## 0.4 → Unreleased (Winter '27, API v68.0)
+
+See [ADR-035](../adr/035-winter-27-v68-adoption.md).
+
+1. **Default API version is v68.0.** Code that pins `api_version` does not
+   change. Tests that mock `/services/data/v67.0/...` with the default config
+   must use `v68.0`, or pin `api_version: "v67.0"`.
+2. **`JobOperation` has two new variants** (`Refresh`, `ConsentImport`). A
+   `match` without a `_` arm does not compile. Add the arms or a `_` arm.
+3. **`GraphqlRequest` sends `operationName`.** Before, it sent
+   `operation_name`, which the server ignored. If you assert on the request
+   body in tests, change the key.
+4. **DPoP tokens fail early.** If an app has "Require DPoP" on, every call now
+   returns an error before it sends a request. Turn the setting off for apps
+   that `force-rs` uses.
+5. **Tooling Test Discovery** checks `test_level` (v68.0+) and
+   `show_all_methods` (v67.0 and earlier) against `api_version`. A mismatch is
+   an `InvalidInput` error.
+
 ## 0.3 → 0.4
 
 0.4.0 made three semver-breaking API-shape corrections, all found by live-org
