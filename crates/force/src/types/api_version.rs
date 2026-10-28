@@ -163,7 +163,7 @@ impl ApiVersion {
     ///
     /// Returns `None` for the `latest` alias and for invalid strings.
     #[must_use]
-    pub fn config_major(value: &str) -> Option<u16> {
+    pub(crate) fn config_major(value: &str) -> Option<u16> {
         value.parse::<Self>().ok().map(|v| v.major)
     }
 
@@ -512,6 +512,24 @@ mod tests {
 
                 prop_assert_eq!(parsed, version);
                 prop_assert_eq!(parsed.major(), major);
+            }
+
+            // Property: consecutive versions follow Summer -> Winter -> Spring,
+            // and the year label goes up by one at Winter.
+            #[test]
+            fn prop_release_name_cycle(major in 41u16..ApiVersion::MAX_TESTED.major() + 3) {
+                let a = ApiVersion::new(major).release_name().must();
+                let b = ApiVersion::new(major + 1).release_name().must();
+                let (sa, ya) = a.split_once(" '").must();
+                let (sb, yb) = b.split_once(" '").must();
+                let ya: u16 = ya.parse().must();
+                let yb: u16 = yb.parse().must();
+                let expected = match sa {
+                    "Summer" => ("Winter", ya + 1),
+                    "Winter" => ("Spring", ya),
+                    _ => ("Summer", ya),
+                };
+                prop_assert_eq!((sb, yb), expected);
             }
 
             // Property 2: to_string() matches Display format

@@ -98,6 +98,15 @@ impl StartSessionRequest {
     }
 }
 
+/// Decodes `null`, one value, or an array into a list.
+fn value_list<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Vec<Value>, D::Error> {
+    Ok(match Value::deserialize(d)? {
+        Value::Null => Vec::new(),
+        Value::Array(items) => items,
+        other => vec![other],
+    })
+}
+
 /// A single message in an agent response.
 ///
 /// The `messages[]` array is polymorphic; `type` (e.g. `Inform`,
@@ -124,11 +133,12 @@ pub struct AgentMessage {
     /// Trust Layer content-safety flag.
     #[serde(default)]
     pub is_content_safe: Option<bool>,
-    /// Structured action results (free-form).
-    #[serde(default)]
+    /// Structured action results (free-form). `null` gives an empty list; a
+    /// single object gives a list of one.
+    #[serde(default, deserialize_with = "value_list")]
     pub result: Vec<Value>,
-    /// Grounding/citation references (free-form).
-    #[serde(default)]
+    /// Grounding/citation references (free-form). Same rules as `result`.
+    #[serde(default, deserialize_with = "value_list")]
     pub cited_references: Vec<Value>,
 }
 

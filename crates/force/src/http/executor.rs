@@ -358,12 +358,15 @@ impl HttpExecutor {
         retry_attempt: u32,
         ctx: &TelemetryContext,
     ) -> Result<Response> {
-        let result = tokio::time::timeout(self.timeout, self.client.execute(request)).await;
+        // A per-request timeout (for example a streamed turn) wins over the
+        // executor default.
+        let timeout = request.timeout().copied().unwrap_or(self.timeout);
+        let result = tokio::time::timeout(timeout, self.client.execute(request)).await;
 
         let Ok(req_result) = result else {
             self.record_completion(ctx, None, Some(RequestErrorKind::Timeout), retry_attempt);
             return Err(HttpError::Timeout {
-                timeout_seconds: self.timeout.as_secs(),
+                timeout_seconds: timeout.as_secs(),
             }
             .into());
         };
@@ -633,7 +636,8 @@ mod tests {
             })
             .await;
 
-        assert!(result.is_err());
+        let err = result.err().must();
+        assert!(err.to_string().contains("DPoP"), "{err}");
         // A proof-less DPoP call revokes the token, so nothing may be sent.
         assert!(mock_server.received_requests().await.must().is_empty());
     }
@@ -799,6 +803,34 @@ mod tests {
 
         // Expect the response to be successfully returned and it to be 503
         assert_eq!(response.status(), reqwest::StatusCode::SERVICE_UNAVAILABLE);
+    }
+
+    #[tokio::test]
+    async fn test_request_timeout_overrides_executor_timeout() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/slow"))
+            .respond_with(ResponseTemplate::new(200).set_delay(Duration::from_millis(100)))
+            .mount(&mock_server)
+            .await;
+
+        // Executor limit 10ms; the request asks for 5s (a streamed turn).
+        let executor = HttpExecutor::with_config(0, Duration::from_millis(10));
+        let token = create_test_token();
+        let request = executor
+            .client
+            .get(format!("{}/slow", mock_server.uri()))
+            .timeout(Duration::from_secs(5))
+            .build()
+            .must();
+
+        let response = executor
+            .execute_response(request, &token, || async {
+                panic!("Should not be called");
+            })
+            .await
+            .must();
+        assert_eq!(response.status(), reqwest::StatusCode::OK);
     }
 
     #[tokio::test]

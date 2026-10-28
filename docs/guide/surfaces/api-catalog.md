@@ -13,8 +13,8 @@ This handler manages registry records. It is not an MCP client.
 ```rust
 use force::api::api_catalog::{McpServerAuthorizationInput, McpServerCreateInput};
 
-let mut input = McpServerCreateInput::external("weather", "https://mcp.example.com/mcp");
-input.authorization = Some(McpServerAuthorizationInput::no_auth());
+let input = McpServerCreateInput::external("weather", "https://mcp.example.com/mcp")
+    .with_authorization(McpServerAuthorizationInput::no_auth());
 let created = client.api_catalog().create_mcp_server(&input).await?;
 
 // Connect to the server again and read its current assets.

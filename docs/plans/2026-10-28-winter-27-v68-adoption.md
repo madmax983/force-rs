@@ -32,7 +32,7 @@ Third-party blogs are used only where marked.
 
 - Bump `ApiVersion::DEFAULT` to v68.0. Add `V68`. Add `release_name()`.
 - Accept `"latest"` as `ClientConfig.api_version`.
-- `rest().versions()` and `rest().latest_version()`.
+- `rest().versions()` and `rest().highest_version()`.
 - Bulk `JobOperation::Refresh` and `JobOperation::ConsentImport`.
 - Tooling `apex_compile_results()`, `symbols()`, `discover_tests()`.
 - GraphQL `lookup_values()`.
@@ -51,7 +51,7 @@ Third-party blogs are used only where marked.
 |---|---|
 | Change the default version and break pinned users. | Pinning stays. Default bump is in CHANGELOG. (AC-1) |
 | `latest` makes behavior drift without notice. | Opt-in only. Docs say "pin in production". (AC-2) |
-| The `Latest Release` entry breaks a versions parser. | Parser keeps the entry and flags it. `latest_version()` skips it. (AC-3) |
+| The `Latest Release` entry breaks a versions parser. | Parser keeps the entry and flags it. `highest_version()` skips it. (AC-3) |
 | A `consentImport` job sends `object` and the server rejects it. | Empty `object` is not serialized. Client rejects a non-empty one. (AC-4) |
 | New `JobOperation` values break job-list decode. | Both values decode. Tests cover them. (AC-4) |
 | `showAllMethods` sent on v68 is ignored without notice. | Client returns a validation error. (AC-7) |
@@ -72,14 +72,14 @@ Third-party blogs are used only where marked.
   frustration. Keep changes additive where possible.
 - **Black (risks).** Unverified wire shapes cause runtime decode failures.
   Mitigation: permissive types (`Option`, `#[serde(default)]`, `extra` maps),
-  and a raw escape hatch. Full DPoP needs new crypto deps and changes every
+  and `extra` maps for unknown fields. Full DPoP needs new crypto deps and changes every
   request path: high risk in one PR.
 - **Yellow (benefits).** v68 default gives FORMULA(), `latest`, and new Tooling
   endpoints. Streaming closes a roadmap gap. API Catalog gives agent-tool
   registry access from Rust.
 - **Green (ideas).** `ApiVersion::release_name()` makes labels testable.
   Shared SSE decoder can serve later streaming APIs. Version gating helper
-  (`config_api_major`) serves future version-gated params.
+  (`ApiVersion::config_major`) serves future version-gated params.
 - **Blue (process).** RED → GREEN → REFACTOR per work item. Then multi-angle
   agent review. Then the AC evidence table. Out-of-scope items go to ADR-035
   as follow-ups.
@@ -95,7 +95,7 @@ are not Winter '27 changes or are not verifiable today.
 | Work item | Description |
 |---|---|
 | W1 | `ApiVersion::V68`, default/tested = v68, `release_name()`, labels fixed, `latest` alias. |
-| W2 | REST Versions resource: `versions()`, `latest_version()`. |
+| W2 | REST Versions resource: `versions()`, `highest_version()`. |
 | W3 | Bulk `Refresh` + `ConsentImport`, operation-aware validation. |
 | W4 | Tooling `apex_compile_results()`, `symbols()`, `discover_tests()` (+ gate). |
 | W5 | GraphQL `lookup_values()`. |
@@ -111,7 +111,7 @@ are not Winter '27 changes or are not verifiable today.
 |---|---|
 | AC-1 | `ApiVersion::DEFAULT == MAX_TESTED == V68`. `V68` exists. `release_name()` maps v55–v68 correctly. Doc labels fixed. |
 | AC-2 | `ClientConfig { api_version: "latest" }` builds `/services/data/latest/...` URLs. |
-| AC-3 | `rest().versions()` parses the list with the `Latest Release` entry. `latest_version()` returns the highest numeric version. |
+| AC-3 | `rest().versions()` parses the list with the `Latest Release` entry. `highest_version()` returns the highest numeric version. |
 | AC-4 | `JobOperation::{Refresh, ConsentImport}` round-trip as `refresh`/`consentImport`. `consentImport` omits `object`, rejects a non-empty `object` and an external ID. `JobInfo` decodes with no `object`. |
 | AC-5 | `tooling().apex_compile_results()` sends `{}` and decodes `OK` and `PARTIAL_FAILURE`. |
 | AC-6 | `tooling().symbols()` sends `category` (+ optional `namespace`, `name`; empty namespace kept) and decodes `typeStubs`. |

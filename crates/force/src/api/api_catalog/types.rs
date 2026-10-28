@@ -6,11 +6,10 @@ use secrecy::{ExposeSecret, SecretString};
 use serde::{Deserialize, Serialize, Serializer};
 
 /// MCP server type. Only `EXTERNAL` exists today.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum McpServerType {
     /// A server outside Salesforce.
-    #[default]
     External,
     /// A value that this crate does not know.
     #[serde(other)]
@@ -72,7 +71,7 @@ impl McpServerStatusFilter {
 pub struct ListMcpServersOptions {
     /// Label filter.
     pub label: Option<String>,
-    /// Type filter.
+    /// Type filter. Only `External` is sent; `Unknown` sends no filter.
     pub server_type: Option<McpServerType>,
     /// Status filter.
     pub status: Option<McpServerStatusFilter>,
@@ -92,6 +91,10 @@ impl ListMcpServersOptions {
         }
         params
     }
+}
+
+const fn unknown_server_type() -> McpServerType {
+    McpServerType::Unknown
 }
 
 /// Authorization settings of an MCP server (output).
@@ -184,8 +187,8 @@ pub struct McpServer {
     /// Description.
     #[serde(default)]
     pub description: Option<String>,
-    /// Server type.
-    #[serde(default, rename = "type")]
+    /// Server type. `Unknown` if the server omits it.
+    #[serde(default = "unknown_server_type", rename = "type")]
     pub server_type: McpServerType,
     /// Connection status, for example `ACTIVE`, `INCOMPLETE`, or `DISCONNECTED`.
     #[serde(default)]
@@ -253,6 +256,27 @@ impl McpServerCreateInput {
             server_url: server_url.into(),
             authorization: None,
         }
+    }
+
+    /// Sets the label.
+    #[must_use]
+    pub fn with_label(mut self, label: impl Into<String>) -> Self {
+        self.label = Some(label.into());
+        self
+    }
+
+    /// Sets the description.
+    #[must_use]
+    pub fn with_description(mut self, description: impl Into<String>) -> Self {
+        self.description = Some(description.into());
+        self
+    }
+
+    /// Sets the authorization settings.
+    #[must_use]
+    pub fn with_authorization(mut self, authorization: McpServerAuthorizationInput) -> Self {
+        self.authorization = Some(authorization);
+        self
     }
 }
 
@@ -407,6 +431,34 @@ mod tests {
     }
 
     #[test]
+    fn test_missing_type_decodes_unknown() {
+        let s: McpServer = serde_json::from_value(json!({"id": "1", "name": "n"})).must();
+        assert_eq!(s.server_type, McpServerType::Unknown);
+    }
+
+    #[test]
+    fn test_create_input_builders() {
+        let input = McpServerCreateInput::external("w", "https://m")
+            .with_label("W")
+            .with_description("d")
+            .with_authorization(McpServerAuthorizationInput::no_auth());
+        let json = serde_json::to_value(&input).must();
+        assert_eq!(json["label"], "W");
+        assert_eq!(json["description"], "d");
+        assert_eq!(json["authorization"]["authType"], "NO_AUTH");
+        assert_eq!(json["type"], "EXTERNAL");
+    }
+
+    #[test]
+    fn test_unknown_type_filter_is_not_sent() {
+        let opts = ListMcpServersOptions {
+            server_type: Some(McpServerType::Unknown),
+            ..Default::default()
+        };
+        assert_eq!(opts.query_params().len(), 0);
+    }
+
+    #[test]
     fn test_oauth_input_serializes_secret_but_hides_it_in_debug() {
         let auth = McpServerAuthorizationInput::oauth("cid", "s3cr3t");
         let json = serde_json::to_value(&auth).must();
@@ -436,7 +488,7 @@ mod tests {
                 ("status", "DISCONNECTED".to_owned())
             ]
         );
-        assert!(ListMcpServersOptions::default().query_params().is_empty());
+        assert_eq!(ListMcpServersOptions::default().query_params().len(), 0);
     }
 
     #[test]

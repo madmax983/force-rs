@@ -71,17 +71,18 @@ let plan    = client.rest().explain("SELECT Id FROM Account WHERE Name = 'x'").a
 ## API versions (v68.0+)
 
 `versions()` lists the versions of the org. From v68.0 the list has a `latest`
-alias entry. `latest_version()` returns the highest numeric version.
+alias entry. `highest_version()` returns the highest numeric version.
 
 ```rust
 let versions = client.rest().versions().await?;
 let alias = versions.iter().find(|v| v.is_latest_alias());
-let newest = client.rest().latest_version().await?; // Option<ApiVersion>
+let newest = client.rest().highest_version().await?; // Option<ApiVersion>
 ```
 
 To send every request to `/services/data/latest/`, set
 `ClientConfig.api_version` to `ApiVersion::LATEST_ALIAS`. Use it for scripts
-only. Pin a version in production.
+only. Pin a version in production. The alias is a REST feature: the SOAP
+handler returns `InvalidInput` for it.
 
 ## SOQL `FORMULA()` (Beta, v68.0+)
 

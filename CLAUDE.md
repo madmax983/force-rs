@@ -272,7 +272,7 @@ crates/force/src/
     │   └── types.rs       # ModelName, GenerateText/ChatGeneration/Embedding req+resp
     ├── agent_api/         # Feature: agent_api (Agentforce Agent API, api.salesforce.com host)
     │   ├── mod.rs         # AgentHandler + start/send/end session + send_message_stream (SSE)
-    │   ├── stream.rs      # SseDecoder (size-limited) + AgentStreamEvent
+    │   ├── stream.rs      # Crate-private WHATWG SSE decoder (1 MiB/event) + AgentStreamEvent
     │   └── types.rs       # StartSessionRequest, SendMessageRequest, AgentMessage, SessionEndReason
     ├── account_engagement/ # Feature: account_engagement (Pardot API v5)
     │   ├── mod.rs         # AccountEngagementHandler + host selection + BU header + escape hatch
@@ -558,18 +558,6 @@ use force::testing::{MockForceClient, MockAuthenticator};
   - [x] Journeys / Interaction (list, fire entry event)
   - [x] Raw escape hatch; SOAP deferred as a follow-up
 
-### Phase 7: Winter '27 (API v68.0) - See [ADR-035](docs/adr/035-winter-27-v68-adoption.md)
-- [x] Default API version v68.0; `release_name()`; opt-in `latest` alias
-- [x] REST Versions resource (`versions`, `latest_version`)
-- [x] Bulk 2.0 `refresh` + `consentImport` operations
-- [x] Tooling `apexCompileResults`, `symbols` (Beta), Test Discovery with `testLevel` gate
-- [x] GraphQL `lookupValues`; `operationName` wire fix
-- [x] SOQL `FORMULA()` builder (Beta)
-- [x] API Catalog MCP server registry (feature: api_catalog)
-- [x] DPoP fail-fast guard
-- [ ] Full DPoP support (follow-up)
-- [ ] Data Cloud Query Connect (`ssot/query-sql`) (follow-up)
-
 ### Phase 6: Analytics Sink (force-lake crate) - See [ADR-030](docs/adr/030-force-lake-crate.md)
 - [x] Iceberg schema generator in `force` (feature: schema) - `generate_iceberg_schema`
 - [x] `force-lake` snapshot sink (Salesforce → S3 Tables / Apache Iceberg)
@@ -580,6 +568,18 @@ use force::testing::{MockForceClient, MockAuthenticator};
   - [x] `SnapshotSink` orchestration (append / full-partition overwrite)
 - [ ] CDC ingestion via force-pubsub (documented follow-up)
 - [ ] Row-level upsert via Athena `MERGE` (documented follow-up)
+
+### Phase 7: Winter '27 (API v68.0) - See [ADR-035](docs/adr/035-winter-27-v68-adoption.md)
+- [x] Default API version v68.0; `release_name()`; opt-in `latest` alias
+- [x] REST Versions resource (`versions`, `highest_version`)
+- [x] Bulk 2.0 `refresh` + `consentImport` operations
+- [x] Tooling `apexCompileResults`, `symbols` (Beta), Test Discovery with `testLevel` gate
+- [x] GraphQL `lookupValues`; `operationName` wire fix
+- [x] SOQL `FORMULA()` builder (Beta)
+- [x] API Catalog MCP server registry (feature: api_catalog)
+- [x] DPoP fail-fast guard
+- [ ] Full DPoP support (follow-up)
+- [ ] Data Cloud Query Connect (`ssot/query-sql`) (follow-up)
 
 ## Configuration
 

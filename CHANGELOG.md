@@ -7,33 +7,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Winter '27 (API v68.0) adoption. See [ADR-035](docs/adr/035-winter-27-v68-adoption.md).
+Winter '27 (API v68.0) adoption. See [ADR-035](docs/adr/035-winter-27-v68-adoption.md) and the
+[upgrade guide](docs/guide/06-upgrading.md) for a fix for each breaking change. The next release
+is 0.5.0.
+
+### Breaking
+
+#### `force`
+- Default API version is now v68.0 (Winter '27). `MAX_TESTED` is v68.0.
+- `JobOperation` has new variants `Refresh` and `ConsentImport`. A `match` without a `_` arm must add them.
+- `AuthenticationError` has a new variant `UnsupportedTokenType`.
+- `CreateJobRequest` no longer sends an empty `object`. `JobInfo.object` decodes a missing or `null` value as `""`.
+- `GraphqlRequest` sends `operationName` (was `operation_name`, which the server ignored). Tests that assert the request body must change the key.
+- A DPoP-bound token (`token_type: DPoP`) now fails with `AuthenticationError::UnsupportedTokenType` before any request, on every path (REST, SOAP, Data Cloud exchange, Pub/Sub).
+- The SOAP handler returns `InvalidInput` when `api_version` is `latest`.
+- Agent API methods return `InvalidInput` for an agent or session ID with characters other than `[A-Za-z0-9_-]`.
 
 ### Added
 
 #### `force`
-- `ApiVersion::V68`, `ApiVersion::release_name()`, `ApiVersion::LATEST_ALIAS`, and `ApiVersion::config_major()`. `ClientConfig.api_version` accepts `"latest"`.
-- REST: `versions()` and `latest_version()` for the Versions resource (`GET /services/data/`).
-- Bulk API 2.0: `JobOperation::Refresh` and `JobOperation::ConsentImport`, plus `CreateJobRequest::new`, `consent_import`, and `validate`.
+- `ApiVersion::V68`, `release_name()`, `LATEST_ALIAS`, and `is_latest_alias()`. `ClientConfig.api_version` accepts `"latest"` for REST resources.
+- REST: `versions()` and `highest_version()` for the Versions resource (`GET /services/data/`), with `ApiVersionInfo`.
+- Bulk API 2.0: `CreateJobRequest::new`, `consent_import`, and `validate`.
 - Tooling: `apex_compile_results()`, `symbols()` (Beta), `discover_tests()`, and `discover_tests_next()`, with a client-side `testLevel`/`showAllMethods` version check.
 - GraphQL: `lookup_values()` for `uiapi.lookupValues`.
-- SOQL: `SoqlQueryBuilder::try_where_formula()` for `FORMULA()` (Beta).
+- SOQL: `SoqlQueryBuilder::try_where_formula()` for `FORMULA()` (Beta), with `FormulaOperator`, `ComparisonOperator`, and `FormulaLiteral` (also re-exported from `force::api::rest`).
 - New `api_catalog` feature (in `full`): MCP server registry handler (`client.api_catalog()`).
-- Agent API: `send_message_stream()` and `send_text_stream()` with a size-limited SSE decoder and a separate stream time limit.
+- Agent API: `send_message_stream()` and `send_text_stream()` (Server-Sent Events, 1 MiB per event), `with_stream_timeout()`, `stream_timeout()`, and `DEFAULT_STREAM_TIMEOUT`.
 - `AccessToken::is_dpop_bound()`.
 
 ### Changed
 
 #### `force`
-- Default API version is now v68.0 (Winter '27). `MAX_TESTED` is v68.0.
-- `JobOperation` has two new variants. A `match` without a wildcard arm must add them.
-- A `DPoP` access token now fails before the request is sent, with a clear error.
+- A per-request timeout (for example the stream timeout) now also sets the executor's time limit for that request.
+- `AgentMessage.result` and `cited_references` accept `null` or one object, not only an array.
+- Composite treats a `latest/...` sub-request URL as already versioned.
 
 ### Fixed
 
 #### `force`
-- `GraphqlRequest` sends `operationName` (was `operation_name`, which the server ignored).
 - `ApiVersion` constant docs had release names one year late (for example v67.0 is Summer '26, not Summer '25).
+
+### Security
+
+#### workspace
+- Patched `zstd-safe` 7.3.0 for [RUSTSEC-2026-0403](https://rustsec.org/advisories/RUSTSEC-2026-0403) (vendored backport of the 8.2.0 fix; see `vendor/zstd-safe-7.3.0/FORCE-RS-PATCH.md`).
+- Patched `zstd` 0.13.3 for [RUSTSEC-2026-0391](https://rustsec.org/advisories/RUSTSEC-2026-0391) (vendored backport of the 0.14.3 fix; see `vendor/zstd-0.13.3/FORCE-RS-PATCH.md`).
 
 ### Documentation
 - ADR-035, the Winter '27 adoption plan, the API Catalog surface page, and Winter '27 OAuth notes (refresh-token idle limit, rotation, External Client Apps, DPoP, instanced URLs, username-password retirement on 2027-02-20).

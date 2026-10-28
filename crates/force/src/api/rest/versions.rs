@@ -38,7 +38,7 @@ impl ApiVersionInfo {
 
 /// Returns the highest numeric version in `versions`. Skips the `latest` alias.
 #[must_use]
-pub fn highest_version(versions: &[ApiVersionInfo]) -> Option<ApiVersion> {
+fn highest_numeric_version(versions: &[ApiVersionInfo]) -> Option<ApiVersion> {
     versions
         .iter()
         .filter(|v| !v.is_latest_alias())
@@ -76,8 +76,8 @@ impl<A: crate::auth::Authenticator> super::RestHandler<A> {
     /// # Errors
     ///
     /// Returns an error if the request fails or the response cannot be decoded.
-    pub async fn latest_version(&self) -> Result<Option<ApiVersion>> {
-        Ok(highest_version(&self.versions().await?))
+    pub async fn highest_version(&self) -> Result<Option<ApiVersion>> {
+        Ok(highest_numeric_version(&self.versions().await?))
     }
 }
 
@@ -122,12 +122,29 @@ mod tests {
         let mut list: Vec<ApiVersionInfo> = serde_json::from_value(v68_body()).must();
         // Alias says 99.0; it must not win.
         list[2].version = "99.0".into();
-        assert_eq!(highest_version(&list), Some(ApiVersion::V68));
+        assert_eq!(highest_numeric_version(&list), Some(ApiVersion::V68));
     }
 
     #[test]
     fn test_highest_version_empty() {
-        assert_eq!(highest_version(&[]), None);
+        assert_eq!(highest_numeric_version(&[]), None);
+    }
+
+    #[test]
+    fn test_highest_version_unsorted_and_alias_only() {
+        let list: Vec<ApiVersionInfo> = serde_json::from_value(serde_json::json!([
+            {"label": "Winter '27", "url": "/services/data/v68.0", "version": "68.0"},
+            {"label": "Summer '26", "url": "/services/data/v67.0", "version": "67.0"},
+            {"label": "Spring '26", "url": "/services/data/v66.0", "version": "66.0"}
+        ]))
+        .must();
+        assert_eq!(highest_numeric_version(&list), Some(ApiVersion::V68));
+
+        let alias_only: Vec<ApiVersionInfo> = serde_json::from_value(serde_json::json!([
+            {"label": "Latest Release", "url": "/services/data/latest", "version": "68.0"}
+        ]))
+        .must();
+        assert_eq!(highest_numeric_version(&alias_only), None);
     }
 
     #[tokio::test]
@@ -149,8 +166,8 @@ mod tests {
         assert_eq!(list.len(), 3);
         assert_eq!(list[1].api_version(), Some(ApiVersion::V68));
 
-        let latest = client.rest().latest_version().await.must();
-        assert_eq!(latest, Some(ApiVersion::V68));
+        let highest = client.rest().highest_version().await.must();
+        assert_eq!(highest, Some(ApiVersion::V68));
     }
 
     #[tokio::test]

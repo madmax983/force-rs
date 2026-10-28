@@ -931,7 +931,7 @@ mod tests {
 
         let job = client.bulk().create_job(request).await.must();
         assert_eq!(job.operation, JobOperation::ConsentImport);
-        assert!(job.object.is_empty());
+        assert_eq!(job.object.len(), 0);
     }
 
     #[cfg(feature = "bulk")]
@@ -943,7 +943,41 @@ mod tests {
 
         // Empty object is invalid for refresh. No request is sent.
         let result = IngestJob::create(&handler, "", JobOperation::Refresh, None).await;
-        assert!(result.is_err());
+        assert!(matches!(
+            result,
+            Err(crate::error::ForceError::InvalidInput(_))
+        ));
+        // consentImport with an object is invalid too.
+        let mut bad = CreateJobRequest::consent_import();
+        bad.object = "Account".into();
+        assert!(handler.create_job(bad).await.is_err());
+        assert!(mock_server.received_requests().await.must().is_empty());
+    }
+
+    #[cfg(feature = "bulk")]
+    #[tokio::test]
+    async fn test_ingest_job_create_consent_import_happy_path() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/services/data/v68.0/jobs/ingest"))
+            .and(wiremock::matchers::body_json(
+                serde_json::json!({"operation": "consentImport"}),
+            ))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "id": "750xx000000000AAAA",
+                "operation": "consentImport",
+                "createdDate": "2026-10-01T00:00:00.000Z",
+                "createdById": "005xx0000000001AAA",
+                "state": "Open"
+            })))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+        let client = create_test_client(mock_server.uri()).await;
+        let handler = client.bulk();
+        IngestJob::create(&handler, "", JobOperation::ConsentImport, None)
+            .await
+            .must();
     }
 
     #[cfg(feature = "bulk")]

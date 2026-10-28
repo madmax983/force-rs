@@ -841,6 +841,58 @@ mod tests {
             b().try_where_formula("A", sub, "B", gt, f64::INFINITY)
                 .is_err()
         );
+        assert!(
+            b().try_where_formula("A", sub, "B", gt, f64::NEG_INFINITY)
+                .is_err()
+        );
+        assert!(
+            b().try_where_formula("A", sub, "X') OR (Id", gt, 1)
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn test_where_formula_whole_decimal_renders_without_fraction() {
+        let q = SoqlQueryBuilder::new()
+            .select(&["Id"])
+            .from("Opportunity")
+            .try_where_formula(
+                "Amount",
+                FormulaOperator::Add,
+                "Tax__c",
+                ComparisonOperator::Eq,
+                100.0,
+            )
+            .must()
+            .build();
+        assert!(q.ends_with("FORMULA('Amount + Tax__c') = 100"), "{q}");
+    }
+
+    mod formula_props {
+        use super::*;
+        use proptest::prelude::*;
+
+        proptest! {
+            // Any operand text either fails or yields exactly the two quotes
+            // that wrap the formula.
+            #[test]
+            fn prop_formula_never_breaks_quoting(left in ".{0,24}", right in ".{0,24}") {
+                let result = SoqlQueryBuilder::new()
+                    .select(&["Id"])
+                    .from("Opportunity")
+                    .try_where_formula(
+                        &left,
+                        FormulaOperator::Subtract,
+                        &right,
+                        ComparisonOperator::Gt,
+                        1,
+                    );
+                if let Ok(builder) = result {
+                    let q = builder.build();
+                    prop_assert_eq!(q.matches('\'').count(), 2);
+                }
+            }
+        }
     }
 
     #[test]

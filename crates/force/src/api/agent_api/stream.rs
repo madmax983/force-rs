@@ -25,12 +25,15 @@ pub struct SseEvent {
 
 /// Incremental SSE decoder.
 ///
-/// Accepts LF, CRLF, and CR line ends. Ignores comment lines (`:`). Joins
-/// multi-line data. Fails if one event is larger than the limit.
+/// Follows the WHATWG `EventSource` rules: LF, CRLF, and CR line ends; a
+/// leading BOM is removed; comment lines (`:`) are ignored; multi-line data is
+/// joined; the last event ID stays until changed; an event with no blank line
+/// after it is discarded. Fails if one event is larger than the limit.
 #[derive(Debug)]
 pub struct SseDecoder {
     line: Vec<u8>,
     pending_cr: bool,
+    bom_checked: bool,
     event: Option<String>,
     data: String,
     has_data: bool,
@@ -47,10 +50,11 @@ impl Default for SseDecoder {
 impl SseDecoder {
     /// Creates a decoder with a size limit per event.
     #[must_use]
-    pub const fn new(max_event_bytes: usize) -> Self {
+    pub(crate) const fn new(max_event_bytes: usize) -> Self {
         Self {
             line: Vec::new(),
             pending_cr: false,
+            bom_checked: false,
             event: None,
             data: String::new(),
             has_data: false,
@@ -64,7 +68,7 @@ impl SseDecoder {
     /// # Errors
     ///
     /// Returns [`ForceError::InvalidInput`] if an event is larger than the limit.
-    pub fn push(&mut self, chunk: &[u8]) -> Result<Vec<SseEvent>> {
+    pub(crate) fn push(&mut self, chunk: &[u8]) -> Result<Vec<SseEvent>> {
         let mut out = Vec::new();
         for &byte in chunk {
             if self.pending_cr {
@@ -90,21 +94,15 @@ impl SseDecoder {
         Ok(out)
     }
 
-    /// Ends the stream. Returns the last event if it had no blank line after it.
-    #[must_use]
-    pub fn finish(&mut self) -> Option<SseEvent> {
-        let mut out = Vec::new();
-        if !self.line.is_empty() && self.end_line(&mut out).is_err() {
-            return None;
-        }
-        self.pending_cr = false;
-        self.dispatch(&mut out);
-        out.pop()
-    }
-
     /// Handles one complete line.
     fn end_line(&mut self, out: &mut Vec<SseEvent>) -> Result<()> {
-        let line = std::mem::take(&mut self.line);
+        let mut line = std::mem::take(&mut self.line);
+        if !self.bom_checked {
+            self.bom_checked = true;
+            if line.starts_with(UTF8_BOM) {
+                line.drain(..UTF8_BOM.len());
+            }
+        }
         if line.is_empty() {
             self.dispatch(out);
             return Ok(());
@@ -128,7 +126,7 @@ impl SseDecoder {
                     return Err(too_large(self.max_event_bytes));
                 }
             }
-            "event" => self.event = Some(value.to_owned()),
+            "event" => self.event = (!value.is_empty()).then(|| value.to_owned()),
             "id" if !value.contains('\0') => self.id = Some(value.to_owned()),
             _ => {}
         }
@@ -138,12 +136,11 @@ impl SseDecoder {
     /// Emits the buffered event if it has data, then resets the buffer.
     fn dispatch(&mut self, out: &mut Vec<SseEvent>) {
         let event = self.event.take();
-        let id = self.id.take();
         if std::mem::take(&mut self.has_data) {
             out.push(SseEvent {
                 event,
                 data: std::mem::take(&mut self.data),
-                id,
+                id: self.id.clone(),
             });
         }
     }
@@ -206,15 +203,24 @@ pub struct AgentStreamEvent {
 impl AgentStreamEvent {
     /// Builds an agent event from a raw SSE event.
     #[must_use]
-    pub fn from_sse(event: SseEvent) -> Self {
+    pub(crate) fn from_sse(event: SseEvent) -> Self {
         let data = serde_json::from_str::<Value>(&event.data).unwrap_or(Value::String(event.data));
-        let message = data
-            .get("message")
-            .filter(|m| m.is_object())
-            .and_then(|m| serde_json::from_value::<AgentMessage>(m.clone()).ok());
-        let kind = message
-            .as_ref()
-            .map(|m| m.message_type.as_str())
+        let raw = data.get("message").filter(|m| m.is_object());
+        let message_type = raw
+            .and_then(|m| m.get("type"))
+            .and_then(Value::as_str)
+            .map(str::to_owned);
+        // Decode with a default type, so a message without `type` keeps its text.
+        let message = raw.and_then(|m| {
+            let mut m = m.clone();
+            if let Some(obj) = m.as_object_mut() {
+                obj.entry("type")
+                    .or_insert_with(|| event.event.clone().unwrap_or_default().into());
+            }
+            serde_json::from_value::<AgentMessage>(m).ok()
+        });
+        let kind = message_type
+            .as_deref()
             .or(event.event.as_deref())
             .map_or_else(
                 || AgentStreamEventKind::Other(String::new()),
@@ -286,18 +292,18 @@ where
                     st.done = true;
                     return Some((Err(crate::error::HttpError::from(err).into()), st));
                 }
-                None => {
-                    st.done = true;
-                    st.queue.extend(st.decoder.finish());
-                }
+                None => st.done = true,
             }
         }
     }))
 }
 
-/// Converts a decoder error to the crate error type.
+/// UTF-8 byte order mark.
+const UTF8_BOM: &[u8] = b"\xEF\xBB\xBF";
+
+/// Error for an event larger than the limit.
 fn too_large(limit: usize) -> ForceError {
-    ForceError::InvalidInput(format!("SSE event exceeds {limit} bytes"))
+    crate::error::HttpError::PayloadTooLarge { limit_bytes: limit }.into()
 }
 
 #[cfg(test)]
@@ -307,10 +313,7 @@ mod tests {
     use proptest::prelude::*;
 
     fn decode_all(input: &[u8]) -> Vec<SseEvent> {
-        let mut d = SseDecoder::default();
-        let mut out = d.push(input).must();
-        out.extend(d.finish());
-        out
+        SseDecoder::default().push(input).must()
     }
 
     #[test]
@@ -336,31 +339,74 @@ mod tests {
 
     #[test]
     fn test_event_without_data_is_not_dispatched() {
-        assert!(decode_all(b"event: ping\n\n").is_empty());
+        assert_eq!(decode_all(b"event: ping\n\n").len(), 0);
     }
 
     #[test]
     fn test_split_chunks_including_crlf_boundary() {
         let mut d = SseDecoder::default();
-        assert!(d.push(b"data: hel").must().is_empty());
-        assert!(d.push(b"lo\r").must().is_empty());
+        assert_eq!(d.push(b"data: hel").must().len(), 0);
+        assert_eq!(d.push(b"lo\r").must().len(), 0);
         let out = d.push(b"\n\r\n").must();
         assert_eq!(out.len(), 1);
         assert_eq!(out[0].data, "hello");
     }
 
     #[test]
-    fn test_finish_flushes_trailing_event() {
+    fn test_unterminated_event_is_not_dispatched() {
+        // WHATWG: an event without a blank line after it is discarded at EOF.
+        assert_eq!(decode_all(b"data: tail").len(), 0);
+        assert_eq!(decode_all(b"data: tail\n").len(), 0);
+    }
+
+    #[test]
+    fn test_leading_bom_is_stripped() {
+        let events = decode_all(b"\xEF\xBB\xBFdata: x\n\n");
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].data, "x");
+    }
+
+    #[test]
+    fn test_bom_split_across_chunks() {
         let mut d = SseDecoder::default();
-        assert!(d.push(b"data: tail").must().is_empty());
-        assert_eq!(d.finish().must().data, "tail");
-        assert!(d.finish().is_none());
+        assert_eq!(d.push(b"\xEF\xBB").must().len(), 0);
+        let out = d.push(b"\xBFdata: y\n\n").must();
+        assert_eq!(out[0].data, "y");
+    }
+
+    #[test]
+    fn test_empty_event_name_means_default_type() {
+        let events = decode_all(b"event:\ndata: x\n\n");
+        assert_eq!(events[0].event, None);
+    }
+
+    #[test]
+    fn test_last_event_id_persists_and_nul_id_is_ignored() {
+        let events = decode_all(b"id: 1\ndata: a\n\ndata: b\n\nid: 2\0x\ndata: c\n\n");
+        let ids: Vec<_> = events.iter().map(|e| e.id.as_deref()).collect();
+        assert_eq!(ids, vec![Some("1"), Some("1"), Some("1")]);
+    }
+
+    #[test]
+    fn test_field_without_colon_and_lone_cr_across_chunks() {
+        let mut d = SseDecoder::default();
+        assert_eq!(d.push(b"data\r").must().len(), 0);
+        let out = d.push(b"data: z\r\r").must();
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].data, "\nz");
     }
 
     #[test]
     fn test_event_size_limit() {
         let mut d = SseDecoder::new(16);
-        assert!(d.push(b"data: 0123456789abcdefXYZ").is_err());
+        let err = d.push(b"data: 0123456789abcdefXYZ").err().must();
+        assert!(
+            matches!(
+                err,
+                ForceError::Http(crate::error::HttpError::PayloadTooLarge { limit_bytes: 16 })
+            ),
+            "{err:?}"
+        );
 
         let mut d = SseDecoder::new(16);
         assert!(d.push(b"data: 0123456789\n").is_ok());
@@ -407,17 +453,62 @@ mod tests {
         assert!(ev.message.is_none());
     }
 
+    #[test]
+    fn test_no_message_and_no_event_name_is_other_empty() {
+        let ev = AgentStreamEvent::from_sse(SseEvent {
+            event: None,
+            data: r#"{"offset":1}"#.into(),
+            id: None,
+        });
+        assert_eq!(ev.kind, AgentStreamEventKind::Other(String::new()));
+    }
+
+    #[test]
+    fn test_untyped_message_still_gives_kind_and_text() {
+        // `result` is an object and `citedReferences` is null. The text must survive.
+        let ev = AgentStreamEvent::from_sse(SseEvent {
+            event: Some("INFORM".into()),
+            data: r#"{"message":{"type":"Inform","message":"Hi","result":{"a":1},"citedReferences":null}}"#
+                .into(),
+            id: None,
+        });
+        assert_eq!(ev.kind, AgentStreamEventKind::Inform);
+        assert_eq!(ev.text(), Some("Hi"));
+        let msg = ev.message.must();
+        assert_eq!(msg.result.len(), 1);
+        assert_eq!(msg.cited_references.len(), 0);
+    }
+
+    #[test]
+    fn test_message_without_type_uses_event_name() {
+        let ev = AgentStreamEvent::from_sse(SseEvent {
+            event: Some("TEXT_CHUNK".into()),
+            data: r#"{"message":{"message":"Hel"}}"#.into(),
+            id: None,
+        });
+        assert_eq!(ev.kind, AgentStreamEventKind::TextChunk);
+        assert_eq!(ev.text(), Some("Hel"));
+    }
+
     proptest! {
-        // Any split of the byte stream gives the same events.
+        // Any set of splits of the byte stream gives the same events.
         #[test]
-        fn prop_split_invariance(split in 0usize..64) {
-            let input: &[u8] = b"event: a\ndata: one\n\n: c\r\ndata: two\r\ndata: three\r\n\r\ndata: four\n\n";
-            let at = split.min(input.len());
+        fn prop_split_invariance(mut splits in proptest::collection::vec(0usize..80, 0..6)) {
+            let input: &[u8] = b"\xEF\xBB\xBFevent: a\ndata: one\n\n: c\r\ndata: two\rdata: three\r\n\r\nid: 9\ndata: four\n\ndata: tail";
+            for s in &mut splits {
+                *s = (*s).min(input.len());
+            }
+            splits.sort_unstable();
             let mut d = SseDecoder::default();
-            let mut got = d.push(&input[..at]).must();
-            got.extend(d.push(&input[at..]).must());
-            got.extend(d.finish());
+            let mut got = Vec::new();
+            let mut start = 0;
+            for at in splits {
+                got.extend(d.push(&input[start..at]).must());
+                start = at;
+            }
+            got.extend(d.push(&input[start..]).must());
             prop_assert_eq!(got, decode_all(input));
+            prop_assert_eq!(decode_all(input).len(), 3);
         }
 
         // The decoder never panics on arbitrary bytes.
@@ -425,7 +516,6 @@ mod tests {
         fn prop_no_panic(bytes in proptest::collection::vec(any::<u8>(), 0..512)) {
             let mut d = SseDecoder::new(256);
             let _ = d.push(&bytes);
-            let _ = d.finish();
         }
     }
 }

@@ -7,7 +7,7 @@ adds development-only endpoints: execute-anonymous, run-tests, and code
 completions.
 
 - **Feature flag:** `tooling` (independent of `rest` — enable it on its own)
-- **Accessor:** `client.tooling()` → `ToolingHandler`
+- **ApexAccessor:** `client.tooling()` → `ToolingHandler`
 
 ```toml
 force = { version = "...", features = ["tooling"] }

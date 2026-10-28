@@ -7,7 +7,7 @@ use crate::api::rest_operation::RestOperation;
 use serde::{Deserialize, Serialize};
 
 /// Operation-level outcome of `apexCompileResults`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum CompileStatus {
     /// All classes and triggers compiled, or none needed a compile.
@@ -122,7 +122,7 @@ mod tests {
         let out: ApexCompileResults =
             serde_json::from_value(json!({"status": "SOMETHING_NEW"})).must();
         assert_eq!(out.status, CompileStatus::Unknown);
-        assert!(out.results.is_empty());
+        assert_eq!(out.results.len(), 0);
     }
 
     #[tokio::test]
@@ -145,7 +145,7 @@ mod tests {
 
         let out = client.tooling().apex_compile_results().await.must();
         assert_eq!(out.status, CompileStatus::Ok);
-        assert!(out.results.is_empty());
+        assert_eq!(out.results.len(), 0);
     }
 
     #[tokio::test]

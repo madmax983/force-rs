@@ -50,10 +50,7 @@
 pub(crate) mod stream;
 pub(crate) mod types;
 
-pub use stream::{
-    AgentEventStream, AgentStreamEvent, AgentStreamEventKind, DEFAULT_MAX_EVENT_BYTES, SseDecoder,
-    SseEvent,
-};
+pub use stream::{AgentEventStream, AgentStreamEvent, AgentStreamEventKind};
 pub use types::{
     AgentMessage, AgentResponse, AgentVariable, InstanceConfig, OutboundMessage,
     SendMessageRequest, SessionEndReason, StartSessionRequest, StartSessionResponse,
@@ -75,6 +72,23 @@ pub const AI_PLATFORM_HOST: &str = "https://api.salesforce.com";
 
 /// Header carrying the session-end reason on the `end_session` call.
 const SESSION_END_REASON_HEADER: &str = "x-session-end-reason";
+
+/// Checks that an agent or session ID is a safe URL path segment.
+///
+/// Agent IDs are Salesforce IDs. Session IDs are UUIDs. Other characters
+/// (`/`, `?`, `#`, `.`) could change the target endpoint.
+fn validate_path_id(kind: &str, id: &str) -> Result<()> {
+    if id.is_empty()
+        || !id
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+    {
+        return Err(crate::error::ForceError::InvalidInput(format!(
+            "{kind} ID must be alphanumeric, '-' or '_': {id:?}"
+        )));
+    }
+    Ok(())
+}
 
 /// Agentforce Agent API handler.
 ///
@@ -160,6 +174,7 @@ impl<A: crate::auth::Authenticator> AgentHandler<A> {
         agent_id: &str,
         request: &StartSessionRequest,
     ) -> Result<StartSessionResponse> {
+        validate_path_id("agent", agent_id)?;
         let url = self.agent_url(&format!("agents/{agent_id}/sessions"));
         let http_request = self
             .inner
@@ -183,6 +198,7 @@ impl<A: crate::auth::Authenticator> AgentHandler<A> {
     /// Returns an error if the instance URL cannot be resolved, the request
     /// fails, or the response cannot be deserialized.
     pub async fn start_session_default(&self, agent_id: &str) -> Result<StartSessionResponse> {
+        validate_path_id("agent", agent_id)?;
         let endpoint = self.inner.instance_url().await?;
         let external_key = uuid::Uuid::new_v4().to_string();
         let request = StartSessionRequest::new(external_key, endpoint).with_bypass_user(true);
@@ -201,6 +217,7 @@ impl<A: crate::auth::Authenticator> AgentHandler<A> {
         session_id: &str,
         request: &SendMessageRequest,
     ) -> Result<AgentResponse> {
+        validate_path_id("session", session_id)?;
         let url = self.agent_url(&format!("sessions/{session_id}/messages"));
         let http_request = self
             .inner
@@ -247,6 +264,7 @@ impl<A: crate::auth::Authenticator> AgentHandler<A> {
         session_id: &str,
         request: &SendMessageRequest,
     ) -> Result<AgentEventStream> {
+        validate_path_id("session", session_id)?;
         let url = self.agent_url(&format!("sessions/{session_id}/messages/stream"));
         let http_request = self
             .inner
@@ -262,7 +280,7 @@ impl<A: crate::auth::Authenticator> AgentHandler<A> {
             .await?;
         Ok(stream::sse_event_stream(
             response.bytes_stream(),
-            DEFAULT_MAX_EVENT_BYTES,
+            stream::DEFAULT_MAX_EVENT_BYTES,
         ))
     }
 
@@ -292,6 +310,7 @@ impl<A: crate::auth::Authenticator> AgentHandler<A> {
     ///
     /// Returns an error if the request fails or returns a non-success status.
     pub async fn end_session(&self, session_id: &str, reason: SessionEndReason) -> Result<()> {
+        validate_path_id("session", session_id)?;
         let url = self.agent_url(&format!("sessions/{session_id}"));
         let http_request = self
             .inner
@@ -380,6 +399,34 @@ event: END_OF_TURN\n\
 data: {\"message\":{\"type\":\"EndOfTurn\"}}\n\n";
 
     #[tokio::test]
+    async fn test_bad_ids_send_nothing() {
+        let (server, client) = setup().await;
+        let agents = client.agents().with_host(server.uri());
+        for bad in ["", "x/../../agents/other", "abc?x=1", "a b", "id#frag"] {
+            assert!(agents.send_text(bad, 1, "hi").await.is_err(), "{bad}");
+            assert!(
+                agents.send_text_stream(bad, 1, "hi").await.is_err(),
+                "{bad}"
+            );
+            assert!(
+                agents
+                    .end_session(bad, SessionEndReason::UserRequest)
+                    .await
+                    .is_err(),
+                "{bad}"
+            );
+            assert!(agents.start_session_default(bad).await.is_err(), "{bad}");
+        }
+        assert!(server.received_requests().await.must().is_empty());
+    }
+
+    #[test]
+    fn test_validate_path_id_accepts_real_ids() {
+        assert!(validate_path_id("session", "80ab2e16-392e-4c12-b80a-f028a58400b5").is_ok());
+        assert!(validate_path_id("agent", "0XxHr000000ysOSKAY").is_ok());
+    }
+
+    #[tokio::test]
     async fn test_send_text_stream_yields_events_in_order() {
         use futures::StreamExt;
         let (server, client) = setup().await;
@@ -426,6 +473,34 @@ data: {\"message\":{\"type\":\"EndOfTurn\"}}\n\n";
             .collect();
         assert_eq!(chunks, "Hello");
         assert_eq!(events[3].text(), Some("Hello"));
+    }
+
+    #[tokio::test]
+    async fn test_stream_timeout_applies() {
+        let (server, client) = setup().await;
+        Mock::given(method("POST"))
+            .and(path("/einstein/ai-agent/v1/sessions/slow/messages/stream"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_delay(std::time::Duration::from_millis(500))
+                    .set_body_string("data: x\n\n"),
+            )
+            .mount(&server)
+            .await;
+
+        let result = client
+            .agents()
+            .with_host(server.uri())
+            .with_stream_timeout(std::time::Duration::from_millis(50))
+            .send_text_stream("slow", 1, "hi")
+            .await;
+        // Either timer may fire first: the executor or reqwest itself.
+        let is_timeout = match &result {
+            Err(crate::error::ForceError::Http(HttpError::Timeout { .. })) => true,
+            Err(crate::error::ForceError::Http(HttpError::RequestFailed(e))) => e.is_timeout(),
+            _ => false,
+        };
+        assert!(is_timeout, "{:?}", result.err());
     }
 
     #[tokio::test]

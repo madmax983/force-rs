@@ -25,8 +25,8 @@ pub use run_tests::{
     CodeCoverageResult, RunTestsRequest, RunTestsResult, TestFailure, TestItem, TestSuccess,
 };
 pub use symbols::{
-    Accessor, Annotation, AnnotationParameter, FieldSymbol, MethodSymbol, ParameterSymbol,
-    PropertySymbol, SymbolCategory, SymbolsRequest, SymbolsResult, TypeRef, TypeStub,
+    ApexAccessor, ApexAnnotation, ApexAnnotationParameter, ApexTypeRef, ApexTypeStub, FieldSymbol,
+    MethodSymbol, ParameterSymbol, PropertySymbol, SymbolCategory, SymbolsRequest, SymbolsResult,
 };
 pub use test_discovery::{
     DiscoveryTestLevel, TestCategory, TestClassInfo, TestDiscoveryRequest, TestDiscoveryResult,

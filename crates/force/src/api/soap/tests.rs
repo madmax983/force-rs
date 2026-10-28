@@ -59,11 +59,43 @@ async fn test_handler_is_cloneable_and_debug() {
 async fn test_soap_url_strips_version_prefix() {
     let (_server, client) = setup().await;
     let handler = client.soap();
-    let url = handler.soap_url("https://na1.salesforce.com");
+    let url = handler.soap_url("https://na1.salesforce.com").must();
     assert_eq!(url, "https://na1.salesforce.com/services/Soap/u/68.0");
     // Trailing slash is normalized away.
-    let url2 = handler.soap_url("https://na1.salesforce.com/");
+    let url2 = handler.soap_url("https://na1.salesforce.com/").must();
     assert_eq!(url2, "https://na1.salesforce.com/services/Soap/u/68.0");
+}
+
+#[tokio::test]
+async fn test_soap_rejects_latest_alias_without_request() {
+    let server = MockServer::start().await;
+    let client = crate::client::builder()
+        .authenticate(MockAuthenticator::new("test_token", &server.uri()))
+        .config(crate::config::ClientConfig {
+            api_version: crate::types::ApiVersion::LATEST_ALIAS.to_string(),
+            ..Default::default()
+        })
+        .build()
+        .await
+        .must();
+    let err = client.soap().get_server_timestamp().await.err().must();
+    assert!(
+        matches!(err, crate::error::ForceError::InvalidInput(_)),
+        "{err:?}"
+    );
+    assert!(server.received_requests().await.must().is_empty());
+}
+
+#[tokio::test]
+async fn test_soap_dpop_token_sends_nothing() {
+    let server = MockServer::start().await;
+    let client = crate::client::builder()
+        .authenticate(MockAuthenticator::new("test_token", &server.uri()).with_token_type("DPoP"))
+        .build()
+        .await
+        .must();
+    assert!(client.soap().get_server_timestamp().await.is_err());
+    assert!(server.received_requests().await.must().is_empty());
 }
 
 // ── Envelope construction (unit) ─────────────────────────────────────

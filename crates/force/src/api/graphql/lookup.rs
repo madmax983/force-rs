@@ -74,6 +74,9 @@ impl LookupValuesRequest {
     }
 
     /// Sets the search mode and text.
+    ///
+    /// The UI API resource needs at least 2 characters for `Search` and 3 for
+    /// `TypeAhead`. The server checks this.
     #[must_use]
     pub fn search(mut self, search_type: LookupSearchType, q: impl Into<String>) -> Self {
         self.search_type = Some(search_type);
@@ -103,6 +106,10 @@ impl LookupValuesRequest {
     }
 
     /// Replaces the default selection set of each item.
+    ///
+    /// The text goes into the query as is. Use developer-written GraphQL only,
+    /// never user input. [`validate`](Self::validate) rejects text that closes
+    /// the `lookupValues` block or has a `#` comment.
     #[must_use]
     pub fn selection(mut self, selection: impl Into<String>) -> Self {
         self.selection = Some(selection.into());
@@ -127,6 +134,15 @@ impl LookupValuesRequest {
         {
             return Err(ForceError::InvalidInput(
                 "lookupValues SEARCH and TYPE_AHEAD need q".to_string(),
+            ));
+        }
+        if let Some(selection) = &self.selection
+            && !is_closed_selection(selection)
+        {
+            return Err(ForceError::InvalidInput(
+                "lookupValues selection must be non-empty, have balanced braces that never \
+                 close the outer block, and have no '#'"
+                    .to_string(),
             ));
         }
         if let Some(record) = &self.source_record
@@ -185,6 +201,26 @@ impl LookupValuesRequest {
             .with_variables(Value::Object(vars))
             .with_operation_name("LookupValues"))
     }
+}
+
+/// Returns true if `selection` stays inside its block: non-empty, no `#`,
+/// and braces that never go below depth 0 and end at depth 0.
+fn is_closed_selection(selection: &str) -> bool {
+    if selection.trim().is_empty() || selection.contains('#') {
+        return false;
+    }
+    let mut depth: usize = 0;
+    for c in selection.chars() {
+        match c {
+            '{' => depth += 1,
+            '}' => match depth.checked_sub(1) {
+                Some(d) => depth = d,
+                None => return false,
+            },
+            _ => {}
+        }
+    }
+    depth == 0
 }
 
 /// Record in a lookup result.
@@ -335,12 +371,79 @@ mod tests {
         assert_eq!(body["operationName"], "LookupValues");
     }
 
+    #[test]
+    fn test_selection_cannot_escape_lookup_values() {
+        let base = LookupValuesRequest::new("Opportunity", "AccountId");
+        for bad in [
+            "targetApiName } } x: uiapi { query { User { edges { node { Id } } } } } {",
+            "targetApiName }",
+            "targetApiName # comment",
+            "records { edges",
+            "",
+        ] {
+            assert!(base.clone().selection(bad).validate().is_err(), "{bad}");
+        }
+        assert!(
+            base.selection("targetApiName records { edges { node { Id } } }")
+                .validate()
+                .is_ok()
+        );
+    }
+
+    #[test]
+    fn test_empty_field_name_is_rejected() {
+        assert!(
+            LookupValuesRequest::new("Opportunity", "")
+                .validate()
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn test_minimal_query_golden() {
+        let req = LookupValuesRequest::new("Opportunity", "AccountId")
+            .to_graphql_request()
+            .must();
+        assert_eq!(
+            req.query,
+            "query LookupValues($objectApiName: String!, $fieldApiName: String!) { uiapi { \
+             lookupValues(objectApiName: $objectApiName, fieldApiName: $fieldApiName) { \
+             targetApiName records { edges { node { Id DisplayValue } } } } } }"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_lookup_values_errors_only_response_is_err() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/services/data/v68.0/graphql"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "data": null,
+                "errors": [{"message": "Field 'lookupValues' doesn't exist"}]
+            })))
+            .mount(&server)
+            .await;
+        let client = builder()
+            .authenticate(MockAuthenticator::new("t", &server.uri()))
+            .build()
+            .await
+            .must();
+        let err = client
+            .graphql()
+            .lookup_values(&LookupValuesRequest::new("Opportunity", "AccountId"))
+            .await
+            .err()
+            .must();
+        assert!(err.to_string().contains("lookupValues"), "{err}");
+    }
+
     #[tokio::test]
     async fn test_lookup_values_decodes_response() {
         let server = MockServer::start().await;
         Mock::given(method("POST"))
             .and(path("/services/data/v68.0/graphql"))
             .and(body_partial_json(json!({
+                "operationName": "LookupValues",
                 "variables": {"objectApiName": "Opportunity", "q": "Acme", "searchType": "TYPE_AHEAD"}
             })))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
@@ -392,7 +495,7 @@ mod tests {
             .lookup_values(&LookupValuesRequest::new("Opportunity", "AccountId"))
             .await
             .must();
-        assert!(out.is_empty());
+        assert_eq!(out.len(), 0);
     }
 
     #[tokio::test]

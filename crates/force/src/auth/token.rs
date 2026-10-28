@@ -252,7 +252,7 @@ fn calculate_expiration(
 const DPOP_TOKEN_TYPE: &str = "DPoP";
 
 /// Error text for a DPoP-bound token.
-const DPOP_UNSUPPORTED: &str = "token_type is DPoP: force-rs does not send DPoP proofs. \
+pub const DPOP_UNSUPPORTED: &str = "token_type is DPoP: force-rs does not send DPoP proofs. \
      Disable 'Require DPoP' on the External Client App, or use a client that supports DPoP";
 
 /// Creates a secure Authorization header value.

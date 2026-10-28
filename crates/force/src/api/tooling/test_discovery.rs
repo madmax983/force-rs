@@ -73,7 +73,8 @@ impl TestDiscoveryRequest {
     /// Checks the request against the configured API version.
     ///
     /// `api_version` is the `ClientConfig.api_version` value. The `latest`
-    /// alias counts as v68.0 or later.
+    /// alias counts as v68.0 or later. An unknown string skips the version
+    /// rules.
     ///
     /// # Errors
     ///
@@ -81,14 +82,19 @@ impl TestDiscoveryRequest {
     /// if `show_all_methods` is set on v68.0 or later, or if `page_size` is
     /// out of range.
     pub fn validate(&self, api_version: &str) -> crate::error::Result<()> {
-        let is_v68_or_later =
-            ApiVersion::config_major(api_version).is_none_or(|m| m >= TEST_LEVEL_MIN_MAJOR);
-        if self.test_level.is_some() && !is_v68_or_later {
+        // `latest` is v68.0+. An unknown string skips the version rules; the
+        // server rejects it.
+        let is_v68_or_later = if ApiVersion::is_latest_alias(api_version) {
+            Some(true)
+        } else {
+            ApiVersion::config_major(api_version).map(|m| m >= TEST_LEVEL_MIN_MAJOR)
+        };
+        if self.test_level.is_some() && is_v68_or_later == Some(false) {
             return Err(ForceError::InvalidInput(format!(
                 "testLevel needs API v68.0 or later; configured {api_version}"
             )));
         }
-        if self.show_all_methods.is_some() && is_v68_or_later {
+        if self.show_all_methods.is_some() && is_v68_or_later == Some(true) {
             return Err(ForceError::InvalidInput(format!(
                 "showAllMethods is only valid up to API v67.0; use test_level on {api_version}"
             )));
@@ -286,6 +292,56 @@ mod tests {
         assert!(show.validate("v67.0").is_ok());
         assert!(show.validate("v68.0").is_err());
         assert!(show.validate("latest").is_err());
+    }
+
+    #[test]
+    fn test_validate_unknown_version_passes_through() {
+        // Only `latest` counts as v68+. Other strings are the server's problem.
+        for v in ["garbage", "68.0", "v68"] {
+            let level = TestDiscoveryRequest {
+                test_level: Some(DiscoveryTestLevel::RunAllTestsInOrg),
+                ..Default::default()
+            };
+            assert!(level.validate(v).is_ok(), "{v}");
+            let show = TestDiscoveryRequest {
+                show_all_methods: Some(true),
+                ..Default::default()
+            };
+            assert!(show.validate(v).is_ok(), "{v}");
+        }
+    }
+
+    #[test]
+    fn test_validate_show_all_methods_false_still_rejected_on_v68() {
+        let req = TestDiscoveryRequest {
+            show_all_methods: Some(false),
+            ..Default::default()
+        };
+        assert!(req.validate("v68.0").is_err());
+    }
+
+    #[test]
+    fn test_decode_flow_test_without_id() {
+        let page: TestDiscoveryResult = serde_json::from_value(json!({
+            "apexTestClasses": [{"name": "MyFlow", "namespacePrefix": "FlowTesting",
+                "testMethods": [{"name": "MyFlow_T1"}]}],
+            "size": 1, "nextRecordsUrl": null, "testSetSignature": "", "message": null
+        }))
+        .must();
+        assert_eq!(page.apex_test_classes[0].id, "");
+    }
+
+    #[tokio::test]
+    async fn test_discover_tests_rejects_test_level_on_v67_without_request() {
+        let server = MockServer::start().await;
+        let client = client_for(&server, "v67.0").await;
+        let req = TestDiscoveryRequest {
+            test_level: Some(DiscoveryTestLevel::RunLocalTests),
+            ..Default::default()
+        };
+        let err = client.tooling().discover_tests(&req).await.err().must();
+        assert!(matches!(err, ForceError::InvalidInput(_)), "{err:?}");
+        assert!(server.received_requests().await.must().is_empty());
     }
 
     #[test]

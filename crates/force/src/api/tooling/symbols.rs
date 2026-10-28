@@ -83,7 +83,7 @@ impl SymbolsRequest {
 /// Reference to an Apex type, for example `List<String>`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
-pub struct TypeRef {
+pub struct ApexTypeRef {
     /// Namespace, or `None`.
     #[serde(default)]
     pub namespace_prefix: Option<String>,
@@ -98,13 +98,13 @@ pub struct TypeRef {
 /// Parameter of an annotation.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct AnnotationParameter {
+pub struct ApexAnnotationParameter {
     /// Parameter name.
     #[serde(default)]
     pub name: String,
     /// Parameter type.
     #[serde(default, rename = "type")]
-    pub param_type: Option<TypeRef>,
+    pub param_type: Option<ApexTypeRef>,
     /// Parameter value.
     #[serde(default)]
     pub value: Option<String>,
@@ -113,13 +113,13 @@ pub struct AnnotationParameter {
 /// Annotation on a type or member.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct Annotation {
+pub struct ApexAnnotation {
     /// Annotation name.
     #[serde(default)]
     pub name: String,
     /// Annotation parameters.
-    #[serde(default)]
-    pub parameters: Vec<AnnotationParameter>,
+    #[serde(default, deserialize_with = "crate::types::common::null_as_default")]
+    pub parameters: Vec<ApexAnnotationParameter>,
     /// Documentation.
     #[serde(default)]
     pub documentation: Option<String>,
@@ -134,26 +134,26 @@ pub struct FieldSymbol {
     pub name: String,
     /// Field type.
     #[serde(default, rename = "type")]
-    pub field_type: Option<TypeRef>,
+    pub field_type: Option<ApexTypeRef>,
     /// Modifiers.
-    #[serde(default)]
+    #[serde(default, deserialize_with = "crate::types::common::null_as_default")]
     pub modifiers: Vec<String>,
     /// Annotations.
-    #[serde(default)]
-    pub annotations: Vec<Annotation>,
+    #[serde(default, deserialize_with = "crate::types::common::null_as_default")]
+    pub annotations: Vec<ApexAnnotation>,
     /// Documentation.
     #[serde(default)]
     pub documentation: Option<String>,
     /// Declaring type. Set only for inherited fields.
     #[serde(default)]
-    pub defining_type: Option<TypeRef>,
+    pub defining_type: Option<ApexTypeRef>,
 }
 
 /// Property accessor (`get` or `set`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Accessor {
+pub struct ApexAccessor {
     /// Modifiers.
-    #[serde(default)]
+    #[serde(default, deserialize_with = "crate::types::common::null_as_default")]
     pub modifiers: Vec<String>,
     /// Documentation.
     #[serde(default)]
@@ -169,25 +169,25 @@ pub struct PropertySymbol {
     pub name: String,
     /// Property type.
     #[serde(default, rename = "type")]
-    pub property_type: Option<TypeRef>,
+    pub property_type: Option<ApexTypeRef>,
     /// Modifiers.
-    #[serde(default)]
+    #[serde(default, deserialize_with = "crate::types::common::null_as_default")]
     pub modifiers: Vec<String>,
     /// Annotations.
-    #[serde(default)]
-    pub annotations: Vec<Annotation>,
+    #[serde(default, deserialize_with = "crate::types::common::null_as_default")]
+    pub annotations: Vec<ApexAnnotation>,
     /// Get accessor, if present.
     #[serde(default)]
-    pub getter: Option<Accessor>,
+    pub getter: Option<ApexAccessor>,
     /// Set accessor, if present.
     #[serde(default)]
-    pub setter: Option<Accessor>,
+    pub setter: Option<ApexAccessor>,
     /// Documentation.
     #[serde(default)]
     pub documentation: Option<String>,
     /// Declaring type. Set only for inherited properties.
     #[serde(default)]
-    pub defining_type: Option<TypeRef>,
+    pub defining_type: Option<ApexTypeRef>,
 }
 
 /// Method or constructor parameter.
@@ -199,10 +199,10 @@ pub struct ParameterSymbol {
     pub name: String,
     /// Parameter type.
     #[serde(default, rename = "type")]
-    pub param_type: Option<TypeRef>,
+    pub param_type: Option<ApexTypeRef>,
     /// Annotations.
-    #[serde(default)]
-    pub annotations: Vec<Annotation>,
+    #[serde(default, deserialize_with = "crate::types::common::null_as_default")]
+    pub annotations: Vec<ApexAnnotation>,
     /// Documentation.
     #[serde(default)]
     pub documentation: Option<String>,
@@ -220,28 +220,28 @@ pub struct MethodSymbol {
     pub is_constructor: Option<bool>,
     /// Return type. `None` for a constructor.
     #[serde(default)]
-    pub return_type: Option<TypeRef>,
+    pub return_type: Option<ApexTypeRef>,
     /// Modifiers.
-    #[serde(default)]
+    #[serde(default, deserialize_with = "crate::types::common::null_as_default")]
     pub modifiers: Vec<String>,
     /// Annotations.
-    #[serde(default)]
-    pub annotations: Vec<Annotation>,
+    #[serde(default, deserialize_with = "crate::types::common::null_as_default")]
+    pub annotations: Vec<ApexAnnotation>,
     /// Parameters.
-    #[serde(default)]
+    #[serde(default, deserialize_with = "crate::types::common::null_as_default")]
     pub parameters: Vec<ParameterSymbol>,
     /// Documentation.
     #[serde(default)]
     pub documentation: Option<String>,
     /// Declaring type. Set only for inherited methods.
     #[serde(default)]
-    pub defining_type: Option<TypeRef>,
+    pub defining_type: Option<ApexTypeRef>,
 }
 
 /// Apex type stub: class, interface, enum, or trigger.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct TypeStub {
+pub struct ApexTypeStub {
     /// Type name.
     #[serde(default)]
     pub name: String,
@@ -252,28 +252,28 @@ pub struct TypeStub {
     #[serde(default)]
     pub kind: String,
     /// Modifiers.
-    #[serde(default)]
+    #[serde(default, deserialize_with = "crate::types::common::null_as_default")]
     pub modifiers: Vec<String>,
     /// Annotations.
-    #[serde(default)]
-    pub annotations: Vec<Annotation>,
+    #[serde(default, deserialize_with = "crate::types::common::null_as_default")]
+    pub annotations: Vec<ApexAnnotation>,
     /// Superclass, or `None`.
     #[serde(default)]
-    pub super_class: Option<TypeRef>,
+    pub super_class: Option<ApexTypeRef>,
     /// Implemented interfaces.
-    #[serde(default)]
-    pub interfaces: Vec<TypeRef>,
+    #[serde(default, deserialize_with = "crate::types::common::null_as_default")]
+    pub interfaces: Vec<ApexTypeRef>,
     /// Fields.
-    #[serde(default)]
+    #[serde(default, deserialize_with = "crate::types::common::null_as_default")]
     pub fields: Vec<FieldSymbol>,
     /// Properties.
-    #[serde(default)]
+    #[serde(default, deserialize_with = "crate::types::common::null_as_default")]
     pub properties: Vec<PropertySymbol>,
     /// Methods and constructors.
-    #[serde(default)]
+    #[serde(default, deserialize_with = "crate::types::common::null_as_default")]
     pub methods: Vec<MethodSymbol>,
     /// Nested types.
-    #[serde(default)]
+    #[serde(default, deserialize_with = "crate::types::common::null_as_default")]
     pub inner_types: Vec<Self>,
     /// Trigger operations, for example `BEFORE UPDATE`. `None` for non-triggers.
     #[serde(default)]
@@ -283,7 +283,7 @@ pub struct TypeStub {
     pub documentation: Option<String>,
     /// Trigger sObject. `None` for non-triggers.
     #[serde(default)]
-    pub trigger_object_type: Option<TypeRef>,
+    pub trigger_object_type: Option<ApexTypeRef>,
     /// Compile error text, or `None`.
     #[serde(default)]
     pub compile_error: Option<String>,
@@ -297,8 +297,8 @@ pub struct TypeStub {
 #[serde(rename_all = "camelCase")]
 pub struct SymbolsResult {
     /// Type stubs.
-    #[serde(default)]
-    pub type_stubs: Vec<TypeStub>,
+    #[serde(default, deserialize_with = "crate::types::common::null_as_default")]
+    pub type_stubs: Vec<ApexTypeStub>,
 }
 
 impl<A: crate::auth::Authenticator> super::ToolingHandler<A> {
@@ -384,8 +384,19 @@ mod tests {
     }
 
     #[test]
+    fn test_null_arrays_and_unknown_keys_decode() {
+        let stub: ApexTypeStub = serde_json::from_value(json!({
+            "name": "T", "kind": "CLASS", "modifiers": null, "methods": null,
+            "fields": null, "newBeta": {"x": 1}
+        }))
+        .must();
+        assert!(stub.modifiers.is_empty() && stub.methods.is_empty());
+        assert_eq!(stub.extra["newBeta"]["x"], 1);
+    }
+
+    #[test]
     fn test_decode_generic_type_ref() {
-        let r: TypeRef = serde_json::from_value(json!({
+        let r: ApexTypeRef = serde_json::from_value(json!({
             "namespacePrefix": "System", "name": "List",
             "typeParameters": [{"namespacePrefix": null, "name": "Account", "typeParameters": null}]
         }))
@@ -429,6 +440,42 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_symbols_sends_empty_namespace_and_maps_errors() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/services/data/v68.0/tooling/symbols/"))
+            .and(query_param("category", "database"))
+            .and(query_param("namespace", ""))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"typeStubs": []})))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let client = builder()
+            .authenticate(MockAuthenticator::new("t", &server.uri()))
+            .build()
+            .await
+            .must();
+        let req = SymbolsRequest::new(SymbolCategory::Database).namespace("");
+        client.tooling().symbols(&req).await.must();
+
+        // A second request while one runs fails on the server side.
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/services/data/v68.0/tooling/symbols/"))
+            .respond_with(ResponseTemplate::new(429).set_body_json(json!([
+                {"errorCode": "REQUEST_LIMIT_EXCEEDED", "message": "one request per org"}
+            ])))
+            .mount(&server)
+            .await;
+        let client = builder()
+            .authenticate(MockAuthenticator::new("t", &server.uri()))
+            .build()
+            .await
+            .must();
+        assert!(client.tooling().symbols(&req).await.is_err());
+    }
+
+    #[tokio::test]
     async fn test_symbols_omits_unset_filters() {
         let server = MockServer::start().await;
         Mock::given(method("GET"))
@@ -451,6 +498,6 @@ mod tests {
             .symbols(&SymbolsRequest::new(SymbolCategory::Dynamic))
             .await
             .must();
-        assert!(out.type_stubs.is_empty());
+        assert_eq!(out.type_stubs.len(), 0);
     }
 }

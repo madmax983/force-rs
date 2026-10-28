@@ -12,11 +12,13 @@ pub(crate) mod query_plan_analyzer;
 pub(crate) mod search;
 pub(crate) mod versions;
 
-pub use crate::api::soql::{SoqlQueryBuilder, escape_soql};
+pub use crate::api::soql::{
+    ComparisonOperator, FormulaLiteral, FormulaOperator, SoqlQueryBuilder, escape_soql,
+};
 pub use limits::{LimitInfo, OrgLimits};
 pub use query_plan_analyzer::{InsightSeverity, QueryInsight, QueryInsights, analyze_query_plan};
 pub use search::{SearchAttributes, SearchQueryBuilder, SearchRecords, SearchResult};
-pub use versions::{ApiVersionInfo, highest_version};
+pub use versions::ApiVersionInfo;
 
 use crate::api::rest_operation::RestOperation;
 use crate::error::Result;

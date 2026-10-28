@@ -326,6 +326,13 @@ pub fn normalize_subrequest_url(mut url: String, api_version: &str) -> String {
 }
 
 pub(super) fn is_api_version_prefixed(url: &str) -> bool {
+    // The `latest` alias (v68.0+) is a version prefix too.
+    if url
+        .strip_prefix(crate::types::ApiVersion::LATEST_ALIAS)
+        .is_some_and(|rest| rest.is_empty() || rest.starts_with(['/', '?']))
+    {
+        return true;
+    }
     let Some(rest) = url.strip_prefix('v') else {
         return false;
     };
@@ -745,5 +752,26 @@ mod tests {
 
         assert_eq!(req.method, "POST");
         assert_eq!(req.url, "sobjects/Account");
+    }
+
+    #[test]
+    fn test_latest_prefixed_subrequest_is_not_prefixed_again() {
+        assert_eq!(
+            normalize_subrequest_url("latest/query?q=x".to_string(), "v68.0"),
+            "latest/query?q=x"
+        );
+        assert_eq!(
+            normalize_subrequest_url("/services/data/latest/query".to_string(), "v68.0"),
+            "latest/query"
+        );
+        assert_eq!(
+            normalize_subrequest_url("query?q=x".to_string(), "latest"),
+            "latest/query?q=x"
+        );
+        // A name that only starts with "latest" is not the alias.
+        assert_eq!(
+            normalize_subrequest_url("latestThing".to_string(), "v68.0"),
+            "v68.0/latestThing"
+        );
     }
 }

@@ -29,26 +29,37 @@ The changes that affect `force-rs`:
 1. **Default to v68.0.** `ApiVersion::DEFAULT` and `MAX_TESTED` are `V68`.
    `ApiVersion::release_name()` computes labels from the three-release cycle.
    This also fixes the old doc labels, which were one year late.
-2. **`latest` is opt-in.** `ClientConfig.api_version` accepts
+2. **`latest` is opt-in and REST-only.** `ClientConfig.api_version` accepts
    `ApiVersion::LATEST_ALIAS`. It is not the default, because behavior can
-   change without a code change. Version gates treat `latest` as v68.0+.
-3. **Version gates run on the client.** A parameter that the configured
-   version does not accept (for example `showAllMethods` on v68.0) is an
-   `InvalidInput` error. No request is sent. A silent ignore by the server is
-   worse than an early error.
-4. **New enum values are additive.** `JobOperation` gets `Refresh` and
-   `ConsentImport`. `CreateJobRequest::validate` holds the operation rules.
-   An empty `object` is not serialized.
+   change without a code change. Version gates treat `latest` as v68.0+. The
+   SOAP handler rejects it, because only the REST guide documents the alias.
+3. **Version gates run on the client for parameter conflicts only.** A
+   parameter that the configured version does not accept (for example
+   `showAllMethods` on v68.0) is an `InvalidInput` error. No request is sent.
+   A silent ignore by the server is worse than an early error. New v68-only
+   resources have no client gate; the server returns its own error. An
+   unknown version string skips the gate.
+4. **New `JobOperation` values.** `JobOperation` gets `Refresh` and
+   `ConsentImport`. This is breaking for a `match` without a `_` arm (the
+   project does not use `#[non_exhaustive]`). `CreateJobRequest::validate`
+   holds the operation rules. An empty `object` is not serialized.
 5. **API Catalog is its own feature** (`api_catalog`, in `full`), with its own
    handler. Wire shapes come from the Salesforce CLI source. Server enums have
    an `Unknown` fallback.
-6. **Agent streaming uses a crate-local SSE decoder.** It handles LF, CRLF, and
-   CR, comments, multi-line data, and split chunks. It limits each event to
-   1 MiB. The event kind comes from `message.type`, else from the SSE
-   `event:` name; case and `_` are ignored. The stream has its own time limit,
-   because the client `timeout` covers the full body.
-7. **DPoP fails fast.** `AccessToken::auth_header` returns an error for
-   `token_type: DPoP`. No request is sent, so the token is not revoked.
+6. **Agent streaming uses a crate-private SSE decoder.** It follows the
+   WHATWG rules: LF, CRLF, and CR; BOM; comments; multi-line data; the last
+   event ID persists; an event with no blank line after it is discarded. It
+   limits each event to 1 MiB (`HttpError::PayloadTooLarge`). The event kind
+   comes from `message.type`, else from the SSE `event:` name; case and `_`
+   are ignored. The stream has its own time limit, because the client
+   `timeout` covers the full body. A per-request timeout now also sets the
+   executor limit. Agent and session IDs must be `[A-Za-z0-9_-]`, so a
+   caller value cannot change the endpoint.
+7. **DPoP fails fast.** `TokenManager` rejects a token with
+   `token_type: DPoP` (`AuthenticationError::UnsupportedTokenType`) before it
+   stores it. This covers every consumer: REST, SOAP, the Data Cloud
+   exchange, and Pub/Sub. `AccessToken::auth_header` also rejects it. No
+   request is sent, so the token is not revoked.
 8. **GraphQL `operationName`.** `GraphqlRequest` now sends `operationName`.
    It sent `operation_name` before, and the server ignored it.
 
@@ -56,8 +67,8 @@ The changes that affect `force-rs`:
 
 - Positive: v68.0 features work by default. Users get early errors for
   version mistakes and DPoP apps.
-- Negative: code that matches on `JobOperation` without a wildcard must add
-  the new variants. Tests that mock `/services/data/v67.0/` paths with the
+- Negative: code that matches on `JobOperation` or `AuthenticationError`
+  without a wildcard must add the new variants. Tests that mock `/services/data/v67.0/` paths with the
   default config must change to v68.0.
 - Wire shapes of `lookupValues` items and Agent SSE `event:` names are not
   fully documented. The types are permissive and keep unknown fields.

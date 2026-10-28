@@ -6,22 +6,26 @@ archaeology dig through [CHANGELOG.md](../../CHANGELOG.md).
 
 ## 0.4 → Unreleased (Winter '27, API v68.0)
 
-See [ADR-035](../adr/035-winter-27-v68-adoption.md).
+See [ADR-035](../adr/035-winter-27-v68-adoption.md) and the CHANGELOG `Breaking` list.
 
 1. **Default API version is v68.0.** Code that pins `api_version` does not
    change. Tests that mock `/services/data/v67.0/...` with the default config
    must use `v68.0`, or pin `api_version: "v67.0"`.
 2. **`JobOperation` has two new variants** (`Refresh`, `ConsentImport`). A
    `match` without a `_` arm does not compile. Add the arms or a `_` arm.
-3. **`GraphqlRequest` sends `operationName`.** Before, it sent
+3. **`AuthenticationError` has a new variant** (`UnsupportedTokenType`). Same
+   fix as item 2.
+4. **`CreateJobRequest` with an empty `object`** no longer sends `"object":""`.
+   Set `object` for every operation except `ConsentImport`.
+5. **`GraphqlRequest` sends `operationName`.** Before, it sent
    `operation_name`, which the server ignored. If you assert on the request
    body in tests, change the key.
-4. **DPoP tokens fail early.** If an app has "Require DPoP" on, every call now
-   returns an error before it sends a request. Turn the setting off for apps
-   that `force-rs` uses.
-5. **Tooling Test Discovery** checks `test_level` (v68.0+) and
-   `show_all_methods` (v67.0 and earlier) against `api_version`. A mismatch is
-   an `InvalidInput` error.
+6. **DPoP tokens fail early.** If an app has "Require DPoP" on, token fetch
+   now returns `AuthenticationError::UnsupportedTokenType`, and no API request
+   is sent. Turn the setting off for apps that `force-rs` uses.
+7. **SOAP and `latest`.** The SOAP handler rejects `api_version = "latest"`.
+   Pin a number for SOAP.
+8. **Agent API IDs.** Agent and session IDs must match `[A-Za-z0-9_-]`.
 
 ## 0.3 → 0.4
 

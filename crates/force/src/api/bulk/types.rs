@@ -172,8 +172,8 @@ pub struct JobInfo {
     pub id: String,
     /// Job operation.
     pub operation: JobOperation,
-    /// SObject type. Empty for `ConsentImport` jobs.
-    #[serde(default)]
+    /// SObject type. Empty for `ConsentImport` jobs (missing or `null`).
+    #[serde(default, deserialize_with = "crate::types::common::null_as_default")]
     pub object: String,
     /// Job creation timestamp.
     pub created_date: String,
@@ -324,7 +324,21 @@ mod tests {
         }"#;
         let info: JobInfo = serde_json::from_str(json).must();
         assert_eq!(info.operation, JobOperation::ConsentImport);
-        assert!(info.object.is_empty());
+        assert_eq!(info.object.len(), 0);
+    }
+
+    #[test]
+    fn test_job_info_decodes_null_object() {
+        let json = r#"{
+            "id": "750xx0000000009AAA",
+            "operation": "consentImport",
+            "object": null,
+            "createdDate": "2026-10-01T00:00:00.000Z",
+            "createdById": "005xx0000000001AAA",
+            "state": "Open"
+        }"#;
+        let info: JobInfo = serde_json::from_str(json).must();
+        assert_eq!(info.object.len(), 0);
     }
 
     #[test]

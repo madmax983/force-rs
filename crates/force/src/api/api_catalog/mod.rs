@@ -311,9 +311,9 @@ mod tests {
             .expect(1)
             .mount(&server)
             .await;
-        let mut input = McpServerCreateInput::external("weather", "https://mcp.example.com/mcp");
-        input.label = Some("Weather".into());
-        input.authorization = Some(McpServerAuthorizationInput::oauth("cid", "sec"));
+        let input = McpServerCreateInput::external("weather", "https://mcp.example.com/mcp")
+            .with_label("Weather")
+            .with_authorization(McpServerAuthorizationInput::oauth("cid", "sec"));
 
         let out = client.api_catalog().create_mcp_server(&input).await.must();
         assert_eq!(out.server.id, "1mcxx0000000001AAA");
@@ -416,9 +416,60 @@ mod tests {
     #[tokio::test]
     async fn test_bad_id_sends_nothing() {
         let (server, client) = setup().await;
-        assert!(client.api_catalog().get_mcp_server("../etc").await.is_err());
-        assert!(client.api_catalog().delete_mcp_server("").await.is_err());
+        let catalog = client.api_catalog();
+        for bad in ["../etc", "", "a/b", "a?b"] {
+            assert!(catalog.get_mcp_server(bad).await.is_err());
+            assert!(catalog.delete_mcp_server(bad).await.is_err());
+            assert!(
+                catalog
+                    .update_mcp_server(bad, &McpServerUpdateInput::default())
+                    .await
+                    .is_err()
+            );
+            assert!(catalog.fetch_mcp_server(bad).await.is_err());
+            assert!(catalog.list_mcp_server_assets(bad).await.is_err());
+            assert!(
+                catalog
+                    .replace_mcp_server_assets(bad, &McpServerAssetReplaceInput::default())
+                    .await
+                    .is_err()
+            );
+        }
         assert!(server.received_requests().await.must().is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_list_label_and_type_filters_and_delete_error() {
+        let (server, client) = setup().await;
+        Mock::given(method("GET"))
+            .and(path(BASE))
+            .and(query_param("label", "Weather"))
+            .and(query_param("type", "EXTERNAL"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"mcpServers": []})))
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("DELETE"))
+            .and(path(format!("{BASE}/1mcxx0000000001AAA")))
+            .respond_with(ResponseTemplate::new(404).set_body_json(json!([
+                {"errorCode": "NOT_FOUND", "message": "gone"}
+            ])))
+            .mount(&server)
+            .await;
+        let opts = ListMcpServersOptions {
+            label: Some("Weather".into()),
+            server_type: Some(McpServerType::External),
+            status: None,
+        };
+        let out = client.api_catalog().list_mcp_servers(&opts).await.must();
+        assert_eq!(out.mcp_servers.len(), 0);
+        assert!(
+            client
+                .api_catalog()
+                .delete_mcp_server("1mcxx0000000001AAA")
+                .await
+                .is_err()
+        );
     }
 
     #[tokio::test]
