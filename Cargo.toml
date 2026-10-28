@@ -98,3 +98,5 @@ criterion = { version = "0.5", features = ["html_reports"] }
 # aws-config/aws-sdk-* release that requires aws-smithy-json >=0.64.
 [patch.crates-io]
 aws-smithy-json = { path = "vendor/aws-smithy-json-0.63.0" }
+zstd-safe = { path = "vendor/zstd-safe-7.3.0" }
+zstd = { path = "vendor/zstd-0.13.3" }
