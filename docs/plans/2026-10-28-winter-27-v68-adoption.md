@@ -124,3 +124,26 @@ are not Winter '27 changes or are not verifiable today.
 | AC-13 | Username-password docs carry the 2027-02-20 retirement date. ADR-032 SOAP `login()` text corrected. Auth guide notes refresh-token idle TTL, rotation, and ECA. |
 | AC-14 | ADR-035, CHANGELOG `[Unreleased]`, CLAUDE.md roadmap, operations guide, surfaces docs updated. CI drift scripts pass. |
 | AC-15 | `cargo fmt`, `cargo clippy --workspace --all-features --all-targets -D warnings`, and `cargo test --workspace --all-features` pass. Each new behavior has a happy-path, an edge-case, and (where a bug was found) a regression test. |
+
+## 7. Acceptance Evidence
+
+All tests are in `crates/force/src/`. Full gate: 1,697 lib/integration tests,
+doc-tests, clippy (1.97 and 1.99), `cargo deny`, and 12 docs/onramp scripts pass.
+
+| AC | Status | Evidence |
+|---|---|---|
+| AC-1 | Met | `types/api_version.rs`: `test_constants`, `test_release_name_maps_known_versions`, `prop_release_name_cycle` |
+| AC-2 | Met | `client/builder.rs`: `test_latest_alias_resolves_versionless_url`; `api/soap/tests.rs`: `test_soap_rejects_latest_alias_without_request`; `api/composite/batch.rs`: `test_latest_prefixed_subrequest_is_not_prefixed_again` |
+| AC-3 | Met | `api/rest/versions.rs`: `test_versions_and_latest_version`, `test_highest_version_skips_alias`, `test_highest_version_unsorted_and_alias_only` |
+| AC-4 | Met | `api/bulk/types.rs`: `test_v68_job_operations_round_trip`, `test_consent_import_*`, `test_job_info_decodes_null_object`; `api/bulk/ingest.rs`: `test_create_consent_import_job_sends_no_object`, `test_ingest_job_create_consent_import_happy_path`; `api/bulk/smart_ingest.rs`: `test_smart_ingest_rejects_refresh_without_request` |
+| AC-5 | Met | `api/tooling/compile_results.rs`: `test_apex_compile_results_posts_empty_object`, `test_decode_partial_failure` |
+| AC-6 | Met | `api/tooling/symbols.rs`: `test_symbols_sends_filters_and_decodes`, `test_symbols_sends_empty_namespace_and_maps_errors`, `test_null_arrays_and_unknown_keys_decode` |
+| AC-7 | Met | `api/tooling/test_discovery.rs`: `test_discover_tests_sends_params_and_header`, `test_discover_tests_rejects_*_without_request`, `test_discover_tests_next_page`, `test_validate_*` |
+| AC-8 | Met | `api/graphql/lookup.rs`: `test_lookup_values_decodes_response`, `test_minimal_query_golden`, `test_selection_cannot_escape_lookup_values` |
+| AC-9 | Met | `api/soql.rs`: `test_where_formula_*`, `prop_formula_never_breaks_quoting` |
+| AC-10 | Met | `api/api_catalog/mod.rs`: list/create/get/update/delete/fetch/assets tests, `test_bad_id_sends_nothing`; drift scripts pass |
+| AC-11 | Met | `api/agent_api/mod.rs`: `test_send_text_stream_yields_events_in_order`, `test_stream_timeout_applies`, `test_bad_ids_send_nothing`; `api/agent_api/stream.rs`: decoder tests, `prop_split_invariance`, `test_event_size_limit` |
+| AC-12 | Met | `auth/token_manager.rs`: `test_dpop_bound_token_is_rejected_on_every_path`; `auth/data_cloud.rs`: `test_dpop_platform_token_is_never_exchanged`; `api/soap/tests.rs`: `test_soap_dpop_token_sends_nothing`; `http/executor.rs`: `test_dpop_bound_token_sends_no_request` |
+| AC-13 | Met | `auth/username_password.rs` module doc; `docs/guide/02-choosing-an-auth-flow.md`; ADR-032 |
+| AC-14 | Met | ADR-035, CHANGELOG, CLAUDE.md, guides; `surfaces_drift_scan.py`, `check_feature_matrix.py`, `link_orphan_scan.py` pass |
+| AC-15 | Met | CI-equivalent gate above. Regression tests: `GraphqlRequest` `operationName`, SmartIngest refresh split |
