@@ -4,7 +4,7 @@ Guide for upgrading between `force` releases: what breaks and the minimal
 before/after fix, so upgrading is a search-and-replace instead of an
 archaeology dig through [CHANGELOG.md](../../CHANGELOG.md).
 
-## 0.4 → Unreleased (Winter '27, API v68.0)
+## 0.4 → 0.5 (Winter '27, API v68.0)
 
 See [ADR-035](../adr/035-winter-27-v68-adoption.md) and the CHANGELOG `Breaking` list.
 

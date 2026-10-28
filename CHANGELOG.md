@@ -7,9 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-28
+
 Winter '27 (API v68.0) adoption. See [ADR-035](docs/adr/035-winter-27-v68-adoption.md) and the
-[upgrade guide](docs/guide/06-upgrading.md) for a fix for each breaking change. The next release
-is 0.5.0.
+[upgrade guide](docs/guide/06-upgrading.md) for a fix for each breaking change.
 
 ### Breaking
 
@@ -208,6 +209,7 @@ This release adds five new Salesforce API surfaces and two new workspace crates,
 - Refreshed workspace docs and examples for the final published crate layout.
 - Moved Vantage specs out of the repository root into `docs/vantage/` to keep release-facing docs focused on shipped crates.
 
+[0.5.0]: https://github.com/madmax983/force-rs/releases/tag/v0.5.0
 [0.4.0]: https://github.com/madmax983/force-rs/releases/tag/v0.4.0
 [0.3.0]: https://github.com/madmax983/force-rs/releases/tag/v0.3.0
 [0.2.0]: https://github.com/madmax983/force-rs/releases/tag/v0.2.0

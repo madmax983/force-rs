@@ -8,7 +8,7 @@
 
 ## Project Status
 
-**v0.4.0 released** (2026-07-15) - REST, Bulk 2.0, Composite, Tooling, UI, GraphQL, Data Cloud, Apex REST,
+**v0.5.0 released** (2026-10-28) - REST, Bulk 2.0, Composite, Tooling, UI, GraphQL, Data Cloud, Apex REST,
 CPQ, Consent, Agentforce (Models + Agent API), Account Engagement, Analytics, and SOAP Partner API surfaces
 are implemented and live-contract tested. See the [Feature Roadmap](#feature-roadmap) below for what's still
 open and [CHANGELOG.md](CHANGELOG.md) for release history.
