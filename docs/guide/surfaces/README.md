@@ -32,6 +32,7 @@ use force::api::RestOperation;
 | [Analytics](analytics.md) | `client.analytics()` | `analytics` | Reports & Dashboards REST API (runs, instances, results) |
 | [Account Engagement](account-engagement.md) | `client.account_engagement()` | `account_engagement` | Pardot API v5 (separate host, business-unit-scoped) |
 | [SOAP](soap.md) | `client.soap()` | `soap` | Legacy Partner SOAP API: CRUD, query/search, describe (see [ADR-032](../../adr/032-soap-api-design.md)) |
+| [API Catalog](api-catalog.md) | `client.api_catalog()` | `api_catalog` | MCP server registry: register servers, fetch and manage their assets (v68.0+) |
 | [Agentforce](agentforce.md) | `client.models()` / `client.agents()` | `agentforce` (= `models` + `agent_api`) | Einstein LLM gateway & headless agent sessions (`api.salesforce.com`) |
 | [Sibling crates](sibling-crates.md) | separate crates | — | `force-pubsub`, `force-marketingcloud`, `force-sync`, `force-lake` |
 

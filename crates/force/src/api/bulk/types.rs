@@ -42,6 +42,12 @@ pub enum JobOperation {
     Delete,
     /// Hard delete operation (bypasses recycle bin).
     HardDelete,
+    /// Replace all data in a marketing object data set (v68.0+).
+    ///
+    /// On `Failed`, the server commits no records.
+    Refresh,
+    /// Consent ingest (v68.0+). The job has no `object`.
+    ConsentImport,
 }
 
 /// Job state enumeration.
@@ -84,7 +90,9 @@ pub enum LineEnding {
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateJobRequest {
-    /// The SObject type for the job.
+    /// The SObject type for the job. Empty for `ConsentImport`; an empty
+    /// value is not sent.
+    #[serde(skip_serializing_if = "String::is_empty")]
     pub object: String,
     /// The operation to perform.
     pub operation: JobOperation,
@@ -102,6 +110,60 @@ pub struct CreateJobRequest {
     pub column_delimiter: Option<String>,
 }
 
+impl CreateJobRequest {
+    /// Creates a request with only `object` and `operation` set.
+    #[must_use]
+    pub fn new(object: impl Into<String>, operation: JobOperation) -> Self {
+        Self {
+            object: object.into(),
+            operation,
+            content_type: None,
+            external_id_field_name: None,
+            line_ending: None,
+            column_delimiter: None,
+        }
+    }
+
+    /// Creates a `consentImport` request (v68.0+). It has no `object`.
+    #[must_use]
+    pub fn consent_import() -> Self {
+        Self::new("", JobOperation::ConsentImport)
+    }
+
+    /// Checks `object` and `external_id_field_name` for the operation.
+    ///
+    /// `ConsentImport` needs an empty `object` and no external ID. Other
+    /// operations need a valid sObject name.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ForceError::InvalidInput`](crate::error::ForceError::InvalidInput)
+    /// if a rule fails.
+    pub fn validate(&self) -> crate::error::Result<()> {
+        use crate::error::ForceError;
+        use crate::types::validator::{validate_external_id_field, validate_sobject_name};
+
+        if self.operation == JobOperation::ConsentImport {
+            if !self.object.is_empty() {
+                return Err(ForceError::InvalidInput(
+                    "consentImport jobs must not set object".to_string(),
+                ));
+            }
+            if self.external_id_field_name.is_some() {
+                return Err(ForceError::InvalidInput(
+                    "consentImport jobs must not set externalIdFieldName".to_string(),
+                ));
+            }
+            return Ok(());
+        }
+        validate_sobject_name(&self.object)?;
+        if let Some(field) = &self.external_id_field_name {
+            validate_external_id_field(field)?;
+        }
+        Ok(())
+    }
+}
+
 /// Response from creating or getting a bulk job.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -110,7 +172,8 @@ pub struct JobInfo {
     pub id: String,
     /// Job operation.
     pub operation: JobOperation,
-    /// SObject type.
+    /// SObject type. Empty for `ConsentImport` jobs.
+    #[serde(default)]
     pub object: String,
     /// Job creation timestamp.
     pub created_date: String,
@@ -188,6 +251,80 @@ mod tests {
             serde_json::to_string(&JobOperation::HardDelete).must(),
             r#""hardDelete""#
         );
+    }
+
+    #[test]
+    fn test_v68_job_operations_round_trip() {
+        for (op, wire) in [
+            (JobOperation::Refresh, r#""refresh""#),
+            (JobOperation::ConsentImport, r#""consentImport""#),
+        ] {
+            assert_eq!(serde_json::to_string(&op).must(), wire);
+            assert_eq!(serde_json::from_str::<JobOperation>(wire).must(), op);
+        }
+    }
+
+    #[test]
+    fn test_consent_import_request_omits_object() {
+        let request = CreateJobRequest::consent_import();
+        assert_eq!(request.operation, JobOperation::ConsentImport);
+        let json = serde_json::to_value(&request).must();
+        assert!(
+            json.get("object").is_none(),
+            "object must be omitted: {json}"
+        );
+        assert_eq!(json["operation"], "consentImport");
+        assert!(request.validate().is_ok());
+    }
+
+    #[test]
+    fn test_consent_import_rejects_object_and_external_id() {
+        let mut request = CreateJobRequest::consent_import();
+        request.object = "Account".into();
+        assert!(request.validate().is_err());
+
+        let mut request = CreateJobRequest::consent_import();
+        request.external_id_field_name = Some("Ext__c".into());
+        assert!(request.validate().is_err());
+    }
+
+    #[test]
+    fn test_new_request_validates_object_for_other_operations() {
+        assert!(
+            CreateJobRequest::new("Account", JobOperation::Insert)
+                .validate()
+                .is_ok()
+        );
+        assert!(
+            CreateJobRequest::new("MarketingObject__mo", JobOperation::Refresh)
+                .validate()
+                .is_ok()
+        );
+        // Empty object is only valid for consentImport.
+        assert!(
+            CreateJobRequest::new("", JobOperation::Refresh)
+                .validate()
+                .is_err()
+        );
+        assert!(
+            CreateJobRequest::new("Bad/Name", JobOperation::Insert)
+                .validate()
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn test_job_info_decodes_consent_import_without_object() {
+        let json = r#"{
+            "id": "750xx0000000009AAA",
+            "operation": "consentImport",
+            "createdDate": "2026-10-01T00:00:00.000Z",
+            "createdById": "005xx0000000001AAA",
+            "state": "Open"
+        }"#;
+        let info: JobInfo = serde_json::from_str(json).must();
+        assert_eq!(info.operation, JobOperation::ConsentImport);
+        assert!(info.object.is_empty());
     }
 
     #[test]

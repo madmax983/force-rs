@@ -142,7 +142,7 @@ async fn mount_endpoints(mock_server: &MockServer) {
 
     // Initial `query()` call.
     Mock::given(method("POST"))
-        .and(path("/services/Soap/u/67.0"))
+        .and(path("/services/Soap/u/68.0"))
         .and(body_string_contains("<urn:query>"))
         .respond_with(
             ResponseTemplate::new(200)
@@ -157,7 +157,7 @@ async fn mount_endpoints(mock_server: &MockServer) {
         let done = i == MORE_PAGES;
         let next_locator = if done { None } else { Some(locator(i + 1)) };
         Mock::given(method("POST"))
-            .and(path("/services/Soap/u/67.0"))
+            .and(path("/services/Soap/u/68.0"))
             .and(body_string_contains(format!(
                 "<urn:queryLocator>{}",
                 locator(i)

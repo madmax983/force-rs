@@ -151,8 +151,8 @@ impl<A: Authenticator> BatchRequest<A> {
     ///
     /// * `method` - HTTP method (GET, POST, etc.)
     /// * `url` - REST resource URL. The API version is added automatically when omitted
-    ///   (for example, `"query?q=Select+Id+From+Account"` becomes `"v67.0/query?..."`
-    ///   for a `v67.0` client).
+    ///   (for example, `"query?q=Select+Id+From+Account"` becomes `"v68.0/query?..."`
+    ///   for a `v68.0` client).
     /// * `body` - Optional JSON body
     ///
     /// # Errors
@@ -482,12 +482,12 @@ mod tests {
             .must_msg("failed to build client");
 
         Mock::given(method("POST"))
-            .and(path("/services/data/v67.0/composite/batch"))
+            .and(path("/services/data/v68.0/composite/batch"))
             .and(body_json(serde_json::json!({
                 "batchRequests": [
                     {
                         "method": "GET",
-                        "url": "v67.0/limits"
+                        "url": "v68.0/limits"
                     }
                 ],
                 "haltOnError": false

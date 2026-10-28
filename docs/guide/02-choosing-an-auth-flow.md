@@ -181,6 +181,11 @@ let client = ForceClientBuilder::new()
 Salesforce.** The feature gate is a deliberate speed bump — prefer JWT Bearer or
 Client Credentials for anything new.
 
+> **Retirement:** Salesforce retires this flow for connected apps on
+> **2027-02-20**. Orgs created in Summer '26 or later already block it.
+> External Client Apps never support it. Move to Client Credentials, JWT
+> Bearer, or Authorization Code + PKCE before that date.
+
 **Feature gate:** `username_password`.
 
 **Credentials:** `client_id`, `client_secret`, `username`, `password`, and a
@@ -368,6 +373,28 @@ For flows with refresh tokens, `force-rs` stores the token, uses it on refresh,
 rotates to any newly returned refresh token, and **gracefully falls back to a
 full re-authentication** if the refresh token has been revoked. Marketing Cloud
 has no refresh concept at all — its `TokenManager` only ever re-authenticates.
+
+### Winter '27 OAuth changes
+
+- **Refresh-token idle limit.** A refresh token that is not used for 30 days
+  expires (sandbox 2026-10-21, production 2026-11-04). At enforcement, Salesforce
+  also revokes access tokens. `force-rs` refreshes on 401. For Authorization
+  Code, an expired refresh token needs a new browser login.
+- **Refresh-token rotation.** New External Client Apps always rotate refresh
+  tokens. `force-rs` stores each new refresh token and serializes refreshes, so
+  it does not replay an old token.
+- **External Client Apps.** New connected apps need a Support request. Support
+  for connected apps ends in Summer '27. Create an External Client App. The
+  credentials for Client Credentials, JWT Bearer, and Authorization Code + PKCE
+  stay the same.
+- **DPoP.** An app can require DPoP (RFC 9449). Then the token response has
+  `token_type: "DPoP"`. `force-rs` does not send DPoP proofs. It stops with an
+  error before it sends a request, because a request without a proof revokes
+  the token. Keep "Require DPoP" off for apps that `force-rs` uses.
+- **Instanced URLs.** Salesforce will reject API calls to an old instanced host
+  (for example `na139.salesforce.com`) from Spring '27. `force-rs` sends API
+  calls to the `instance_url` from the token response. Use your My Domain URL
+  as the login host.
 
 ---
 

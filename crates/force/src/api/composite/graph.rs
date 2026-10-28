@@ -538,7 +538,7 @@ mod tests {
         });
 
         Mock::given(method("POST"))
-            .and(path("/services/data/v67.0/composite/graph"))
+            .and(path("/services/data/v68.0/composite/graph"))
             .respond_with(ResponseTemplate::new(200).set_body_json(response_json))
             .mount(&mock_server)
             .await;
@@ -581,7 +581,7 @@ mod tests {
         let builder = client.composite().graph().add_graph(graph).must();
 
         Mock::given(method("POST"))
-            .and(path("/services/data/v67.0/composite/graph"))
+            .and(path("/services/data/v68.0/composite/graph"))
             .and(body_json(json!({
                 "graphs": [
                     {
@@ -589,7 +589,7 @@ mod tests {
                         "compositeRequest": [
                             {
                                 "method": "GET",
-                                "url": "/services/data/v67.0/query?q=SELECT+Id+FROM+Account+LIMIT+1",
+                                "url": "/services/data/v68.0/query?q=SELECT+Id+FROM+Account+LIMIT+1",
                                 "referenceId": "acctQuery"
                             }
                         ]
@@ -722,7 +722,7 @@ mod tests {
         let builder = client.composite().graph().add_graph(graph).must();
 
         Mock::given(method("POST"))
-            .and(path("/services/data/v67.0/composite/graph"))
+            .and(path("/services/data/v68.0/composite/graph"))
             .and(body_json(json!({
                 "graphs": [
                     {
@@ -730,7 +730,7 @@ mod tests {
                         "compositeRequest": [
                             {
                                 "method": "GET",
-                                "url": "/services/data/v67.0/sobjects/Account/001000000000001AAA",
+                                "url": "/services/data/v68.0/sobjects/Account/001000000000001AAA",
                                 "referenceId": "acctGet"
                             }
                         ]
@@ -809,7 +809,7 @@ mod tests {
 
         // Version-prefixed URLs only need /services/data/.
         assert_eq!(
-            normalize_graph_subrequest_url("v62.0/query?q=SELECT+Id", "v67.0"),
+            normalize_graph_subrequest_url("v62.0/query?q=SELECT+Id", "v68.0"),
             "/services/data/v62.0/query?q=SELECT+Id"
         );
 
@@ -820,26 +820,26 @@ mod tests {
         assert_eq!(
             normalize_graph_subrequest_url(
                 "/v62.0/query?q=SELECT+Id+FROM+Account+LIMIT+1",
-                "v67.0"
+                "v68.0"
             ),
             "/services/data/v62.0/query?q=SELECT+Id+FROM+Account+LIMIT+1"
         );
 
         // Already-rooted /services/ paths are left untouched (single leading slash).
         assert_eq!(
-            normalize_graph_subrequest_url("/services/data/v62.0/sobjects/Account", "v67.0"),
+            normalize_graph_subrequest_url("/services/data/v62.0/sobjects/Account", "v68.0"),
             "/services/data/v62.0/sobjects/Account"
         );
         // Idempotent: a fully-qualified query path is returned verbatim.
         assert_eq!(
             normalize_graph_subrequest_url(
                 "/services/data/v62.0/query?q=SELECT+Id+FROM+Account+LIMIT+1",
-                "v67.0"
+                "v68.0"
             ),
             "/services/data/v62.0/query?q=SELECT+Id+FROM+Account+LIMIT+1"
         );
         assert_eq!(
-            normalize_graph_subrequest_url("services/data/v62.0/sobjects/Account", "v67.0"),
+            normalize_graph_subrequest_url("services/data/v62.0/sobjects/Account", "v68.0"),
             "/services/data/v62.0/sobjects/Account"
         );
 

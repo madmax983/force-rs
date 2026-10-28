@@ -236,7 +236,7 @@ mod tests {
         });
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v67.0/sobjects/Account/describe"))
+            .and(path("/services/data/v68.0/sobjects/Account/describe"))
             .respond_with(ResponseTemplate::new(200).set_body_json(describe_json))
             .mount(mock_server)
             .await;
@@ -289,7 +289,7 @@ mod tests {
         });
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v67.0/sobjects/Contact/describe"))
+            .and(path("/services/data/v68.0/sobjects/Contact/describe"))
             .respond_with(ResponseTemplate::new(200).set_body_json(describe_json))
             .mount(mock_server)
             .await;

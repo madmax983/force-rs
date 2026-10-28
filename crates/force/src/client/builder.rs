@@ -280,16 +280,43 @@ mod tests {
 
         // Verify client is configured with defaults
         let config = client.config();
-        assert_eq!(config.api_version, "v67.0");
+        assert_eq!(config.api_version, "v68.0");
         assert_eq!(config.environment, Environment::Production);
         assert_eq!(config.timeout, std::time::Duration::from_secs(30));
         assert_eq!(config.max_retries, 3);
     }
 
     #[tokio::test]
+    async fn test_latest_alias_resolves_versionless_url() {
+        let config = ClientConfig {
+            api_version: crate::types::ApiVersion::LATEST_ALIAS.to_string(),
+            ..ClientConfig::default()
+        };
+        let client = ForceClientBuilder::new()
+            .config(config)
+            .authenticate(MockAuthenticator::new(
+                "mock_token",
+                "https://test.salesforce.com",
+            ))
+            .build()
+            .await
+            .must();
+
+        let url = client
+            .session()
+            .resolve_url("sobjects/Account")
+            .await
+            .must();
+        assert_eq!(
+            url,
+            "https://test.salesforce.com/services/data/latest/sobjects/Account"
+        );
+    }
+
+    #[tokio::test]
     async fn test_full_builder_flow() {
         let config = ClientConfig {
-            api_version: "v67.0".to_string(),
+            api_version: "v68.0".to_string(),
             environment: Environment::Sandbox,
             timeout: std::time::Duration::from_secs(30),
             max_retries: 3,
@@ -305,7 +332,7 @@ mod tests {
             .await
             .must();
 
-        assert_eq!(client.config().api_version, "v67.0");
+        assert_eq!(client.config().api_version, "v68.0");
         assert_eq!(client.config().environment, Environment::Sandbox);
     }
 

@@ -68,6 +68,43 @@ let limits  = client.rest().limits().await?;             // org limits
 let plan    = client.rest().explain("SELECT Id FROM Account WHERE Name = 'x'").await?;
 ```
 
+## API versions (v68.0+)
+
+`versions()` lists the versions of the org. From v68.0 the list has a `latest`
+alias entry. `latest_version()` returns the highest numeric version.
+
+```rust
+let versions = client.rest().versions().await?;
+let alias = versions.iter().find(|v| v.is_latest_alias());
+let newest = client.rest().latest_version().await?; // Option<ApiVersion>
+```
+
+To send every request to `/services/data/latest/`, set
+`ClientConfig.api_version` to `ApiVersion::LATEST_ALIAS`. Use it for scripts
+only. Pin a version in production.
+
+## SOQL `FORMULA()` (Beta, v68.0+)
+
+`FORMULA()` compares two fields in a WHERE clause. Salesforce allows it only in
+sandbox, Developer Edition, and scratch orgs.
+
+```rust
+use force::api::{ComparisonOperator, FormulaOperator, SoqlQueryBuilder};
+
+let soql = SoqlQueryBuilder::new()
+    .select(&["Id"])
+    .from("Opportunity")
+    .try_where_formula(
+        "Amount",
+        FormulaOperator::Subtract,
+        "ExpectedRevenue",
+        ComparisonOperator::Gt,
+        100,
+    )?
+    .build();
+let rows = client.rest().query::<serde_json::Value>(&soql).await?;
+```
+
 ## See also
 
 - Auth setup: [Choosing an auth flow](../02-choosing-an-auth-flow.md)

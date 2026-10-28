@@ -15,7 +15,7 @@ use force::client::ForceClientBuilder;
 use force::config::{ClientConfig, Environment};
 
 let config = ClientConfig {
-    api_version: "v67.0".to_string(),
+    api_version: "v68.0".to_string(),
     environment: Environment::Production,
     timeout: Duration::from_secs(30),
     max_retries: 3,
@@ -28,7 +28,7 @@ let client = ForceClientBuilder::new()
     .await?;
 ```
 
-Defaults (`ClientConfig::default`): `api_version = "v67.0"`, `environment =
+Defaults (`ClientConfig::default`): `api_version = "v68.0"`, `environment =
 Production`, `timeout = 30s`, `max_retries = 3`.
 
 ## Timeouts
@@ -231,8 +231,13 @@ StatusError` (with the Salesforce `errorCode`/`message` folded into `message`).
 
 `ClientConfig.api_version` is a `String` in `vXX.0` format. The default is
 derived from the `ApiVersion` newtype (`crates/force/src/types/api_version.rs`):
-`ApiVersion::DEFAULT.to_string()` = **`v67.0`**. (Some tests exercise other
-versions such as `v62.0`; the shipped default is `v67.0`.)
+`ApiVersion::DEFAULT.to_string()` = **`v68.0`** (Winter '27). (Some tests exercise other
+versions such as `v62.0`; the shipped default is `v68.0`.)
+
+Set `api_version` to `ApiVersion::LATEST_ALIAS` (`"latest"`) to send requests to
+`/services/data/latest/`. The server picks the newest version. Use it for scripts
+only; pin a number in production. `client.rest().versions()` lists the versions
+of the org.
 
 Pin per client by setting the field:
 
@@ -248,10 +253,10 @@ let config = ClientConfig { api_version: "v66.0".to_string(), ..Default::default
 - Parse/format: `"v60.0".parse::<ApiVersion>()`, `Display` → `v60.0`,
   `major()` → `60`. Parsing rejects a missing `v` prefix, a missing `.0`
   suffix, or a zero/non-numeric major.
-- Constants: `V55`..`V67`, `MIN_SUPPORTED = V55`, `MAX_TESTED = V67`,
-  `DEFAULT = V67`.
+- Constants: `V55`..`V68`, `MIN_SUPPORTED = V55`, `MAX_TESTED = V68`,
+  `DEFAULT = V68`. `release_name()` → for example `"Winter '27"`.
 - Tiers via `support_tier()` → `ApiVersionSupportTier`:
-  - `Tested` — within `[V55, V67]` (`is_tested()`).
+  - `Tested` — within `[V55, V68]` (`is_tested()`).
   - `SupportedUntested` — `>= V55` but above `MAX_TESTED` (`is_supported()`
     true, `is_tested()` false).
   - `Unsupported` — below `V55`.

@@ -149,7 +149,7 @@ mod tests {
 
         Mock::given(method("GET"))
             .and(path(
-                "/services/data/v67.0/ui-api/lookups/Opportunity/AccountId",
+                "/services/data/v68.0/ui-api/lookups/Opportunity/AccountId",
             ))
             .and(query_param("q", "Acme"))
             .respond_with(ResponseTemplate::new(200).set_body_json(&response_body))
@@ -182,7 +182,7 @@ mod tests {
 
         Mock::given(method("GET"))
             .and(path(
-                "/services/data/v67.0/ui-api/lookups/Contact/AccountId",
+                "/services/data/v68.0/ui-api/lookups/Contact/AccountId",
             ))
             .and(query_param("q", "ZZZnonexistent"))
             .respond_with(ResponseTemplate::new(200).set_body_json(&response_body))
@@ -216,7 +216,7 @@ mod tests {
 
         Mock::given(method("GET"))
             .and(path(
-                "/services/data/v67.0/ui-api/lookups/Contact/AccountId/Account",
+                "/services/data/v68.0/ui-api/lookups/Contact/AccountId/Account",
             ))
             .and(query_param("q", "Global"))
             .respond_with(ResponseTemplate::new(200).set_body_json(&response_body))
@@ -243,7 +243,7 @@ mod tests {
 
         Mock::given(method("GET"))
             .and(path(
-                "/services/data/v67.0/ui-api/lookups/NoSuchObject/SomeField/Account",
+                "/services/data/v68.0/ui-api/lookups/NoSuchObject/SomeField/Account",
             ))
             .and(query_param("q", "test"))
             .respond_with(ResponseTemplate::new(404).set_body_json(json!([{

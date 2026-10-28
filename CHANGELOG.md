@@ -5,6 +5,39 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+Winter '27 (API v68.0) adoption. See [ADR-035](docs/adr/035-winter-27-v68-adoption.md).
+
+### Added
+
+#### `force`
+- `ApiVersion::V68`, `ApiVersion::release_name()`, `ApiVersion::LATEST_ALIAS`, and `ApiVersion::config_major()`. `ClientConfig.api_version` accepts `"latest"`.
+- REST: `versions()` and `latest_version()` for the Versions resource (`GET /services/data/`).
+- Bulk API 2.0: `JobOperation::Refresh` and `JobOperation::ConsentImport`, plus `CreateJobRequest::new`, `consent_import`, and `validate`.
+- Tooling: `apex_compile_results()`, `symbols()` (Beta), `discover_tests()`, and `discover_tests_next()`, with a client-side `testLevel`/`showAllMethods` version check.
+- GraphQL: `lookup_values()` for `uiapi.lookupValues`.
+- SOQL: `SoqlQueryBuilder::try_where_formula()` for `FORMULA()` (Beta).
+- New `api_catalog` feature (in `full`): MCP server registry handler (`client.api_catalog()`).
+- Agent API: `send_message_stream()` and `send_text_stream()` with a size-limited SSE decoder and a separate stream time limit.
+- `AccessToken::is_dpop_bound()`.
+
+### Changed
+
+#### `force`
+- Default API version is now v68.0 (Winter '27). `MAX_TESTED` is v68.0.
+- `JobOperation` has two new variants. A `match` without a wildcard arm must add them.
+- A `DPoP` access token now fails before the request is sent, with a clear error.
+
+### Fixed
+
+#### `force`
+- `GraphqlRequest` sends `operationName` (was `operation_name`, which the server ignored).
+- `ApiVersion` constant docs had release names one year late (for example v67.0 is Summer '26, not Summer '25).
+
+### Documentation
+- ADR-035, the Winter '27 adoption plan, the API Catalog surface page, and Winter '27 OAuth notes (refresh-token idle limit, rotation, External Client Apps, DPoP, instanced URLs, username-password retirement on 2027-02-20).
+
 ## [0.4.0] - 2026-07-15
 
 This release adds five new Salesforce API surfaces and two new workspace crates, raises the workspace MSRV to Rust 1.92, and includes API-shape corrections driven by live-org contract testing (see Changed). See [docs/guide/06-upgrading.md](docs/guide/06-upgrading.md) for a before/after fix for each breaking change below.

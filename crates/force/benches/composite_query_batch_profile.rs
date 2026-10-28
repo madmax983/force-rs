@@ -80,7 +80,7 @@ fn page_body(page: usize) -> String {
     ));
     if page + 1 < PAGES {
         out.push_str(&format!(
-            r#""nextRecordsUrl":"/services/data/v67.0/query/01gPAGE{:04}","#,
+            r#""nextRecordsUrl":"/services/data/v68.0/query/01gPAGE{:04}","#,
             page + 1
         ));
     }
@@ -91,7 +91,7 @@ fn page_body(page: usize) -> String {
             out.push(',');
         }
         out.push_str(&format!(
-            r#"{{"attributes":{{"type":"Account","url":"/services/data/v67.0/sobjects/Account/001xx{n:010}AAA"}},"Id":"001xx{n:010}AAA","Name":"Account Number {n}","Industry":"Technology","Phone":"+1-555-01{:02}","Type":"Customer - Direct","BillingCity":"Springfield","BillingState":"IL","AnnualRevenue":1000000.0,"Website":"https://example{n}.com"}}"#,
+            r#"{{"attributes":{{"type":"Account","url":"/services/data/v68.0/sobjects/Account/001xx{n:010}AAA"}},"Id":"001xx{n:010}AAA","Name":"Account Number {n}","Industry":"Technology","Phone":"+1-555-01{:02}","Type":"Customer - Direct","BillingCity":"Springfield","BillingState":"IL","AnnualRevenue":1000000.0,"Website":"https://example{n}.com"}}"#,
             n % 100
         ));
     }
@@ -116,7 +116,7 @@ impl Respond for BatchResponder {
 async fn main() {
     let server = MockServer::start().await;
     Mock::given(method("GET"))
-        .and(path("/services/data/v67.0/query"))
+        .and(path("/services/data/v68.0/query"))
         .respond_with(
             ResponseTemplate::new(200)
                 .insert_header("Content-Type", "application/json")
@@ -126,7 +126,7 @@ async fn main() {
         .await;
     for p in 1..PAGES {
         Mock::given(method("GET"))
-            .and(path(format!("/services/data/v67.0/query/01gPAGE{p:04}")))
+            .and(path(format!("/services/data/v68.0/query/01gPAGE{p:04}")))
             .respond_with(
                 ResponseTemplate::new(200)
                     .insert_header("Content-Type", "application/json")
@@ -136,7 +136,7 @@ async fn main() {
             .await;
     }
     Mock::given(method("POST"))
-        .and(path("/services/data/v67.0/composite/batch"))
+        .and(path("/services/data/v68.0/composite/batch"))
         .respond_with(BatchResponder)
         .mount(&server)
         .await;

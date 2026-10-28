@@ -83,6 +83,88 @@ pub fn encode_soql_query_url(query_builder: &SoqlQueryBuilder) -> crate::error::
     Ok(url)
 }
 
+/// Arithmetic operator inside SOQL `FORMULA()` (Beta, v68.0+).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum FormulaOperator {
+    /// `+`
+    Add,
+    /// `-`
+    Subtract,
+}
+
+impl FormulaOperator {
+    /// Returns the SOQL token.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Add => "+",
+            Self::Subtract => "-",
+        }
+    }
+}
+
+/// Comparison operator after SOQL `FORMULA()`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ComparisonOperator {
+    /// `=`
+    Eq,
+    /// `!=`
+    Ne,
+    /// `<`
+    Lt,
+    /// `<=`
+    Le,
+    /// `>`
+    Gt,
+    /// `>=`
+    Ge,
+}
+
+impl ComparisonOperator {
+    /// Returns the SOQL token.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Eq => "=",
+            Self::Ne => "!=",
+            Self::Lt => "<",
+            Self::Le => "<=",
+            Self::Gt => ">",
+            Self::Ge => ">=",
+        }
+    }
+}
+
+/// Numeric literal on the right side of SOQL `FORMULA()`.
+///
+/// Date differences return a number of days, so a number covers all
+/// documented uses.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum FormulaLiteral {
+    /// Integer value.
+    Integer(i64),
+    /// Decimal value. Must be finite.
+    Decimal(f64),
+}
+
+impl From<i64> for FormulaLiteral {
+    fn from(v: i64) -> Self {
+        Self::Integer(v)
+    }
+}
+
+impl From<i32> for FormulaLiteral {
+    fn from(v: i32) -> Self {
+        Self::Integer(i64::from(v))
+    }
+}
+
+impl From<f64> for FormulaLiteral {
+    fn from(v: f64) -> Self {
+        Self::Decimal(v)
+    }
+}
+
 /// Builder for constructing safe SOQL queries.
 ///
 /// Helps prevent SOQL injection by validating object and field names,
@@ -394,6 +476,73 @@ impl SoqlQueryBuilder {
         self.try_add_condition(field, "LIKE", value)
     }
 
+    /// Adds a SOQL `FORMULA()` WHERE condition (Beta, v68.0+).
+    ///
+    /// Emits `FORMULA('left op right') cmp literal`. Supported field types:
+    /// number, currency, date, and datetime. Do not mix date and datetime.
+    /// Salesforce allows it only in sandbox, Developer Edition, and scratch
+    /// orgs on v68.0+.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ForceError::InvalidInput`] if a field name is not valid or
+    /// the literal is not finite.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use force::api::{ComparisonOperator, FormulaOperator, SoqlQueryBuilder};
+    /// let query = SoqlQueryBuilder::new()
+    ///     .select(&["Id"])
+    ///     .from("Opportunity")
+    ///     .try_where_formula(
+    ///         "Amount",
+    ///         FormulaOperator::Subtract,
+    ///         "ExpectedRevenue",
+    ///         ComparisonOperator::Gt,
+    ///         100,
+    ///     )?
+    ///     .build();
+    /// assert_eq!(
+    ///     query,
+    ///     "SELECT Id FROM Opportunity WHERE FORMULA('Amount - ExpectedRevenue') > 100"
+    /// );
+    /// # Ok::<(), force::error::ForceError>(())
+    /// ```
+    pub fn try_where_formula(
+        self,
+        left: &str,
+        op: FormulaOperator,
+        right: &str,
+        cmp: ComparisonOperator,
+        literal: impl Into<FormulaLiteral>,
+    ) -> crate::error::Result<Self> {
+        let mut builder = self;
+        for field in [left, right] {
+            validate_field_name(field).map_err(|e| ForceError::InvalidInput(e.to_string()))?;
+            if field.contains(['(', ')']) {
+                return Err(ForceError::InvalidInput(format!(
+                    "FORMULA() operands must be plain fields: {field}"
+                )));
+            }
+        }
+        let literal = match literal.into() {
+            FormulaLiteral::Integer(v) => v.to_string(),
+            FormulaLiteral::Decimal(v) if v.is_finite() => v.to_string(),
+            FormulaLiteral::Decimal(v) => {
+                return Err(ForceError::InvalidInput(format!(
+                    "FORMULA() literal must be finite: {v}"
+                )));
+            }
+        };
+        builder.where_clauses.push(format!(
+            "FORMULA('{left} {} {right}') {} {literal}",
+            op.as_str(),
+            cmp.as_str()
+        ));
+        Ok(builder)
+    }
+
     /// Adds a WHERE condition for LIKE clause (e.g., `Field LIKE 'Val%'`).
     ///
     /// # Panics
@@ -628,6 +777,92 @@ mod tests {
     #![allow(clippy::unwrap_used)]
     use super::*;
     use crate::test_utils::must::Must;
+
+    #[test]
+    fn test_where_formula_subtract_integer() {
+        let q = SoqlQueryBuilder::new()
+            .select(&["Id"])
+            .from("Opportunity")
+            .try_where_formula(
+                "CloseDate",
+                FormulaOperator::Subtract,
+                "CreatedDate",
+                ComparisonOperator::Gt,
+                10,
+            )
+            .must()
+            .build();
+        assert_eq!(
+            q,
+            "SELECT Id FROM Opportunity WHERE FORMULA('CloseDate - CreatedDate') > 10"
+        );
+    }
+
+    #[test]
+    fn test_where_formula_add_decimal_and_all_comparisons() {
+        for (cmp, tok) in [
+            (ComparisonOperator::Eq, "="),
+            (ComparisonOperator::Ne, "!="),
+            (ComparisonOperator::Lt, "<"),
+            (ComparisonOperator::Le, "<="),
+            (ComparisonOperator::Gt, ">"),
+            (ComparisonOperator::Ge, ">="),
+        ] {
+            let q = SoqlQueryBuilder::new()
+                .select(&["Id"])
+                .from("Opportunity")
+                .try_where_formula("Amount", FormulaOperator::Add, "Discount__c", cmp, 99.5)
+                .must()
+                .build();
+            assert!(
+                q.ends_with(&format!("WHERE FORMULA('Amount + Discount__c') {tok} 99.5")),
+                "{q}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_where_formula_rejects_bad_input() {
+        let b = || SoqlQueryBuilder::new().select(&["Id"]).from("Opportunity");
+        let sub = FormulaOperator::Subtract;
+        let gt = ComparisonOperator::Gt;
+        // Injection through a field name.
+        assert!(
+            b().try_where_formula("Amount') OR (Id", sub, "X", gt, 1)
+                .is_err()
+        );
+        assert!(
+            b().try_where_formula("Amount", sub, "COUNT(Id)", gt, 1)
+                .is_err()
+        );
+        assert!(b().try_where_formula("", sub, "X", gt, 1).is_err());
+        assert!(b().try_where_formula("A", sub, "B", gt, f64::NAN).is_err());
+        assert!(
+            b().try_where_formula("A", sub, "B", gt, f64::INFINITY)
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn test_where_formula_combines_with_and() {
+        let q = SoqlQueryBuilder::new()
+            .select(&["Id"])
+            .from("Opportunity")
+            .where_eq("StageName", "Closed Won")
+            .try_where_formula(
+                "Amount",
+                FormulaOperator::Subtract,
+                "ExpectedRevenue",
+                ComparisonOperator::Le,
+                -5,
+            )
+            .must()
+            .build();
+        assert_eq!(
+            q,
+            "SELECT Id FROM Opportunity WHERE StageName = 'Closed Won' AND FORMULA('Amount - ExpectedRevenue') <= -5"
+        );
+    }
 
     #[test]
     fn test_escape_soql() {

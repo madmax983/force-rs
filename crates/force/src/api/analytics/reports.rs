@@ -277,7 +277,7 @@ mod tests {
 
         Mock::given(method("GET"))
             .and(path(
-                "/services/data/v67.0/analytics/reports/00O3000000B5Yn2",
+                "/services/data/v68.0/analytics/reports/00O3000000B5Yn2",
             ))
             .and(header("Authorization", "Bearer test_token"))
             .and(query_param("includeDetails", "true"))
@@ -309,7 +309,7 @@ mod tests {
         let (server, client) = setup().await;
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v67.0/analytics/reports/00O000"))
+            .and(path("/services/data/v68.0/analytics/reports/00O000"))
             .and(query_param("includeDetails", "false"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "allData": true,
@@ -330,7 +330,7 @@ mod tests {
 
         Mock::given(method("POST"))
             .and(path(
-                "/services/data/v67.0/analytics/reports/00O3000000B5Yn2",
+                "/services/data/v68.0/analytics/reports/00O3000000B5Yn2",
             ))
             .and(query_param("includeDetails", "true"))
             .and(body_partial_json(serde_json::json!({
@@ -367,14 +367,14 @@ mod tests {
         let (server, client) = setup().await;
 
         Mock::given(method("POST"))
-            .and(path("/services/data/v67.0/analytics/reports/00O/instances"))
+            .and(path("/services/data/v68.0/analytics/reports/00O/instances"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "0LG000000000001",
                 "status": "New",
                 "requestDate": "2026-07-12T18:02:11Z",
                 "queryable": false,
                 "hasDetailRows": false,
-                "url": "/services/data/v67.0/analytics/reports/00O/instances/0LG000000000001"
+                "url": "/services/data/v68.0/analytics/reports/00O/instances/0LG000000000001"
             })))
             .mount(&server)
             .await;
@@ -393,7 +393,7 @@ mod tests {
         let (server, client) = setup().await;
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v67.0/analytics/reports/00O/instances"))
+            .and(path("/services/data/v68.0/analytics/reports/00O/instances"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!([
                 { "id": "0LG2", "status": "Success" },
                 { "id": "0LG1", "status": "Running" }
@@ -414,7 +414,7 @@ mod tests {
         // Pending instance: status present, no fact map.
         Mock::given(method("GET"))
             .and(path(
-                "/services/data/v67.0/analytics/reports/00O/instances/0LGpending",
+                "/services/data/v68.0/analytics/reports/00O/instances/0LGpending",
             ))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "attributes": { "id": "0LGpending", "status": "Running" },
@@ -434,7 +434,7 @@ mod tests {
         // Completed instance: full results.
         Mock::given(method("GET"))
             .and(path(
-                "/services/data/v67.0/analytics/reports/00O/instances/0LGdone",
+                "/services/data/v68.0/analytics/reports/00O/instances/0LGdone",
             ))
             .respond_with(ResponseTemplate::new(200).set_body_json(summary_report_body()))
             .mount(&server)
@@ -454,7 +454,7 @@ mod tests {
 
         Mock::given(method("DELETE"))
             .and(path(
-                "/services/data/v67.0/analytics/reports/00O/instances/0LG",
+                "/services/data/v68.0/analytics/reports/00O/instances/0LG",
             ))
             .respond_with(ResponseTemplate::new(204))
             .expect(1)
@@ -473,7 +473,7 @@ mod tests {
         let (server, client) = setup().await;
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v67.0/analytics/reports/00O/describe"))
+            .and(path("/services/data/v68.0/analytics/reports/00O/describe"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "reportMetadata": { "id": "00O", "reportFormat": "MATRIX" },
                 "reportTypeMetadata": { "categories": [] },
@@ -500,14 +500,14 @@ mod tests {
         let (server, client) = setup().await;
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v67.0/analytics/reports"))
+            .and(path("/services/data/v68.0/analytics/reports"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!([
                 {
                     "id": "00O1",
                     "name": "Closed Won This Quarter",
-                    "url": "/services/data/v67.0/analytics/reports/00O1",
-                    "describeUrl": "/services/data/v67.0/analytics/reports/00O1/describe",
-                    "instancesUrl": "/services/data/v67.0/analytics/reports/00O1/instances"
+                    "url": "/services/data/v68.0/analytics/reports/00O1",
+                    "describeUrl": "/services/data/v68.0/analytics/reports/00O1/describe",
+                    "instancesUrl": "/services/data/v68.0/analytics/reports/00O1/instances"
                 }
             ])))
             .mount(&server)
@@ -525,7 +525,7 @@ mod tests {
         let (server, client) = setup().await;
 
         Mock::given(method("POST"))
-            .and(path("/services/data/v67.0/analytics/reports/query"))
+            .and(path("/services/data/v68.0/analytics/reports/query"))
             .and(body_partial_json(serde_json::json!({
                 "reportMetadata": { "reportFormat": "TABULAR" }
             })))
@@ -551,7 +551,7 @@ mod tests {
         let (server, client) = setup().await;
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v67.0/analytics/reportTypes"))
+            .and(path("/services/data/v68.0/analytics/reportTypes"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!([
                 {
                     "label": "Accounts & Contacts",
@@ -578,7 +578,7 @@ mod tests {
 
         Mock::given(method("GET"))
             .and(path(
-                "/services/data/v67.0/analytics/reportTypes/AccountList",
+                "/services/data/v68.0/analytics/reportTypes/AccountList",
             ))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "reportMetadata": { "reportFormat": "TABULAR" },
@@ -604,7 +604,7 @@ mod tests {
         let (server, client) = setup().await;
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v67.0/analytics/reports/00Obad"))
+            .and(path("/services/data/v68.0/analytics/reports/00Obad"))
             .respond_with(
                 ResponseTemplate::new(404).set_body_json(serde_json::json!([{
                     "message": "The requested resource does not exist",

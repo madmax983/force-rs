@@ -32,7 +32,9 @@ pub struct GraphqlRequest {
     pub variables: Option<Value>,
 
     /// Optional operation name when the query contains multiple operations.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    ///
+    /// Sent as `operationName` (GraphQL over HTTP).
+    #[serde(rename = "operationName", skip_serializing_if = "Option::is_none")]
     pub operation_name: Option<String>,
 }
 
@@ -141,7 +143,7 @@ mod tests {
         );
         // Optional fields should be absent, not null
         assert!(json.get("variables").is_none());
-        assert!(json.get("operation_name").is_none());
+        assert!(json.get("operationName").is_none());
     }
 
     #[test]
@@ -158,7 +160,9 @@ mod tests {
         let req = GraphqlRequest::new("query GetAccount { ... }").with_operation_name("GetAccount");
         let json = serde_json::to_value(&req).must();
 
-        assert_eq!(json["operation_name"], "GetAccount");
+        assert_eq!(json["operationName"], "GetAccount");
+        // Regression: the key was sent as snake_case and the server ignored it.
+        assert!(json.get("operation_name").is_none());
     }
 
     #[test]
@@ -170,7 +174,7 @@ mod tests {
 
         assert_eq!(json["query"], "query Op($x: Int!) { f(x: $x) }");
         assert_eq!(json["variables"]["x"], 42);
-        assert_eq!(json["operation_name"], "Op");
+        assert_eq!(json["operationName"], "Op");
     }
 
     // ── GraphqlResponse deserialization ─────────────────────────────

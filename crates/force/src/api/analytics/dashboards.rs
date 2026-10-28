@@ -99,12 +99,12 @@ mod tests {
         let (server, client) = setup().await;
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v67.0/analytics/dashboards"))
+            .and(path("/services/data/v68.0/analytics/dashboards"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!([
                 {
                     "id": "01Z3000000ABCDE",
                     "name": "Sales Overview",
-                    "url": "/services/data/v67.0/analytics/dashboards/01Z3000000ABCDE",
+                    "url": "/services/data/v68.0/analytics/dashboards/01Z3000000ABCDE",
                     "type": "Dashboard"
                 }
             ])))
@@ -124,7 +124,7 @@ mod tests {
 
         Mock::given(method("GET"))
             .and(path(
-                "/services/data/v67.0/analytics/dashboards/01Z/describe",
+                "/services/data/v68.0/analytics/dashboards/01Z/describe",
             ))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "01Z",
@@ -147,7 +147,7 @@ mod tests {
         let (server, client) = setup().await;
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v67.0/analytics/dashboards/01Z"))
+            .and(path("/services/data/v68.0/analytics/dashboards/01Z"))
             .and(header("Authorization", "Bearer test_token"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": "01Z",
@@ -174,7 +174,7 @@ mod tests {
         let (server, client) = setup().await;
 
         Mock::given(method("PUT"))
-            .and(path("/services/data/v67.0/analytics/dashboards/01Z"))
+            .and(path("/services/data/v68.0/analytics/dashboards/01Z"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "dashboardId": "01Z",
                 "requestDate": "2026-07-12T18:00:05Z",
@@ -200,7 +200,7 @@ mod tests {
         let (server, client) = setup().await;
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v67.0/analytics/dashboards/01Z/status"))
+            .and(path("/services/data/v68.0/analytics/dashboards/01Z/status"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "dashboardId": "01Z",
                 "requestDate": "2026-07-12T18:00:05Z",
@@ -224,7 +224,7 @@ mod tests {
         let (server, client) = setup().await;
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v67.0/analytics/dashboards/01Zbad"))
+            .and(path("/services/data/v68.0/analytics/dashboards/01Zbad"))
             .respond_with(ResponseTemplate::new(500))
             .mount(&server)
             .await;

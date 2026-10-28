@@ -122,7 +122,7 @@ fn build_records(count: usize) -> Vec<AccountRecord> {
 
 async fn mount_job_lifecycle(mock_server: &MockServer) {
     Mock::given(method("POST"))
-        .and(path("/services/data/v67.0/jobs/ingest"))
+        .and(path("/services/data/v68.0/jobs/ingest"))
         .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
             "id": "PROFILE_JOB",
             "state": "Open",
@@ -135,13 +135,13 @@ async fn mount_job_lifecycle(mock_server: &MockServer) {
         .await;
 
     Mock::given(method("PUT"))
-        .and(path("/services/data/v67.0/jobs/ingest/PROFILE_JOB/batches"))
+        .and(path("/services/data/v68.0/jobs/ingest/PROFILE_JOB/batches"))
         .respond_with(ResponseTemplate::new(201))
         .mount(mock_server)
         .await;
 
     Mock::given(method("PATCH"))
-        .and(path("/services/data/v67.0/jobs/ingest/PROFILE_JOB"))
+        .and(path("/services/data/v68.0/jobs/ingest/PROFILE_JOB"))
         .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
             "id": "PROFILE_JOB",
             "state": "UploadComplete",
@@ -154,7 +154,7 @@ async fn mount_job_lifecycle(mock_server: &MockServer) {
         .await;
 
     Mock::given(method("GET"))
-        .and(path("/services/data/v67.0/jobs/ingest/PROFILE_JOB"))
+        .and(path("/services/data/v68.0/jobs/ingest/PROFILE_JOB"))
         .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
             "id": "PROFILE_JOB",
             "state": "JobComplete",

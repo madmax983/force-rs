@@ -199,7 +199,7 @@ mod tests {
         let client = make_client(&server).await;
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v67.0/ui-api/layout/Account"))
+            .and(path("/services/data/v68.0/ui-api/layout/Account"))
             .respond_with(ResponseTemplate::new(200).set_body_json(minimal_layout_json()))
             .expect(1)
             .mount(&server)
@@ -235,7 +235,7 @@ mod tests {
         let client = make_client(&server).await;
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v67.0/ui-api/layout/Account"))
+            .and(path("/services/data/v68.0/ui-api/layout/Account"))
             .and(query_param("layoutType", "Compact"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "id": "layout-compact-001",
@@ -262,7 +262,7 @@ mod tests {
         let client = make_client(&server).await;
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v67.0/ui-api/layout/Contact"))
+            .and(path("/services/data/v68.0/ui-api/layout/Contact"))
             .and(query_param("layoutType", "Full"))
             .and(query_param("mode", "Edit"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
@@ -291,7 +291,7 @@ mod tests {
         let client = make_client(&server).await;
 
         Mock::given(method("GET"))
-            .and(path("/services/data/v67.0/ui-api/layout/NoSuchObject"))
+            .and(path("/services/data/v68.0/ui-api/layout/NoSuchObject"))
             .respond_with(ResponseTemplate::new(404).set_body_json(json!([{
                 "errorCode": "NOT_FOUND",
                 "message": "The requested resource does not exist"

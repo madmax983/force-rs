@@ -151,6 +151,14 @@ impl AccessToken {
         &self.token_type
     }
 
+    /// Returns true if the server bound this token to a DPoP key.
+    ///
+    /// force-rs does not send DPoP proofs, so it cannot use this token.
+    #[must_use]
+    pub fn is_dpop_bound(&self) -> bool {
+        self.token_type.eq_ignore_ascii_case(DPOP_TOKEN_TYPE)
+    }
+
     /// Checks if the token is expired (alias for `is_soft_expired`).
     ///
     /// Prefer using `is_soft_expired()` or `is_hard_expired()` for clarity.
@@ -212,6 +220,9 @@ impl AccessToken {
     ///
     /// Returns an error if the header could not be constructed (e.g. invalid characters).
     pub fn auth_header(&self) -> std::result::Result<&HeaderValue, HttpError> {
+        if self.is_dpop_bound() {
+            return Err(HttpError::RequestBuildError(DPOP_UNSUPPORTED.to_string()));
+        }
         self.auth_header
             .as_ref()
             .ok_or_else(|| HttpError::InvalidUrl("invalid authorization header".to_string()))
@@ -236,6 +247,13 @@ fn calculate_expiration(
         issued_at.checked_add_signed(duration)
     })
 }
+
+/// `token_type` of a DPoP-bound token (RFC 9449).
+const DPOP_TOKEN_TYPE: &str = "DPoP";
+
+/// Error text for a DPoP-bound token.
+const DPOP_UNSUPPORTED: &str = "token_type is DPoP: force-rs does not send DPoP proofs. \
+     Disable 'Require DPoP' on the External Client App, or use a client that supports DPoP";
 
 /// Creates a secure Authorization header value.
 fn create_auth_header(token_type: &str, access_token: &str) -> Option<HeaderValue> {
@@ -267,6 +285,34 @@ fn parse_issued_at(issued_at: &str) -> Result<DateTime<Utc>> {
 mod tests {
     use super::*;
     use crate::test_utils::must::Must;
+
+    fn dpop_response(token_type: &str) -> TokenResponse {
+        serde_json::from_value(serde_json::json!({
+            "access_token": "00Dxx!dpop_bound",
+            "instance_url": "https://example.my.salesforce.com",
+            "token_type": token_type,
+            "issued_at": "1704067200000",
+            "signature": "sig"
+        }))
+        .must()
+    }
+
+    #[test]
+    fn test_dpop_token_header_fails_fast() {
+        for token_type in ["DPoP", "dpop", "DPOP"] {
+            let token = AccessToken::from_response(dpop_response(token_type));
+            assert!(token.is_dpop_bound(), "{token_type}");
+            let err = token.auth_header().err().must();
+            assert!(err.to_string().contains("DPoP"), "{err}");
+        }
+    }
+
+    #[test]
+    fn test_bearer_token_is_not_dpop_bound() {
+        let token = AccessToken::from_response(dpop_response("Bearer"));
+        assert!(!token.is_dpop_bound());
+        assert!(token.auth_header().is_ok());
+    }
 
     #[test]
     fn test_token_response_deserialization() {

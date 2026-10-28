@@ -40,6 +40,25 @@ let envelope = client.graphql().query_with_errors::<MyType>(&request).await?;
 let value = client.graphql().query_raw("query { ... }", None).await?;
 ```
 
+`GraphqlRequest::with_operation_name` is sent as `operationName`.
+
+## Lookup values (v68.0+)
+
+`lookup_values` wraps `uiapi.lookupValues`: recent records, type-ahead, or full
+search for a lookup field. Only the arguments that you set are sent.
+
+```rust
+use force::api::graphql::{LookupSearchType, LookupValuesRequest};
+
+let request = LookupValuesRequest::new("Opportunity", "AccountId")
+    .search(LookupSearchType::TypeAhead, "Acme");
+for target in client.graphql().lookup_values(&request).await? {
+    for edge in &target.records.edges {
+        println!("{:?} {:?}", edge.node.id, edge.node.display_value);
+    }
+}
+```
+
 ## See also
 
 - [ADR-021 — GraphQL API design](../../adr/021-graphql-api-design.md)
