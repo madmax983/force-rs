@@ -1,0 +1,459 @@
+//! End-to-end tests for durable sync on a real harvest worker and scheduler.
+//!
+//! Each test resets the database, applies the force-sync and harvest
+//! migrations, starts [`DurableSync`], and lets the pump schedule drive an
+//! outbox row to a wiremock Salesforce. No test calls a `*_once` method.
+
+mod support;
+
+use std::time::{Duration, Instant};
+
+use async_trait::async_trait;
+use autumn_harvest::policy::RetryPolicy;
+use force::{
+    auth::{AccessToken, Authenticator, TokenResponse},
+    client::{ForceClient, builder},
+    error::Result as ForceResult,
+};
+use serde_json::json;
+use wiremock::{
+    Mock, MockServer, ResponseTemplate,
+    matchers::{method, path},
+};
+
+use force_sync::durable::{
+    DurableSync, DurableSyncConfig, DurableSyncRuntime, harvest_pool, migrate_harvest,
+};
+use force_sync::{ForceSyncError, ObjectSync, PgStore, SyncEngine};
+
+const UPSERT_PATH: &str = "/services/data/v68.0/sobjects/Account/ExternalId__c/external-1";
+const SF_ID: &str = "001000000000001AAA";
+
+#[derive(Debug, Clone)]
+struct MockAuthenticator {
+    instance_url: String,
+}
+
+#[async_trait]
+impl Authenticator for MockAuthenticator {
+    async fn authenticate(&self) -> ForceResult<AccessToken> {
+        Ok(AccessToken::from_response(TokenResponse {
+            access_token: secrecy::SecretString::new("test_token".to_owned().into()),
+            instance_url: self.instance_url.clone(),
+            token_type: "Bearer".to_owned(),
+            issued_at: "1704067200000".to_owned(),
+            signature: "test_sig".to_owned(),
+            expires_in: Some(7200),
+            refresh_token: None,
+        }))
+    }
+
+    async fn refresh(&self) -> ForceResult<AccessToken> {
+        self.authenticate().await
+    }
+}
+
+async fn test_client(mock_server: &MockServer) -> ForceClient<MockAuthenticator> {
+    builder()
+        .authenticate(MockAuthenticator {
+            instance_url: mock_server.uri(),
+        })
+        .build()
+        .await
+        .unwrap_or_else(|error| panic!("unexpected client build error: {error}"))
+}
+
+fn database_url() -> String {
+    std::env::var("FORCE_SYNC_TEST_DATABASE_URL")
+        .unwrap_or_else(|_| panic!("FORCE_SYNC_TEST_DATABASE_URL must be set"))
+}
+
+fn created() -> ResponseTemplate {
+    ResponseTemplate::new(201).set_body_json(json!({
+        "id": SF_ID,
+        "success": true,
+        "created": true,
+        "errors": []
+    }))
+}
+
+fn unavailable() -> ResponseTemplate {
+    ResponseTemplate::new(503).set_body_json(json!([{
+        "message": "service unavailable",
+        "errorCode": "SERVER_UNAVAILABLE"
+    }]))
+}
+
+/// A config that pumps every second and retries the Salesforce call fast.
+fn fast_config(max_attempts: u32) -> DurableSyncConfig {
+    DurableSyncConfig {
+        pump_interval: Duration::from_secs(1),
+        reconcile_interval: None,
+        remote_retry: RetryPolicy {
+            jitter: autumn_harvest::policy::JitterPolicy::None,
+            ..RetryPolicy::fixed(max_attempts, Duration::from_secs(1))
+        },
+        ..DurableSyncConfig::default()
+    }
+}
+
+struct Harness {
+    pool: deadpool_postgres::Pool,
+    mock_server: MockServer,
+}
+
+impl Harness {
+    async fn new() -> Result<Self, ForceSyncError> {
+        let pool = support::postgres::test_pool();
+        support::postgres::reset_schema(&pool).await?;
+        force_sync::migrate(&pool).await?;
+        migrate_harvest(&database_url()).await?;
+        Ok(Self {
+            pool,
+            mock_server: MockServer::start().await,
+        })
+    }
+
+    async fn start(&self, config: DurableSyncConfig) -> Result<DurableSyncRuntime, ForceSyncError> {
+        let engine = SyncEngine::builder(test_client(&self.mock_server).await)
+            .postgres(PgStore::new(self.pool.clone()))
+            .object(ObjectSync::new("Account").external_id("ExternalId__c"))
+            .build()?;
+        DurableSync::new(engine, harvest_pool(&database_url(), 8)?)
+            .with_config(config)?
+            .start()
+    }
+
+    async fn insert_outbox_row(&self, cursor: &str, name: &str) -> Result<(), ForceSyncError> {
+        self.pool
+            .get()
+            .await?
+            .execute(
+                "insert into force_sync_outbox
+                    (tenant, object_name, external_id, source_cursor, op, tombstone, payload)
+                 values ('tenant', 'Account', 'external-1', $1, 'upsert', false, $2::jsonb)",
+                &[&cursor, &json!({ "Name": name })],
+            )
+            .await?;
+        Ok(())
+    }
+
+    /// `(status, last_error)` of every apply task, in task order.
+    async fn tasks(&self) -> Result<Vec<(String, Option<String>)>, ForceSyncError> {
+        Ok(self
+            .pool
+            .get()
+            .await?
+            .query(
+                "select status, last_error from sync_task
+                 where task_kind = 'apply' order by task_id",
+                &[],
+            )
+            .await?
+            .iter()
+            .map(|row| (row.get(0), row.get(1)))
+            .collect())
+    }
+
+    /// Waits until `count` apply tasks exist and none is ready or leased.
+    async fn wait_for_settled(
+        &self,
+        count: usize,
+    ) -> Result<Vec<(String, Option<String>)>, ForceSyncError> {
+        let deadline = Instant::now() + Duration::from_secs(90);
+        loop {
+            let tasks = self.tasks().await?;
+            let settled = tasks.len() == count
+                && tasks
+                    .iter()
+                    .all(|(status, _)| status == "done" || status == "failed");
+            if settled {
+                return Ok(tasks);
+            }
+            assert!(
+                Instant::now() < deadline,
+                "tasks did not settle in time: {tasks:?}"
+            );
+            tokio::time::sleep(Duration::from_millis(250)).await;
+        }
+    }
+
+    async fn salesforce_calls(&self) -> usize {
+        self.mock_server
+            .received_requests()
+            .await
+            .map_or(0, |requests| requests.len())
+    }
+
+    async fn linked_salesforce_id(&self) -> Result<Option<String>, ForceSyncError> {
+        Ok(self
+            .pool
+            .get()
+            .await?
+            .query_opt(
+                "select salesforce_id from sync_link
+                 where tenant = 'tenant' and object_name = 'Account'
+                   and external_id = 'external-1'",
+                &[],
+            )
+            .await?
+            .and_then(|row| row.get(0)))
+    }
+}
+
+#[tokio::test]
+#[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
+async fn pump_schedule_drives_an_outbox_row_to_salesforce() -> Result<(), ForceSyncError> {
+    let harness = Harness::new().await?;
+    Mock::given(method("PATCH"))
+        .and(path(UPSERT_PATH))
+        .respond_with(created())
+        .expect(1)
+        .mount(&harness.mock_server)
+        .await;
+
+    harness.insert_outbox_row("lsn-1", "Acme Corp").await?;
+    let runtime = harness.start(fast_config(3)).await?;
+    let tasks = harness.wait_for_settled(1).await?;
+    runtime.stop().await?;
+
+    assert_eq!(tasks, vec![("done".to_owned(), None)]);
+    assert_eq!(
+        harness.linked_salesforce_id().await?.as_deref(),
+        Some(SF_ID)
+    );
+    assert_eq!(harness.salesforce_calls().await, 1);
+    Ok(())
+}
+
+#[tokio::test]
+#[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
+async fn transient_salesforce_errors_are_retried_by_harvest() -> Result<(), ForceSyncError> {
+    let harness = Harness::new().await?;
+    Mock::given(method("PATCH"))
+        .and(path(UPSERT_PATH))
+        .respond_with(unavailable())
+        .up_to_n_times(2)
+        .with_priority(1)
+        .mount(&harness.mock_server)
+        .await;
+    Mock::given(method("PATCH"))
+        .and(path(UPSERT_PATH))
+        .respond_with(created())
+        .with_priority(2)
+        .mount(&harness.mock_server)
+        .await;
+
+    harness.insert_outbox_row("lsn-1", "Acme Corp").await?;
+    let runtime = harness
+        // The force client also retries a 503 inside one attempt, so allow
+        // enough attempts for both layers.
+        .start(fast_config(5))
+        .await?;
+    let tasks = harness.wait_for_settled(1).await?;
+    runtime.stop().await?;
+
+    assert_eq!(tasks, vec![("done".to_owned(), None)]);
+    assert_eq!(
+        harness.linked_salesforce_id().await?.as_deref(),
+        Some(SF_ID)
+    );
+    assert!(harness.salesforce_calls().await >= 3);
+    Ok(())
+}
+
+#[tokio::test]
+#[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
+async fn exhausted_retries_fail_the_task_after_the_configured_attempts()
+-> Result<(), ForceSyncError> {
+    let harness = Harness::new().await?;
+    Mock::given(method("PATCH"))
+        .and(path(UPSERT_PATH))
+        .respond_with(unavailable())
+        .mount(&harness.mock_server)
+        .await;
+
+    harness.insert_outbox_row("lsn-1", "Acme Corp").await?;
+    let runtime = harness.start(fast_config(2)).await?;
+    let tasks = harness.wait_for_settled(1).await?;
+    let calls_at_settle = harness.salesforce_calls().await;
+    tokio::time::sleep(Duration::from_secs(3)).await;
+    let calls_after = harness.salesforce_calls().await;
+    runtime.stop().await?;
+
+    let [(status, Some(error))] = tasks.as_slice() else {
+        panic!("expected one failed task with an error, got {tasks:?}");
+    };
+    assert_eq!(status, "failed");
+    assert!(error.contains("retries exhausted"), "{error}");
+    assert_eq!(
+        calls_after, calls_at_settle,
+        "a failed task must not call Salesforce again"
+    );
+    assert_eq!(harness.linked_salesforce_id().await?, None);
+    Ok(())
+}
+
+#[tokio::test]
+#[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
+async fn rejected_write_fails_the_task_without_retry() -> Result<(), ForceSyncError> {
+    let harness = Harness::new().await?;
+    Mock::given(method("PATCH"))
+        .and(path(UPSERT_PATH))
+        .respond_with(ResponseTemplate::new(400).set_body_json(json!([{
+            "message": "Name: bad value",
+            "errorCode": "INVALID_FIELD"
+        }])))
+        .expect(1)
+        .mount(&harness.mock_server)
+        .await;
+
+    harness.insert_outbox_row("lsn-1", "Acme Corp").await?;
+    let runtime = harness.start(fast_config(5)).await?;
+    let tasks = harness.wait_for_settled(1).await?;
+    runtime.stop().await?;
+
+    let [(status, Some(error))] = tasks.as_slice() else {
+        panic!("expected one failed task with an error, got {tasks:?}");
+    };
+    assert_eq!(status, "failed");
+    assert!(error.contains("permanent"), "{error}");
+    Ok(())
+}
+
+#[tokio::test]
+#[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
+async fn two_changes_to_one_record_both_settle() -> Result<(), ForceSyncError> {
+    let harness = Harness::new().await?;
+    Mock::given(method("PATCH"))
+        .and(path(UPSERT_PATH))
+        .respond_with(created())
+        .mount(&harness.mock_server)
+        .await;
+
+    harness.insert_outbox_row("lsn-1", "Acme Corp").await?;
+    harness
+        .insert_outbox_row("lsn-2", "Acme Corporation")
+        .await?;
+    let runtime = harness.start(fast_config(3)).await?;
+    let tasks = harness.wait_for_settled(2).await?;
+    runtime.stop().await?;
+
+    assert_eq!(
+        tasks,
+        vec![("done".to_owned(), None), ("done".to_owned(), None)]
+    );
+    assert_eq!(
+        harness.linked_salesforce_id().await?.as_deref(),
+        Some(SF_ID)
+    );
+    Ok(())
+}
+
+/// The durability property: a restart after the Salesforce call resumes at
+/// finalize, and does not call Salesforce again.
+///
+/// A trigger makes every `sync_link` write fail, so finalize fails after the
+/// Salesforce call succeeds. The runtime stops while finalize waits for its
+/// retry. A new runtime then starts with the trigger removed.
+#[tokio::test]
+#[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
+async fn restart_after_the_salesforce_call_does_not_repeat_it() -> Result<(), ForceSyncError> {
+    let harness = Harness::new().await?;
+    Mock::given(method("PATCH"))
+        .and(path(UPSERT_PATH))
+        .respond_with(created())
+        .mount(&harness.mock_server)
+        .await;
+    harness
+        .pool
+        .get()
+        .await?
+        .batch_execute(
+            "create function fail_link_writes() returns trigger language plpgsql as $$
+             begin raise exception 'injected finalize failure'; end $$;
+             create trigger fail_link_writes before insert or update on sync_link
+             for each row execute function fail_link_writes();",
+        )
+        .await?;
+
+    harness.insert_outbox_row("lsn-1", "Acme Corp").await?;
+    let first = harness.start(fast_config(3)).await?;
+
+    let deadline = Instant::now() + Duration::from_secs(60);
+    while harness.salesforce_calls().await == 0 {
+        assert!(Instant::now() < deadline, "Salesforce was never called");
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    // Let finalize fail at least once, so the Salesforce result is recorded.
+    tokio::time::sleep(Duration::from_secs(2)).await;
+    first.stop().await?;
+    assert_eq!(harness.tasks().await?[0].0, "leased");
+    assert_eq!(harness.salesforce_calls().await, 1);
+
+    harness
+        .pool
+        .get()
+        .await?
+        .batch_execute("drop trigger fail_link_writes on sync_link;")
+        .await?;
+    let second = harness.start(fast_config(3)).await?;
+    let tasks = harness.wait_for_settled(1).await?;
+    second.stop().await?;
+
+    assert_eq!(tasks, vec![("done".to_owned(), None)]);
+    assert_eq!(
+        harness.linked_salesforce_id().await?.as_deref(),
+        Some(SF_ID)
+    );
+    assert_eq!(
+        harness.salesforce_calls().await,
+        1,
+        "recovery must resume at finalize, not repeat the Salesforce call"
+    );
+    Ok(())
+}
+
+/// A crash after the dispatch lease commits, but before the apply workflow
+/// starts, leaves the task `leased` with no workflow. The next dispatch must
+/// reclaim it once the lease expires.
+#[tokio::test]
+#[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
+async fn task_stranded_by_a_dispatch_crash_is_recovered() -> Result<(), ForceSyncError> {
+    let harness = Harness::new().await?;
+    Mock::given(method("PATCH"))
+        .and(path(UPSERT_PATH))
+        .respond_with(created())
+        .expect(1)
+        .mount(&harness.mock_server)
+        .await;
+
+    harness.insert_outbox_row("lsn-1", "Acme Corp").await?;
+    let engine = SyncEngine::builder(test_client(&harness.mock_server).await)
+        .postgres(PgStore::new(harness.pool.clone()))
+        .object(ObjectSync::new("Account").external_id("ExternalId__c"))
+        .build()?;
+    assert_eq!(engine.run_capture_postgres_once().await?, 1);
+    harness
+        .pool
+        .get()
+        .await?
+        .execute(
+            "update sync_task
+             set status = 'leased', lease_owner = $1,
+                 lease_until = now() - interval '1 minute'",
+            &[&force_sync::durable::DEFAULT_LEASE_OWNER],
+        )
+        .await?;
+
+    let runtime = harness.start(fast_config(3)).await?;
+    let tasks = harness.wait_for_settled(1).await?;
+    runtime.stop().await?;
+
+    assert_eq!(tasks, vec![("done".to_owned(), None)]);
+    assert_eq!(
+        harness.linked_salesforce_id().await?.as_deref(),
+        Some(SF_ID)
+    );
+    Ok(())
+}

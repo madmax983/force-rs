@@ -223,6 +223,62 @@ impl PgStore {
         lease_ready_tasks_query(&**client, worker_id, limit, &lease_deadline).await
     }
 
+    /// Leases ready tasks, and reclaims expired leases that `worker_id` holds.
+    ///
+    /// [`Self::lease_ready_tasks`] never returns a `leased` row, so a worker
+    /// that crashes before it settles its batch strands those tasks. This
+    /// lease also takes back each `leased` row of `worker_id` whose lease has
+    /// expired. It never takes a row that another owner holds.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the lease duration is invalid or the database write fails.
+    pub async fn lease_ready_or_expired_tasks(
+        &self,
+        worker_id: &str,
+        limit: i64,
+        lease_for: Duration,
+    ) -> Result<Vec<LeasedTask>, ForceSyncError> {
+        let lease_until = compute_lease_deadline(lease_for)?.lease_until;
+        let client = self.pool().get().await?;
+        let rows = client
+            .query(
+                "with claimed as (
+                    select task_id
+                    from sync_task
+                    where (status = 'ready'
+                           and next_attempt_at <= now()
+                           and (lease_until is null or lease_until <= now()))
+                       or (status = 'leased'
+                           and lease_owner = $1
+                           and lease_until <= now())
+                    order by priority desc, next_attempt_at asc, task_id asc
+                    for update skip locked
+                    limit $2
+                )
+                update sync_task
+                set status = 'leased',
+                    lease_owner = $1,
+                    lease_until = $3::timestamptz,
+                    attempt_count = attempt_count + 1,
+                    updated_at = now()
+                from claimed
+                where sync_task.task_id = claimed.task_id
+                returning sync_task.task_id",
+                &[&worker_id, &limit, &lease_until],
+            )
+            .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| LeasedTask {
+                task_id: row.get(0),
+                lease_owner: worker_id.to_owned(),
+                lease_until,
+            })
+            .collect())
+    }
+
     /// Acknowledges a completed task administratively, without lease-owner checks.
     ///
     /// # Errors
@@ -339,6 +395,49 @@ impl PgStore {
             Some(worker_id),
         )
         .await
+    }
+
+    /// Returns the sync key of each apply task in `task_ids`.
+    ///
+    /// The key is `(tenant, object_name, external_id)` from the journal row.
+    /// A task with no journal row is returned with no key. Rows come back in
+    /// ascending task ID order.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database read fails.
+    pub async fn apply_task_keys(
+        &self,
+        task_ids: &[i64],
+    ) -> Result<Vec<(i64, Option<(String, String, String)>)>, ForceSyncError> {
+        let client = self.pool().get().await?;
+        let rows = client
+            .query(
+                "select t.task_id, j.tenant, j.object_name, j.external_id
+                 from sync_task t
+                 left join sync_journal j
+                   on (t.payload->>'journal_id')::bigint = j.journal_id
+                 where t.task_id = any($1)
+                 order by t.task_id asc",
+                &[&task_ids],
+            )
+            .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| {
+                let tenant: Option<String> = row.get(1);
+                let object_name: Option<String> = row.get(2);
+                let external_id: Option<String> = row.get(3);
+                let key = match (tenant, object_name, external_id) {
+                    (Some(tenant), Some(object_name), Some(external_id)) => {
+                        Some((tenant, object_name, external_id))
+                    }
+                    _ => None,
+                };
+                (row.get(0), key)
+            })
+            .collect())
     }
 
     /// Enqueues an apply task inside an existing transaction.

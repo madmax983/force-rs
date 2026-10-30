@@ -19,6 +19,24 @@ jobs:
       pull-requests: write
       issues: write
       contents: read
+    # The force-sync `#[ignore]` tests need only this database, so coverage
+    # runs them too. The live_* tests stay out (see codecov.yml).
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: force_sync_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d force_sync_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      FORCE_SYNC_TEST_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/force_sync_test
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -44,10 +62,24 @@ jobs:
             --output-dir ./coverage \
             -- --test-threads 1
 
+      # The ptrace engine segfaults on the harvest worker threads, so this
+      # run uses the LLVM engine. Codecov merges both uploads.
+      - name: Generate force-sync Postgres coverage report
+        run: |
+          cargo tarpaulin \
+            --engine llvm \
+            -p force-sync \
+            --features durable \
+            --timeout 600 \
+            --exclude-files 'vendor/*' \
+            --out Xml \
+            --output-dir ./coverage-postgres \
+            -- --ignored --test-threads 1
+
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
         with:
-          files: ./coverage/cobertura.xml
+          files: ./coverage/cobertura.xml,./coverage-postgres/cobertura.xml
           flags: unittests
           name: codecov-umbrella
           fail_ci_if_error: false
@@ -61,6 +93,7 @@ jobs:
           name: coverage-report
           path: |
             coverage/
+            coverage-postgres/
           retention-days: 30
 
       - name: Extract coverage percentage
