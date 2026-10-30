@@ -984,7 +984,7 @@ mod shards {
     use autumn_harvest::types::ShardId;
 
     use super::super::workflows::{APPLY_WORKFLOW, apply_placement_key, apply_workflow_id};
-    use super::super::{HarvestShards, concurrency_key, harvest_pool};
+    use super::super::{HarvestShards, concurrency_key, harvest_pool, harvest_sharded_pool};
 
     fn lazy_pool() -> autumn_harvest::worker::DbPool {
         harvest_pool("postgresql://unused:unused@localhost:5432/unused", 1)
@@ -1096,5 +1096,36 @@ mod shards {
             panic!("a router shard with no pool must be rejected");
         };
         assert!(error.to_string().contains("shard 1"), "{error}");
+    }
+
+    const UNUSED_DSN: &str = "postgresql://unused:unused@localhost:5432/unused";
+
+    #[test]
+    fn a_sharded_pool_holds_one_pool_per_dsn() {
+        let pool = harvest_sharded_pool(
+            [
+                (ShardId::new(0), UNUSED_DSN.to_owned()),
+                (ShardId::new(1), UNUSED_DSN.to_owned()),
+            ],
+            ShardId::new(0),
+            1,
+        )
+        .unwrap_or_else(|error| panic!("sharded pool: {error}"));
+        assert!(pool.exact_pool_for(ShardId::new(0)).is_some());
+        assert!(pool.exact_pool_for(ShardId::new(1)).is_some());
+        assert!(pool.exact_pool_for(ShardId::new(2)).is_none());
+    }
+
+    #[test]
+    fn a_sharded_pool_without_a_default_shard_dsn_is_rejected() {
+        let result = harvest_sharded_pool(
+            [(ShardId::new(1), UNUSED_DSN.to_owned())],
+            ShardId::new(0),
+            1,
+        );
+        let Err(error) = result else {
+            panic!("a default shard with no DSN must be rejected");
+        };
+        assert!(error.to_string().contains("default shard 0"), "{error}");
     }
 }
