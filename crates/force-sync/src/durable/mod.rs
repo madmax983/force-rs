@@ -624,16 +624,12 @@ impl DurableSync {
         let HarvestShards { pool, router } = self.state.harvest;
         let mut runtime_config = WorkerRuntimeConfig::from(worker_config);
         // An empty assignment list makes the worker claim from every shard
-        // of the pool.
+        // of the pool. With no assignment, no assigned shard can lack a
+        // pool. `HarvestShards::new` already checks the router against the
+        // pool.
         runtime_config.sharded_pool = Some(pool.clone());
         let worker = Worker::new(runtime_config, Arc::clone(&registry))
             .map_err(|error| ForceSyncError::Durable(format!("harvest worker: {error}")))?;
-        let missing = worker.missing_assigned_shard_pools();
-        if !missing.is_empty() {
-            return Err(ForceSyncError::Durable(format!(
-                "harvest worker: no pool for shards {missing:?}"
-            )));
-        }
         let worker = Arc::new(worker);
 
         // Harvest reads the process router and pool to route work between
