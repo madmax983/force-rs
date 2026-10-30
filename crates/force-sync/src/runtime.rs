@@ -16,7 +16,10 @@ use crate::{
             parse_salesforce_id, plan_apply,
         },
     },
-    capture,
+    capture::{
+        self,
+        salesforce::{CdcSource, CdcStream, CdcWindow, CdcWindowReport},
+    },
     error::ForceSyncError,
     identity::SyncKey,
     model::{ChangeEnvelope, ChangeOperation, SourceCursor, SourceSystem},
@@ -78,6 +81,12 @@ impl<A: Authenticator> SyncEngine<A> {
         &self.store
     }
 
+    /// The sync config of `object_name`, if the engine syncs it.
+    #[cfg(feature = "durable")]
+    pub(crate) fn object(&self, object_name: &str) -> Option<&ObjectSync> {
+        self.objects.get(object_name)
+    }
+
     /// The number of outbox rows captured per batch.
     #[cfg(feature = "durable")]
     pub(crate) const fn capture_batch_size_value(&self) -> i64 {
@@ -96,6 +105,30 @@ impl<A: Authenticator> SyncEngine<A> {
             self.capture_priority,
         )
         .await
+    }
+
+    /// Captures one bounded window of a Salesforce CDC stream.
+    ///
+    /// The stream object must be one of the configured objects. See
+    /// [`crate::capture_cdc_window`] for the window semantics.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ForceSyncError::MissingConfiguration`] when the stream object
+    /// is not configured, and any error of [`crate::capture_cdc_window`].
+    pub async fn run_cdc_window(
+        &self,
+        source: &dyn CdcSource,
+        stream: &CdcStream,
+        window: CdcWindow,
+    ) -> Result<CdcWindowReport, ForceSyncError> {
+        let object =
+            self.objects
+                .get(stream.object_name())
+                .ok_or(ForceSyncError::MissingConfiguration {
+                    field: "object sync",
+                })?;
+        capture::salesforce::capture_cdc_window(&self.store, source, stream, object, window).await
     }
 
     /// Leases and applies one configured batch of ready tasks.

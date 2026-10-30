@@ -4,8 +4,12 @@
 //! migrations, starts [`DurableSync`], and lets the pump schedule drive an
 //! outbox row to a wiremock Salesforce. No test calls a `*_once` method.
 
+// The CDC stream item type is fixed by force-pubsub, and its error is large.
+#![allow(clippy::result_large_err)]
+
 mod support;
 
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
@@ -21,10 +25,17 @@ use wiremock::{
     matchers::{method, path},
 };
 
+use force_pubsub::{EventMessage, PubSubEvent, ReplayId, ReplayPreset};
+use futures::{StreamExt, stream};
+use serde_json::Value;
+
 use force_sync::durable::{
     DurableSync, DurableSyncConfig, DurableSyncRuntime, harvest_pool, migrate_harvest,
 };
-use force_sync::{ForceSyncError, ObjectSync, PgStore, SyncEngine};
+use force_sync::{
+    CdcEventStream, CdcSource, CdcStart, CdcStream, CdcWindow, ForceSyncError, ObjectSync, PgStore,
+    SyncEngine,
+};
 
 const UPSERT_PATH: &str = "/services/data/v68.0/sobjects/Account/ExternalId__c/external-1";
 const SF_ID: &str = "001000000000001AAA";
@@ -121,6 +132,24 @@ impl Harness {
             .build()?;
         DurableSync::new(engine, harvest_pool(&database_url(), 8)?)
             .with_config(config)?
+            .start()
+    }
+
+    async fn start_with_cdc(
+        &self,
+        config: DurableSyncConfig,
+        source: Arc<dyn CdcSource>,
+    ) -> Result<DurableSyncRuntime, ForceSyncError> {
+        let engine = SyncEngine::builder(test_client(&self.mock_server).await)
+            .postgres(PgStore::new(self.pool.clone()))
+            .object(ObjectSync::new("Account").external_id("ExternalId__c"))
+            .build()?;
+        DurableSync::new(engine, harvest_pool(&database_url(), 8)?)
+            .with_config(config)?
+            .with_cdc(
+                source,
+                [CdcStream::new("tenant", "Account").starting_at(CdcStart::Earliest)],
+            )?
             .start()
     }
 
@@ -454,6 +483,221 @@ async fn task_stranded_by_a_dispatch_crash_is_recovered() -> Result<(), ForceSyn
     assert_eq!(
         harness.linked_salesforce_id().await?.as_deref(),
         Some(SF_ID)
+    );
+    Ok(())
+}
+
+// -- Durable Salesforce CDC capture --------------------------------------
+
+/// A CDC source with Salesforce replay semantics over an in-memory feed.
+///
+/// `Custom(id)` delivers the events after `id`. `Earliest` delivers all of
+/// them. After the feed it idles, as a quiet channel does. It records each
+/// preset it is asked for.
+#[derive(Default)]
+struct FeedSource {
+    feed: Mutex<Vec<(u8, Value)>>,
+    presets: Mutex<Vec<String>>,
+}
+
+impl FeedSource {
+    fn publish(&self, replay: u8, external_id: &str, salesforce_id: &str) {
+        self.feed
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .push((
+                replay,
+                json!({
+                    "ChangeEventHeader": {"entityName": "Account", "changeType": "UPDATE"},
+                    "Id": salesforce_id,
+                    "ExternalId__c": external_id,
+                    "Name": format!("Acme {replay}"),
+                }),
+            ));
+    }
+
+    fn presets(&self) -> Vec<String> {
+        self.presets
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone()
+    }
+}
+
+#[async_trait]
+impl CdcSource for FeedSource {
+    async fn subscribe(
+        &self,
+        _topic: &str,
+        replay: ReplayPreset,
+    ) -> Result<CdcEventStream, ForceSyncError> {
+        let after = match &replay {
+            ReplayPreset::Custom(id) => id.as_bytes().last().copied(),
+            ReplayPreset::Latest | ReplayPreset::Earliest => None,
+        };
+        self.presets
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .push(match replay {
+                ReplayPreset::Latest => "latest".to_owned(),
+                ReplayPreset::Earliest => "earliest".to_owned(),
+                ReplayPreset::Custom(id) => format!("custom:{:?}", id.as_bytes()),
+            });
+        let events: Vec<_> = self
+            .feed
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .iter()
+            .filter(|(replay, _)| after.is_none_or(|after| *replay > after))
+            .map(|(replay, payload)| {
+                Ok(PubSubEvent::Event(EventMessage {
+                    payload: payload.clone(),
+                    replay_id: ReplayId::from_bytes(vec![*replay]),
+                    schema_id: "schema-1".to_owned(),
+                    event_id: format!("evt-{replay}"),
+                }))
+            })
+            .collect();
+        Ok(stream::iter(events).chain(stream::pending()).boxed())
+    }
+}
+
+/// Short CDC windows and a fast supervisor, so tests settle in seconds.
+fn cdc_config() -> DurableSyncConfig {
+    DurableSyncConfig {
+        cdc_window: CdcWindow {
+            max_duration: Duration::from_secs(2),
+            max_events: 100,
+        },
+        cdc_supervise_interval: Duration::from_secs(1),
+        cdc_error_backoff: Duration::from_secs(1),
+        ..fast_config(3)
+    }
+}
+
+const SF_ID_1: &str = "001000000000011AAA";
+const SF_ID_2: &str = "001000000000012AAA";
+const SF_ID_3: &str = "001000000000013AAA";
+
+impl Harness {
+    async fn salesforce_journal_rows(&self) -> Result<i64, ForceSyncError> {
+        Ok(self
+            .pool
+            .get()
+            .await?
+            .query_one(
+                "select count(*) from sync_journal where source = 'salesforce'",
+                &[],
+            )
+            .await?
+            .get(0))
+    }
+
+    async fn linked_ids(&self) -> Result<Vec<(String, Option<String>)>, ForceSyncError> {
+        Ok(self
+            .pool
+            .get()
+            .await?
+            .query(
+                "select external_id, salesforce_id from sync_link
+                 where last_source = 'salesforce' order by external_id",
+                &[],
+            )
+            .await?
+            .iter()
+            .map(|row| (row.get(0), row.get(1)))
+            .collect())
+    }
+}
+
+#[tokio::test]
+#[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
+async fn cdc_events_are_captured_and_projected_by_the_durable_runtime() -> Result<(), ForceSyncError>
+{
+    let harness = Harness::new().await?;
+    let source = Arc::new(FeedSource::default());
+    source.publish(1, "cdc-1", SF_ID_1);
+    source.publish(2, "cdc-2", SF_ID_2);
+
+    let runtime = harness.start_with_cdc(cdc_config(), source.clone()).await?;
+    let tasks = harness.wait_for_settled(2).await?;
+    // The supervisor fires every second. Let it fire several more times.
+    tokio::time::sleep(Duration::from_secs(4)).await;
+    let live_stream_runs: i64 = harness
+        .pool
+        .get()
+        .await?
+        .query_one(
+            "select count(*) from harvest_workflow_executions
+             where workflow_id = 'force-sync-cdc-salesforce:Account'
+               and state not in ('COMPLETED', 'FAILED', 'CANCELLED', 'TERMINATED',
+                                 'TIMED_OUT', 'CONTINUED_AS_NEW')",
+            &[],
+        )
+        .await?
+        .get(0);
+    runtime.stop().await?;
+
+    assert_eq!(
+        live_stream_runs, 1,
+        "the supervisor attaches, never duplicates"
+    );
+    assert_eq!(
+        tasks,
+        vec![("done".to_owned(), None), ("done".to_owned(), None)]
+    );
+    assert_eq!(
+        harness.linked_ids().await?,
+        vec![
+            ("cdc-1".to_owned(), Some(SF_ID_1.to_owned())),
+            ("cdc-2".to_owned(), Some(SF_ID_2.to_owned())),
+        ]
+    );
+    assert_eq!(
+        harness.salesforce_calls().await,
+        0,
+        "a Salesforce-origin change is projected locally, never written back"
+    );
+    assert_eq!(
+        source.presets().first().map(String::as_str),
+        Some("earliest")
+    );
+    Ok(())
+}
+
+/// A restart resumes the stream from its checkpoint: it neither loses an
+/// event published while it was down nor journals one twice.
+#[tokio::test]
+#[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
+async fn cdc_capture_resumes_from_the_checkpoint_after_a_restart() -> Result<(), ForceSyncError> {
+    let harness = Harness::new().await?;
+    let source = Arc::new(FeedSource::default());
+    source.publish(1, "cdc-1", SF_ID_1);
+    source.publish(2, "cdc-2", SF_ID_2);
+
+    let first = harness.start_with_cdc(cdc_config(), source.clone()).await?;
+    harness.wait_for_settled(2).await?;
+    first.stop().await?;
+
+    // Published while no runtime is up.
+    source.publish(3, "cdc-3", SF_ID_3);
+    let before_restart = source.presets().len();
+
+    let second = harness.start_with_cdc(cdc_config(), source.clone()).await?;
+    let tasks = harness.wait_for_settled(3).await?;
+    second.stop().await?;
+
+    assert!(
+        tasks.iter().all(|(status, _)| status == "done"),
+        "{tasks:?}"
+    );
+    assert_eq!(harness.salesforce_journal_rows().await?, 3, "no duplicates");
+    assert_eq!(harness.linked_ids().await?.len(), 3);
+    assert_eq!(
+        source.presets().get(before_restart).map(String::as_str),
+        Some("custom:[2]"),
+        "the first subscription after the restart must resume after replay 2: {:?}",
+        source.presets()
     );
     Ok(())
 }

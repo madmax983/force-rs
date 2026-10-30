@@ -12,6 +12,9 @@ Durable sync on autumn-harvest. See [ADR-036](docs/adr/036-durable-sync-on-autum
 ### Added
 
 #### `force-sync`
+- Durable Salesforce Change Data Capture: `DurableSync::with_cdc(source, streams)` follows each `CdcStream` in one long-running `force_sync_cdc_stream` workflow (`force-sync-cdc-{stream}`), kept running by the `force_sync_cdc_supervisor` schedule. A restart resumes from the checkpoint with no lost or duplicate event. New config: `cdc_window`, `cdc_supervise_interval`, `cdc_windows_per_run`, `cdc_error_backoff`.
+- `capture_cdc_window` and `SyncEngine::run_cdc_window`: one bounded CDC capture window from the checkpoint. An event that can never be captured, such as one without the external ID field, goes to `sync_dead_letter` and the checkpoint moves past it.
+- `CdcSource` trait, implemented for `force_pubsub::PubSubHandler`, with `CdcStream`, `CdcStart`, `CdcWindow`, `CdcWindowReport`, `CdcWindowEnd`, and `CdcEventStream`.
 - New opt-in `durable` feature: runs capture, apply and reconcile as [autumn-harvest](https://crates.io/crates/autumn-harvest) 0.7 workflows. Needs Rust 1.88 or later.
   - `durable::DurableSync` with `start()` (a standalone harvest worker and scheduler on the `force-sync` queue) and `register(HarvestBuilder)` (add durable sync to an existing harvest app).
   - `DurableSyncConfig`: pump and reconcile intervals, capture and dispatch batch sizes, dispatch lease, Salesforce retry policy, lease owner.

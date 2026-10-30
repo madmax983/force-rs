@@ -98,6 +98,57 @@ call is never repeated after it is recorded.
 - **force-sync tables stay the source of truth.** Harvest owns scheduling,
   retries and history only.
 
+### Salesforce Change Data Capture
+
+`DurableSync::with_cdc(source, streams)` makes the Salesforce → Postgres
+direction durable too. Each `CdcStream` (an object, its Pub/Sub channel, and
+a checkpoint name) gets one long-running workflow:
+
+```mermaid
+sequenceDiagram
+    participant Sch as Harvest scheduler
+    participant Sup as force_sync_cdc_supervisor
+    participant Str as force_sync_cdc_stream (one per stream)
+    participant SF as Salesforce Pub/Sub
+    participant PG as force-sync tables
+
+    Sch->>Sup: Interval fire (cdc_supervise_interval)
+    Sup->>Str: start or attach force-sync-cdc-{stream}
+    loop cdc_windows_per_run windows, then continue as new
+        Str->>PG: window activity: load checkpoint
+        Str->>SF: subscribe from the checkpoint
+        SF-->>Str: events, until the window ends
+        Str->>PG: per event: journal + apply task + checkpoint (one tx)
+    end
+```
+
+- **One reader per stream.** The workflow ID is `force-sync-cdc-{stream}`.
+  The supervisor starts it with `TerminateIfRunning` and `UseExisting`: it
+  attaches to a running workflow and starts a fresh one when the previous run
+  ended for any reason. A stream that is removed from the config ends its
+  workflow, and the supervisor does not start it again.
+- **Bounded windows.** The window activity subscribes from the checkpoint,
+  reads for `cdc_window.max_duration` (at most 540 seconds) or
+  `cdc_window.max_events`, and returns. It checks for cancellation every
+  second and heartbeats every 10 seconds, with a 30 second heartbeat timeout,
+  so a dead worker loses the stream fast. A failed window waits
+  `cdc_error_backoff` on a durable timer. After `cdc_windows_per_run` windows
+  the run continues as new, which bounds its history.
+- **At-least-once delivery, exactly-once journal.** Each event commits its
+  journal row, apply task and checkpoint in one transaction. A crash before
+  the commit leaves the checkpoint behind the event, so the next window reads
+  it again, and the journal's `(source, source_cursor)` index drops the
+  duplicate.
+- **A poison event cannot wedge a stream.** An event that can never be
+  captured, such as one without the external ID field, goes to
+  `sync_dead_letter` and the checkpoint moves past it, in the same
+  transaction. A configuration or database error fails the window instead.
+- **Pluggable source.** `CdcSource` is a trait. `force_pubsub::PubSubHandler`
+  implements it, and a test or another transport can provide its own.
+
+The same window is available without harvest as `capture_cdc_window` and
+`SyncEngine::run_cdc_window`.
+
 ### Integration surface
 
 - `DurableSync::new(engine, harvest_pool)` with `DurableSyncConfig`.
@@ -106,6 +157,7 @@ call is never repeated after it is recorded.
 - `DurableSync::register(builder)` adds the workflows, activities, schedules
   and state to an existing `HarvestBuilder`, for apps that already run
   harvest, for example with `HarvestPlugin`.
+- `DurableSync::with_cdc(source, streams)` adds durable CDC capture.
 - `migrate_harvest(url)` and `harvest_pool(url, size)` wrap the harvest
   migration and pool helpers.
 
@@ -136,8 +188,11 @@ call is never repeated after it is recorded.
 - The bulk lane no longer calls Bulk and then REST when the linked Salesforce
   ID is invalid. The planner now picks REST up front. The end state is the
   same, with one call instead of two.
-- Salesforce CDC capture (`capture_stream`) is a long-lived stream. It is not
-  scheduled by the durable runtime yet.
+- Harvest allows one schedule per workflow name, so CDC streams are not
+  scheduled one by one. One supervisor schedule keeps every stream workflow
+  running.
+- `capture_stream` still returns an error on an event it cannot capture. The
+  window API quarantines such an event instead.
 
 ## Verification
 
@@ -151,3 +206,11 @@ call is never repeated after it is recorded.
   call, and a task stranded by a crash during dispatch.
 - `tests/journal_tasks.rs`: the reclaiming lease takes ready rows and expired
   rows of its own owner only.
+- `tests/cdc_window.rs` (Postgres): a window resumes from the checkpoint,
+  stops at its limits, quarantines an event without an external ID and keeps
+  going, counts a redelivery as a duplicate, and keeps committed events when
+  the stream fails.
+- `tests/durable_sync.rs` CDC tests: events reach the journal and are
+  projected with no Salesforce call. A restart resumes from the checkpoint
+  with no lost or duplicate event. The supervisor never runs two workflows
+  for one stream.

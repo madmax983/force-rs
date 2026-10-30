@@ -81,6 +81,31 @@ What it does:
 - At most one apply runs at a time for each `(tenant, object, external_id)`.
 - A **reconcile** schedule (`force_sync_reconcile`, every
   `reconcile_interval`) enqueues repair tasks for drift.
+- With `with_cdc`, each Salesforce Change Data Capture stream gets one
+  long-running `force_sync_cdc_stream` workflow. It reads bounded windows
+  from the stream checkpoint, and each event commits its journal row, apply
+  task and checkpoint together. A restart resumes from the checkpoint with no
+  lost or duplicate event. An event that can never be captured, such as one
+  without the external ID field, goes to `sync_dead_letter`. The
+  `force_sync_cdc_supervisor` schedule keeps every stream workflow running.
+
+```rust,ignore
+use std::sync::Arc;
+use force_pubsub::{PubSubConfig, PubSubHandler};
+use force_sync::{CdcStart, CdcStream};
+
+let pubsub = PubSubHandler::connect(client.session(), PubSubConfig::default()).await?;
+let runtime = DurableSync::new(engine, harvest_pool(&harvest_url, 16)?)
+    .with_cdc(
+        Arc::new(pubsub),
+        [CdcStream::new("acme", "Account").starting_at(CdcStart::Earliest)],
+    )?
+    .start()?;
+```
+
+`CdcStream::new` uses the standard channel (`/data/AccountChangeEvent`, or
+`/data/Invoice__ChangeEvent` for `Invoice__c`). `with_topic` picks a custom
+channel. Without harvest, `SyncEngine::run_cdc_window` runs one window.
 
 `start()` runs a core harvest worker and scheduler, with no web framework.
 To add durable sync to an app that already runs harvest, call
