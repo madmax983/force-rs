@@ -341,6 +341,49 @@ impl PgStore {
         .await
     }
 
+    /// Returns the sync key of each apply task in `task_ids`.
+    ///
+    /// The key is `(tenant, object_name, external_id)` from the journal row.
+    /// A task with no journal row is returned with no key. Rows come back in
+    /// ascending task ID order.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database read fails.
+    pub async fn apply_task_keys(
+        &self,
+        task_ids: &[i64],
+    ) -> Result<Vec<(i64, Option<(String, String, String)>)>, ForceSyncError> {
+        let client = self.pool().get().await?;
+        let rows = client
+            .query(
+                "select t.task_id, j.tenant, j.object_name, j.external_id
+                 from sync_task t
+                 left join sync_journal j
+                   on (t.payload->>'journal_id')::bigint = j.journal_id
+                 where t.task_id = any($1)
+                 order by t.task_id asc",
+                &[&task_ids],
+            )
+            .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| {
+                let tenant: Option<String> = row.get(1);
+                let object_name: Option<String> = row.get(2);
+                let external_id: Option<String> = row.get(3);
+                let key = match (tenant, object_name, external_id) {
+                    (Some(tenant), Some(object_name), Some(external_id)) => {
+                        Some((tenant, object_name, external_id))
+                    }
+                    _ => None,
+                };
+                (row.get(0), key)
+            })
+            .collect())
+    }
+
     /// Enqueues an apply task inside an existing transaction.
     ///
     /// # Errors

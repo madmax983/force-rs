@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Durable sync on autumn-harvest. See [ADR-036](docs/adr/036-durable-sync-on-autumn-harvest.md).
+
+### Added
+
+#### `force-sync`
+- New opt-in `durable` feature: runs capture, apply and reconcile as [autumn-harvest](https://crates.io/crates/autumn-harvest) 0.7 workflows. Needs Rust 1.88 or later.
+  - `durable::DurableSync` with `start()` (a standalone harvest worker and scheduler on the `force-sync` queue) and `register(HarvestBuilder)` (add durable sync to an existing harvest app).
+  - `DurableSyncConfig`: pump and reconcile intervals, capture and dispatch batch sizes, dispatch lease, Salesforce retry policy, lease owner.
+  - One `force_sync_apply` workflow per `sync_task` row (`force-sync-apply-{task_id}`). Its Salesforce call is a recorded activity, so a restart after the call does not repeat it.
+  - At most one apply in flight per record (harvest concurrency key = sync key, limit 1).
+  - Transient Salesforce errors retry with the configured backoff. Exhausted retries fail the task with `Salesforce call retries exhausted: ...`.
+  - `durable::migrate_harvest` and `durable::harvest_pool` helpers.
+- `PgStore::apply_task_keys` returns the sync key of each apply task.
+- `ForceSyncError::Durable` variant.
+- `examples/durable_sync.rs`.
+
+### Changed
+
+#### `force-sync`
+- `SyncEngine::run_apply_once` now runs the same prepare / execute / finalize phases as the durable runtime. Task states and error messages are unchanged.
+- The bulk lane picks REST up front when the linked Salesforce ID is invalid. It used to call Bulk and then REST.
+
 ## [0.5.0] - 2026-10-28
 
 Winter '27 (API v68.0) adoption. See [ADR-035](docs/adr/035-winter-27-v68-adoption.md) and the

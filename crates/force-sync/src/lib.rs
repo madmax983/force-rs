@@ -10,6 +10,9 @@ pub(crate) mod apply;
 pub(crate) mod capture;
 /// Object-level sync configuration and conflict policy types.
 pub(crate) mod config;
+/// Durable sync on the autumn-harvest workflow engine.
+#[cfg(feature = "durable")]
+pub mod durable;
 /// Error types for force-sync.
 pub(crate) mod error;
 /// Canonical identity types for synced records.

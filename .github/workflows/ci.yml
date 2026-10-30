@@ -128,6 +128,11 @@ jobs:
       - name: Run force-sync ignored Postgres tests
         run: cargo test -p force-sync -- --ignored --test-threads=1
 
+      # `--lib --tests` skips doctests: autumn-harvest 0.7 macros emit an
+      # `ignore` doc fence on every `*_info()` fn that `--ignored` would run.
+      - name: Run force-sync durable (autumn-harvest) Postgres tests
+        run: cargo test -p force-sync --features durable --lib --tests -- --ignored --test-threads=1
+
   full-matrix:
     name: Full Matrix (${{ matrix.rust }})
     runs-on: ubuntu-latest

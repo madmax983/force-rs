@@ -31,13 +31,30 @@ deadpool-postgres = { workspace = true }
 tokio-postgres = { workspace = true }
 blake3 = { workspace = true }
 secrecy.workspace = true
+autumn-harvest = { workspace = true, optional = true }
+async-trait = { workspace = true, optional = true }
+
+[features]
+default = []
+# Run capture, apply and reconcile as autumn-harvest durable workflows.
+# Needs Rust 1.88 or later (the autumn-harvest MSRV).
+durable = ["dep:autumn-harvest", "dep:async-trait"]
 
 [dev-dependencies]
 anyhow = { workspace = true }
 async-trait = { workspace = true }
 proptest = "1.7"
 wiremock = { workspace = true }
+autumn-harvest = { workspace = true, features = ["testing"] }
 
 [[bench]]
 name = "plan_change_profile"
 harness = false
+
+[[test]]
+name = "durable_sync"
+required-features = ["durable"]
+
+[[example]]
+name = "durable_sync"
+required-features = ["durable"]

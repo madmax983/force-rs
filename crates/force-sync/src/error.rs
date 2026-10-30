@@ -82,6 +82,10 @@ pub enum ForceSyncError {
         value: String,
     },
 
+    /// The durable runtime (feature `durable`) could not build, start, or stop.
+    #[error("durable runtime error: {0}")]
+    Durable(String),
+
     /// Placeholder variant while the crate surface is being implemented.
     #[error("not implemented")]
     NotImplemented,
@@ -136,6 +140,12 @@ mod tests {
     fn test_invalid_lease_duration_display() {
         let err = ForceSyncError::InvalidLeaseDuration;
         assert_eq!(err.to_string(), "lease duration is out of range");
+    }
+
+    #[test]
+    fn test_durable_display() {
+        let err = ForceSyncError::Durable("worker".to_owned());
+        assert_eq!(err.to_string(), "durable runtime error: worker");
     }
 
     #[test]

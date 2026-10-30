@@ -7,23 +7,34 @@ use force::{auth::Authenticator, client::ForceClient};
 use serde_json::Value;
 
 use crate::{
-    ApplyLane, ObjectSync, PlannerContext,
+    ObjectSync, PlannerContext,
     apply::{
         postgres::project_sync_link,
         salesforce::{ApplyError, SalesforceApplier},
+        steps::{
+            ApplyPlan, ApplyResolution, MISSING_JOURNAL_ROW, RemoteCall, RemoteOutcome,
+            parse_salesforce_id, plan_apply,
+        },
     },
     capture,
     error::ForceSyncError,
     identity::SyncKey,
     model::{ChangeEnvelope, ChangeOperation, SourceCursor, SourceSystem},
     plan_change, reconcile,
-    store::pg::{LeasedTask, PgStore, SyncConflict},
+    store::pg::{LeasedTask, PgStore, SyncConflict, SyncLink},
 };
 
 struct ApplyTaskContext {
     _journal_id: i64,
     envelope: ChangeEnvelope,
     current_payload: Option<Value>,
+}
+
+/// The journal row, current payload and sync link behind one apply task.
+struct ApplySubject {
+    envelope: ChangeEnvelope,
+    current_payload: Option<Value>,
+    existing_link: Option<SyncLink>,
 }
 
 /// Runtime sync engine for the explicit Postgres-to-Salesforce vertical slice.
@@ -59,6 +70,18 @@ impl<A: Authenticator> SyncEngine<A> {
     #[must_use]
     pub fn builder(salesforce_client: ForceClient<A>) -> SyncEngineBuilder<A> {
         SyncEngineBuilder::new(salesforce_client)
+    }
+
+    /// The control-plane store.
+    #[cfg(feature = "durable")]
+    pub(crate) const fn store(&self) -> &PgStore {
+        &self.store
+    }
+
+    /// The number of outbox rows captured per batch.
+    #[cfg(feature = "durable")]
+    pub(crate) const fn capture_batch_size_value(&self) -> i64 {
+        self.capture_batch_size
     }
 
     /// Captures a single configured batch from the Postgres outbox.
@@ -111,331 +134,292 @@ impl<A: Authenticator> SyncEngine<A> {
         task: &LeasedTask,
         batch_size: usize,
     ) -> Result<bool, ForceSyncError> {
-        let context = self.load_apply_task_context(task.task_id).await?;
-        let Some(context) = context else {
-            let _ = self
-                .store
-                .fail_task_for_worker(
-                    &self.worker_id,
-                    task.task_id,
-                    "missing apply task journal row",
-                )
-                .await?;
-            return Ok(false);
+        let subject = self.load_apply_subject(task.task_id).await?;
+        let plan = self.plan_subject(subject.as_ref(), batch_size)?;
+        let resolution = match plan {
+            ApplyPlan::Remote(call) => {
+                let outcome = self.execute_remote(&call).await;
+                ApplyResolution::Remote { call, outcome }
+            }
+            plan => ApplyResolution::Local { plan },
+        };
+        self.finalize_subject(&self.worker_id, task.task_id, subject.as_ref(), &resolution)
+            .await
+    }
+
+    /// Prepare phase: plans one apply task without writing anything.
+    ///
+    /// `batch_size` is the number of tasks dispatched together. The planner
+    /// uses it to choose between the REST and bulk lanes.
+    #[cfg(feature = "durable")]
+    pub(crate) async fn prepare_apply(
+        &self,
+        task_id: i64,
+        batch_size: usize,
+    ) -> Result<ApplyPlan, ForceSyncError> {
+        let subject = self.load_apply_subject(task_id).await?;
+        self.plan_subject(subject.as_ref(), batch_size)
+    }
+
+    /// Finalize phase: writes the link and settles the task for `lease_owner`.
+    ///
+    /// It reloads the journal row and the link, so it projects onto the
+    /// current link even when it runs long after the prepare phase. Returns
+    /// whether the task applied a change.
+    #[cfg(feature = "durable")]
+    pub(crate) async fn finalize_apply(
+        &self,
+        lease_owner: &str,
+        task_id: i64,
+        resolution: &ApplyResolution,
+    ) -> Result<bool, ForceSyncError> {
+        let subject = self.load_apply_subject(task_id).await?;
+        self.finalize_subject(lease_owner, task_id, subject.as_ref(), resolution)
+            .await
+    }
+
+    /// Execute phase: makes the one Salesforce call that `call` names.
+    pub(crate) async fn execute_remote(&self, call: &RemoteCall) -> RemoteOutcome {
+        let result = match call {
+            RemoteCall::RestUpsert {
+                object_name,
+                external_id_field,
+                external_id,
+                payload,
+            } => self
+                .salesforce
+                .apply_rest_upsert(object_name, external_id_field, external_id, payload)
+                .await
+                .map(|result| result.salesforce_id.map(|id| id.as_str().to_owned())),
+            RemoteCall::BulkUpsert {
+                object_name,
+                external_id_field,
+                payload,
+                salesforce_id,
+            } => self
+                .salesforce
+                .apply_bulk_upsert(object_name, external_id_field, 1, vec![payload.clone()])
+                .await
+                .map(|_| Some(salesforce_id.clone())),
+            RemoteCall::Delete {
+                object_name,
+                salesforce_id,
+            } => match parse_salesforce_id("salesforce_id", salesforce_id) {
+                Ok(id) => self
+                    .salesforce
+                    .apply_rest_delete(object_name, &id)
+                    .await
+                    .map(|()| Some(salesforce_id.clone())),
+                Err(error) => {
+                    return RemoteOutcome::Rejected {
+                        message: error.to_string(),
+                    };
+                }
+            },
+        };
+
+        match result {
+            Ok(salesforce_id) => RemoteOutcome::Applied { salesforce_id },
+            Err(error @ ApplyError::Retryable(_)) => RemoteOutcome::Retry {
+                message: error.to_string(),
+            },
+            Err(error @ ApplyError::Permanent(_)) => RemoteOutcome::Rejected {
+                message: error.to_string(),
+            },
+        }
+    }
+
+    fn plan_subject(
+        &self,
+        subject: Option<&ApplySubject>,
+        batch_size: usize,
+    ) -> Result<ApplyPlan, ForceSyncError> {
+        let Some(subject) = subject else {
+            return Ok(ApplyPlan::Fail {
+                reason: MISSING_JOURNAL_ROW.to_owned(),
+            });
         };
 
         let object = self
             .objects
-            .get(context.envelope.sync_key().object_name())
+            .get(subject.envelope.sync_key().object_name())
             .ok_or(ForceSyncError::MissingConfiguration {
                 field: "object sync",
             })?;
 
-        let existing_link = self
-            .store
-            .get_link(
-                context.envelope.sync_key().tenant(),
-                context.envelope.sync_key().object_name(),
-                context.envelope.sync_key().external_id(),
-            )
-            .await?;
-
         let decision = plan_change(
             &PlannerContext {
                 object: object.clone(),
-                current_payload: context.current_payload.clone(),
+                current_payload: subject.current_payload.clone(),
                 batch_size,
                 urgent: batch_size <= object.lane_thresholds().rest_max_batch_size(),
                 has_dependencies: false,
             },
-            &context.envelope,
+            &subject.envelope,
         );
 
-        self.apply_planned_task(
-            task,
-            &context.envelope,
-            existing_link.as_ref(),
-            object,
+        plan_apply(
             decision,
+            &subject.envelope,
+            subject.existing_link.as_ref(),
+            object,
         )
-        .await
     }
 
-    async fn apply_planned_task(
+    async fn finalize_subject(
         &self,
-        task: &LeasedTask,
-        envelope: &ChangeEnvelope,
-        existing_link: Option<&crate::store::pg::SyncLink>,
-        object: &ObjectSync,
-        decision: crate::plan::PlanDecision,
+        lease_owner: &str,
+        task_id: i64,
+        subject: Option<&ApplySubject>,
+        resolution: &ApplyResolution,
     ) -> Result<bool, ForceSyncError> {
-        if decision.lane == ApplyLane::Conflict {
-            for field_name in &decision.conflicts {
-                let conflict = SyncConflict {
-                    tenant: envelope.sync_key().tenant().to_owned(),
-                    object_name: envelope.sync_key().object_name().to_owned(),
-                    external_id: envelope.sync_key().external_id().to_owned(),
-                    field_name: field_name.clone(),
-                    left_value: Value::Null,
-                    right_value: Value::Null,
-                    resolution: None,
+        let plan = match resolution {
+            ApplyResolution::Local { plan } => plan,
+            ApplyResolution::Remote { call, outcome } => {
+                return self
+                    .finalize_remote(lease_owner, task_id, subject, call, outcome)
+                    .await;
+            }
+        };
+
+        match plan {
+            ApplyPlan::Fail { reason } => {
+                self.store
+                    .fail_task_for_worker(lease_owner, task_id, reason)
+                    .await?;
+                Ok(false)
+            }
+            ApplyPlan::Noop => {
+                self.store.ack_task_for_worker(lease_owner, task_id).await?;
+                Ok(false)
+            }
+            ApplyPlan::Conflict { fields } => {
+                let Some(subject) = subject else {
+                    return self.fail_missing_journal(lease_owner, task_id).await;
                 };
-                self.store.insert_conflict(&conflict).await?;
-            }
-            let _ = self
-                .store
-                .fail_task_for_worker(
-                    &self.worker_id,
-                    task.task_id,
-                    format!("planner conflict: {}", decision.conflicts.join(",")),
-                )
-                .await?;
-            return Ok(false);
-        }
-
-        if decision.lane == ApplyLane::Noop {
-            self.store
-                .ack_task_for_worker(&self.worker_id, task.task_id)
-                .await?;
-            return Ok(false);
-        }
-
-        if should_project_locally(envelope.source(), decision.lane) {
-            return self.apply_local_task(task, envelope, existing_link).await;
-        }
-
-        match decision.lane {
-            ApplyLane::Rest => {
-                let payload = decision
-                    .payload
-                    .as_ref()
-                    .unwrap_or_else(|| envelope.payload());
-                let success = self
-                    .apply_rest_task(task, envelope, payload, existing_link, object)
-                    .await?;
-                Ok(success)
-            }
-            ApplyLane::Bulk => {
-                let payload = decision
-                    .payload
-                    .as_ref()
-                    .unwrap_or_else(|| envelope.payload());
-                let success = self
-                    .apply_bulk_task(task, envelope, payload, existing_link, object)
-                    .await?;
-                Ok(success)
-            }
-            ApplyLane::CompositeGraph => {
-                let _ = self
-                    .store
+                let key = subject.envelope.sync_key();
+                for field_name in fields {
+                    self.store
+                        .insert_conflict(&SyncConflict {
+                            tenant: key.tenant().to_owned(),
+                            object_name: key.object_name().to_owned(),
+                            external_id: key.external_id().to_owned(),
+                            field_name: field_name.clone(),
+                            left_value: Value::Null,
+                            right_value: Value::Null,
+                            resolution: None,
+                        })
+                        .await?;
+                }
+                self.store
                     .fail_task_for_worker(
-                        &self.worker_id,
-                        task.task_id,
-                        format!("unsupported runtime lane: {:?}", decision.lane),
+                        lease_owner,
+                        task_id,
+                        format!("planner conflict: {}", fields.join(",")),
                     )
                     .await?;
                 Ok(false)
             }
-            ApplyLane::Conflict | ApplyLane::Noop => unreachable!("handled above"),
-        }
-    }
-
-    async fn apply_local_task(
-        &self,
-        task: &LeasedTask,
-        envelope: &ChangeEnvelope,
-        existing_link: Option<&crate::store::pg::SyncLink>,
-    ) -> Result<bool, ForceSyncError> {
-        let salesforce_id = local_projection_salesforce_id(existing_link, envelope)?;
-        let link = project_sync_link(
-            existing_link,
-            envelope,
-            salesforce_id.as_ref(),
-            matches!(envelope.operation(), ChangeOperation::Delete),
-        );
-        self.store.put_link(&link).await?;
-        self.store
-            .ack_task_for_worker(&self.worker_id, task.task_id)
-            .await?;
-        Ok(true)
-    }
-
-    async fn apply_bulk_task(
-        &self,
-        task: &LeasedTask,
-        envelope: &ChangeEnvelope,
-        payload: &Value,
-        existing_link: Option<&crate::store::pg::SyncLink>,
-        object: &ObjectSync,
-    ) -> Result<bool, ForceSyncError> {
-        match envelope.operation() {
-            ChangeOperation::Upsert => {
-                let Some(existing_salesforce_id) =
-                    existing_link.and_then(|link| link.salesforce_id.as_deref())
-                else {
-                    return self
-                        .apply_rest_task(task, envelope, payload, existing_link, object)
-                        .await;
+            ApplyPlan::ProjectLocal => {
+                let Some(subject) = subject else {
+                    return self.fail_missing_journal(lease_owner, task_id).await;
                 };
-
-                let job_result = self
-                    .salesforce
-                    .apply_bulk_upsert(
-                        envelope.sync_key().object_name(),
-                        object
-                            .external_id_field()
-                            .ok_or(ForceSyncError::MissingConfiguration {
-                                field: "external_id_field",
-                            })?,
-                        1,
-                        vec![payload.clone()],
-                    )
-                    .await;
-                if let Err(error) = job_result {
-                    return self.handle_apply_error(task, error).await;
-                }
-
-                let Some(salesforce_id) =
-                    force::types::SalesforceId::new(existing_salesforce_id.to_owned()).ok()
-                else {
-                    return self
-                        .apply_rest_task(task, envelope, payload, existing_link, object)
-                        .await;
-                };
-
-                let link = project_sync_link(existing_link, envelope, Some(&salesforce_id), false);
+                let existing_link = subject.existing_link.as_ref();
+                let salesforce_id =
+                    local_projection_salesforce_id(existing_link, &subject.envelope)?;
+                let link = project_sync_link(
+                    existing_link,
+                    &subject.envelope,
+                    salesforce_id.as_ref(),
+                    matches!(subject.envelope.operation(), ChangeOperation::Delete),
+                );
                 self.store.put_link(&link).await?;
-                self.store
-                    .ack_task_for_worker(&self.worker_id, task.task_id)
-                    .await?;
+                self.store.ack_task_for_worker(lease_owner, task_id).await?;
                 Ok(true)
             }
-            ChangeOperation::Delete => {
-                self.apply_rest_task(task, envelope, payload, existing_link, object)
-                    .await
-            }
+            ApplyPlan::Remote(call) => Err(ForceSyncError::InvalidStoredValue {
+                field: "apply resolution",
+                value: format!("remote call without an outcome: {call:?}"),
+            }),
         }
     }
 
-    async fn apply_rest_task(
+    async fn finalize_remote(
         &self,
-        task: &LeasedTask,
-        envelope: &ChangeEnvelope,
-        payload: &Value,
-        existing_link: Option<&crate::store::pg::SyncLink>,
-        object: &ObjectSync,
+        lease_owner: &str,
+        task_id: i64,
+        subject: Option<&ApplySubject>,
+        call: &RemoteCall,
+        outcome: &RemoteOutcome,
     ) -> Result<bool, ForceSyncError> {
-        match envelope.operation() {
-            ChangeOperation::Upsert => {
-                let result = self
-                    .salesforce
-                    .apply_rest_upsert(
-                        envelope.sync_key().object_name(),
-                        object
-                            .external_id_field()
-                            .ok_or(ForceSyncError::MissingConfiguration {
-                                field: "external_id_field",
-                            })?,
-                        envelope.sync_key().external_id(),
-                        payload,
-                    )
-                    .await;
-
-                match result {
-                    Ok(result) => {
-                        let link = project_sync_link(
-                            existing_link,
-                            envelope,
-                            result.salesforce_id.as_ref(),
-                            false,
-                        );
-                        self.store.put_link(&link).await?;
-                        self.store
-                            .ack_task_for_worker(&self.worker_id, task.task_id)
-                            .await?;
-                        Ok(true)
-                    }
-                    Err(error) => self.handle_apply_error(task, error).await,
-                }
-            }
-            ChangeOperation::Delete => {
-                let Some(existing_link) = existing_link else {
-                    let _ = self
-                        .store
-                        .fail_task_for_worker(
-                            &self.worker_id,
-                            task.task_id,
-                            "missing Salesforce ID for delete",
-                        )
-                        .await?;
-                    return Ok(false);
+        match outcome {
+            RemoteOutcome::Applied { salesforce_id } => {
+                let Some(subject) = subject else {
+                    return self.fail_missing_journal(lease_owner, task_id).await;
                 };
-                let Some(salesforce_id) = existing_link.salesforce_id.as_deref() else {
-                    let _ = self
-                        .store
-                        .fail_task_for_worker(
-                            &self.worker_id,
-                            task.task_id,
-                            "missing Salesforce ID for delete",
-                        )
-                        .await?;
-                    return Ok(false);
-                };
-                let salesforce_id = force::types::SalesforceId::new(salesforce_id.to_owned())
-                    .map_err(|error| ForceSyncError::InvalidStoredValue {
-                        field: "salesforce_id",
-                        value: error.to_string(),
-                    })?;
-
-                match self
-                    .salesforce
-                    .apply_rest_delete(envelope.sync_key().object_name(), &salesforce_id)
-                    .await
-                {
-                    Ok(()) => {
-                        let link = project_sync_link(
-                            existing_link.into(),
-                            envelope,
-                            Some(&salesforce_id),
-                            true,
-                        );
-                        self.store.put_link(&link).await?;
-                        self.store
-                            .ack_task_for_worker(&self.worker_id, task.task_id)
-                            .await?;
-                        Ok(true)
-                    }
-                    Err(error) => self.handle_apply_error(task, error).await,
-                }
+                let salesforce_id = salesforce_id
+                    .as_deref()
+                    .or_else(|| call.known_salesforce_id())
+                    .map(|id| parse_salesforce_id("salesforce_id", id))
+                    .transpose()?;
+                let link = project_sync_link(
+                    subject.existing_link.as_ref(),
+                    &subject.envelope,
+                    salesforce_id.as_ref(),
+                    call.is_delete(),
+                );
+                self.store.put_link(&link).await?;
+                self.store.ack_task_for_worker(lease_owner, task_id).await?;
+                Ok(true)
             }
-        }
-    }
-
-    async fn handle_apply_error(
-        &self,
-        task: &LeasedTask,
-        error: ApplyError,
-    ) -> Result<bool, ForceSyncError> {
-        let error_message = error.to_string();
-        match error {
-            ApplyError::Retryable(_) => {
+            RemoteOutcome::Rejected { message } => {
+                self.store
+                    .fail_task_for_worker(lease_owner, task_id, message)
+                    .await?;
+                Ok(false)
+            }
+            RemoteOutcome::Retry { message } => {
                 self.store
                     .retry_task_for_worker(
-                        &self.worker_id,
-                        task.task_id,
+                        lease_owner,
+                        task_id,
                         Utc::now() + chrono::Duration::seconds(30),
-                        error_message,
+                        message,
                     )
                     .await?;
-            }
-            ApplyError::Permanent(_) => {
-                self.store
-                    .fail_task_for_worker(&self.worker_id, task.task_id, error_message)
-                    .await?;
+                Ok(false)
             }
         }
+    }
 
+    async fn fail_missing_journal(
+        &self,
+        lease_owner: &str,
+        task_id: i64,
+    ) -> Result<bool, ForceSyncError> {
+        self.store
+            .fail_task_for_worker(lease_owner, task_id, MISSING_JOURNAL_ROW)
+            .await?;
         Ok(false)
+    }
+
+    async fn load_apply_subject(
+        &self,
+        task_id: i64,
+    ) -> Result<Option<ApplySubject>, ForceSyncError> {
+        let Some(context) = self.load_apply_task_context(task_id).await? else {
+            return Ok(None);
+        };
+        let key = context.envelope.sync_key();
+        let existing_link = self
+            .store
+            .get_link(key.tenant(), key.object_name(), key.external_id())
+            .await?;
+        Ok(Some(ApplySubject {
+            envelope: context.envelope,
+            current_payload: context.current_payload,
+            existing_link,
+        }))
     }
 
     async fn load_apply_task_context(
@@ -593,10 +577,6 @@ fn build_apply_task_context(row: &tokio_postgres::Row) -> Result<ApplyTaskContex
     })
 }
 
-fn should_project_locally(source: SourceSystem, lane: ApplyLane) -> bool {
-    source == SourceSystem::Salesforce && !matches!(lane, ApplyLane::Noop | ApplyLane::Conflict)
-}
-
 fn local_projection_salesforce_id(
     existing_link: Option<&crate::store::pg::SyncLink>,
     envelope: &ChangeEnvelope,
@@ -679,12 +659,11 @@ mod tests {
 
     use super::{
         local_projection_salesforce_id, parse_change_operation, parse_source_cursor,
-        parse_source_system, should_project_locally,
+        parse_source_system,
     };
     use crate::{
         identity::SyncKey,
         model::{ChangeEnvelope, ChangeOperation, SourceCursor, SourceSystem},
-        plan::ApplyLane,
         store::pg::SyncLink,
     };
 
@@ -697,22 +676,6 @@ mod tests {
             Utc::now(),
             payload,
         )
-    }
-
-    #[test]
-    fn should_not_project_local_noops_back_to_salesforce() {
-        assert!(!should_project_locally(
-            SourceSystem::Salesforce,
-            ApplyLane::Noop
-        ));
-        assert!(!should_project_locally(
-            SourceSystem::Postgres,
-            ApplyLane::Rest
-        ));
-        assert!(should_project_locally(
-            SourceSystem::Salesforce,
-            ApplyLane::Rest
-        ));
     }
 
     #[test]
@@ -862,32 +825,6 @@ mod tests {
             panic!("expected error for unknown cursor prefix");
         };
         assert!(err.to_string().contains("kafka-offset:99"));
-    }
-
-    // -- should_project_locally additional coverage --
-
-    #[test]
-    fn should_project_locally_salesforce_bulk() {
-        assert!(should_project_locally(
-            SourceSystem::Salesforce,
-            ApplyLane::Bulk
-        ));
-    }
-
-    #[test]
-    fn should_not_project_locally_salesforce_conflict() {
-        assert!(!should_project_locally(
-            SourceSystem::Salesforce,
-            ApplyLane::Conflict
-        ));
-    }
-
-    #[test]
-    fn should_not_project_locally_postgres_bulk() {
-        assert!(!should_project_locally(
-            SourceSystem::Postgres,
-            ApplyLane::Bulk
-        ));
     }
 
     // -- SyncEngineBuilder validation tests --

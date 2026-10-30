@@ -569,6 +569,14 @@ use force::testing::{MockForceClient, MockAuthenticator};
 - [ ] CDC ingestion via force-pubsub (documented follow-up)
 - [ ] Row-level upsert via Athena `MERGE` (documented follow-up)
 
+### Phase 6b: Durable sync (force-sync `durable` feature) - See [ADR-036](docs/adr/036-durable-sync-on-autumn-harvest.md)
+- [x] Apply split into prepare / execute / finalize phases (shared by both runtimes)
+- [x] `force_sync_apply` workflow per `sync_task` row (idempotent ID, per-record concurrency limit 1)
+- [x] Scheduled `force_sync_pump` (capture + dispatch) and `force_sync_reconcile`
+- [x] Configurable Salesforce retry policy carried in workflow history; exhausted retries fail the task
+- [x] Standalone `DurableSync::start` (core harvest worker + scheduler) and `DurableSync::register` for existing harvest apps
+- [ ] Durable Salesforce CDC capture (`capture_stream`) (follow-up)
+
 ### Phase 7: Winter '27 (API v68.0) - See [ADR-035](docs/adr/035-winter-27-v68-adoption.md)
 - [x] Default API version v68.0; `release_name()`; opt-in `latest` alias
 - [x] REST Versions resource (`versions`, `highest_version`)
@@ -771,7 +779,7 @@ This crate integrates with the Mark's Rust ecosystem:
 
 Sibling workspace crates:
 - **force-pubsub** - Salesforce Pub/Sub API (gRPC) client
-- **force-sync** - Correctness-first bidirectional Salesforce ↔ Postgres sync engine (see [ADR-026](docs/adr/026-force-sync-crate.md))
+- **force-sync** - Correctness-first bidirectional Salesforce ↔ Postgres sync engine (see [ADR-026](docs/adr/026-force-sync-crate.md)). Feature `durable` runs it as autumn-harvest workflows (see [ADR-036](docs/adr/036-durable-sync-on-autumn-harvest.md))
 - **force-lake** - One-way Salesforce → S3 Tables / Apache Iceberg analytics snapshot sink (see [ADR-030](docs/adr/030-force-lake-crate.md))
 
 ## ADRs (Architecture Decision Records)
@@ -800,6 +808,7 @@ Significant architectural decisions are documented in `docs/adr/`:
 - [ADR-034](docs/adr/034-marketing-cloud-engagement-crate.md) - Standalone `force-marketingcloud` crate for Marketing Cloud Engagement
 - [ADR-032](docs/adr/032-soap-api-design.md) - SOAP Partner API design (untyped generic client, OAuth in SessionHeader, INVALID_SESSION retry)
 - [ADR-035](docs/adr/035-winter-27-v68-adoption.md) - Winter '27 (API v68.0) adoption (v68 default, latest alias, new surfaces, DPoP guard)
+- [ADR-036](docs/adr/036-durable-sync-on-autumn-harvest.md) - Durable force-sync on autumn-harvest (feature `durable`: per-task apply workflows, scheduled pump/reconcile)
 
 ## Contributing
 
