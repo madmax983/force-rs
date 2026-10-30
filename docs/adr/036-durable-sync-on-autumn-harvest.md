@@ -139,6 +139,17 @@ sequenceDiagram
   the commit leaves the checkpoint behind the event, so the next window reads
   it again, and the journal's `(source, source_cursor)` index drops the
   duplicate.
+- **No gap on a quiet stream.** A keepalive carries the latest replay ID
+  of the channel (`PubSubEvent::KeepAlive { latest_replay_id }`), and the
+  window stores it as the checkpoint. The first window of a `Latest` stream
+  with no checkpoint stays open past `max_duration`, up to
+  `FIRST_POSITION_WAIT` (300 seconds), until an event or a keepalive gives
+  it a position. Salesforce sends a keepalive after about 270 seconds with
+  no event. Without that, each new window would subscribe at `Latest` again
+  and lose the events published between windows.
+- **Settings reach the next run.** Before a run continues as new, it reads
+  its settings through a recorded activity. A config change therefore
+  reaches the stream at its next run, and a removed stream ends there.
 - **A poison event cannot wedge a stream.** An event that can never be
   captured, such as one without the external ID field, goes to
   `sync_dead_letter` and the checkpoint moves past it, in the same

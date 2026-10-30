@@ -430,8 +430,10 @@ pub(crate) async fn force_sync_reconcile_pass(
 
 /// Input of the [`force_sync_cdc_stream`] workflow.
 ///
-/// The supervisor builds it from the config. It is recorded in history, so
-/// a config change reaches a stream at its next run.
+/// The supervisor builds it from the config, and each run reads it again
+/// before it continues as new. It is recorded in history, so a config
+/// change reaches a stream at its next run and never changes a run in
+/// flight.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct CdcStreamInput {
     /// The [`crate::CdcStream`] name.
@@ -452,6 +454,15 @@ pub(crate) enum CdcWindowResult {
     Unconfigured,
 }
 
+/// The stream workflow input that the current config gives `stream`.
+fn cdc_stream_input(config: &super::DurableSyncConfig, stream: &str) -> CdcStreamInput {
+    CdcStreamInput {
+        stream: stream.to_owned(),
+        windows_per_run: config.cdc_windows_per_run,
+        error_backoff_secs: config.cdc_error_backoff.as_secs(),
+    }
+}
+
 /// The workflow ID of the stream workflow for `stream`.
 pub(crate) fn cdc_workflow_id(stream: &str) -> String {
     format!("force-sync-cdc-{stream}")
@@ -463,7 +474,9 @@ pub(crate) fn cdc_workflow_id(stream: &str) -> String {
 /// the events that were read but not committed, and those are delivered
 /// again. A failed window waits `error_backoff_secs` on a durable timer. After
 /// `windows_per_run` windows the run continues as new, which bounds its
-/// history. The run ends only when the stream is no longer configured.
+/// history. The next run gets the settings of the current config, read
+/// through a recorded activity. The run ends only when the stream is no
+/// longer configured.
 #[workflow]
 pub(crate) async fn force_sync_cdc_stream(
     ctx: &WorkflowContext,
@@ -483,7 +496,14 @@ pub(crate) async fn force_sync_cdc_stream(
             }
         }
     }
-    let next = serde_json::to_value(&input).map_err(|error| error.to_string())?;
+    let current: Option<CdcStreamInput> = ctx
+        .execute_activity(&force_sync_cdc_settings_info(), &input.stream)
+        .await
+        .map_err(|error| error.to_string())?;
+    let Some(next) = current else {
+        return Ok(());
+    };
+    let next = serde_json::to_value(&next).map_err(|error| error.to_string())?;
     ctx.continue_as_new(next)
         .await
         .map_err(|error| error.to_string())
@@ -557,6 +577,26 @@ pub(crate) async fn force_sync_cdc_window(
     }
 }
 
+/// Reads the current settings of `stream`, or `None` when it is no longer
+/// configured.
+#[allow(clippy::unused_async, reason = "#[activity] requires an async fn")]
+#[activity(
+    start_to_close = "30s",
+    retry = RetryPolicy::exponential(5, Duration::from_secs(1)),
+    queue = "force-sync"
+)]
+pub(crate) async fn force_sync_cdc_settings(
+    ctx: &ActivityContext,
+    stream: String,
+) -> Result<Option<CdcStreamInput>, String> {
+    let state = sync_state(ctx)?;
+    Ok(state
+        .cdc
+        .as_deref()
+        .and_then(|setup| setup.stream(&stream))
+        .map(|stream| cdc_stream_input(&state.config, stream.name())))
+}
+
 /// Starts or attaches to the workflow of each configured CDC stream.
 ///
 /// A running workflow is kept. A workflow that ended, for any reason,
@@ -583,11 +623,7 @@ pub(crate) async fn force_sync_cdc_ensure(
         .map_err(|error| format!("harvest pool: {error}"))?;
     let mut started = 0;
     for stream in &setup.streams {
-        let input = CdcStreamInput {
-            stream: stream.name().to_owned(),
-            windows_per_run: config.cdc_windows_per_run,
-            error_backoff_secs: config.cdc_error_backoff.as_secs(),
-        };
+        let input = cdc_stream_input(config, stream.name());
         let workflow_id = cdc_workflow_id(stream.name());
         let payload = serde_json::to_value(&input).map_err(|error| error.to_string())?;
         let params = StartWorkflowParams {
@@ -632,6 +668,7 @@ pub(crate) fn all_activities() -> Vec<ActivityInfo> {
         force_sync_dispatch,
         force_sync_reconcile_pass,
         force_sync_cdc_window,
+        force_sync_cdc_settings,
         force_sync_cdc_ensure,
     ]
 }

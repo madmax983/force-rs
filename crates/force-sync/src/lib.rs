@@ -37,7 +37,7 @@ pub const fn version() -> &'static str {
 pub use apply::{ApplyError, RestApplyResult, SalesforceApplier, project_sync_link};
 pub use capture::{
     CdcEventStream, CdcSource, CdcStart, CdcStream, CdcWindow, CdcWindowEnd, CdcWindowReport,
-    capture_batch, capture_cdc_window, capture_stream, load_replay_id,
+    FIRST_POSITION_WAIT, capture_batch, capture_cdc_window, capture_stream, load_replay_id,
 };
 pub use config::{ConflictPolicy, LaneThresholds, ObjectSync, Owner};
 pub use error::ForceSyncError;

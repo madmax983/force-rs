@@ -196,6 +196,30 @@ enum EventOutcome {
     Quarantined,
 }
 
+/// How long the first window of a [`CdcStart::Latest`] stream with no
+/// checkpoint waits for a position to resume from.
+///
+/// Salesforce sends a keepalive with the latest replay ID when a channel has
+/// had no event for about 270 seconds.
+pub const FIRST_POSITION_WAIT: Duration = Duration::from_secs(300);
+
+/// Stores the latest replay ID of a keepalive as the stream checkpoint.
+///
+/// A keepalive follows every event before it, and the window commits events
+/// in order. So no event at or before this position is still uncommitted.
+async fn checkpoint_keepalive(
+    store: &PgStore,
+    stream_name: &str,
+    latest: &ReplayId,
+) -> Result<(), ForceSyncError> {
+    let position = replay_id_to_position(latest)?;
+    let cursor = SourceCursor::SalesforceReplayId(position).as_db_value();
+    store
+        .advance_checkpoint_if_greater(stream_name, position, cursor)
+        .await?;
+    Ok(())
+}
+
 /// Whether `error` comes from the content of one event.
 ///
 /// Such an event can never be captured, so it is quarantined. A
@@ -384,7 +408,12 @@ where
 ///
 /// The window subscribes from the stream checkpoint, or from
 /// [`CdcStream::start`] when there is none. It ends after `window` elapses,
-/// after `window.max_events` events, or when the source ends the stream. Each
+/// after `window.max_events` events, or when the source ends the stream. A
+/// keepalive with a replay ID moves the checkpoint to that ID. The first
+/// window of a [`CdcStart::Latest`] stream with no checkpoint stays open
+/// past `window.max_duration`, up to [`FIRST_POSITION_WAIT`], until an event
+/// or a keepalive gives it a position, so the next window cannot skip
+/// events. Each
 /// event commits its journal row, apply task and checkpoint in one
 /// transaction. An event whose content is invalid, such as one with no
 /// external ID, goes to `sync_dead_letter` and the checkpoint moves past it.
@@ -410,7 +439,11 @@ pub async fn capture_cdc_window(
             field: "external_id_field",
         })?;
 
-    let replay = load_replay_id(store, stream.name()).await?.map_or_else(
+    let checkpoint = load_replay_id(store, stream.name()).await?;
+    // Only a Latest stream with no checkpoint has no position to resume
+    // from. Earliest always replays the retention window again.
+    let mut resumable = checkpoint.is_some() || stream.start() == CdcStart::Earliest;
+    let replay = checkpoint.map_or_else(
         || match stream.start() {
             CdcStart::Latest => ReplayPreset::Latest,
             CdcStart::Earliest => ReplayPreset::Earliest,
@@ -418,7 +451,12 @@ pub async fn capture_cdc_window(
         ReplayPreset::Custom,
     );
     let mut events = source.subscribe(stream.topic(), replay).await?;
-    let deadline = tokio::time::Instant::now() + window.max_duration;
+    let opened = tokio::time::Instant::now();
+    let deadline = opened + window.max_duration;
+    // A window that ends with no position makes the next one subscribe at
+    // Latest again, and the events between the two are lost. So the window
+    // stays open until the first event or keepalive gives it a position.
+    let hold_until = opened + window.max_duration.max(FIRST_POSITION_WAIT);
     let mut report = CdcWindowReport {
         captured: 0,
         duplicates: 0,
@@ -428,7 +466,8 @@ pub async fn capture_cdc_window(
     let mut read = 0usize;
 
     while read < window.max_events {
-        let Ok(next) = tokio::time::timeout_at(deadline, events.next()).await else {
+        let until = if resumable { deadline } else { hold_until };
+        let Ok(next) = tokio::time::timeout_at(until, events.next()).await else {
             report.end = CdcWindowEnd::Deadline;
             return Ok(report);
         };
@@ -436,9 +475,21 @@ pub async fn capture_cdc_window(
             report.end = CdcWindowEnd::StreamEnded;
             return Ok(report);
         };
-        let PubSubEvent::Event(message) = item? else {
-            continue;
+        let message = match item? {
+            PubSubEvent::Event(message) => message,
+            PubSubEvent::KeepAlive {
+                latest_replay_id: Some(latest),
+            } => {
+                checkpoint_keepalive(store, stream.name(), &latest).await?;
+                resumable = true;
+                continue;
+            }
+            PubSubEvent::KeepAlive {
+                latest_replay_id: None,
+            }
+            | PubSubEvent::Reconnected { .. } => continue,
         };
+        resumable = true;
         read += 1;
         let stream = stream.clone();
         let object = object.clone();
@@ -509,7 +560,13 @@ where
                     captured += 1;
                 }
             }
-            PubSubEvent::KeepAlive | PubSubEvent::Reconnected { .. } => {}
+            PubSubEvent::KeepAlive {
+                latest_replay_id: Some(latest),
+            } => checkpoint_keepalive(store, stream_name, &latest).await?,
+            PubSubEvent::KeepAlive {
+                latest_replay_id: None,
+            }
+            | PubSubEvent::Reconnected { .. } => {}
         }
     }
 

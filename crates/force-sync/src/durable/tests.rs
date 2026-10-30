@@ -198,7 +198,7 @@ fn workflow_names_match_the_public_constants() {
 #[test]
 fn every_activity_runs_on_the_force_sync_queue() {
     let activities = all_activities();
-    assert_eq!(activities.len(), 8);
+    assert_eq!(activities.len(), 9);
     for info in activities {
         assert_eq!(
             info.default_queue,
@@ -704,16 +704,26 @@ fn cdc_window_result_round_trips_through_json() {
 #[tokio::test]
 async fn cdc_stream_runs_its_windows_then_continues_as_new() {
     let outcome = run_cdc_stream(
-        WorkflowTestEnv::new().mock_activity("force_sync_cdc_window", |input| {
-            assert_eq!(input, json!("salesforce:Account"));
-            Ok(window_report(2))
-        }),
+        WorkflowTestEnv::new()
+            .mock_activity("force_sync_cdc_window", |input| {
+                assert_eq!(input, json!("salesforce:Account"));
+                Ok(window_report(2))
+            })
+            .mock_activity("force_sync_cdc_settings", |_| Ok(cdc_input(3))),
         cdc_input(3),
     )
     .await;
 
     let names: Vec<String> = scheduled(&outcome).into_iter().map(|(n, _)| n).collect();
-    assert_eq!(names, vec!["force_sync_cdc_window"; 3]);
+    assert_eq!(
+        names,
+        vec![
+            "force_sync_cdc_window",
+            "force_sync_cdc_window",
+            "force_sync_cdc_window",
+            "force_sync_cdc_settings"
+        ]
+    );
     assert!(
         timers(&outcome).is_empty(),
         "no backoff after a good window"
@@ -730,13 +740,21 @@ async fn failed_cdc_window_backs_off_then_keeps_following_the_stream() {
                 1,
                 Err("pub/sub unavailable".to_owned()),
             )
-            .mock_activity("force_sync_cdc_window", |_| Ok(window_report(1))),
+            .mock_activity("force_sync_cdc_window", |_| Ok(window_report(1)))
+            .mock_activity("force_sync_cdc_settings", |_| Ok(cdc_input(2))),
         cdc_input(2),
     )
     .await;
 
     let names: Vec<String> = scheduled(&outcome).into_iter().map(|(n, _)| n).collect();
-    assert_eq!(names, vec!["force_sync_cdc_window"; 2]);
+    assert_eq!(
+        names,
+        vec![
+            "force_sync_cdc_window",
+            "force_sync_cdc_window",
+            "force_sync_cdc_settings"
+        ]
+    );
     assert_eq!(timers(&outcome), vec![7], "backoff uses error_backoff_secs");
     assert!(continued_as_new_input(&outcome).is_some());
 }
@@ -771,4 +789,45 @@ async fn cdc_supervisor_runs_the_ensure_activity() {
         matches!(replay.status, ReplayStatus::ReplaySucceeded),
         "{replay}"
     );
+}
+
+#[tokio::test]
+async fn cdc_stream_continues_with_the_current_settings() {
+    let changed = serde_json::to_value(CdcStreamInput {
+        stream: "salesforce:Account".to_owned(),
+        windows_per_run: 9,
+        error_backoff_secs: 30,
+    })
+    .unwrap_or_else(|error| panic!("serialize: {error}"));
+    let returned = changed.clone();
+    let outcome = run_cdc_stream(
+        WorkflowTestEnv::new()
+            .mock_activity("force_sync_cdc_window", |_| Ok(window_report(0)))
+            .mock_activity("force_sync_cdc_settings", move |input| {
+                assert_eq!(input, json!("salesforce:Account"));
+                Ok(returned.clone())
+            }),
+        cdc_input(1),
+    )
+    .await;
+
+    assert_eq!(
+        continued_as_new_input(&outcome),
+        Some(changed),
+        "a config change must reach the stream at its next run"
+    );
+}
+
+#[tokio::test]
+async fn cdc_stream_removed_at_the_run_boundary_ends_its_workflow() {
+    let outcome = run_cdc_stream(
+        WorkflowTestEnv::new()
+            .mock_activity("force_sync_cdc_window", |_| Ok(window_report(0)))
+            .mock_activity("force_sync_cdc_settings", |_| Ok(Value::Null)),
+        cdc_input(1),
+    )
+    .await;
+
+    assert_eq!(outcome.result, Ok(Value::Null));
+    assert_eq!(continued_as_new_input(&outcome), None);
 }

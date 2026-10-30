@@ -86,7 +86,9 @@ What it does:
   from the stream checkpoint, and each event commits its journal row, apply
   task and checkpoint together. A restart resumes from the checkpoint with no
   lost or duplicate event. An event that can never be captured, such as one
-  without the external ID field, goes to `sync_dead_letter`. The
+  without the external ID field, goes to `sync_dead_letter`. Keepalives
+  move the checkpoint too, so a quiet `Latest` stream resumes with no gap.
+  The
   `force_sync_cdc_supervisor` schedule keeps every stream workflow running.
 
 ```rust,ignore

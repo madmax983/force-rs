@@ -379,3 +379,88 @@ async fn engine_window_requires_a_configured_object() -> Result<(), ForceSyncErr
     );
     Ok(())
 }
+
+/// A source that stays quiet, then sends one keepalive after `delay`.
+struct QuietSource {
+    delay: Duration,
+    latest: u8,
+    presets: Mutex<Vec<String>>,
+}
+
+#[async_trait]
+impl CdcSource for QuietSource {
+    async fn subscribe(
+        &self,
+        _topic: &str,
+        replay: ReplayPreset,
+    ) -> Result<CdcEventStream, ForceSyncError> {
+        self.presets
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .push(describe(&replay));
+        let delay = self.delay;
+        let latest = self.latest;
+        let keepalive = stream::once(async move {
+            tokio::time::sleep(delay).await;
+            Ok(PubSubEvent::KeepAlive {
+                latest_replay_id: Some(ReplayId::from_bytes(vec![latest])),
+            })
+        });
+        Ok(keepalive.chain(stream::pending()).boxed())
+    }
+}
+
+#[tokio::test]
+#[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
+async fn keepalive_checkpoints_a_quiet_stream_so_the_next_window_misses_nothing()
+-> Result<(), ForceSyncError> {
+    let (pool, store) = fresh_store().await?;
+    let source = QuietSource {
+        delay: Duration::ZERO,
+        latest: 7,
+        presets: Mutex::new(Vec::new()),
+    };
+    let quiet = CdcStream::new("tenant", "Account");
+
+    let first = capture_cdc_window(&store, &source, &quiet, &account(), short_window(10)).await?;
+    assert_eq!(first.captured, 0);
+    assert_eq!(checkpoint(&pool).await?, Some(7));
+
+    capture_cdc_window(&store, &source, &quiet, &account(), short_window(10)).await?;
+    let presets = source
+        .presets
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .clone();
+    assert_eq!(
+        presets,
+        vec!["latest", "custom:[7]"],
+        "a second Latest subscription would skip the events between windows"
+    );
+    Ok(())
+}
+
+#[tokio::test]
+#[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
+async fn fresh_latest_stream_holds_its_first_window_until_it_can_resume()
+-> Result<(), ForceSyncError> {
+    let (pool, store) = fresh_store().await?;
+    let source = QuietSource {
+        delay: Duration::from_millis(900),
+        latest: 5,
+        presets: Mutex::new(Vec::new()),
+    };
+    let quiet = CdcStream::new("tenant", "Account");
+
+    let started = std::time::Instant::now();
+    let report = capture_cdc_window(&store, &source, &quiet, &account(), short_window(10)).await?;
+
+    assert!(
+        started.elapsed() >= Duration::from_millis(900),
+        "the window ended at {:?}, before it had a position to resume from",
+        started.elapsed()
+    );
+    assert_eq!(report.end, CdcWindowEnd::Deadline);
+    assert_eq!(checkpoint(&pool).await?, Some(5));
+    Ok(())
+}
