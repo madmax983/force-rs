@@ -12,6 +12,12 @@
 # covered and drags project coverage down by its own line count -- ignored
 # here for the same reason as the live_* tests above.
 #
+# `crates/force-sync/tests/` holds Postgres-backed #[ignore] test binaries.
+# The workspace run counts their lines but skips them. The Postgres run
+# executes them with the LLVM engine, which reports no test-file lines. So
+# their lines always read as uncovered, though CI runs every one of them.
+# The force-sync source they exercise is still measured.
+#
 # `vendor/` holds third-party crates patched in via [patch.crates-io] (for
 # example zstd security backports). They are not project code.
 ignore:
@@ -24,3 +30,4 @@ ignore:
   - "crates/force/tests/live_account_engagement.rs"
   - "crates/force-marketingcloud/tests/live_marketingcloud.rs"
   - "crates/force/benches/.*_profile\\.rs"
+  - "crates/force-sync/tests/.*"
