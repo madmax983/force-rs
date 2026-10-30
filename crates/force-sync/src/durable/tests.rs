@@ -831,3 +831,146 @@ async fn cdc_stream_removed_at_the_run_boundary_ends_its_workflow() {
     assert_eq!(outcome.result, Ok(Value::Null));
     assert_eq!(continued_as_new_input(&outcome), None);
 }
+
+// -- DurableSync::with_cdc validation -----------------------------------
+
+mod with_cdc {
+    use std::sync::Arc;
+
+    use async_trait::async_trait;
+    use force::auth::{AccessToken, Authenticator, TokenResponse};
+    use force_pubsub::ReplayPreset;
+
+    use super::super::{CDC_SUPERVISOR_WORKFLOW, DurableSync, harvest_pool};
+    use crate::{
+        CdcEventStream, CdcSource, CdcStream, ForceSyncError, ObjectSync, PgStore, SyncEngine,
+    };
+
+    #[derive(Debug, Clone)]
+    struct StubAuth;
+
+    #[async_trait]
+    impl Authenticator for StubAuth {
+        async fn authenticate(&self) -> force::error::Result<AccessToken> {
+            Ok(AccessToken::from_response(TokenResponse {
+                access_token: secrecy::SecretString::new("stub".to_owned().into()),
+                instance_url: "https://stub.invalid".to_owned(),
+                token_type: "Bearer".to_owned(),
+                issued_at: "1704067200000".to_owned(),
+                signature: "stub".to_owned(),
+                expires_in: Some(7200),
+                refresh_token: None,
+            }))
+        }
+
+        async fn refresh(&self) -> force::error::Result<AccessToken> {
+            self.authenticate().await
+        }
+    }
+
+    /// A source that is never subscribed in these tests.
+    struct NoSource;
+
+    #[async_trait]
+    impl CdcSource for NoSource {
+        async fn subscribe(
+            &self,
+            _topic: &str,
+            _replay: ReplayPreset,
+        ) -> Result<CdcEventStream, ForceSyncError> {
+            Err(ForceSyncError::NotImplemented)
+        }
+    }
+
+    /// A durable sync over an Account-only engine. Both pools are lazy, so
+    /// no database is needed.
+    async fn account_sync() -> DurableSync {
+        let client = force::client::builder()
+            .authenticate(StubAuth)
+            .build()
+            .await
+            .unwrap_or_else(|error| panic!("client: {error}"));
+        let mut config = deadpool_postgres::Config::new();
+        config.url = Some("postgresql://unused:unused@localhost:5432/unused".to_owned());
+        let pool = config
+            .create_pool(
+                Some(deadpool_postgres::Runtime::Tokio1),
+                tokio_postgres::NoTls,
+            )
+            .unwrap_or_else(|error| panic!("pool: {error}"));
+        let engine = SyncEngine::builder(client)
+            .postgres(PgStore::new(pool))
+            .object(ObjectSync::new("Account").external_id("ExternalId__c"))
+            .build()
+            .unwrap_or_else(|error| panic!("engine: {error}"));
+        let harvest = harvest_pool("postgresql://unused:unused@localhost:5432/unused", 1)
+            .unwrap_or_else(|error| panic!("harvest pool: {error}"));
+        DurableSync::new(engine, harvest)
+    }
+
+    fn rejection(result: Result<DurableSync, ForceSyncError>) -> ForceSyncError {
+        match result {
+            Ok(_) => panic!("with_cdc must reject this setup"),
+            Err(error) => error,
+        }
+    }
+
+    #[tokio::test]
+    async fn rejects_an_empty_stream_list() {
+        let error = rejection(
+            account_sync()
+                .await
+                .with_cdc(Arc::new(NoSource), Vec::<CdcStream>::new()),
+        );
+        assert!(error.to_string().contains("at least one stream"), "{error}");
+    }
+
+    #[tokio::test]
+    async fn rejects_two_streams_with_one_name() {
+        let error = rejection(account_sync().await.with_cdc(
+            Arc::new(NoSource),
+            [
+                CdcStream::new("tenant", "Account"),
+                CdcStream::new("tenant", "Account").with_topic("/data/Other__chn"),
+            ],
+        ));
+        assert!(error.to_string().contains("salesforce:Account"), "{error}");
+    }
+
+    #[tokio::test]
+    async fn rejects_a_stream_for_an_object_the_engine_does_not_sync() {
+        let error = rejection(
+            account_sync()
+                .await
+                .with_cdc(Arc::new(NoSource), [CdcStream::new("tenant", "Contact")]),
+        );
+        assert!(matches!(
+            error,
+            ForceSyncError::MissingConfiguration {
+                field: "object sync"
+            }
+        ));
+    }
+
+    #[tokio::test]
+    async fn valid_streams_add_the_supervisor_schedule() {
+        let without = account_sync().await;
+        assert!(
+            without
+                .schedules()
+                .iter()
+                .all(|schedule| schedule.workflow_name != CDC_SUPERVISOR_WORKFLOW),
+            "no supervisor without CDC"
+        );
+
+        let with = account_sync()
+            .await
+            .with_cdc(Arc::new(NoSource), [CdcStream::new("tenant", "Account")])
+            .unwrap_or_else(|error| panic!("valid setup rejected: {error}"));
+        assert!(
+            with.schedules()
+                .iter()
+                .any(|schedule| schedule.workflow_name == CDC_SUPERVISOR_WORKFLOW)
+        );
+    }
+}
