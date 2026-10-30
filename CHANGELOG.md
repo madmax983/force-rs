@@ -20,6 +20,7 @@ Durable sync on autumn-harvest. See [ADR-036](docs/adr/036-durable-sync-on-autum
   - Transient Salesforce errors retry with the configured backoff. Exhausted retries fail the task with `Salesforce call retries exhausted: ...`.
   - `durable::migrate_harvest` and `durable::harvest_pool` helpers.
 - `PgStore::apply_task_keys` returns the sync key of each apply task.
+- `PgStore::lease_ready_or_expired_tasks` leases ready tasks and reclaims expired leases of the same owner. The durable dispatch uses it, so a crash mid-dispatch cannot strand a task.
 - `ForceSyncError::Durable` variant.
 - `examples/durable_sync.rs`.
 

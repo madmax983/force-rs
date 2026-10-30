@@ -222,7 +222,7 @@ impl<A: Authenticator + 'static> SyncOps for SyncEngine<A> {
     ) -> Result<Vec<(i64, Option<String>)>, ForceSyncError> {
         let leased = self
             .store()
-            .lease_ready_tasks(lease_owner, limit, lease_for)
+            .lease_ready_or_expired_tasks(lease_owner, limit, lease_for)
             .await?;
         if leased.is_empty() {
             return Ok(Vec::new());

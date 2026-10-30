@@ -223,6 +223,62 @@ impl PgStore {
         lease_ready_tasks_query(&**client, worker_id, limit, &lease_deadline).await
     }
 
+    /// Leases ready tasks, and reclaims expired leases that `worker_id` holds.
+    ///
+    /// [`Self::lease_ready_tasks`] never returns a `leased` row, so a worker
+    /// that crashes before it settles its batch strands those tasks. This
+    /// lease also takes back each `leased` row of `worker_id` whose lease has
+    /// expired. It never takes a row that another owner holds.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the lease duration is invalid or the database write fails.
+    pub async fn lease_ready_or_expired_tasks(
+        &self,
+        worker_id: &str,
+        limit: i64,
+        lease_for: Duration,
+    ) -> Result<Vec<LeasedTask>, ForceSyncError> {
+        let lease_until = compute_lease_deadline(lease_for)?.lease_until;
+        let client = self.pool().get().await?;
+        let rows = client
+            .query(
+                "with claimed as (
+                    select task_id
+                    from sync_task
+                    where (status = 'ready'
+                           and next_attempt_at <= now()
+                           and (lease_until is null or lease_until <= now()))
+                       or (status = 'leased'
+                           and lease_owner = $1
+                           and lease_until <= now())
+                    order by priority desc, next_attempt_at asc, task_id asc
+                    for update skip locked
+                    limit $2
+                )
+                update sync_task
+                set status = 'leased',
+                    lease_owner = $1,
+                    lease_until = $3::timestamptz,
+                    attempt_count = attempt_count + 1,
+                    updated_at = now()
+                from claimed
+                where sync_task.task_id = claimed.task_id
+                returning sync_task.task_id",
+                &[&worker_id, &limit, &lease_until],
+            )
+            .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| LeasedTask {
+                task_id: row.get(0),
+                lease_owner: worker_id.to_owned(),
+                lease_until,
+            })
+            .collect())
+    }
+
     /// Acknowledges a completed task administratively, without lease-owner checks.
     ///
     /// # Errors

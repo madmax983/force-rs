@@ -534,3 +534,70 @@ async fn failed_task_cannot_be_re_leased() -> Result<(), force_sync::ForceSyncEr
     assert_eq!(leased_again, [] as [force_sync::LeasedTask; 0]);
     Ok(())
 }
+
+/// Seeds three apply tasks and returns their IDs.
+async fn seed_three_tasks(
+    store: &force_sync::PgStore,
+) -> Result<[i64; 3], force_sync::ForceSyncError> {
+    let mut ids = [0; 3];
+    for (slot, cursor) in ids.iter_mut().zip(1..) {
+        let journal_id = store.append_journal(&test_envelope(cursor)).await?;
+        *slot = store.enqueue_apply_task(journal_id, 0).await?;
+    }
+    Ok(ids)
+}
+
+async fn set_lease(
+    pool: &deadpool_postgres::Pool,
+    task_id: i64,
+    owner: &str,
+    expired: bool,
+) -> Result<(), force_sync::ForceSyncError> {
+    let client = pool.get().await?;
+    let offset = if expired { "-1 minute" } else { "1 hour" };
+    client
+        .execute(
+            "update sync_task
+             set status = 'leased', lease_owner = $2,
+                 lease_until = now() + $3::text::interval
+             where task_id = $1",
+            &[&task_id, &owner, &offset],
+        )
+        .await?;
+    Ok(())
+}
+
+#[tokio::test]
+#[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
+async fn reclaiming_lease_takes_ready_and_own_expired_tasks_only()
+-> Result<(), force_sync::ForceSyncError> {
+    let pool = support::postgres::test_pool();
+    support::postgres::reset_schema(&pool).await?;
+    force_sync::migrate(&pool).await?;
+    let store = force_sync::PgStore::new(pool.clone());
+
+    let [own_expired, own_live, other_expired] = seed_three_tasks(&store).await?;
+    set_lease(&pool, own_expired, "durable", true).await?;
+    set_lease(&pool, own_live, "durable", false).await?;
+    set_lease(&pool, other_expired, "explicit", true).await?;
+    let ready_journal = store.append_journal(&test_envelope(4)).await?;
+    let ready = store.enqueue_apply_task(ready_journal, 0).await?;
+
+    let leased = store
+        .lease_ready_or_expired_tasks("durable", 10, Duration::from_secs(60))
+        .await?;
+    let mut leased_ids: Vec<i64> = leased.iter().map(|task| task.task_id).collect();
+    leased_ids.sort_unstable();
+
+    assert_eq!(leased_ids, vec![own_expired, ready]);
+    assert!(leased.iter().all(|task| task.lease_owner == "durable"));
+    assert!(leased.iter().all(|task| task.lease_until > Utc::now()));
+
+    // The plain lease still never reclaims an expired lease.
+    set_lease(&pool, own_expired, "durable", true).await?;
+    let plain = store
+        .lease_ready_tasks("durable", 10, Duration::from_secs(60))
+        .await?;
+    assert!(plain.is_empty(), "plain lease reclaimed: {plain:?}");
+    Ok(())
+}

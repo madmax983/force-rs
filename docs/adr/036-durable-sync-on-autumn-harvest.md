@@ -84,6 +84,12 @@ call is never repeated after it is recorded.
   dispatched again after its lease expires attaches to a running workflow,
   and replaces a failed one. A task that attaches to a completed workflow is
   failed for an operator, so it cannot loop.
+- **An expired durable lease is reclaimed.** The dispatch lease
+  (`PgStore::lease_ready_or_expired_tasks`) also takes back a `leased` row of
+  the durable lease owner whose lease has expired. A crash between the lease
+  and the workflow start, or an apply workflow that failed, therefore cannot
+  strand a task. The plain lease never reclaims, and the durable lease never
+  takes a row of another owner.
 - **One apply in flight per record.** Each apply workflow carries its sync
   key, encoded as JSON `[tenant, object, external_id]`, as a harvest
   concurrency key with limit 1.
@@ -141,5 +147,7 @@ call is never repeated after it is recorded.
 - `tests/durable_sync.rs` (Postgres, `--ignored`): a real worker and scheduler
   against wiremock. It covers the happy path, transient retry, retry
   exhaustion with the configured attempts, permanent rejection, two changes to
-  one record, and a restart during finalize that does not repeat the
-  Salesforce call.
+  one record, a restart during finalize that does not repeat the Salesforce
+  call, and a task stranded by a crash during dispatch.
+- `tests/journal_tasks.rs`: the reclaiming lease takes ready rows and expired
+  rows of its own owner only.

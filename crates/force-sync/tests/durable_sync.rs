@@ -413,3 +413,47 @@ async fn restart_after_the_salesforce_call_does_not_repeat_it() -> Result<(), Fo
     );
     Ok(())
 }
+
+/// A crash after the dispatch lease commits, but before the apply workflow
+/// starts, leaves the task `leased` with no workflow. The next dispatch must
+/// reclaim it once the lease expires.
+#[tokio::test]
+#[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
+async fn task_stranded_by_a_dispatch_crash_is_recovered() -> Result<(), ForceSyncError> {
+    let harness = Harness::new().await?;
+    Mock::given(method("PATCH"))
+        .and(path(UPSERT_PATH))
+        .respond_with(created())
+        .expect(1)
+        .mount(&harness.mock_server)
+        .await;
+
+    harness.insert_outbox_row("lsn-1", "Acme Corp").await?;
+    let engine = SyncEngine::builder(test_client(&harness.mock_server).await)
+        .postgres(PgStore::new(harness.pool.clone()))
+        .object(ObjectSync::new("Account").external_id("ExternalId__c"))
+        .build()?;
+    assert_eq!(engine.run_capture_postgres_once().await?, 1);
+    harness
+        .pool
+        .get()
+        .await?
+        .execute(
+            "update sync_task
+             set status = 'leased', lease_owner = $1,
+                 lease_until = now() - interval '1 minute'",
+            &[&force_sync::durable::DEFAULT_LEASE_OWNER],
+        )
+        .await?;
+
+    let runtime = harness.start(fast_config(3)).await?;
+    let tasks = harness.wait_for_settled(1).await?;
+    runtime.stop().await?;
+
+    assert_eq!(tasks, vec![("done".to_owned(), None)]);
+    assert_eq!(
+        harness.linked_salesforce_id().await?.as_deref(),
+        Some(SF_ID)
+    );
+    Ok(())
+}
