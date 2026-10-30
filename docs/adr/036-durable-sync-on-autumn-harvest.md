@@ -168,12 +168,20 @@ one-database case: a single pool and `ShardRouter::single()`, so every
 workflow lands on shard 0, as before.
 
 - **Placement follows the router.** Each start picks its shard with
-  `router.pick_for_new_workflow(workflow_name, workflow_id)`, mints the
+  `router.pick_for_new_workflow(workflow_name, placement_key)`, mints the
   execution ID for that shard, and writes through that shard's pool. The
-  router hashes the pair, so one workflow ID always lands on one shard.
-  Harvest keeps workflow IDs unique per shard, so this is what keeps an
-  idempotent start idempotent: a re-dispatched apply task, or the CDC
-  supervisor's next run, reaches the same shard and attaches there.
+  router hashes the pair, so one key always lands on one shard. Harvest
+  keeps workflow IDs unique per shard, so this is what keeps an idempotent
+  start idempotent: a re-dispatched apply task, or the CDC supervisor's next
+  run, reaches the same shard and attaches there.
+- **An apply task is placed by its record.** Harvest enforces a
+  concurrency key within one shard only. So the placement key of an apply
+  workflow is its record key (`[tenant, object, external_id]`), not its
+  workflow ID: every task for one record shares a shard, and the per-record
+  concurrency limit of 1 serializes them. The journal row of a task never
+  changes, so a re-dispatched task still reaches its shard. A task with no
+  record key places by its workflow ID. A CDC stream places by its
+  workflow ID.
 - **The worker covers every shard.** `start()` gives the worker the
   sharded pool with no fixed assignment, so it claims from every shard. The
   scheduler runs with `SchedulerRuntime::spawn_sharded`. `start()` installs
@@ -222,6 +230,10 @@ workflow lands on shard 0, as before.
 - The feature needs Rust 1.88 or later, the autumn-harvest MSRV.
 - The harvest side can span several databases (shards). See "Several
   harvest shards" above. The force-sync tables stay in one database.
+- Changing the router's writable shards moves where new keys hash. A
+  record's next task can then start on another shard while an earlier task
+  of that record still runs on the old one, so the two are not serialized
+  for that time. Drain in-flight apply workflows before such a change.
 - Do not run the explicit runtime and the durable runtime on one store with
   one lease owner.
 - The bulk lane no longer calls Bulk and then REST when the linked Salesforce
@@ -251,11 +263,13 @@ workflow lands on shard 0, as before.
   the stream fails.
 - `src/durable/tests.rs` shard tests: one pool keeps every workflow on
   shard 0, a pick is stable and encoded in the execution ID, two shards
-  both take work, and a router shard with no pool is rejected.
-- `tests/durable_sync.rs` two-shard test: eight apply tasks and one CDC
-  stream on two harvest databases. Each shard holds exactly the workflow
-  IDs that the router picks for it, and the stream workflow exists only on
-  its own shard.
+  both take work, every task of one record shares a shard, and a router
+  shard with no pool is rejected.
+- `tests/durable_sync.rs` two-shard test: ten apply tasks (two records
+  changed twice) and one CDC stream on two harvest databases. Both tasks of
+  a record share a shard, each shard holds exactly the workflow IDs that
+  the router picks for their records, and the stream workflow exists only
+  on its own shard. Placing by workflow ID instead fails it.
 - `tests/durable_sync.rs` CDC tests: events reach the journal and are
   projected with no Salesforce call. A restart resumes from the checkpoint
   with no lost or duplicate event. The supervisor never runs two workflows

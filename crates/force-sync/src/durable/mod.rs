@@ -411,16 +411,18 @@ impl HarvestShards {
         Ok(Self { pool, router })
     }
 
-    /// The shard and a new execution ID for a fresh start of
-    /// `(workflow_name, workflow_id)`.
+    /// The shard and a new execution ID for a fresh start of a
+    /// `workflow_name` workflow placed by `placement_key`.
     ///
-    /// The router hashes the pair, so one workflow ID always lands on one
-    /// shard. Harvest keeps workflow IDs unique per shard, so that is what
-    /// keeps an idempotent start idempotent across shards.
-    pub(crate) fn place(&self, workflow_name: &str, workflow_id: &str) -> (ShardId, ExecutionId) {
+    /// The router hashes the pair, so one key always lands on one shard. A
+    /// start must reach the same shard each time: harvest keeps workflow IDs
+    /// unique per shard, so that is what keeps an idempotent start
+    /// idempotent across shards. The key is the workflow ID, or for an apply
+    /// task its record key, so that one record stays on one shard.
+    pub(crate) fn place(&self, workflow_name: &str, placement_key: &str) -> (ShardId, ExecutionId) {
         let shard = self
             .router
-            .pick_for_new_workflow(workflow_name, workflow_id);
+            .pick_for_new_workflow(workflow_name, placement_key);
         (shard, ExecutionId::new_for_shard(shard))
     }
 }

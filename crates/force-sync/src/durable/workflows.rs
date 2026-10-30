@@ -359,6 +359,21 @@ pub(crate) async fn force_sync_dispatch(ctx: &ActivityContext, input: ()) -> Res
     Ok(started)
 }
 
+/// What places the apply workflow of one task on a shard.
+///
+/// Harvest enforces a concurrency key within one shard only. So every task
+/// for one record must land on one shard, or two of them could apply at the
+/// same time on two shards. The record key places the workflow. The task's
+/// journal row never changes, so a task dispatched again gets the same key,
+/// reaches the same shard, and attaches to its run there. A task with no
+/// record key places by its workflow ID.
+pub(crate) fn apply_placement_key<'a>(
+    workflow_id: &'a str,
+    concurrency_key: Option<&'a str>,
+) -> &'a str {
+    concurrency_key.unwrap_or(workflow_id)
+}
+
 /// The workflow ID of the apply workflow for `task_id`.
 pub(crate) fn apply_workflow_id(task_id: i64) -> String {
     format!("force-sync-apply-{task_id}")
@@ -380,7 +395,8 @@ async fn start_apply(
 ) -> Result<StartResult, String> {
     let workflow_id = apply_workflow_id(input.task_id);
     let payload = serde_json::to_value(input).map_err(|error| error.to_string())?;
-    let (shard, exec_id) = state.harvest.place(APPLY_WORKFLOW, &workflow_id);
+    let placement = apply_placement_key(&workflow_id, concurrency_key);
+    let (shard, exec_id) = state.harvest.place(APPLY_WORKFLOW, placement);
     let mut conn = state
         .harvest
         .pool

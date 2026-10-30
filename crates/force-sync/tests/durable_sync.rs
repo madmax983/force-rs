@@ -749,12 +749,12 @@ async fn workflow_ids_on(
         .collect())
 }
 
-/// Inserts outbox rows `ext-1` to `ext-{count}`.
-async fn insert_numbered_outbox_rows(
+/// Inserts one outbox row for each `(record, cursor)` pair, on `ext-{record}`.
+async fn insert_outbox_changes(
     pool: &deadpool_postgres::Pool,
-    count: usize,
+    changes: &[(usize, usize)],
 ) -> Result<(), ForceSyncError> {
-    for n in 1..=count {
+    for (record, cursor) in changes {
         pool.get()
             .await?
             .execute(
@@ -762,9 +762,9 @@ async fn insert_numbered_outbox_rows(
                     (tenant, object_name, external_id, source_cursor, op, tombstone, payload)
                  values ('tenant', 'Account', $1, $2, 'upsert', false, $3::jsonb)",
                 &[
-                    &format!("ext-{n}"),
-                    &format!("lsn-{n}"),
-                    &json!({ "Name": format!("Acme {n}") }),
+                    &format!("ext-{record}"),
+                    &format!("lsn-{cursor}"),
+                    &json!({ "Name": format!("Acme {record} v{cursor}") }),
                 ],
             )
             .await?;
@@ -772,28 +772,44 @@ async fn insert_numbered_outbox_rows(
     Ok(())
 }
 
-/// The apply workflow IDs of every `sync_task` row, split by the shard that
-/// `router` picks for each: index 0 for shard 0, index 1 for shard 1.
-async fn expected_apply_ids_by_shard(
+/// Where the router places each apply task: its workflow ID, its record,
+/// and its shard (0 or 1).
+///
+/// An apply workflow is placed by its record key, the JSON array
+/// `[tenant, object, external_id]`, so all tasks for one record share a
+/// shard. That is what lets harvest's per-shard concurrency key serialize
+/// them.
+async fn expected_apply_placement(
     pool: &deadpool_postgres::Pool,
     router: &force_sync::durable::ShardRouter,
-) -> Result<[std::collections::BTreeSet<String>; 2], ForceSyncError> {
+) -> Result<Vec<(String, String, usize)>, ForceSyncError> {
     use force_sync::durable::{APPLY_WORKFLOW, ShardId};
-    let mut expected = [
-        std::collections::BTreeSet::new(),
-        std::collections::BTreeSet::new(),
-    ];
-    for row in pool
+    let rows = pool
         .get()
         .await?
-        .query("select task_id from sync_task order by task_id", &[])
-        .await?
-    {
-        let workflow_id = format!("force-sync-apply-{}", row.get::<_, i64>(0));
-        let shard = router.pick_for_new_workflow(APPLY_WORKFLOW, &workflow_id);
-        expected[usize::from(shard != ShardId::new(0))].insert(workflow_id);
-    }
-    Ok(expected)
+        .query(
+            "select t.task_id, j.tenant, j.object_name, j.external_id
+             from sync_task t
+             join sync_journal j on (t.payload->>'journal_id')::bigint = j.journal_id
+             order by t.task_id",
+            &[],
+        )
+        .await?;
+    Ok(rows
+        .iter()
+        .map(|row| {
+            let tenant: String = row.get(1);
+            let object_name: String = row.get(2);
+            let external_id: String = row.get(3);
+            let record = json!([tenant, object_name, external_id]).to_string();
+            let shard = router.pick_for_new_workflow(APPLY_WORKFLOW, &record);
+            (
+                format!("force-sync-apply-{}", row.get::<_, i64>(0)),
+                external_id,
+                usize::from(shard != ShardId::new(0)),
+            )
+        })
+        .collect())
 }
 
 /// Two harvest shards: each apply task and each CDC stream runs on the
@@ -812,13 +828,21 @@ async fn workflows_run_on_the_shard_the_router_picks() -> Result<(), ForceSyncEr
         .respond_with(created())
         .mount(&harness.mock_server)
         .await;
-    insert_numbered_outbox_rows(&harness.pool, 8).await?;
+    // Eight records, and a second change to records 1 and 2.
+    let mut changes: Vec<(usize, usize)> = (1..=8).map(|n| (n, n)).collect();
+    changes.extend([(1, 9), (2, 10)]);
+    insert_outbox_changes(&harness.pool, &changes).await?;
     let source = Arc::new(FeedSource::default());
     source.publish(1, "cdc-1", SF_ID_1);
 
+    // Postgres owns `Name`, so the second change to a record merges.
     let engine = SyncEngine::builder(test_client(&harness.mock_server).await)
         .postgres(PgStore::new(harness.pool.clone()))
-        .object(ObjectSync::new("Account").external_id("ExternalId__c"))
+        .object(
+            ObjectSync::new("Account")
+                .external_id("ExternalId__c")
+                .field_owner("Name", force_sync::Owner::Postgres),
+        )
         .build()?;
     let pool = harvest_sharded_pool(
         [
@@ -835,7 +859,7 @@ async fn workflows_run_on_the_shard_the_router_picks() -> Result<(), ForceSyncEr
             [CdcStream::new("tenant", "Account").starting_at(CdcStart::Earliest)],
         )?
         .start()?;
-    let tasks = harness.wait_for_settled(9).await?;
+    let tasks = harness.wait_for_settled(11).await?;
     runtime.stop().await?;
     assert!(
         tasks.iter().all(|(status, _)| status == "done"),
@@ -844,7 +868,26 @@ async fn workflows_run_on_the_shard_the_router_picks() -> Result<(), ForceSyncEr
 
     // Predict each workflow's shard from the router, then compare.
     let router = two_shard_router();
-    let expected_apply = expected_apply_ids_by_shard(&harness.pool, &router).await?;
+    let placement = expected_apply_placement(&harness.pool, &router).await?;
+    for record in ["ext-1", "ext-2"] {
+        let record_shards: std::collections::BTreeSet<usize> = placement
+            .iter()
+            .filter(|(_, external_id, _)| external_id == record)
+            .map(|(_, _, shard)| *shard)
+            .collect();
+        assert_eq!(
+            record_shards.len(),
+            1,
+            "both tasks of {record} must share a shard"
+        );
+    }
+    let mut expected_apply = [
+        std::collections::BTreeSet::new(),
+        std::collections::BTreeSet::new(),
+    ];
+    for (workflow_id, _, shard) in placement {
+        expected_apply[shard].insert(workflow_id);
+    }
     assert!(
         expected_apply.iter().all(|ids| !ids.is_empty()),
         "the test needs work on both shards: {expected_apply:?}"

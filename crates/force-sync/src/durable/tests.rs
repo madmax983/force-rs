@@ -983,8 +983,8 @@ mod shards {
     use autumn_harvest::shard::{ShardRouter, ShardedDbPool};
     use autumn_harvest::types::ShardId;
 
-    use super::super::workflows::{APPLY_WORKFLOW, apply_workflow_id};
-    use super::super::{HarvestShards, harvest_pool};
+    use super::super::workflows::{APPLY_WORKFLOW, apply_placement_key, apply_workflow_id};
+    use super::super::{HarvestShards, concurrency_key, harvest_pool};
 
     fn lazy_pool() -> autumn_harvest::worker::DbPool {
         harvest_pool("postgresql://unused:unused@localhost:5432/unused", 1)
@@ -1037,6 +1037,51 @@ mod shards {
             .map(|task_id| shards.place(APPLY_WORKFLOW, &apply_workflow_id(task_id)).0)
             .collect();
         assert_eq!(picked.len(), 2, "both shards must take work: {picked:?}");
+    }
+
+    #[test]
+    fn every_apply_task_for_one_record_lands_on_one_shard() {
+        // Harvest enforces a concurrency key within one shard only, so two
+        // tasks for one record must share a shard to be serialized.
+        let shards = two_shards();
+        let record = concurrency_key(&(
+            "tenant".to_owned(),
+            "Account".to_owned(),
+            "ext-1".to_owned(),
+        ));
+        let picked: std::collections::BTreeSet<ShardId> = (1..100)
+            .map(|task_id| {
+                let workflow_id = apply_workflow_id(task_id);
+                let key = apply_placement_key(&workflow_id, Some(&record));
+                shards.place(APPLY_WORKFLOW, key).0
+            })
+            .collect();
+        assert_eq!(
+            picked.len(),
+            1,
+            "one record must stay on one shard: {picked:?}"
+        );
+    }
+
+    #[test]
+    fn records_spread_across_shards_and_keyless_tasks_place_by_workflow_id() {
+        let shards = two_shards();
+        let picked: std::collections::BTreeSet<ShardId> = (1..200)
+            .map(|n| {
+                let record = concurrency_key(&(
+                    "tenant".to_owned(),
+                    "Account".to_owned(),
+                    format!("ext-{n}"),
+                ));
+                shards
+                    .place(APPLY_WORKFLOW, apply_placement_key("unused", Some(&record)))
+                    .0
+            })
+            .collect();
+        assert_eq!(picked.len(), 2, "records must spread: {picked:?}");
+
+        let workflow_id = apply_workflow_id(7);
+        assert_eq!(apply_placement_key(&workflow_id, None), workflow_id);
     }
 
     #[test]
