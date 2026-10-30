@@ -9,7 +9,7 @@ use std::time::Duration;
 
 use autumn_harvest::execution::{StartWorkflowParams, start_or_load_workflow_execution};
 use autumn_harvest::prelude::*;
-use autumn_harvest::types::{ShardId, WorkflowIdConflictPolicy, WorkflowIdReusePolicy};
+use autumn_harvest::types::{WorkflowIdConflictPolicy, WorkflowIdReusePolicy};
 use serde::{Deserialize, Serialize};
 
 use super::{DurableSyncState, FORCE_SYNC_QUEUE};
@@ -380,11 +380,14 @@ async fn start_apply(
 ) -> Result<StartResult, String> {
     let workflow_id = apply_workflow_id(input.task_id);
     let payload = serde_json::to_value(input).map_err(|error| error.to_string())?;
+    let (shard, exec_id) = state.harvest.place(APPLY_WORKFLOW, &workflow_id);
     let mut conn = state
-        .harvest_pool
+        .harvest
+        .pool
+        .pool_for(shard)
         .get()
         .await
-        .map_err(|error| format!("harvest pool: {error}"))?;
+        .map_err(|error| format!("harvest pool for shard {shard}: {error}"))?;
     let params = StartWorkflowParams {
         reuse_policy: WorkflowIdReusePolicy::AllowDuplicateFailedOnly,
         conflict_policy: WorkflowIdConflictPolicy::UseExisting,
@@ -393,7 +396,7 @@ async fn start_apply(
         ..StartWorkflowParams::new(
             APPLY_WORKFLOW,
             &workflow_id,
-            ExecutionId::new_for_shard(ShardId::new(0)),
+            exec_id,
             payload,
             FORCE_SYNC_QUEUE,
         )
@@ -616,15 +619,18 @@ pub(crate) async fn force_sync_cdc_ensure(
         return Ok(0);
     };
     let config = &state.config;
-    let mut conn = state
-        .harvest_pool
-        .get()
-        .await
-        .map_err(|error| format!("harvest pool: {error}"))?;
     let mut started = 0;
     for stream in &setup.streams {
         let input = cdc_stream_input(config, stream.name());
         let workflow_id = cdc_workflow_id(stream.name());
+        let (shard, exec_id) = state.harvest.place(CDC_STREAM_WORKFLOW, &workflow_id);
+        let mut conn = state
+            .harvest
+            .pool
+            .pool_for(shard)
+            .get()
+            .await
+            .map_err(|error| format!("harvest pool for shard {shard}: {error}"))?;
         let payload = serde_json::to_value(&input).map_err(|error| error.to_string())?;
         let params = StartWorkflowParams {
             reuse_policy: WorkflowIdReusePolicy::TerminateIfRunning,
@@ -632,7 +638,7 @@ pub(crate) async fn force_sync_cdc_ensure(
             ..StartWorkflowParams::new(
                 CDC_STREAM_WORKFLOW,
                 &workflow_id,
-                ExecutionId::new_for_shard(ShardId::new(0)),
+                exec_id,
                 payload,
                 FORCE_SYNC_QUEUE,
             )

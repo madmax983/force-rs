@@ -160,6 +160,33 @@ sequenceDiagram
 The same window is available without harvest as `capture_cdc_window` and
 `SyncEngine::run_cdc_window`.
 
+### Several harvest shards
+
+`DurableSync::new_sharded(engine, ShardedDbPool, ShardRouter)` runs on
+several harvest databases. `DurableSync::new(engine, pool)` stays the
+one-database case: a single pool and `ShardRouter::single()`, so every
+workflow lands on shard 0, as before.
+
+- **Placement follows the router.** Each start picks its shard with
+  `router.pick_for_new_workflow(workflow_name, workflow_id)`, mints the
+  execution ID for that shard, and writes through that shard's pool. The
+  router hashes the pair, so one workflow ID always lands on one shard.
+  Harvest keeps workflow IDs unique per shard, so this is what keeps an
+  idempotent start idempotent: a re-dispatched apply task, or the CDC
+  supervisor's next run, reaches the same shard and attaches there.
+- **The worker covers every shard.** `start()` gives the worker the
+  sharded pool with no fixed assignment, so it claims from every shard. The
+  scheduler runs with `SchedulerRuntime::spawn_sharded`. `start()` installs
+  the router and the pool as the process globals, as the harvest plugin
+  does.
+- **One validation.** `new_sharded` rejects a router that can read a shard
+  that the pool has no pool for. `harvest_sharded_pool` builds one engine
+  pool per shard DSN, with the hot-path engine timeouts.
+- **With `register`,** pass the router and the pool that the app's harvest
+  runtime uses, so durable sync starts its workflows on the shards that the
+  app's workers poll.
+- **The force-sync tables do not move.** Only harvest state is sharded.
+
 ### Integration surface
 
 - `DurableSync::new(engine, harvest_pool)` with `DurableSyncConfig`.
@@ -193,7 +220,8 @@ The same window is available without harvest as `capture_cdc_window` and
 - `durable` adds autumn-harvest and its tree (diesel, diesel-async) to
   `force-sync` builds that enable it. Default builds are unchanged.
 - The feature needs Rust 1.88 or later, the autumn-harvest MSRV.
-- The durable runtime assumes a single-shard harvest database (shard 0).
+- The harvest side can span several databases (shards). See "Several
+  harvest shards" above. The force-sync tables stay in one database.
 - Do not run the explicit runtime and the durable runtime on one store with
   one lease owner.
 - The bulk lane no longer calls Bulk and then REST when the linked Salesforce
@@ -221,6 +249,13 @@ The same window is available without harvest as `capture_cdc_window` and
   stops at its limits, quarantines an event without an external ID and keeps
   going, counts a redelivery as a duplicate, and keeps committed events when
   the stream fails.
+- `src/durable/tests.rs` shard tests: one pool keeps every workflow on
+  shard 0, a pick is stable and encoded in the execution ID, two shards
+  both take work, and a router shard with no pool is rejected.
+- `tests/durable_sync.rs` two-shard test: eight apply tasks and one CDC
+  stream on two harvest databases. Each shard holds exactly the workflow
+  IDs that the router picks for it, and the stream workflow exists only on
+  its own shard.
 - `tests/durable_sync.rs` CDC tests: events reach the journal and are
   projected with no Salesforce call. A restart resumes from the checkpoint
   with no lost or duplicate event. The supervisor never runs two workflows

@@ -578,7 +578,7 @@ use force::testing::{MockForceClient, MockAuthenticator};
 - [x] Durable Salesforce CDC capture: one `force_sync_cdc_stream` workflow per stream (bounded, heartbeated capture windows from the checkpoint, continue-as-new), kept running by the `force_sync_cdc_supervisor` schedule
   - [x] `CdcSource` trait (implemented for `PubSubHandler`), `CdcStream`, `capture_cdc_window` / `SyncEngine::run_cdc_window`
   - [x] Poison CDC events quarantined to `sync_dead_letter` with the checkpoint advanced in the same transaction
-- [ ] Multi-shard harvest placement (follow-up)
+- [x] Multi-shard harvest placement: `DurableSync::new_sharded(engine, ShardedDbPool, ShardRouter)`, router-picked shard per workflow ID, worker and scheduler across every shard, `harvest_sharded_pool` helper
 
 ### Phase 7: Winter '27 (API v68.0) - See [ADR-035](docs/adr/035-winter-27-v68-adoption.md)
 - [x] Default API version v68.0; `release_name()`; opt-in `latest` alias

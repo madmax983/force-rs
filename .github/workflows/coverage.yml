@@ -37,6 +37,7 @@ jobs:
           --health-retries 5
     env:
       FORCE_SYNC_TEST_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/force_sync_test
+      FORCE_SYNC_TEST_HARVEST_SHARD1_URL: postgres://postgres:postgres@127.0.0.1:5432/force_sync_test_shard1
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -49,6 +50,10 @@ jobs:
 
       - name: Install cargo-tarpaulin
         run: cargo install cargo-tarpaulin --locked
+
+      # The second harvest shard for the multi-shard durable sync test.
+      - name: Create the second harvest shard database
+        run: PGPASSWORD=postgres psql -h 127.0.0.1 -U postgres -c "create database force_sync_test_shard1"
 
       - name: Generate coverage report
         run: |

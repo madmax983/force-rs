@@ -22,7 +22,7 @@ use force::{
 use serde_json::json;
 use wiremock::{
     Mock, MockServer, ResponseTemplate,
-    matchers::{method, path},
+    matchers::{method, path, path_regex},
 };
 
 use force_pubsub::{EventMessage, PubSubEvent, ReplayId, ReplayPreset};
@@ -698,6 +698,185 @@ async fn cdc_capture_resumes_from_the_checkpoint_after_a_restart() -> Result<(),
         Some("custom:[2]"),
         "the first subscription after the restart must resume after replay 2: {:?}",
         source.presets()
+    );
+    Ok(())
+}
+
+// -- Several harvest shards ---------------------------------------------
+
+/// The second harvest shard. CI and local runs point it at its own database.
+fn shard1_url() -> String {
+    std::env::var("FORCE_SYNC_TEST_HARVEST_SHARD1_URL")
+        .unwrap_or_else(|_| panic!("FORCE_SYNC_TEST_HARVEST_SHARD1_URL must be set"))
+}
+
+fn two_shard_router() -> force_sync::durable::ShardRouter {
+    use force_sync::durable::{ShardId, ShardRouter};
+    let shards = vec![ShardId::new(0), ShardId::new(1)];
+    ShardRouter::new(shards.clone(), shards, ShardId::new(0))
+}
+
+async fn reset_and_migrate_shard1() -> Result<deadpool_postgres::Pool, ForceSyncError> {
+    let mut config = deadpool_postgres::Config::new();
+    config.url = Some(shard1_url());
+    let pool = config
+        .create_pool(
+            Some(deadpool_postgres::Runtime::Tokio1),
+            tokio_postgres::NoTls,
+        )
+        .unwrap_or_else(|error| panic!("shard 1 pool: {error}"));
+    support::postgres::reset_schema(&pool).await?;
+    migrate_harvest(&shard1_url()).await?;
+    Ok(pool)
+}
+
+/// The workflow IDs of `workflow_name` that harvest stored on one shard.
+async fn workflow_ids_on(
+    pool: &deadpool_postgres::Pool,
+    workflow_name: &str,
+) -> Result<std::collections::BTreeSet<String>, ForceSyncError> {
+    Ok(pool
+        .get()
+        .await?
+        .query(
+            "select distinct workflow_id from harvest_workflow_executions
+             where workflow_name = $1",
+            &[&workflow_name],
+        )
+        .await?
+        .iter()
+        .map(|row| row.get(0))
+        .collect())
+}
+
+/// Inserts outbox rows `ext-1` to `ext-{count}`.
+async fn insert_numbered_outbox_rows(
+    pool: &deadpool_postgres::Pool,
+    count: usize,
+) -> Result<(), ForceSyncError> {
+    for n in 1..=count {
+        pool.get()
+            .await?
+            .execute(
+                "insert into force_sync_outbox
+                    (tenant, object_name, external_id, source_cursor, op, tombstone, payload)
+                 values ('tenant', 'Account', $1, $2, 'upsert', false, $3::jsonb)",
+                &[
+                    &format!("ext-{n}"),
+                    &format!("lsn-{n}"),
+                    &json!({ "Name": format!("Acme {n}") }),
+                ],
+            )
+            .await?;
+    }
+    Ok(())
+}
+
+/// The apply workflow IDs of every `sync_task` row, split by the shard that
+/// `router` picks for each: index 0 for shard 0, index 1 for shard 1.
+async fn expected_apply_ids_by_shard(
+    pool: &deadpool_postgres::Pool,
+    router: &force_sync::durable::ShardRouter,
+) -> Result<[std::collections::BTreeSet<String>; 2], ForceSyncError> {
+    use force_sync::durable::{APPLY_WORKFLOW, ShardId};
+    let mut expected = [
+        std::collections::BTreeSet::new(),
+        std::collections::BTreeSet::new(),
+    ];
+    for row in pool
+        .get()
+        .await?
+        .query("select task_id from sync_task order by task_id", &[])
+        .await?
+    {
+        let workflow_id = format!("force-sync-apply-{}", row.get::<_, i64>(0));
+        let shard = router.pick_for_new_workflow(APPLY_WORKFLOW, &workflow_id);
+        expected[usize::from(shard != ShardId::new(0))].insert(workflow_id);
+    }
+    Ok(expected)
+}
+
+/// Two harvest shards: each apply task and each CDC stream runs on the
+/// shard that the router picks for its workflow ID, and only there.
+#[tokio::test]
+#[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL and FORCE_SYNC_TEST_HARVEST_SHARD1_URL"]
+async fn workflows_run_on_the_shard_the_router_picks() -> Result<(), ForceSyncError> {
+    use force_sync::durable::{APPLY_WORKFLOW, CDC_STREAM_WORKFLOW, ShardId, harvest_sharded_pool};
+
+    let harness = Harness::new().await?;
+    let shard1 = reset_and_migrate_shard1().await?;
+    Mock::given(method("PATCH"))
+        .and(path_regex(
+            r"^/services/data/v68\.0/sobjects/Account/ExternalId__c/ext-\d+$",
+        ))
+        .respond_with(created())
+        .mount(&harness.mock_server)
+        .await;
+    insert_numbered_outbox_rows(&harness.pool, 8).await?;
+    let source = Arc::new(FeedSource::default());
+    source.publish(1, "cdc-1", SF_ID_1);
+
+    let engine = SyncEngine::builder(test_client(&harness.mock_server).await)
+        .postgres(PgStore::new(harness.pool.clone()))
+        .object(ObjectSync::new("Account").external_id("ExternalId__c"))
+        .build()?;
+    let pool = harvest_sharded_pool(
+        [
+            (ShardId::new(0), database_url()),
+            (ShardId::new(1), shard1_url()),
+        ],
+        ShardId::new(0),
+        8,
+    )?;
+    let runtime = DurableSync::new_sharded(engine, pool, two_shard_router())?
+        .with_config(cdc_config())?
+        .with_cdc(
+            source.clone(),
+            [CdcStream::new("tenant", "Account").starting_at(CdcStart::Earliest)],
+        )?
+        .start()?;
+    let tasks = harness.wait_for_settled(9).await?;
+    runtime.stop().await?;
+    assert!(
+        tasks.iter().all(|(status, _)| status == "done"),
+        "{tasks:?}"
+    );
+
+    // Predict each workflow's shard from the router, then compare.
+    let router = two_shard_router();
+    let expected_apply = expected_apply_ids_by_shard(&harness.pool, &router).await?;
+    assert!(
+        expected_apply.iter().all(|ids| !ids.is_empty()),
+        "the test needs work on both shards: {expected_apply:?}"
+    );
+    assert_eq!(
+        workflow_ids_on(&harness.pool, APPLY_WORKFLOW).await?,
+        expected_apply[0],
+        "shard 0 apply workflows"
+    );
+    assert_eq!(
+        workflow_ids_on(&shard1, APPLY_WORKFLOW).await?,
+        expected_apply[1],
+        "shard 1 apply workflows"
+    );
+
+    let stream_id = "force-sync-cdc-salesforce:Account".to_owned();
+    let stream_shard = router.pick_for_new_workflow(CDC_STREAM_WORKFLOW, &stream_id);
+    let (home, other) = if stream_shard == ShardId::new(0) {
+        (&harness.pool, &shard1)
+    } else {
+        (&shard1, &harness.pool)
+    };
+    assert_eq!(
+        workflow_ids_on(home, CDC_STREAM_WORKFLOW).await?,
+        std::collections::BTreeSet::from([stream_id]),
+        "the stream workflow lives on its router shard"
+    );
+    assert!(
+        workflow_ids_on(other, CDC_STREAM_WORKFLOW)
+            .await?
+            .is_empty(),
+        "the supervisor must never start the stream on another shard"
     );
     Ok(())
 }
