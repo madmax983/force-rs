@@ -23,7 +23,7 @@ use force::client::builder;
 use force::error::Result as ForceResult;
 use force_pubsub::{
     BackoffConfig, PubSubConfig, PubSubError, PubSubEvent, PubSubHandler, ReconnectPolicy,
-    ReplayPreset,
+    ReplayId, ReplayPreset,
 };
 use futures::StreamExt;
 use wiremock::MockServer;
@@ -174,9 +174,13 @@ async fn test_subscribe_yields_keepalive() {
         .await
         .expect("stream must yield at least one item");
     let event = first.expect("item must be Ok");
-    assert!(
-        matches!(event, PubSubEvent::KeepAlive),
-        "expected KeepAlive, got {event:?}"
+    let PubSubEvent::KeepAlive { latest_replay_id } = event else {
+        panic!("expected KeepAlive, got {event:?}");
+    };
+    assert_eq!(
+        latest_replay_id.as_ref().map(ReplayId::as_bytes),
+        Some(&[0x01, 0x02][..]),
+        "a keepalive carries the latest replay ID, so a client can resume from it"
     );
 }
 

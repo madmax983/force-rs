@@ -8,14 +8,15 @@ use autumn_harvest::testing::{ReplayStatus, TestRunOutcome, WorkflowTestEnv};
 use serde_json::{Value, json};
 
 use super::workflows::{
-    self, ApplyInput, ApplyReport, PumpReport, all_activities, all_workflows, apply_workflow_id,
-    settle_attempt,
+    self, ApplyInput, ApplyReport, CdcStreamInput, CdcWindowResult, PumpReport, all_activities,
+    all_workflows, apply_workflow_id, cdc_workflow_id, settle_attempt,
 };
 use super::{
-    APPLY_WORKFLOW, DurableSyncConfig, FORCE_SYNC_QUEUE, PUMP_WORKFLOW, RECONCILE_WORKFLOW,
-    concurrency_key,
+    APPLY_WORKFLOW, CDC_STREAM_WORKFLOW, CDC_SUPERVISOR_WORKFLOW, DurableSyncConfig,
+    FORCE_SYNC_QUEUE, MAX_CDC_WINDOW, PUMP_WORKFLOW, RECONCILE_WORKFLOW, concurrency_key,
 };
 use crate::apply::steps::{ApplyPlan, ApplyResolution, RemoteCall, RemoteOutcome};
+use crate::capture::salesforce::{CdcWindow, CdcWindowEnd, CdcWindowReport};
 
 const SF_ID: &str = "001000000000001AAA";
 
@@ -184,14 +185,20 @@ fn workflow_names_match_the_public_constants() {
     let names: Vec<&str> = all_workflows().iter().map(|info| info.name).collect();
     assert_eq!(
         names,
-        vec![APPLY_WORKFLOW, PUMP_WORKFLOW, RECONCILE_WORKFLOW]
+        vec![
+            APPLY_WORKFLOW,
+            PUMP_WORKFLOW,
+            RECONCILE_WORKFLOW,
+            CDC_STREAM_WORKFLOW,
+            CDC_SUPERVISOR_WORKFLOW
+        ]
     );
 }
 
 #[test]
 fn every_activity_runs_on_the_force_sync_queue() {
     let activities = all_activities();
-    assert_eq!(activities.len(), 6);
+    assert_eq!(activities.len(), 9);
     for info in activities {
         assert_eq!(
             info.default_queue,
@@ -214,11 +221,14 @@ fn every_activity_runs_on_the_force_sync_queue() {
 
 #[test]
 fn schedule_shape_follows_the_config() {
-    let schedules = super::DurableSync::schedules_for(&DurableSyncConfig {
-        pump_interval: Duration::from_secs(7),
-        reconcile_interval: Some(Duration::from_secs(60)),
-        ..DurableSyncConfig::default()
-    });
+    let schedules = super::DurableSync::schedules_for(
+        &DurableSyncConfig {
+            pump_interval: Duration::from_secs(7),
+            reconcile_interval: Some(Duration::from_secs(60)),
+            ..DurableSyncConfig::default()
+        },
+        false,
+    );
     assert_eq!(schedules.len(), 2);
     assert_eq!(schedules[0].workflow_name, PUMP_WORKFLOW);
     assert!(matches!(
@@ -235,10 +245,13 @@ fn schedule_shape_follows_the_config() {
         assert_eq!(schedule.max_active_runs, 1, "runs must not overlap");
     }
 
-    let pump_only = super::DurableSync::schedules_for(&DurableSyncConfig {
-        reconcile_interval: None,
-        ..DurableSyncConfig::default()
-    });
+    let pump_only = super::DurableSync::schedules_for(
+        &DurableSyncConfig {
+            reconcile_interval: None,
+            ..DurableSyncConfig::default()
+        },
+        false,
+    );
     assert_eq!(pump_only.len(), 1);
     assert_eq!(pump_only[0].workflow_name, PUMP_WORKFLOW);
 }
@@ -528,4 +541,436 @@ async fn reconcile_returns_the_repair_count() {
         matches!(replay.status, ReplayStatus::ReplaySucceeded),
         "{replay}"
     );
+}
+
+// -- CDC stream and supervisor workflows --------------------------------
+
+fn cdc_input(windows_per_run: u32) -> Value {
+    serde_json::to_value(CdcStreamInput {
+        stream: "salesforce:Account".to_owned(),
+        windows_per_run,
+        error_backoff_secs: 7,
+    })
+    .unwrap_or_else(|error| panic!("serialize cdc input: {error}"))
+}
+
+fn window_report(captured: usize) -> Value {
+    to_json(&CdcWindowResult::Window(CdcWindowReport {
+        captured,
+        duplicates: 0,
+        quarantined: 0,
+        end: CdcWindowEnd::Deadline,
+    }))
+}
+
+async fn run_cdc_stream(env: WorkflowTestEnv, input: Value) -> TestRunOutcome {
+    let handler = workflows::force_sync_cdc_stream_info().handler;
+    let outcome = env.run(handler, input).await;
+    let replay = outcome.replay_check(handler).await;
+    assert!(
+        matches!(replay.status, ReplayStatus::ReplaySucceeded),
+        "cdc stream workflow must replay deterministically: {replay}"
+    );
+    outcome
+}
+
+fn continued_as_new_input(outcome: &TestRunOutcome) -> Option<Value> {
+    outcome.events().iter().find_map(|event| match event {
+        WorkflowEvent::WorkflowContinuedAsNew { input, .. } => Some(input.clone()),
+        _ => None,
+    })
+}
+
+fn timers(outcome: &TestRunOutcome) -> Vec<u64> {
+    outcome
+        .events()
+        .iter()
+        .filter_map(|event| match event {
+            WorkflowEvent::TimerStarted { duration_secs, .. } => Some(*duration_secs),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn cdc_config_validation_rejects_each_invalid_field() {
+    let cases: Vec<(DurableSyncConfig, &str)> = vec![
+        (
+            DurableSyncConfig {
+                cdc_window: CdcWindow {
+                    max_duration: Duration::ZERO,
+                    max_events: 10,
+                },
+                ..DurableSyncConfig::default()
+            },
+            "cdc_window.max_duration",
+        ),
+        (
+            DurableSyncConfig {
+                cdc_window: CdcWindow {
+                    max_duration: MAX_CDC_WINDOW + Duration::from_secs(1),
+                    max_events: 10,
+                },
+                ..DurableSyncConfig::default()
+            },
+            "cdc_window.max_duration",
+        ),
+        (
+            DurableSyncConfig {
+                cdc_window: CdcWindow {
+                    max_duration: Duration::from_secs(5),
+                    max_events: 0,
+                },
+                ..DurableSyncConfig::default()
+            },
+            "cdc_window.max_events",
+        ),
+        (
+            DurableSyncConfig {
+                cdc_supervise_interval: Duration::from_millis(500),
+                ..DurableSyncConfig::default()
+            },
+            "cdc_supervise_interval",
+        ),
+        (
+            DurableSyncConfig {
+                cdc_windows_per_run: 0,
+                ..DurableSyncConfig::default()
+            },
+            "cdc_windows_per_run",
+        ),
+        (
+            DurableSyncConfig {
+                cdc_error_backoff: Duration::ZERO,
+                ..DurableSyncConfig::default()
+            },
+            "cdc_error_backoff",
+        ),
+    ];
+    for (config, field) in cases {
+        let Err(error) = config.validate() else {
+            panic!("expected {field} to be rejected");
+        };
+        assert!(error.to_string().contains(field), "{field}: {error}");
+    }
+}
+
+#[test]
+fn cdc_adds_the_supervisor_schedule() {
+    let schedules = super::DurableSync::schedules_for(
+        &DurableSyncConfig {
+            cdc_supervise_interval: Duration::from_secs(12),
+            ..DurableSyncConfig::default()
+        },
+        true,
+    );
+    let supervisor = schedules
+        .iter()
+        .find(|schedule| schedule.workflow_name == CDC_SUPERVISOR_WORKFLOW)
+        .unwrap_or_else(|| panic!("no supervisor schedule in {schedules:?}"));
+    assert!(matches!(
+        supervisor.schedule,
+        Schedule::Interval(interval) if interval == Duration::from_secs(12)
+    ));
+    assert_eq!(supervisor.queue_name, FORCE_SYNC_QUEUE);
+    assert_eq!(supervisor.max_active_runs, 1);
+}
+
+#[test]
+fn cdc_workflow_id_is_stable_per_stream() {
+    assert_eq!(
+        cdc_workflow_id("salesforce:Account"),
+        "force-sync-cdc-salesforce:Account"
+    );
+}
+
+#[test]
+fn cdc_window_result_round_trips_through_json() {
+    for result in [
+        CdcWindowResult::Unconfigured,
+        CdcWindowResult::Window(CdcWindowReport {
+            captured: 3,
+            duplicates: 1,
+            quarantined: 2,
+            end: CdcWindowEnd::MaxEvents,
+        }),
+    ] {
+        let back: CdcWindowResult = serde_json::from_value(to_json(&result))
+            .unwrap_or_else(|error| panic!("round trip: {error}"));
+        assert_eq!(back, result);
+    }
+}
+
+#[tokio::test]
+async fn cdc_stream_runs_its_windows_then_continues_as_new() {
+    let outcome = run_cdc_stream(
+        WorkflowTestEnv::new()
+            .mock_activity("force_sync_cdc_window", |input| {
+                assert_eq!(input, json!("salesforce:Account"));
+                Ok(window_report(2))
+            })
+            .mock_activity("force_sync_cdc_settings", |_| Ok(cdc_input(3))),
+        cdc_input(3),
+    )
+    .await;
+
+    let names: Vec<String> = scheduled(&outcome).into_iter().map(|(n, _)| n).collect();
+    assert_eq!(
+        names,
+        vec![
+            "force_sync_cdc_window",
+            "force_sync_cdc_window",
+            "force_sync_cdc_window",
+            "force_sync_cdc_settings"
+        ]
+    );
+    assert!(
+        timers(&outcome).is_empty(),
+        "no backoff after a good window"
+    );
+    assert_eq!(continued_as_new_input(&outcome), Some(cdc_input(3)));
+}
+
+#[tokio::test]
+async fn failed_cdc_window_backs_off_then_keeps_following_the_stream() {
+    let outcome = run_cdc_stream(
+        WorkflowTestEnv::new()
+            .mock_activity_attempt(
+                "force_sync_cdc_window",
+                1,
+                Err("pub/sub unavailable".to_owned()),
+            )
+            .mock_activity("force_sync_cdc_window", |_| Ok(window_report(1)))
+            .mock_activity("force_sync_cdc_settings", |_| Ok(cdc_input(2))),
+        cdc_input(2),
+    )
+    .await;
+
+    let names: Vec<String> = scheduled(&outcome).into_iter().map(|(n, _)| n).collect();
+    assert_eq!(
+        names,
+        vec![
+            "force_sync_cdc_window",
+            "force_sync_cdc_window",
+            "force_sync_cdc_settings"
+        ]
+    );
+    assert_eq!(timers(&outcome), vec![7], "backoff uses error_backoff_secs");
+    assert!(continued_as_new_input(&outcome).is_some());
+}
+
+#[tokio::test]
+async fn unconfigured_cdc_stream_ends_its_workflow() {
+    let outcome = run_cdc_stream(
+        WorkflowTestEnv::new().mock_activity("force_sync_cdc_window", |_| {
+            Ok(to_json(&CdcWindowResult::Unconfigured))
+        }),
+        cdc_input(5),
+    )
+    .await;
+
+    assert_eq!(outcome.result, Ok(Value::Null));
+    assert_eq!(scheduled(&outcome).len(), 1);
+    assert_eq!(continued_as_new_input(&outcome), None);
+}
+
+#[tokio::test]
+async fn cdc_supervisor_runs_the_ensure_activity() {
+    let handler = workflows::force_sync_cdc_supervisor_info().handler;
+    let outcome = WorkflowTestEnv::new()
+        .mock_activity("force_sync_cdc_ensure", |_| Ok(json!(2)))
+        .run(handler, Value::Null)
+        .await;
+    assert_eq!(outcome.result, Ok(json!(2)));
+    let names: Vec<String> = scheduled(&outcome).into_iter().map(|(n, _)| n).collect();
+    assert_eq!(names, vec!["force_sync_cdc_ensure"]);
+    let replay = outcome.replay_check(handler).await;
+    assert!(
+        matches!(replay.status, ReplayStatus::ReplaySucceeded),
+        "{replay}"
+    );
+}
+
+#[tokio::test]
+async fn cdc_stream_continues_with_the_current_settings() {
+    let changed = serde_json::to_value(CdcStreamInput {
+        stream: "salesforce:Account".to_owned(),
+        windows_per_run: 9,
+        error_backoff_secs: 30,
+    })
+    .unwrap_or_else(|error| panic!("serialize: {error}"));
+    let returned = changed.clone();
+    let outcome = run_cdc_stream(
+        WorkflowTestEnv::new()
+            .mock_activity("force_sync_cdc_window", |_| Ok(window_report(0)))
+            .mock_activity("force_sync_cdc_settings", move |input| {
+                assert_eq!(input, json!("salesforce:Account"));
+                Ok(returned.clone())
+            }),
+        cdc_input(1),
+    )
+    .await;
+
+    assert_eq!(
+        continued_as_new_input(&outcome),
+        Some(changed),
+        "a config change must reach the stream at its next run"
+    );
+}
+
+#[tokio::test]
+async fn cdc_stream_removed_at_the_run_boundary_ends_its_workflow() {
+    let outcome = run_cdc_stream(
+        WorkflowTestEnv::new()
+            .mock_activity("force_sync_cdc_window", |_| Ok(window_report(0)))
+            .mock_activity("force_sync_cdc_settings", |_| Ok(Value::Null)),
+        cdc_input(1),
+    )
+    .await;
+
+    assert_eq!(outcome.result, Ok(Value::Null));
+    assert_eq!(continued_as_new_input(&outcome), None);
+}
+
+// -- DurableSync::with_cdc validation -----------------------------------
+
+mod with_cdc {
+    use std::sync::Arc;
+
+    use async_trait::async_trait;
+    use force::auth::{AccessToken, Authenticator, TokenResponse};
+    use force_pubsub::ReplayPreset;
+
+    use super::super::{CDC_SUPERVISOR_WORKFLOW, DurableSync, harvest_pool};
+    use crate::{
+        CdcEventStream, CdcSource, CdcStream, ForceSyncError, ObjectSync, PgStore, SyncEngine,
+    };
+
+    #[derive(Debug, Clone)]
+    struct StubAuth;
+
+    #[async_trait]
+    impl Authenticator for StubAuth {
+        async fn authenticate(&self) -> force::error::Result<AccessToken> {
+            Ok(AccessToken::from_response(TokenResponse {
+                access_token: secrecy::SecretString::new("stub".to_owned().into()),
+                instance_url: "https://stub.invalid".to_owned(),
+                token_type: "Bearer".to_owned(),
+                issued_at: "1704067200000".to_owned(),
+                signature: "stub".to_owned(),
+                expires_in: Some(7200),
+                refresh_token: None,
+            }))
+        }
+
+        async fn refresh(&self) -> force::error::Result<AccessToken> {
+            self.authenticate().await
+        }
+    }
+
+    /// A source that is never subscribed in these tests.
+    struct NoSource;
+
+    #[async_trait]
+    impl CdcSource for NoSource {
+        async fn subscribe(
+            &self,
+            _topic: &str,
+            _replay: ReplayPreset,
+        ) -> Result<CdcEventStream, ForceSyncError> {
+            Err(ForceSyncError::NotImplemented)
+        }
+    }
+
+    /// A durable sync over an Account-only engine. Both pools are lazy, so
+    /// no database is needed.
+    async fn account_sync() -> DurableSync {
+        let client = force::client::builder()
+            .authenticate(StubAuth)
+            .build()
+            .await
+            .unwrap_or_else(|error| panic!("client: {error}"));
+        let mut config = deadpool_postgres::Config::new();
+        config.url = Some("postgresql://unused:unused@localhost:5432/unused".to_owned());
+        let pool = config
+            .create_pool(
+                Some(deadpool_postgres::Runtime::Tokio1),
+                tokio_postgres::NoTls,
+            )
+            .unwrap_or_else(|error| panic!("pool: {error}"));
+        let engine = SyncEngine::builder(client)
+            .postgres(PgStore::new(pool))
+            .object(ObjectSync::new("Account").external_id("ExternalId__c"))
+            .build()
+            .unwrap_or_else(|error| panic!("engine: {error}"));
+        let harvest = harvest_pool("postgresql://unused:unused@localhost:5432/unused", 1)
+            .unwrap_or_else(|error| panic!("harvest pool: {error}"));
+        DurableSync::new(engine, harvest)
+    }
+
+    fn rejection(result: Result<DurableSync, ForceSyncError>) -> ForceSyncError {
+        match result {
+            Ok(_) => panic!("with_cdc must reject this setup"),
+            Err(error) => error,
+        }
+    }
+
+    #[tokio::test]
+    async fn rejects_an_empty_stream_list() {
+        let error = rejection(
+            account_sync()
+                .await
+                .with_cdc(Arc::new(NoSource), Vec::<CdcStream>::new()),
+        );
+        assert!(error.to_string().contains("at least one stream"), "{error}");
+    }
+
+    #[tokio::test]
+    async fn rejects_two_streams_with_one_name() {
+        let error = rejection(account_sync().await.with_cdc(
+            Arc::new(NoSource),
+            [
+                CdcStream::new("tenant", "Account"),
+                CdcStream::new("tenant", "Account").with_topic("/data/Other__chn"),
+            ],
+        ));
+        assert!(error.to_string().contains("salesforce:Account"), "{error}");
+    }
+
+    #[tokio::test]
+    async fn rejects_a_stream_for_an_object_the_engine_does_not_sync() {
+        let error = rejection(
+            account_sync()
+                .await
+                .with_cdc(Arc::new(NoSource), [CdcStream::new("tenant", "Contact")]),
+        );
+        assert!(matches!(
+            error,
+            ForceSyncError::MissingConfiguration {
+                field: "object sync"
+            }
+        ));
+    }
+
+    #[tokio::test]
+    async fn valid_streams_add_the_supervisor_schedule() {
+        let without = account_sync().await;
+        assert!(
+            without
+                .schedules()
+                .iter()
+                .all(|schedule| schedule.workflow_name != CDC_SUPERVISOR_WORKFLOW),
+            "no supervisor without CDC"
+        );
+
+        let with = account_sync()
+            .await
+            .with_cdc(Arc::new(NoSource), [CdcStream::new("tenant", "Account")])
+            .unwrap_or_else(|error| panic!("valid setup rejected: {error}"));
+        assert!(
+            with.schedules()
+                .iter()
+                .any(|schedule| schedule.workflow_name == CDC_SUPERVISOR_WORKFLOW)
+        );
+    }
 }

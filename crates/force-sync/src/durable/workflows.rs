@@ -14,6 +14,16 @@ use serde::{Deserialize, Serialize};
 
 use super::{DurableSyncState, FORCE_SYNC_QUEUE};
 use crate::apply::steps::{ApplyPlan, ApplyResolution, RemoteCall, RemoteOutcome};
+use crate::capture::salesforce::CdcWindowReport;
+
+/// The workflow name of one CDC stream.
+pub(crate) const CDC_STREAM_WORKFLOW: &str = "force_sync_cdc_stream";
+
+/// How often a CDC window activity heartbeats.
+const CDC_HEARTBEAT_EVERY: Duration = Duration::from_secs(10);
+
+/// How often a CDC window activity checks for cancellation.
+const CDC_CANCEL_POLL: Duration = Duration::from_secs(1);
 
 /// The workflow name of one apply task.
 pub(crate) const APPLY_WORKFLOW: &str = "force_sync_apply";
@@ -418,9 +428,234 @@ pub(crate) async fn force_sync_reconcile_pass(
         .map_err(|error| error.to_string())
 }
 
+/// Input of the [`force_sync_cdc_stream`] workflow.
+///
+/// The supervisor builds it from the config, and each run reads it again
+/// before it continues as new. It is recorded in history, so a config
+/// change reaches a stream at its next run and never changes a run in
+/// flight.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) struct CdcStreamInput {
+    /// The [`crate::CdcStream`] name.
+    pub stream: String,
+    /// Windows before the run continues as new.
+    pub windows_per_run: u32,
+    /// Seconds to wait after a failed window.
+    pub error_backoff_secs: u64,
+}
+
+/// Output of the CDC window activity.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "result", rename_all = "snake_case")]
+pub(crate) enum CdcWindowResult {
+    /// The window ran.
+    Window(CdcWindowReport),
+    /// The stream is no longer configured. Its workflow ends.
+    Unconfigured,
+}
+
+/// The stream workflow input that the current config gives `stream`.
+fn cdc_stream_input(config: &super::DurableSyncConfig, stream: &str) -> CdcStreamInput {
+    CdcStreamInput {
+        stream: stream.to_owned(),
+        windows_per_run: config.cdc_windows_per_run,
+        error_backoff_secs: config.cdc_error_backoff.as_secs(),
+    }
+}
+
+/// The workflow ID of the stream workflow for `stream`.
+pub(crate) fn cdc_workflow_id(stream: &str) -> String {
+    format!("force-sync-cdc-{stream}")
+}
+
+/// Follows one CDC stream, one bounded window at a time.
+///
+/// Each window resumes from the stream checkpoint, so a crash costs at most
+/// the events that were read but not committed, and those are delivered
+/// again. A failed window waits `error_backoff_secs` on a durable timer. After
+/// `windows_per_run` windows the run continues as new, which bounds its
+/// history. The next run gets the settings of the current config, read
+/// through a recorded activity. The run ends only when the stream is no
+/// longer configured.
+#[workflow]
+pub(crate) async fn force_sync_cdc_stream(
+    ctx: &WorkflowContext,
+    input: CdcStreamInput,
+) -> Result<(), String> {
+    for window in 0..input.windows_per_run {
+        let result: HarvestResult<CdcWindowResult> = ctx
+            .execute_activity(&force_sync_cdc_window_info(), &input.stream)
+            .await;
+        match result {
+            Ok(CdcWindowResult::Window(_)) => {}
+            Ok(CdcWindowResult::Unconfigured) => return Ok(()),
+            Err(_) => {
+                ctx.timer(&format!("cdc-backoff-{window}"), input.error_backoff_secs)
+                    .await
+                    .map_err(|error| error.to_string())?;
+            }
+        }
+    }
+    let current: Option<CdcStreamInput> = ctx
+        .execute_activity(&force_sync_cdc_settings_info(), &input.stream)
+        .await
+        .map_err(|error| error.to_string())?;
+    let Some(next) = current else {
+        return Ok(());
+    };
+    let next = serde_json::to_value(&next).map_err(|error| error.to_string())?;
+    ctx.continue_as_new(next)
+        .await
+        .map_err(|error| error.to_string())
+}
+
+/// Starts each configured CDC stream workflow that is not running.
+///
+/// A schedule fires it at the CDC supervise interval.
+#[workflow]
+pub(crate) async fn force_sync_cdc_supervisor(
+    ctx: &WorkflowContext,
+    input: (),
+) -> Result<usize, String> {
+    let () = input;
+    ctx.execute_activity(&force_sync_cdc_ensure_info(), ())
+        .await
+        .map_err(|error| error.to_string())
+}
+
+/// Captures one CDC window, and heartbeats while it waits for events.
+///
+/// The heartbeat lets harvest detect a dead worker within the heartbeat
+/// timeout, so another worker takes the stream over quickly.
+#[activity(
+    start_to_close = "600s",
+    heartbeat_timeout = "30s",
+    retry = RetryPolicy::exponential(3, Duration::from_secs(1)),
+    queue = "force-sync"
+)]
+pub(crate) async fn force_sync_cdc_window(
+    ctx: &ActivityContext,
+    stream: String,
+) -> Result<CdcWindowResult, String> {
+    let state = sync_state(ctx)?;
+    let Some(setup) = state.cdc.as_deref() else {
+        return Ok(CdcWindowResult::Unconfigured);
+    };
+    let Some(stream) = setup.stream(&stream) else {
+        return Ok(CdcWindowResult::Unconfigured);
+    };
+
+    let capture = state
+        .ops
+        .cdc_window(setup.source.as_ref(), stream, state.config.cdc_window);
+    tokio::pin!(capture);
+    let mut tick = tokio::time::interval(CDC_CANCEL_POLL);
+    tick.tick().await;
+    let mut since_heartbeat = Duration::ZERO;
+    loop {
+        tokio::select! {
+            report = &mut capture => {
+                return report
+                    .map(CdcWindowResult::Window)
+                    .map_err(|error| error.to_string());
+            }
+            _ = tick.tick() => {
+                // A cancelled activity, such as one on a draining worker,
+                // stops here. The events committed so far stay committed.
+                if ctx.is_cancelled() {
+                    return Err("CDC window cancelled".to_owned());
+                }
+                since_heartbeat += CDC_CANCEL_POLL;
+                if since_heartbeat >= CDC_HEARTBEAT_EVERY {
+                    since_heartbeat = Duration::ZERO;
+                    ctx.heartbeat(stream.name())
+                        .await
+                        .map_err(|error| error.to_string())?;
+                }
+            }
+        }
+    }
+}
+
+/// Reads the current settings of `stream`, or `None` when it is no longer
+/// configured.
+#[allow(clippy::unused_async, reason = "#[activity] requires an async fn")]
+#[activity(
+    start_to_close = "30s",
+    retry = RetryPolicy::exponential(5, Duration::from_secs(1)),
+    queue = "force-sync"
+)]
+pub(crate) async fn force_sync_cdc_settings(
+    ctx: &ActivityContext,
+    stream: String,
+) -> Result<Option<CdcStreamInput>, String> {
+    let state = sync_state(ctx)?;
+    Ok(state
+        .cdc
+        .as_deref()
+        .and_then(|setup| setup.stream(&stream))
+        .map(|stream| cdc_stream_input(&state.config, stream.name())))
+}
+
+/// Starts or attaches to the workflow of each configured CDC stream.
+///
+/// A running workflow is kept. A workflow that ended, for any reason,
+/// is started again, so the supervisor heals a failed stream.
+#[activity(
+    start_to_close = "60s",
+    retry = RetryPolicy::exponential(5, Duration::from_secs(1)),
+    queue = "force-sync"
+)]
+pub(crate) async fn force_sync_cdc_ensure(
+    ctx: &ActivityContext,
+    input: (),
+) -> Result<usize, String> {
+    let () = input;
+    let state = sync_state(ctx)?;
+    let Some(setup) = state.cdc.as_deref() else {
+        return Ok(0);
+    };
+    let config = &state.config;
+    let mut conn = state
+        .harvest_pool
+        .get()
+        .await
+        .map_err(|error| format!("harvest pool: {error}"))?;
+    let mut started = 0;
+    for stream in &setup.streams {
+        let input = cdc_stream_input(config, stream.name());
+        let workflow_id = cdc_workflow_id(stream.name());
+        let payload = serde_json::to_value(&input).map_err(|error| error.to_string())?;
+        let params = StartWorkflowParams {
+            reuse_policy: WorkflowIdReusePolicy::TerminateIfRunning,
+            conflict_policy: WorkflowIdConflictPolicy::UseExisting,
+            ..StartWorkflowParams::new(
+                CDC_STREAM_WORKFLOW,
+                &workflow_id,
+                ExecutionId::new_for_shard(ShardId::new(0)),
+                payload,
+                FORCE_SYNC_QUEUE,
+            )
+        };
+        let result = start_or_load_workflow_execution(&mut conn, params, None)
+            .await
+            .map_err(|error| format!("start {workflow_id}: {error}"))?;
+        if result.created {
+            started += 1;
+        }
+    }
+    Ok(started)
+}
+
 /// Every workflow of durable sync.
 pub(crate) fn all_workflows() -> Vec<WorkflowInfo> {
-    workflows![force_sync_apply, force_sync_pump, force_sync_reconcile]
+    workflows![
+        force_sync_apply,
+        force_sync_pump,
+        force_sync_reconcile,
+        force_sync_cdc_stream,
+        force_sync_cdc_supervisor,
+    ]
 }
 
 /// Every activity of durable sync.
@@ -432,5 +667,8 @@ pub(crate) fn all_activities() -> Vec<ActivityInfo> {
         force_sync_capture,
         force_sync_dispatch,
         force_sync_reconcile_pass,
+        force_sync_cdc_window,
+        force_sync_cdc_settings,
+        force_sync_cdc_ensure,
     ]
 }

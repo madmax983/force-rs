@@ -575,7 +575,10 @@ use force::testing::{MockForceClient, MockAuthenticator};
 - [x] Scheduled `force_sync_pump` (capture + dispatch) and `force_sync_reconcile`
 - [x] Configurable Salesforce retry policy carried in workflow history; exhausted retries fail the task
 - [x] Standalone `DurableSync::start` (core harvest worker + scheduler) and `DurableSync::register` for existing harvest apps
-- [ ] Durable Salesforce CDC capture (`capture_stream`) (follow-up)
+- [x] Durable Salesforce CDC capture: one `force_sync_cdc_stream` workflow per stream (bounded, heartbeated capture windows from the checkpoint, continue-as-new), kept running by the `force_sync_cdc_supervisor` schedule
+  - [x] `CdcSource` trait (implemented for `PubSubHandler`), `CdcStream`, `capture_cdc_window` / `SyncEngine::run_cdc_window`
+  - [x] Poison CDC events quarantined to `sync_dead_letter` with the checkpoint advanced in the same transaction
+- [ ] Multi-shard harvest placement (follow-up)
 
 ### Phase 7: Winter '27 (API v68.0) - See [ADR-035](docs/adr/035-winter-27-v68-adoption.md)
 - [x] Default API version v68.0; `release_name()`; opt-in `latest` alias

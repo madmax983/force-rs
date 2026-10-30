@@ -51,7 +51,21 @@ pub enum PubSubEvent<T> {
         attempt: u32,
     },
     /// Salesforce heartbeat — no events this batch.
-    KeepAlive,
+    ///
+    /// Salesforce sends one when no event arrives for about 270 seconds.
+    KeepAlive {
+        /// The replay ID of the latest event on the channel, if Salesforce
+        /// sent one.
+        ///
+        /// Every earlier event was delivered before this keepalive. A client
+        /// that stores it and later resumes with [`ReplayPreset::Custom`]
+        /// misses no event, even on a channel that has had no event since it
+        /// subscribed with [`ReplayPreset::Latest`].
+        ///
+        /// [`ReplayPreset::Custom`]: crate::ReplayPreset::Custom
+        /// [`ReplayPreset::Latest`]: crate::ReplayPreset::Latest
+        latest_replay_id: Option<ReplayId>,
+    },
 }
 
 /// Per-event result from a publish operation.

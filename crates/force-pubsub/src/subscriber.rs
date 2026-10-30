@@ -250,7 +250,13 @@ async fn subscribe_loop<A: Authenticator + Send + Sync + 'static>(
             }
 
             if response.events.is_empty() {
-                if tx.send(Ok(PubSubEvent::KeepAlive)).await.is_err() {
+                let latest_replay_id = (!response.latest_replay_id.is_empty())
+                    .then(|| ReplayId::from_bytes(response.latest_replay_id.clone()));
+                if tx
+                    .send(Ok(PubSubEvent::KeepAlive { latest_replay_id }))
+                    .await
+                    .is_err()
+                {
                     break 'outer;
                 }
                 continue;
@@ -357,7 +363,9 @@ where
                             })
                         })
                 }
-                PubSubEvent::KeepAlive => Ok(PubSubEvent::KeepAlive),
+                PubSubEvent::KeepAlive { latest_replay_id } => {
+                    Ok(PubSubEvent::KeepAlive { latest_replay_id })
+                }
                 PubSubEvent::Reconnected { replay_id, attempt } => {
                     Ok(PubSubEvent::Reconnected { replay_id, attempt })
                 }

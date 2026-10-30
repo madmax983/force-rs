@@ -11,6 +11,9 @@
 //!   after the Salesforce call therefore resumes at finalize and does not
 //!   repeat the call.
 //! - A **reconcile** schedule runs drift detection and enqueues repairs.
+//! - With [`DurableSync::with_cdc`](crate::durable::DurableSync::with_cdc), one long-running **CDC stream** workflow
+//!   per Salesforce Change Data Capture stream follows that stream from its
+//!   checkpoint. A **CDC supervisor** schedule keeps each one running.
 //!
 //! The force-sync tables stay the source of truth for sync state. Harvest
 //! owns only scheduling, retries, and execution history. See ADR-036.
@@ -52,6 +55,7 @@ use force::auth::Authenticator;
 use crate::{
     SyncEngine,
     apply::steps::{ApplyPlan, ApplyResolution, RemoteCall, RemoteOutcome},
+    capture::salesforce::{CdcSource, CdcStream, CdcWindow, CdcWindowReport},
     error::ForceSyncError,
 };
 
@@ -70,6 +74,15 @@ pub const PUMP_WORKFLOW: &str = "force_sync_pump";
 
 /// The scheduled workflow that runs reconciliation.
 pub const RECONCILE_WORKFLOW: &str = "force_sync_reconcile";
+
+/// The long-running workflow that follows one CDC stream.
+pub const CDC_STREAM_WORKFLOW: &str = workflows::CDC_STREAM_WORKFLOW;
+
+/// The scheduled workflow that keeps each CDC stream workflow running.
+pub const CDC_SUPERVISOR_WORKFLOW: &str = "force_sync_cdc_supervisor";
+
+/// The longest CDC window. The window activity has a 600 second timeout.
+pub const MAX_CDC_WINDOW: Duration = Duration::from_secs(540);
 
 /// The default lease owner of tasks that durable sync dispatches.
 pub const DEFAULT_LEASE_OWNER: &str = "force-sync-durable";
@@ -102,6 +115,18 @@ pub struct DurableSyncConfig {
     ///
     /// Do not run the explicit runtime on the same store with this owner.
     pub lease_owner: String,
+    /// The bounds of one CDC capture window. Default: 50 seconds or 1000
+    /// events. `max_duration` can be at most [`MAX_CDC_WINDOW`].
+    pub cdc_window: CdcWindow,
+    /// Time between CDC supervisor runs. Must be a whole number of seconds.
+    /// Default: 30 seconds.
+    pub cdc_supervise_interval: Duration,
+    /// Windows that one CDC stream run captures before it continues as new.
+    /// It bounds the run history. Default: 60.
+    pub cdc_windows_per_run: u32,
+    /// Wait after a failed CDC window before the next one. Must be a whole
+    /// number of seconds. Default: 10 seconds.
+    pub cdc_error_backoff: Duration,
 }
 
 impl Default for DurableSyncConfig {
@@ -114,6 +139,10 @@ impl Default for DurableSyncConfig {
             dispatch_lease: Duration::from_secs(3600),
             remote_retry: RetryPolicy::exponential(8, Duration::from_secs(2)),
             lease_owner: DEFAULT_LEASE_OWNER.to_owned(),
+            cdc_window: CdcWindow::default(),
+            cdc_supervise_interval: Duration::from_secs(30),
+            cdc_windows_per_run: 60,
+            cdc_error_backoff: Duration::from_secs(10),
         }
     }
 }
@@ -150,6 +179,23 @@ impl DurableSyncConfig {
         if self.lease_owner.is_empty() {
             return invalid("lease_owner cannot be empty");
         }
+        if self.cdc_window.max_duration.is_zero() || self.cdc_window.max_duration > MAX_CDC_WINDOW {
+            return invalid("cdc_window.max_duration must be between zero and MAX_CDC_WINDOW");
+        }
+        if self.cdc_window.max_events == 0 {
+            return invalid("cdc_window.max_events must be at least one");
+        }
+        if !is_whole_seconds(self.cdc_supervise_interval) {
+            return invalid(
+                "cdc_supervise_interval must be a whole number of seconds, at least one",
+            );
+        }
+        if self.cdc_windows_per_run == 0 {
+            return invalid("cdc_windows_per_run must be at least one");
+        }
+        if !is_whole_seconds(self.cdc_error_backoff) {
+            return invalid("cdc_error_backoff must be a whole number of seconds, at least one");
+        }
         Ok(())
     }
 }
@@ -166,6 +212,13 @@ const fn is_whole_seconds(interval: Duration) -> bool {
 #[async_trait]
 pub(crate) trait SyncOps: Send + Sync {
     fn capture_batch_size(&self) -> i64;
+    fn has_object(&self, object_name: &str) -> bool;
+    async fn cdc_window(
+        &self,
+        source: &dyn CdcSource,
+        stream: &CdcStream,
+        window: CdcWindow,
+    ) -> Result<CdcWindowReport, ForceSyncError>;
     async fn capture_postgres_once(&self) -> Result<usize, ForceSyncError>;
     async fn reconcile_once(&self) -> Result<usize, ForceSyncError>;
     async fn lease_apply_tasks(
@@ -204,6 +257,19 @@ pub(crate) trait SyncOps: Send + Sync {
 impl<A: Authenticator + 'static> SyncOps for SyncEngine<A> {
     fn capture_batch_size(&self) -> i64 {
         self.capture_batch_size_value()
+    }
+
+    fn has_object(&self, object_name: &str) -> bool {
+        self.object(object_name).is_some()
+    }
+
+    async fn cdc_window(
+        &self,
+        source: &dyn CdcSource,
+        stream: &CdcStream,
+        window: CdcWindow,
+    ) -> Result<CdcWindowReport, ForceSyncError> {
+        self.run_cdc_window(source, stream, window).await
     }
 
     async fn capture_postgres_once(&self) -> Result<usize, ForceSyncError> {
@@ -293,12 +359,26 @@ fn concurrency_key((tenant, object_name, external_id): &(String, String, String)
     serde_json::json!([tenant, object_name, external_id]).to_string()
 }
 
+/// The CDC source and the streams that durable sync follows.
+pub(crate) struct CdcSetup {
+    pub(crate) source: Arc<dyn CdcSource>,
+    pub(crate) streams: Vec<CdcStream>,
+}
+
+impl CdcSetup {
+    /// The configured stream named `name`.
+    pub(crate) fn stream(&self, name: &str) -> Option<&CdcStream> {
+        self.streams.iter().find(|stream| stream.name() == name)
+    }
+}
+
 /// The shared state that durable sync activities read.
 #[derive(Clone)]
 pub(crate) struct DurableSyncState {
     pub(crate) ops: Arc<dyn SyncOps>,
     pub(crate) harvest_pool: DbPool,
     pub(crate) config: DurableSyncConfig,
+    pub(crate) cdc: Option<Arc<CdcSetup>>,
 }
 
 /// Durable sync: a [`SyncEngine`] wired into autumn-harvest.
@@ -331,6 +411,7 @@ impl DurableSync {
                 ops: Arc::new(engine),
                 harvest_pool,
                 config: DurableSyncConfig::default(),
+                cdc: None,
             },
         }
     }
@@ -347,24 +428,68 @@ impl DurableSync {
         Ok(self)
     }
 
+    /// Follows Salesforce Change Data Capture `streams` from `source`.
+    ///
+    /// Each stream gets one long-running workflow, with ID
+    /// `force-sync-cdc-{stream name}`, so one process in the fleet reads it at
+    /// a time. A supervisor schedule restarts a stream workflow that failed.
+    /// Each event commits its journal row, apply task and checkpoint in one
+    /// transaction, so a restart resumes from the checkpoint.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ForceSyncError::Durable`] when `streams` is empty or two
+    /// streams share a name, and [`ForceSyncError::MissingConfiguration`]
+    /// when a stream names an object that the engine does not sync.
+    pub fn with_cdc(
+        mut self,
+        source: Arc<dyn CdcSource>,
+        streams: impl IntoIterator<Item = CdcStream>,
+    ) -> Result<Self, ForceSyncError> {
+        let streams: Vec<CdcStream> = streams.into_iter().collect();
+        if streams.is_empty() {
+            return Err(ForceSyncError::Durable(
+                "with_cdc needs at least one stream".to_owned(),
+            ));
+        }
+        let mut names = std::collections::BTreeSet::new();
+        for stream in &streams {
+            if !names.insert(stream.name()) {
+                return Err(ForceSyncError::Durable(format!(
+                    "two CDC streams share the name {}",
+                    stream.name()
+                )));
+            }
+            if !self.state.ops.has_object(stream.object_name()) {
+                return Err(ForceSyncError::MissingConfiguration {
+                    field: "object sync",
+                });
+            }
+        }
+        self.state.cdc = Some(Arc::new(CdcSetup { source, streams }));
+        Ok(self)
+    }
+
     /// The active config.
     #[must_use]
     pub const fn config(&self) -> &DurableSyncConfig {
         &self.state.config
     }
 
-    /// The pump and reconcile schedules, on [`FORCE_SYNC_QUEUE`].
+    /// The pump, reconcile and CDC supervisor schedules, on
+    /// [`FORCE_SYNC_QUEUE`].
     #[must_use]
     pub fn schedules(&self) -> Vec<WorkflowSchedule> {
-        Self::schedules_for(&self.state.config)
+        Self::schedules_for(&self.state.config, self.state.cdc.is_some())
     }
 
-    fn schedules_for(config: &DurableSyncConfig) -> Vec<WorkflowSchedule> {
+    fn schedules_for(config: &DurableSyncConfig, cdc: bool) -> Vec<WorkflowSchedule> {
         let pump = Some((PUMP_WORKFLOW, config.pump_interval));
         let reconcile = config
             .reconcile_interval
             .map(|interval| (RECONCILE_WORKFLOW, interval));
-        [pump, reconcile]
+        let supervisor = cdc.then_some((CDC_SUPERVISOR_WORKFLOW, config.cdc_supervise_interval));
+        [pump, reconcile, supervisor]
             .into_iter()
             .flatten()
             .map(|(workflow, interval)| WorkflowSchedule {

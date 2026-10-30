@@ -152,3 +152,28 @@ async fn restart_uses_the_stored_replay_cursor() -> Result<(), ForceSyncError> {
 
     Ok(())
 }
+
+#[tokio::test]
+#[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
+async fn keepalive_replay_id_checkpoints_the_stream() -> Result<(), ForceSyncError> {
+    let pool = support::postgres::test_pool();
+    support::postgres::reset_schema(&pool).await?;
+    force_sync::migrate(&pool).await?;
+    let store = PgStore::new(pool.clone());
+    let object = ObjectSync::new("Account").external_id("ExternalId__c");
+
+    let stream = stream::iter(vec![
+        Ok(PubSubEvent::KeepAlive {
+            latest_replay_id: None,
+        }),
+        Ok(PubSubEvent::KeepAlive {
+            latest_replay_id: Some(ReplayId::from_bytes(vec![12])),
+        }),
+    ]);
+    let captured = capture_stream(&store, "salesforce:Account", "tenant", &object, stream).await?;
+    assert_eq!(captured, 0);
+
+    let replay_id = load_replay_id(&store, "salesforce:Account").await?;
+    assert_eq!(replay_id.as_ref().map(ReplayId::as_bytes), Some(&[12][..]));
+    Ok(())
+}

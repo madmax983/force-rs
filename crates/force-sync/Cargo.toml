@@ -32,13 +32,13 @@ tokio-postgres = { workspace = true }
 blake3 = { workspace = true }
 secrecy.workspace = true
 autumn-harvest = { workspace = true, optional = true }
-async-trait = { workspace = true, optional = true }
+async-trait = { workspace = true }
 
 [features]
 default = []
 # Run capture, apply and reconcile as autumn-harvest durable workflows.
 # Needs Rust 1.88 or later (the autumn-harvest MSRV).
-durable = ["dep:autumn-harvest", "dep:async-trait"]
+durable = ["dep:autumn-harvest"]
 
 [dev-dependencies]
 anyhow = { workspace = true }

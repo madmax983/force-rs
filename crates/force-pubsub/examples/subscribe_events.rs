@@ -110,7 +110,7 @@ async fn main() -> anyhow::Result<()> {
             Ok(PubSubEvent::Reconnected { attempt, .. }) => {
                 println!("Stream reconnected (attempt {attempt})");
             }
-            Ok(PubSubEvent::KeepAlive) => {
+            Ok(PubSubEvent::KeepAlive { .. }) => {
                 print!(".");
             }
             Err(e) => {
