@@ -974,3 +974,158 @@ mod with_cdc {
         );
     }
 }
+
+// -- Shard placement ----------------------------------------------------
+
+mod shards {
+    use std::collections::BTreeMap;
+
+    use autumn_harvest::shard::{ShardRouter, ShardedDbPool};
+    use autumn_harvest::types::ShardId;
+
+    use super::super::workflows::{APPLY_WORKFLOW, apply_placement_key, apply_workflow_id};
+    use super::super::{HarvestShards, concurrency_key, harvest_pool, harvest_sharded_pool};
+
+    fn lazy_pool() -> autumn_harvest::worker::DbPool {
+        harvest_pool("postgresql://unused:unused@localhost:5432/unused", 1)
+            .unwrap_or_else(|error| panic!("pool: {error}"))
+    }
+
+    fn two_shards() -> HarvestShards {
+        let pools = BTreeMap::from([
+            (ShardId::new(0), lazy_pool()),
+            (ShardId::new(1), lazy_pool()),
+        ]);
+        let shards = vec![ShardId::new(0), ShardId::new(1)];
+        HarvestShards::new(
+            ShardedDbPool::from_map(pools, ShardId::new(0)),
+            ShardRouter::new(shards.clone(), shards, ShardId::new(0)),
+        )
+        .unwrap_or_else(|error| panic!("two shards: {error}"))
+    }
+
+    #[test]
+    fn a_single_pool_places_every_workflow_on_shard_zero() {
+        let single = HarvestShards::single(lazy_pool());
+        for task_id in 1..50 {
+            let (shard, exec_id) = single.place(APPLY_WORKFLOW, &apply_workflow_id(task_id));
+            assert_eq!(shard, ShardId::new(0));
+            assert_eq!(exec_id.shard(), ShardId::new(0));
+        }
+    }
+
+    #[test]
+    fn placement_is_stable_and_encoded_in_the_execution_id() {
+        let shards = two_shards();
+        for task_id in 1..50 {
+            let workflow_id = apply_workflow_id(task_id);
+            let (first, exec_id) = shards.place(APPLY_WORKFLOW, &workflow_id);
+            let (again, _) = shards.place(APPLY_WORKFLOW, &workflow_id);
+            assert_eq!(first, again, "one workflow ID must always pick one shard");
+            assert_eq!(
+                exec_id.shard(),
+                first,
+                "the execution ID must name its shard"
+            );
+        }
+    }
+
+    #[test]
+    fn placement_spreads_workflows_across_writable_shards() {
+        let shards = two_shards();
+        let picked: std::collections::BTreeSet<ShardId> = (1..200)
+            .map(|task_id| shards.place(APPLY_WORKFLOW, &apply_workflow_id(task_id)).0)
+            .collect();
+        assert_eq!(picked.len(), 2, "both shards must take work: {picked:?}");
+    }
+
+    #[test]
+    fn every_apply_task_for_one_record_lands_on_one_shard() {
+        // Harvest enforces a concurrency key within one shard only, so two
+        // tasks for one record must share a shard to be serialized.
+        let shards = two_shards();
+        let record = concurrency_key(&(
+            "tenant".to_owned(),
+            "Account".to_owned(),
+            "ext-1".to_owned(),
+        ));
+        let picked: std::collections::BTreeSet<ShardId> = (1..100)
+            .map(|task_id| {
+                let workflow_id = apply_workflow_id(task_id);
+                let key = apply_placement_key(&workflow_id, Some(&record));
+                shards.place(APPLY_WORKFLOW, key).0
+            })
+            .collect();
+        assert_eq!(
+            picked.len(),
+            1,
+            "one record must stay on one shard: {picked:?}"
+        );
+    }
+
+    #[test]
+    fn records_spread_across_shards_and_keyless_tasks_place_by_workflow_id() {
+        let shards = two_shards();
+        let picked: std::collections::BTreeSet<ShardId> = (1..200)
+            .map(|n| {
+                let record = concurrency_key(&(
+                    "tenant".to_owned(),
+                    "Account".to_owned(),
+                    format!("ext-{n}"),
+                ));
+                shards
+                    .place(APPLY_WORKFLOW, apply_placement_key("unused", Some(&record)))
+                    .0
+            })
+            .collect();
+        assert_eq!(picked.len(), 2, "records must spread: {picked:?}");
+
+        let workflow_id = apply_workflow_id(7);
+        assert_eq!(apply_placement_key(&workflow_id, None), workflow_id);
+    }
+
+    #[test]
+    fn a_router_shard_without_a_pool_is_rejected() {
+        let pools = BTreeMap::from([(ShardId::new(0), lazy_pool())]);
+        let shards = vec![ShardId::new(0), ShardId::new(1)];
+        let result = HarvestShards::new(
+            ShardedDbPool::from_map(pools, ShardId::new(0)),
+            ShardRouter::new(shards.clone(), shards, ShardId::new(0)),
+        );
+        let Err(error) = result else {
+            panic!("a router shard with no pool must be rejected");
+        };
+        assert!(error.to_string().contains("shard 1"), "{error}");
+    }
+
+    const UNUSED_DSN: &str = "postgresql://unused:unused@localhost:5432/unused";
+
+    #[test]
+    fn a_sharded_pool_holds_one_pool_per_dsn() {
+        let pool = harvest_sharded_pool(
+            [
+                (ShardId::new(0), UNUSED_DSN.to_owned()),
+                (ShardId::new(1), UNUSED_DSN.to_owned()),
+            ],
+            ShardId::new(0),
+            1,
+        )
+        .unwrap_or_else(|error| panic!("sharded pool: {error}"));
+        assert!(pool.exact_pool_for(ShardId::new(0)).is_some());
+        assert!(pool.exact_pool_for(ShardId::new(1)).is_some());
+        assert!(pool.exact_pool_for(ShardId::new(2)).is_none());
+    }
+
+    #[test]
+    fn a_sharded_pool_without_a_default_shard_dsn_is_rejected() {
+        let result = harvest_sharded_pool(
+            [(ShardId::new(1), UNUSED_DSN.to_owned())],
+            ShardId::new(0),
+            1,
+        );
+        let Err(error) = result else {
+            panic!("a default shard with no DSN must be rejected");
+        };
+        assert!(error.to_string().contains("default shard 0"), "{error}");
+    }
+}

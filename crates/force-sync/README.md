@@ -115,6 +115,10 @@ To add durable sync to an app that already runs harvest, call
 `force-sync` queue (`durable::FORCE_SYNC_QUEUE`).
 
 The harvest tables can live in the force-sync database or in a separate one.
+To spread harvest over several databases, use `DurableSync::new_sharded` with
+a `ShardRouter` and a sharded pool (`durable::harvest_sharded_pool`). Each
+workflow lands on the shard that the router picks for its ID, and the worker
+polls every shard. The force-sync tables stay in one database.
 The feature needs Rust 1.88 or later. Do not run the explicit runtime on the
 same store with the durable lease owner.
 

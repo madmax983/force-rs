@@ -48,6 +48,7 @@ use async_trait::async_trait;
 use autumn_harvest::builder::{HarvestBuilder, WorkerConfig};
 use autumn_harvest::policy::{RetryPolicy, Schedule, WorkflowSchedule};
 use autumn_harvest::scheduler::{SchedulerRuntime, compile_dag_catalog};
+use autumn_harvest::types::ExecutionId;
 use autumn_harvest::worker::{DbPool, Worker, WorkerRuntimeConfig};
 use chrono::Utc;
 use force::auth::Authenticator;
@@ -58,6 +59,9 @@ use crate::{
     capture::salesforce::{CdcSource, CdcStream, CdcWindow, CdcWindowReport},
     error::ForceSyncError,
 };
+
+pub use autumn_harvest::shard::{ShardRouter, ShardedDbPool};
+pub use autumn_harvest::types::ShardId;
 
 /// The harvest task queue that every durable sync workflow and activity uses.
 ///
@@ -372,11 +376,62 @@ impl CdcSetup {
     }
 }
 
+/// The harvest databases and the router that places workflows on them.
+#[derive(Clone)]
+pub(crate) struct HarvestShards {
+    pub(crate) pool: ShardedDbPool,
+    pub(crate) router: ShardRouter,
+}
+
+impl HarvestShards {
+    /// One harvest database: every workflow lands on shard 0.
+    pub(crate) fn single(pool: DbPool) -> Self {
+        Self {
+            pool: ShardedDbPool::single(pool),
+            router: ShardRouter::single(),
+        }
+    }
+
+    /// Several harvest databases, placed by `router`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ForceSyncError::Durable`] when the router can read a shard
+    /// that `pool` has no pool for.
+    pub(crate) fn new(pool: ShardedDbPool, router: ShardRouter) -> Result<Self, ForceSyncError> {
+        if let Some(missing) = router
+            .readable_shards()
+            .iter()
+            .find(|shard| pool.exact_pool_for(**shard).is_none())
+        {
+            return Err(ForceSyncError::Durable(format!(
+                "the shard router names shard {missing}, but the sharded pool has no pool for it"
+            )));
+        }
+        Ok(Self { pool, router })
+    }
+
+    /// The shard and a new execution ID for a fresh start of a
+    /// `workflow_name` workflow placed by `placement_key`.
+    ///
+    /// The router hashes the pair, so one key always lands on one shard. A
+    /// start must reach the same shard each time: harvest keeps workflow IDs
+    /// unique per shard, so that is what keeps an idempotent start
+    /// idempotent across shards. The key is the workflow ID, or for an apply
+    /// task its record key, so that one record stays on one shard.
+    pub(crate) fn place(&self, workflow_name: &str, placement_key: &str) -> (ShardId, ExecutionId) {
+        let shard = self
+            .router
+            .pick_for_new_workflow(workflow_name, placement_key);
+        (shard, ExecutionId::new_for_shard(shard))
+    }
+}
+
 /// The shared state that durable sync activities read.
 #[derive(Clone)]
 pub(crate) struct DurableSyncState {
     pub(crate) ops: Arc<dyn SyncOps>,
-    pub(crate) harvest_pool: DbPool,
+    pub(crate) harvest: HarvestShards,
     pub(crate) config: DurableSyncConfig,
     pub(crate) cdc: Option<Arc<CdcSetup>>,
 }
@@ -399,17 +454,50 @@ impl std::fmt::Debug for DurableSync {
 }
 
 impl DurableSync {
-    /// Wraps `engine` with the default [`DurableSyncConfig`].
+    /// Wraps `engine` with the default [`DurableSyncConfig`], on one harvest
+    /// database.
     ///
     /// `harvest_pool` is the pool of the harvest database. It can be the
     /// force-sync database or a separate one. Apply the harvest migrations
     /// to it first, for example with [`migrate_harvest`].
     #[must_use]
     pub fn new<A: Authenticator + 'static>(engine: SyncEngine<A>, harvest_pool: DbPool) -> Self {
+        Self::with_shards(engine, HarvestShards::single(harvest_pool))
+    }
+
+    /// Wraps `engine` with the default [`DurableSyncConfig`], on several
+    /// harvest databases (shards).
+    ///
+    /// `router` places each workflow on a shard by hashing its name and ID,
+    /// so one apply task or one CDC stream always lands on one shard. The
+    /// force-sync tables stay in the engine's own database. Apply the
+    /// harvest migrations to every shard first, and build `pool` with
+    /// [`harvest_sharded_pool`] or harvest's own `ShardedDbPool`.
+    ///
+    /// With [`Self::register`], pass the router and the pool that the app's
+    /// harvest runtime uses, so durable sync starts its workflows on the
+    /// shards that the app's workers poll.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ForceSyncError::Durable`] when `router` can read a shard
+    /// that `pool` has no pool for.
+    pub fn new_sharded<A: Authenticator + 'static>(
+        engine: SyncEngine<A>,
+        pool: ShardedDbPool,
+        router: ShardRouter,
+    ) -> Result<Self, ForceSyncError> {
+        Ok(Self::with_shards(engine, HarvestShards::new(pool, router)?))
+    }
+
+    fn with_shards<A: Authenticator + 'static>(
+        engine: SyncEngine<A>,
+        harvest: HarvestShards,
+    ) -> Self {
         Self {
             state: DurableSyncState {
                 ops: Arc::new(engine),
-                harvest_pool,
+                harvest,
                 config: DurableSyncConfig::default(),
                 cdc: None,
             },
@@ -533,18 +621,28 @@ impl DurableSync {
         let registry = Arc::new(registry);
         let dag_catalog = compile_dag_catalog(dags)
             .map_err(|error| ForceSyncError::Durable(format!("harvest DAGs: {error}")))?;
-        let worker = Worker::new(
-            WorkerRuntimeConfig::from(worker_config),
-            Arc::clone(&registry),
-        )
-        .map_err(|error| ForceSyncError::Durable(format!("harvest worker: {error}")))?;
+        let HarvestShards { pool, router } = self.state.harvest;
+        let mut runtime_config = WorkerRuntimeConfig::from(worker_config);
+        // An empty assignment list makes the worker claim from every shard
+        // of the pool. With no assignment, no assigned shard can lack a
+        // pool. `HarvestShards::new` already checks the router against the
+        // pool.
+        runtime_config.sharded_pool = Some(pool.clone());
+        let worker = Worker::new(runtime_config, Arc::clone(&registry))
+            .map_err(|error| ForceSyncError::Durable(format!("harvest worker: {error}")))?;
         let worker = Arc::new(worker);
 
-        let pool = self.state.harvest_pool.clone();
+        // Harvest reads the process router and pool to route work between
+        // shards, as the harvest plugin runtime sets them.
+        autumn_harvest::shard::install_global_router(router.clone());
+        autumn_harvest::shard::install_global_sharded_pool(pool.clone());
+
+        let default_pool = pool.pool_for(router.parts().default_shard).clone();
         let running = Arc::clone(&worker);
-        let worker_task = tokio::spawn(async move { running.run(&pool).await });
-        let scheduler = SchedulerRuntime::spawn(
-            self.state.harvest_pool,
+        let worker_task = tokio::spawn(async move { running.run(&default_pool).await });
+        let scheduler = SchedulerRuntime::spawn_sharded(
+            pool,
+            router,
             registry,
             Arc::new(dag_catalog),
             Arc::new(workflow_schedules),
@@ -606,6 +704,32 @@ pub fn harvest_pool(database_url: &str, max_size: usize) -> Result<DbPool, Force
         &autumn_harvest::pool::EngineDbTimeouts::default(),
     )
     .map_err(|error| ForceSyncError::Durable(format!("harvest pool: {error}")))
+}
+
+/// Builds a sharded harvest pool, one engine pool per shard DSN.
+///
+/// Each shard gets the harvest engine timeouts and at most `max_size`
+/// connections. `default_shard` serves execution IDs that encode no shard.
+///
+/// # Errors
+///
+/// Returns [`ForceSyncError::Durable`] when `shards` is empty, does not
+/// contain `default_shard`, or a pool cannot be built.
+pub fn harvest_sharded_pool(
+    shards: impl IntoIterator<Item = (ShardId, String)>,
+    default_shard: ShardId,
+    max_size: usize,
+) -> Result<ShardedDbPool, ForceSyncError> {
+    let mut pools = std::collections::BTreeMap::new();
+    for (shard, url) in shards {
+        pools.insert(shard, harvest_pool(&url, max_size)?);
+    }
+    if !pools.contains_key(&default_shard) {
+        return Err(ForceSyncError::Durable(format!(
+            "the default shard {default_shard} has no DSN"
+        )));
+    }
+    Ok(ShardedDbPool::from_map(pools, default_shard))
 }
 
 /// Applies every pending harvest migration to `database_url`.
