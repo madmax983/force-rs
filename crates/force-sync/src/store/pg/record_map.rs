@@ -6,7 +6,41 @@
 
 use tokio_postgres::GenericClient;
 
+use serde_json::Value;
+
 use crate::error::ForceSyncError;
+
+use super::PgStore;
+
+impl PgStore {
+    /// Stores the merged state of a record after an applied change.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database write fails.
+    pub(crate) async fn put_record_state(
+        &self,
+        tenant: &str,
+        object_name: &str,
+        external_id: &str,
+        payload: &Value,
+    ) -> Result<(), ForceSyncError> {
+        let payload = payload.to_string();
+        self.pool()
+            .get()
+            .await?
+            .execute(
+                "insert into sync_record_state (tenant, object_name, external_id, payload)
+                 values ($1, $2, $3, $4::text::jsonb)
+                 on conflict (tenant, object_name, external_id) do update
+                     set payload = excluded.payload,
+                         updated_at = now()",
+                &[&tenant, &object_name, &external_id, &payload],
+            )
+            .await?;
+        Ok(())
+    }
+}
 
 /// Remembers which external ID keys a Salesforce record.
 ///

@@ -15,7 +15,7 @@ use serde_json::{Value, json};
 
 use force_sync::{
     CdcEventStream, CdcSource, CdcStart, CdcStream, CdcWindow, CdcWindowEnd, ForceSyncError,
-    ObjectSync, PgStore, capture_cdc_window,
+    ObjectSync, PgStore, SyncEngine, capture_cdc_window,
 };
 
 type Item = Result<PubSubEvent<Value>, PubSubError>;
@@ -785,5 +785,156 @@ async fn a_captured_create_projects_its_record_id_onto_the_link() -> Result<(), 
         .unwrap_or_else(|| panic!("the applied create must leave a link"));
     assert_eq!(link.salesforce_id.as_deref(), Some(RECORD_ID));
     let _ = pool;
+    Ok(())
+}
+
+async fn engine_for(
+    store: &PgStore,
+    object: ObjectSync,
+) -> Result<SyncEngine<StaticAuth>, ForceSyncError> {
+    let client = force::client::builder()
+        .authenticate(StaticAuth)
+        .build()
+        .await
+        .unwrap_or_else(|error| panic!("client: {error}"));
+    force_sync::SyncEngine::builder(client)
+        .postgres(store.clone())
+        .object(object)
+        .build()
+}
+
+async fn capture_and_apply(
+    store: &PgStore,
+    engine: &SyncEngine<StaticAuth>,
+    object: &ObjectSync,
+    items: Vec<Item>,
+) -> Result<(), ForceSyncError> {
+    let source = ScriptedSource::new(vec![items], true);
+    capture_cdc_window(
+        store,
+        source.as_ref(),
+        &account_stream(),
+        object,
+        short_window(100),
+    )
+    .await?;
+    while engine.run_apply_once().await? > 0 {}
+    Ok(())
+}
+
+async fn task_outcomes(
+    pool: &deadpool_postgres::Pool,
+) -> Result<Vec<(String, Option<String>)>, ForceSyncError> {
+    Ok(pool
+        .get()
+        .await?
+        .query(
+            "select status, last_error from sync_task where task_kind = 'apply' order by task_id",
+            &[],
+        )
+        .await?
+        .iter()
+        .map(|row| (row.get(0), row.get(1)))
+        .collect())
+}
+
+#[tokio::test]
+#[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
+async fn a_sparse_delete_of_an_applied_record_tombstones_its_link() -> Result<(), ForceSyncError> {
+    let (_pool, store) = fresh_store().await?;
+    let engine = engine_for(&store, account()).await?;
+    capture_and_apply(
+        &store,
+        &engine,
+        &account(),
+        vec![cdc(
+            1,
+            "CREATE",
+            &[RECORD_ID],
+            &json!({"ExternalId__c": "ext-1", "Name": "Acme"}),
+        )],
+    )
+    .await?;
+    // On a second subscription, as in production, the delete arrives later.
+    capture_and_apply(
+        &store,
+        &engine,
+        &account(),
+        vec![cdc(
+            2,
+            "DELETE",
+            &[RECORD_ID],
+            &json!({"ExternalId__c": null, "Name": null}),
+        )],
+    )
+    .await?;
+
+    let link = store
+        .get_link("tenant", "Account", "ext-1")
+        .await?
+        .unwrap_or_else(|| panic!("the record must stay linked"));
+    assert!(
+        link.tombstone,
+        "a sparse delete must tombstone the link: {link:?}"
+    );
+    Ok(())
+}
+
+#[tokio::test]
+#[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
+async fn applied_sparse_changes_accumulate_the_record_state() -> Result<(), ForceSyncError> {
+    let (pool, store) = fresh_store().await?;
+    let object = account().field_owner("Phone", force_sync::Owner::Salesforce);
+    let engine = engine_for(&store, object.clone()).await?;
+    capture_and_apply(
+        &store,
+        &engine,
+        &object,
+        vec![cdc(
+            1,
+            "CREATE",
+            &[RECORD_ID],
+            &json!({"ExternalId__c": "ext-1", "Name": "Acme", "Phone": "555-0100"}),
+        )],
+    )
+    .await?;
+    capture_and_apply(
+        &store,
+        &engine,
+        &object,
+        vec![cdc(
+            2,
+            "UPDATE",
+            &[RECORD_ID],
+            &json!({"ExternalId__c": null, "Name": null, "Phone": "555-0199"}),
+        )],
+    )
+    .await?;
+    // `Name` has no owner and the record state knows it, so changing it is a
+    // conflict. A planner that saw only the last sparse row would miss it.
+    capture_and_apply(
+        &store,
+        &engine,
+        &object,
+        vec![cdc(
+            3,
+            "UPDATE",
+            &[RECORD_ID],
+            &json!({"ExternalId__c": null, "Name": "Renamed", "Phone": null}),
+        )],
+    )
+    .await?;
+
+    let outcomes = task_outcomes(&pool).await?;
+    assert_eq!(outcomes[0], ("done".to_owned(), None), "{outcomes:?}");
+    assert_eq!(outcomes[1], ("done".to_owned(), None), "{outcomes:?}");
+    assert_eq!(outcomes[2].0, "failed", "{outcomes:?}");
+    assert!(
+        outcomes[2]
+            .1
+            .as_deref()
+            .is_some_and(|error| error.contains("Name")),
+        "{outcomes:?}"
+    );
     Ok(())
 }

@@ -54,7 +54,7 @@ use force_pubsub::{PubSubConfig, PubSubHandler, ReplayPreset};
 use serde_json::{Map, Value, json};
 
 use force_sync::{
-    CdcEventStream, CdcSource, CdcStream, CdcWindow, ForceSyncError, ObjectSync, PgStore,
+    CdcEventStream, CdcSource, CdcStream, CdcWindow, ForceSyncError, ObjectSync, Owner, PgStore,
     SyncEngine,
 };
 
@@ -269,8 +269,20 @@ impl CdcTier {
             .await?)
     }
 
+    /// The synced object. Salesforce owns the fields that it changes on an
+    /// update, so the sparse update applies with no conflict.
     fn object(&self) -> ObjectSync {
-        ObjectSync::new(&self.object_name).external_id(&self.external_id_field)
+        let object = ObjectSync::new(&self.object_name).external_id(&self.external_id_field);
+        [
+            self.update_field.as_str(),
+            "LastModifiedDate",
+            "LastModifiedById",
+            "SystemModstamp",
+        ]
+        .into_iter()
+        .fold(object, |object, field| {
+            object.field_owner(field, Owner::Salesforce)
+        })
     }
 
     fn stream(&self) -> CdcStream {

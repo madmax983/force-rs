@@ -21,6 +21,21 @@ create index if not exists sync_link_salesforce_id_idx
     on sync_link(tenant, object_name, salesforce_id)
     where salesforce_id is not null;
 
+-- The merged state of each record, after its last applied change.
+--
+-- A sparse change event names its changed fields only, so the payload of
+-- the last applied journal row is not the whole record. The planner reads
+-- this row as the current state, and it falls back to that journal row for
+-- a record with no stored state.
+create table if not exists sync_record_state (
+    tenant text not null,
+    object_name text not null,
+    external_id text not null,
+    payload jsonb not null,
+    updated_at timestamptz not null default now(),
+    primary key (tenant, object_name, external_id)
+);
+
 insert into force_sync_schema_migrations (version)
 values (3)
 on conflict (version) do nothing;

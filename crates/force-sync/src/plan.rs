@@ -3,7 +3,7 @@
 use serde_json::{Map, Value};
 
 use crate::config::{ObjectSync, Owner};
-use crate::model::{ChangeEnvelope, SourceSystem, payload_hash};
+use crate::model::{ChangeEnvelope, ChangeOperation, SourceSystem, payload_hash};
 
 /// Apply lanes chosen by the planner.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -93,6 +93,17 @@ pub fn merge_payload(
 /// Plans how a change should be applied after merge resolution.
 #[must_use]
 pub fn plan_change(context: &PlannerContext, envelope: &ChangeEnvelope) -> PlanDecision {
+    // A delete removes the record whatever its fields say. A Salesforce
+    // delete event carries no changed field, so it matches the current
+    // state, and a payload check would make it a no-op.
+    if envelope.operation() == ChangeOperation::Delete {
+        return PlanDecision {
+            lane: choose_lane(context),
+            payload: None,
+            conflicts: Vec::new(),
+        };
+    }
+
     // `merge_payload` already performs this exact same-hash check as its own
     // first step when `current_payload` is `Some` (see below), and maps it to
     // the identical `MergeOutcome::Noop` -> `PlanDecision` this used to
@@ -449,6 +460,23 @@ mod tests {
 
         let decision = plan_change(&ctx, &envelope);
         assert_eq!(decision.lane, ApplyLane::Rest);
+    }
+
+    #[test]
+    fn plan_change_delete_matching_the_current_state_is_not_a_noop() {
+        let object = test_object_sync();
+        let current = json!({"Id": "001A", "Name": "Acme"});
+        let envelope = test_envelope(
+            SourceSystem::Salesforce,
+            ChangeOperation::Delete,
+            json!({"Id": "001A"}),
+        );
+        let ctx = test_context(&object, Some(current));
+
+        let decision = plan_change(&ctx, &envelope);
+        assert_eq!(decision.lane, ApplyLane::Rest);
+        assert!(decision.payload.is_none());
+        assert!(decision.conflicts.is_empty());
     }
 
     #[test]

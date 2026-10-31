@@ -57,7 +57,17 @@ Capture reads each change event before it builds the envelope
    records that were created from Postgres. The record map is written at
    capture time, so an update that follows a create in the same window
    resolves before the create is applied.
-6. **What cannot be resolved is quarantined**, with the checkpoint moved past
+6. **The merged state of a record is stored.** A sparse journal row is not
+   the whole record, but the planner read the last applied row as the
+   current state. Every field outside it then looked new, so a conflicting
+   change to it was accepted. An applied change now stores the merged
+   payload in `sync_record_state`, and the planner reads that row first. It
+   falls back to the last applied journal row for a record with no stored
+   state.
+7. **A delete is never a no-op.** A delete event carries no changed field,
+   so its payload matches the current state. `plan_change` now plans a
+   delete before the payload check, and the link gets its tombstone.
+8. **What cannot be resolved is quarantined**, with the checkpoint moved past
    it, as before. That covers a gap event, an event that names several
    records, and a sparse event for a record that no earlier event or link
    knows. The new error `ForceSyncError::UncapturableCdcEvent` names the
@@ -76,8 +86,13 @@ flowchart TD
 ```
 
 Migration 3 adds `sync_salesforce_record (tenant, object_name,
-salesforce_id) → external_id` and a partial index on
+salesforce_id) → external_id`, `sync_record_state (tenant, object_name,
+external_id) → payload`, and a partial index on
 `sync_link (tenant, object_name, salesforce_id)`.
+
+`ApplyPlan::ProjectLocal` now carries the merged payload. The field defaults
+to `None`, so a plan recorded in durable workflow history before this change
+still reads.
 
 ## Alternatives considered
 
@@ -122,6 +137,10 @@ salesforce_id) → external_id` and a partial index on
   them: a sparse update after a create in the same window, an update of a
   record that only a link knows, a delete, an unknown record, a multi-record
   event, a gap event, and a create whose apply links the record ID.
+- `tests/cdc_window.rs` apply tests: a sparse delete of an applied record
+  tombstones its link, and a change to a field that only the stored record
+  state knows is still a conflict.
+- `src/plan.rs`: a delete that matches the current state is not a no-op.
 - `tests/live_cdc.rs` (live, ADR-033 tier `SF_SYNC_CDC`): a real create,
   sparse update and delete through `run_cdc_window` and through the durable
   `with_cdc` runtime, with the link and its tombstone checked.

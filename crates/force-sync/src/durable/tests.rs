@@ -378,7 +378,7 @@ async fn apply_activities_are_scheduled_on_the_force_sync_queue() {
 async fn local_plan_skips_the_salesforce_call() {
     for plan in [
         ApplyPlan::Noop,
-        ApplyPlan::ProjectLocal,
+        ApplyPlan::ProjectLocal { payload: None },
         ApplyPlan::Conflict {
             fields: vec!["Name".to_owned()],
         },
