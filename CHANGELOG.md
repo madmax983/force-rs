@@ -16,6 +16,9 @@ Durable sync on autumn-harvest. See [ADR-036](docs/adr/036-durable-sync-on-autum
 
 ### Fixed
 
+#### `force`
+- `UsernamePassword::refresh` and `AuthorizationCode::refresh` no longer hide why a `refresh_token` grant failed. Each falls back to a fresh grant: a password login, or the single-use code exchange. When that fallback also fails with an authentication error, the result is `AuthenticationError::TokenRefreshFailed`, and its message names both failures. Before, only the fallback error came back, such as `invalid_grant: authentication failure`. A transport error of the fallback is still returned as it is, and the refresh error is logged at `warn`.
+
 #### `force-sync`
 - CDC capture now handles change events as Salesforce sends them. An update or delete event carries only the changed fields, so its external ID is usually null. Capture took the key from that field, so it sent almost every update and delete to `sync_dead_letter`. It now resolves the key from the record ID in `ChangeEventHeader.recordIds`, through a new `sync_salesforce_record` map (migration 3) and then `sync_link`. An update or delete drops its unchanged nulls, so a null never overwrites a known value. The journal no longer stores `ChangeEventHeader`, and the record ID joins the body as `Id`, so the applied change links the Salesforce ID. An applied change stores the merged record state in `sync_record_state`, and the planner reads it as the current state, so a field outside a sparse row is still known. A delete is planned before the payload check, so a sparse delete tombstones the link instead of becoming a no-op. Gap events, events that name several records, and sparse events for a record that force-sync never saw are quarantined with the new `ForceSyncError::UncapturableCdcEvent`. See [ADR-037](docs/adr/037-cdc-sparse-change-events.md).
 

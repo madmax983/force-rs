@@ -73,6 +73,32 @@ pub(crate) fn default_auth_http_client() -> reqwest::Client {
         .unwrap_or_else(|e| panic!("Failed to create secure HTTP client: {e}"))
 }
 
+/// Joins a failed `refresh_token` grant to the failed fallback that followed it.
+///
+/// An authenticator that falls back to a fresh grant would otherwise report
+/// only the fallback error, and the reason the refresh failed is lost. A
+/// transport error of the fallback stays as it is, so it keeps its own
+/// retry handling. The refresh error is still logged.
+pub(crate) fn refresh_fallback_error(
+    refresh_error: &ForceError,
+    fallback: &str,
+    fallback_error: ForceError,
+) -> ForceError {
+    tracing::warn!(
+        refresh_error = %refresh_error,
+        fallback,
+        "refresh_token grant failed, and its fallback failed too"
+    );
+    match fallback_error {
+        ForceError::Authentication(error) => {
+            ForceError::Authentication(AuthenticationError::TokenRefreshFailed(format!(
+                "refresh_token grant failed ({refresh_error}); {fallback} fallback failed ({error})"
+            )))
+        }
+        other => other,
+    }
+}
+
 /// Handles an OAuth error response from a Salesforce token endpoint.
 ///
 /// Reads the capped body, attempts to parse it as an `OAuthErrorResponse`,
@@ -314,5 +340,26 @@ mod tests {
             .send()
             .await;
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn refresh_fallback_error_keeps_a_transport_error_as_it_is() {
+        let refresh = ForceError::Authentication(AuthenticationError::TokenRequestFailed(
+            "invalid_grant: expired".to_owned(),
+        ));
+        let fallback = ForceError::Http(crate::error::HttpError::Timeout {
+            timeout_seconds: 30,
+        });
+
+        let error = refresh_fallback_error(&refresh, "password", fallback);
+        assert!(
+            matches!(
+                error,
+                ForceError::Http(crate::error::HttpError::Timeout {
+                    timeout_seconds: 30
+                })
+            ),
+            "{error:?}"
+        );
     }
 }

@@ -256,20 +256,28 @@ impl crate::auth::authenticator::Authenticator for UsernamePassword {
                 ("refresh_token", rt.expose_secret()),
             ];
 
-            if let Ok(token_response) = self.send_token_request(&params).await {
-                self.store_refresh_token(&token_response).await;
-                return Ok(AccessToken::from_response(token_response));
-            }
+            let refresh_error = match self.send_token_request(&params).await {
+                Ok(token_response) => {
+                    self.store_refresh_token(&token_response).await;
+                    return Ok(AccessToken::from_response(token_response));
+                }
+                Err(error) => error,
+            };
             // Refresh token revoked or expired — fall back to full re-auth.
-            let mut stored = self.refresh_token.write().await;
-            // 👺 Havoc: Only clear the token if another thread hasn't already authenticated
-            // and provided a *newer* refresh token while we were awaiting the failed request.
-            if stored.as_ref().map(|s| s.expose_secret()) == Some(rt.expose_secret()) {
-                *stored = None;
+            {
+                let mut stored = self.refresh_token.write().await;
+                // 👺 Havoc: Only clear the token if another thread hasn't already authenticated
+                // and provided a *newer* refresh token while we were awaiting the failed request.
+                if stored.as_ref().map(|s| s.expose_secret()) == Some(rt.expose_secret()) {
+                    *stored = None;
+                }
             }
+            return self.authenticate().await.map_err(|fallback_error| {
+                crate::auth::refresh_fallback_error(&refresh_error, "password", fallback_error)
+            });
         }
 
-        // No refresh token or refresh failed — re-authenticate with password.
+        // No refresh token — re-authenticate with password.
         self.authenticate().await
     }
 }
@@ -720,6 +728,93 @@ mod tests {
         // Refresh fails → clears stored token, falls back to re-auth
         // (re-auth stores a new refresh token)
         let _token2 = auth.refresh().await.must();
+    }
+
+    #[tokio::test]
+    async fn test_refresh_reports_both_errors_when_the_fallback_fails() {
+        let server = MockServer::start().await;
+
+        // The first password grant succeeds and stores a refresh token.
+        Mock::given(method("POST"))
+            .and(body_string_contains("grant_type=password"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(sample_token_response()))
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+        // The refresh grant fails, and so does the password fallback.
+        Mock::given(method("POST"))
+            .and(body_string_contains("grant_type=refresh_token"))
+            .respond_with(ResponseTemplate::new(400).set_body_json(serde_json::json!({
+                "error": "invalid_grant",
+                "error_description": "expired access/refresh token"
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(body_string_contains("grant_type=password"))
+            .respond_with(ResponseTemplate::new(400).set_body_json(serde_json::json!({
+                "error": "invalid_grant",
+                "error_description": "authentication failure"
+            })))
+            .mount(&server)
+            .await;
+
+        let auth = UsernamePassword::new(
+            "client_id",
+            "client_secret",
+            "user@example.com",
+            "password",
+            "",
+            format!("{}/services/oauth2/token", server.uri()),
+        );
+        let _token = auth.authenticate().await.must();
+
+        let Err(ForceError::Authentication(AuthenticationError::TokenRefreshFailed(message))) =
+            auth.refresh().await
+        else {
+            panic!("a failed refresh and fallback must be a TokenRefreshFailed");
+        };
+        assert!(
+            message.contains("expired access/refresh token"),
+            "the refresh error must not be lost: {message}"
+        );
+        assert!(
+            message.contains("authentication failure"),
+            "the fallback error must be kept: {message}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_refresh_without_a_refresh_token_returns_the_password_error_as_is() {
+        let server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(body_string_contains("grant_type=password"))
+            .respond_with(ResponseTemplate::new(400).set_body_json(serde_json::json!({
+                "error": "invalid_grant",
+                "error_description": "authentication failure"
+            })))
+            .mount(&server)
+            .await;
+
+        let auth = UsernamePassword::new(
+            "client_id",
+            "client_secret",
+            "user@example.com",
+            "password",
+            "",
+            format!("{}/services/oauth2/token", server.uri()),
+        );
+
+        let result = auth.refresh().await;
+        assert!(
+            matches!(
+                &result,
+                Err(ForceError::Authentication(AuthenticationError::TokenRequestFailed(m)))
+                    if m.contains("authentication failure")
+            ),
+            "{result:?}"
+        );
     }
 
     // ── with_client test ──────────────────────────────────────────────
