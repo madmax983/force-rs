@@ -134,30 +134,43 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Cache cargo dependencies
+        id: setup
         uses: Swatinem/rust-cache@v2
 
+      # Each tier runs even when an earlier tier failed, so one broken tier
+      # cannot hide the others. The job still fails if any tier fails. A tier
+      # is skipped only when the run is cancelled or setup did not finish.
+
       - name: Run force live tests
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: cargo test -p force --all-features --test live_salesforce -- --ignored --test-threads=1
 
       - name: Run force core-tier live tests
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: cargo test -p force --all-features --test live_core -- --ignored --test-threads=1
 
       - name: Run force special-surface live tests
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: cargo test -p force --all-features --test live_special -- --ignored --test-threads=1
 
       - name: Run force SOAP live tests
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: cargo test -p force --all-features --test live_soap -- --ignored --test-threads=1
 
       - name: Run force Account Engagement live tests
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: cargo test -p force --all-features --test live_account_engagement -- --ignored --test-threads=1
 
       - name: Run Marketing Cloud live tests
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: cargo test -p force-marketingcloud --test live_marketingcloud -- --ignored --test-threads=1
 
       - name: Run Pub/Sub live tests
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: cargo test -p force-pubsub --test live_salesforce_pubsub -- --ignored --test-threads=1
 
       - name: Run force-sync CDC live tests
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: cargo test -p force-sync --features durable --test live_cdc -- --ignored --test-threads=1
 
       - name: Cleanup private key

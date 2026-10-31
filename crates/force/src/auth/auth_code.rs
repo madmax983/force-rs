@@ -644,26 +644,37 @@ impl crate::auth::authenticator::Authenticator for AuthorizationCode {
                 params.push(("client_secret", secret.expose_secret()));
             }
 
-            if let Ok(token_response) = self.send_token_request(&params).await {
-                self.store_refresh_token(&token_response).await;
-                return Ok(AccessToken::from_response(token_response));
-            }
+            let refresh_error = match self.send_token_request(&params).await {
+                Ok(token_response) => {
+                    self.store_refresh_token(&token_response).await;
+                    return Ok(AccessToken::from_response(token_response));
+                }
+                Err(error) => error,
+            };
             // Refresh token revoked or expired — clear it and fall back to the
             // authorization-code exchange below.
-            let mut stored = self.refresh_token.write().await;
-            // Only clear if another thread hasn't already stored a *newer*
-            // refresh token while our failing request was in flight.
-            if stored.as_ref().map(|s| s.expose_secret()) == Some(rt.expose_secret()) {
-                *stored = None;
+            {
+                let mut stored = self.refresh_token.write().await;
+                // Only clear if another thread hasn't already stored a *newer*
+                // refresh token while our failing request was in flight.
+                if stored.as_ref().map(|s| s.expose_secret()) == Some(rt.expose_secret()) {
+                    *stored = None;
+                }
             }
+            // NOTE: the authorization `code` is single-use. If it has already
+            // been redeemed this exchange fails, and the error keeps the reason
+            // the refresh failed. The caller must restart the flow with a fresh
+            // `PkceChallenge` and authorization URL.
+            return self.authenticate().await.map_err(|fallback_error| {
+                crate::auth::refresh_fallback_error(
+                    &refresh_error,
+                    "authorization_code",
+                    fallback_error,
+                )
+            });
         }
 
-        // No refresh token (or refresh failed) — attempt the initial exchange.
-        //
-        // NOTE: the authorization `code` is single-use. If it has already been
-        // redeemed this call will fail; the Authorization Code flow cannot
-        // re-authenticate headlessly and the caller must restart the flow with
-        // a fresh `PkceChallenge` and authorization URL.
+        // No refresh token — attempt the initial exchange.
         self.authenticate().await
     }
 }
@@ -1092,6 +1103,53 @@ mod tests {
         // Refresh fails, falls back to authorization_code exchange.
         let t2 = auth.refresh().await.must();
         assert_eq!(t2.as_str(), "00Dxx0000001gPL!auth_code_token");
+    }
+
+    #[tokio::test]
+    async fn test_refresh_keeps_the_refresh_error_when_the_code_was_already_used() {
+        let server = MockServer::start().await;
+
+        // The code is single-use: the first exchange succeeds, the fallback fails.
+        Mock::given(method("POST"))
+            .and(body_string_contains("grant_type=authorization_code"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(sample_token_response()))
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(body_string_contains("grant_type=refresh_token"))
+            .respond_with(ResponseTemplate::new(400).set_body_json(serde_json::json!({
+                "error": "invalid_grant",
+                "error_description": "token revoked"
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(body_string_contains("grant_type=authorization_code"))
+            .respond_with(ResponseTemplate::new(400).set_body_json(serde_json::json!({
+                "error": "invalid_grant",
+                "error_description": "invalid authorization code"
+            })))
+            .mount(&server)
+            .await;
+
+        let auth = AuthorizationCode::new(
+            "cid",
+            None,
+            "cb",
+            "the_code",
+            "the_verifier",
+            format!("{}/services/oauth2/token", server.uri()),
+        );
+        let _t1 = auth.authenticate().await.must();
+
+        let Err(ForceError::Authentication(AuthenticationError::TokenRefreshFailed(message))) =
+            auth.refresh().await
+        else {
+            panic!("a failed refresh and fallback must be a TokenRefreshFailed");
+        };
+        assert!(message.contains("token revoked"), "{message}");
+        assert!(message.contains("invalid authorization code"), "{message}");
     }
 
     #[tokio::test]
