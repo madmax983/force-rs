@@ -15,7 +15,7 @@ use crate::{
     error::ForceSyncError,
     identity::SyncKey,
     model::{ChangeEnvelope, ChangeOperation, SourceCursor, SourceSystem},
-    store::pg::{AppendResult, DeadLetter, PgStore},
+    store::pg::{AppendResult, DeadLetter, PgStore, record_map},
 };
 
 /// A stream of decoded Change Data Capture events.
@@ -224,24 +224,151 @@ async fn checkpoint_keepalive(
 ///
 /// Such an event can never be captured, so it is quarantined. A
 /// configuration or database error fails the window instead.
-fn event_content_error(error: &ForceSyncError) -> bool {
+const fn event_content_error(error: &ForceSyncError) -> bool {
     matches!(
         error,
-        ForceSyncError::InvalidStoredValue {
-            field: "external_id",
-            ..
-        } | ForceSyncError::EmptySyncKeyPart { .. }
+        ForceSyncError::UncapturableCdcEvent { .. } | ForceSyncError::EmptySyncKeyPart { .. }
     )
 }
 
-fn change_operation(payload: &Value) -> ChangeOperation {
-    match payload
-        .get("ChangeEventHeader")
-        .and_then(|header| header.get("changeType"))
+const fn uncapturable(reason: String) -> ForceSyncError {
+    ForceSyncError::UncapturableCdcEvent { reason }
+}
+
+/// A change event split into the parts that capture uses.
+#[derive(Debug, Clone, PartialEq)]
+struct CdcEvent {
+    operation: ChangeOperation,
+    /// The one record that the event names, from `ChangeEventHeader.recordIds`.
+    record_id: Option<String>,
+    /// The record fields, without the header.
+    body: Value,
+}
+
+/// Reads a change event payload.
+///
+/// The header leaves the body. An update or delete event names its changed
+/// fields only, and every other field is null. So the nulls of such an event
+/// are dropped, and a null never overwrites a known value. A create keeps
+/// its nulls. The record ID joins the body as `Id`, so the applied change
+/// projects it onto the sync link.
+///
+/// # Errors
+///
+/// Returns [`ForceSyncError::UncapturableCdcEvent`] for a gap event, which
+/// carries no field values, and for an event that names several records.
+fn read_cdc_event(mut payload: Value) -> Result<CdcEvent, ForceSyncError> {
+    let header = payload
+        .as_object_mut()
+        .and_then(|body| body.remove("ChangeEventHeader"))
+        .unwrap_or(Value::Null);
+    let change_type = header
+        .get("changeType")
         .and_then(Value::as_str)
-    {
-        Some("DELETE") => ChangeOperation::Delete,
-        _ => ChangeOperation::Upsert,
+        .unwrap_or_default();
+    if change_type.starts_with("GAP_") {
+        return Err(uncapturable(format!(
+            "a {change_type} event carries no field values, so reconcile the record"
+        )));
+    }
+
+    let record_ids: Vec<&str> = header
+        .get("recordIds")
+        .and_then(Value::as_array)
+        .map(|ids| ids.iter().filter_map(Value::as_str).collect())
+        .unwrap_or_default();
+    if record_ids.len() > 1 {
+        return Err(uncapturable(format!(
+            "the event names {} records, and capture takes one record per event",
+            record_ids.len()
+        )));
+    }
+    let record_id = record_ids.first().map(|id| (*id).to_owned());
+
+    let operation = if change_type == "DELETE" {
+        ChangeOperation::Delete
+    } else {
+        ChangeOperation::Upsert
+    };
+    if matches!(change_type, "UPDATE" | "DELETE") {
+        strip_nulls(&mut payload);
+    }
+    if let (Some(id), Some(body)) = (&record_id, payload.as_object_mut()) {
+        body.entry("Id")
+            .or_insert_with(|| Value::String(id.clone()));
+    }
+
+    Ok(CdcEvent {
+        operation,
+        record_id,
+        body: payload,
+    })
+}
+
+/// Drops every null field, and every object that has no field left.
+fn strip_nulls(value: &mut Value) {
+    if let Value::Object(fields) = value {
+        fields.retain(|_, field| {
+            strip_nulls(field);
+            !field.is_null() && !matches!(field, Value::Object(inner) if inner.is_empty())
+        });
+    }
+}
+
+/// Finds the external ID that keys the record of `event`.
+///
+/// The event body has it when the field is set or changed. A sparse event
+/// has only the record ID, so the key comes from an earlier event of the
+/// record or from its sync link. An event body that has both values
+/// updates the record map.
+async fn resolve_external_id_in_tx<C>(
+    client: &C,
+    tenant: &str,
+    object: &ObjectSync,
+    event: &CdcEvent,
+) -> Result<String, ForceSyncError>
+where
+    C: GenericClient + Sync + ?Sized,
+{
+    let field = object
+        .external_id_field()
+        .ok_or(ForceSyncError::MissingConfiguration {
+            field: "external_id_field",
+        })?;
+    let in_body = event
+        .body
+        .get(field)
+        .and_then(Value::as_str)
+        .filter(|external_id| !external_id.is_empty());
+
+    match (in_body, event.record_id.as_deref()) {
+        (Some(external_id), Some(record_id)) => {
+            record_map::remember_salesforce_record_in_tx(
+                client,
+                tenant,
+                object.object_name(),
+                record_id,
+                external_id,
+            )
+            .await?;
+            Ok(external_id.to_owned())
+        }
+        (Some(external_id), None) => Ok(external_id.to_owned()),
+        (None, Some(record_id)) => record_map::external_id_for_salesforce_record_in_tx(
+            client,
+            tenant,
+            object.object_name(),
+            record_id,
+        )
+        .await?
+        .ok_or_else(|| {
+            uncapturable(format!(
+                "the event has no {field} value, and no earlier event or sync link knows record {record_id}"
+            ))
+        }),
+        (None, None) => Err(uncapturable(format!(
+            "the event has no {field} value and no record ID"
+        ))),
     }
 }
 
@@ -274,36 +401,30 @@ fn replay_id_from_position(position: i64) -> Result<ReplayId, ForceSyncError> {
     Ok(ReplayId::from_bytes(bytes[first_non_zero..].to_vec()))
 }
 
-fn build_envelope(
+/// Builds the journal envelope of one change event.
+async fn build_envelope_in_tx<C>(
+    client: &C,
     tenant: &str,
     object: &ObjectSync,
     payload: Value,
     replay_position: i64,
-) -> Result<ChangeEnvelope, ForceSyncError> {
-    let external_id_field =
-        object
-            .external_id_field()
-            .ok_or(ForceSyncError::MissingConfiguration {
-                field: "external_id_field",
-            })?;
-    let external_id = payload
-        .get(external_id_field)
-        .and_then(Value::as_str)
-        .ok_or_else(|| ForceSyncError::InvalidStoredValue {
-            field: "external_id",
-            value: payload.to_string(),
-        })?;
+) -> Result<ChangeEnvelope, ForceSyncError>
+where
+    C: GenericClient + Sync + ?Sized,
+{
+    let event = read_cdc_event(payload)?;
+    let external_id = resolve_external_id_in_tx(client, tenant, object, &event).await?;
 
     Ok(ChangeEnvelope::new(
         SyncKey::new(
             tenant.to_owned(),
             object.object_name().to_owned(),
-            external_id.to_owned(),
+            external_id,
         )?,
         SourceSystem::Salesforce,
-        change_operation(&payload),
+        event.operation,
         chrono::Utc::now(),
-        payload,
+        event.body,
     )
     .with_cursor(SourceCursor::SalesforceReplayId(replay_position)))
 }
@@ -320,7 +441,7 @@ where
     C: GenericClient + Sync + ?Sized,
 {
     let replay_position = replay_id_to_position(replay_id)?;
-    let envelope = build_envelope(tenant, object, payload, replay_position)?;
+    let envelope = build_envelope_in_tx(client, tenant, object, payload, replay_position).await?;
     let inserted = journal_envelope_in_tx(client, &envelope).await?;
     advance_checkpoint_in_tx(client, stream_name, replay_position).await?;
     Ok(inserted)
@@ -374,7 +495,15 @@ where
     C: GenericClient + Sync + ?Sized,
 {
     let replay_position = replay_id_to_position(replay_id)?;
-    let outcome = match build_envelope(stream.tenant(), object, payload.clone(), replay_position) {
+    let outcome = match build_envelope_in_tx(
+        client,
+        stream.tenant(),
+        object,
+        payload.clone(),
+        replay_position,
+    )
+    .await
+    {
         Ok(envelope) => {
             if journal_envelope_in_tx(client, &envelope).await? {
                 EventOutcome::Captured
@@ -593,52 +722,89 @@ mod tests {
     use super::*;
     use serde_json::json;
 
-    // ── change_operation ──────────────────────────────────────────────
+    // ── read_cdc_event ────────────────────────────────────────────────
 
-    #[test]
-    fn change_operation_returns_delete_for_delete_change_type() {
-        let payload = json!({
-            "ChangeEventHeader": {
-                "changeType": "DELETE"
-            }
-        });
-        assert_eq!(change_operation(&payload), ChangeOperation::Delete);
+    fn read(payload: &Value) -> CdcEvent {
+        read_cdc_event(payload.clone()).unwrap_or_else(|error| panic!("read: {error}"))
+    }
+
+    fn operation_of(change_type: &str) -> ChangeOperation {
+        read(&json!({"ChangeEventHeader": {"changeType": change_type}})).operation
     }
 
     #[test]
-    fn change_operation_returns_upsert_for_create_change_type() {
-        let payload = json!({
-            "ChangeEventHeader": {
-                "changeType": "CREATE"
-            }
-        });
-        assert_eq!(change_operation(&payload), ChangeOperation::Upsert);
+    fn a_delete_event_reads_as_a_delete() {
+        assert_eq!(operation_of("DELETE"), ChangeOperation::Delete);
     }
 
     #[test]
-    fn change_operation_returns_upsert_for_update_change_type() {
-        let payload = json!({
-            "ChangeEventHeader": {
-                "changeType": "UPDATE"
-            }
-        });
-        assert_eq!(change_operation(&payload), ChangeOperation::Upsert);
+    fn create_update_and_undelete_events_read_as_upserts() {
+        for change_type in ["CREATE", "UPDATE", "UNDELETE"] {
+            assert_eq!(operation_of(change_type), ChangeOperation::Upsert);
+        }
     }
 
     #[test]
-    fn change_operation_returns_upsert_when_header_missing() {
-        let payload = json!({"Name": "Acme"});
-        assert_eq!(change_operation(&payload), ChangeOperation::Upsert);
+    fn an_event_with_no_header_or_change_type_reads_as_an_upsert() {
+        assert_eq!(
+            read(&json!({"Name": "Acme"})).operation,
+            ChangeOperation::Upsert
+        );
+        assert_eq!(
+            read(&json!({"ChangeEventHeader": {"entityName": "Account"}})).operation,
+            ChangeOperation::Upsert
+        );
     }
 
     #[test]
-    fn change_operation_returns_upsert_when_change_type_missing() {
-        let payload = json!({
-            "ChangeEventHeader": {
-                "entityName": "Account"
-            }
-        });
-        assert_eq!(change_operation(&payload), ChangeOperation::Upsert);
+    fn the_header_leaves_the_body_and_the_record_id_joins_it() {
+        let event = read(&json!({
+            "ChangeEventHeader": {"changeType": "CREATE", "recordIds": ["001A"]},
+            "Name": "Acme",
+            "Phone": null,
+        }));
+        assert_eq!(event.record_id.as_deref(), Some("001A"));
+        assert_eq!(
+            event.body,
+            json!({"Id": "001A", "Name": "Acme", "Phone": null})
+        );
+    }
+
+    #[test]
+    fn an_update_drops_unchanged_nulls_at_every_level() {
+        let event = read(&json!({
+            "ChangeEventHeader": {"changeType": "UPDATE", "recordIds": ["003A"]},
+            "Name": {"FirstName": null, "LastName": "Doe", "Salutation": null},
+            "MailingAddress": {"City": null, "Street": null},
+            "Phone": null,
+            "Tags": [null, "vip"],
+        }));
+        assert_eq!(
+            event.body,
+            json!({"Id": "003A", "Name": {"LastName": "Doe"}, "Tags": [null, "vip"]})
+        );
+    }
+
+    #[test]
+    fn a_payload_id_is_kept_over_the_header_record_id() {
+        let event = read(&json!({
+            "ChangeEventHeader": {"changeType": "UPDATE", "recordIds": ["001A"]},
+            "Id": "001B",
+        }));
+        assert_eq!(event.body["Id"], json!("001B"));
+    }
+
+    #[test]
+    fn gap_and_multi_record_events_are_uncapturable() {
+        for payload in [
+            json!({"ChangeEventHeader": {"changeType": "GAP_OVERFLOW"}}),
+            json!({"ChangeEventHeader": {"changeType": "UPDATE", "recordIds": ["001A", "001B"]}}),
+        ] {
+            let Err(error) = read_cdc_event(payload) else {
+                panic!("the event must be uncapturable");
+            };
+            assert!(event_content_error(&error), "{error}");
+        }
     }
 
     // ── replay_id_to_position ─────────────────────────────────────────

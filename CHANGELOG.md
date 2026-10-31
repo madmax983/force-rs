@@ -14,6 +14,11 @@ Durable sync on autumn-harvest. See [ADR-036](docs/adr/036-durable-sync-on-autum
 #### `force-pubsub`
 - `PubSubEvent::KeepAlive` is now `KeepAlive { latest_replay_id: Option<ReplayId> }`. It carries the latest replay ID that Salesforce sends with each keepalive, so a client can resume a quiet channel with no gap. Match it as `PubSubEvent::KeepAlive { .. }`.
 
+### Fixed
+
+#### `force-sync`
+- CDC capture now handles change events as Salesforce sends them. An update or delete event carries only the changed fields, so its external ID is usually null. Capture took the key from that field, so it sent almost every update and delete to `sync_dead_letter`. It now resolves the key from the record ID in `ChangeEventHeader.recordIds`, through a new `sync_salesforce_record` map (migration 3) and then `sync_link`. An update or delete drops its unchanged nulls, so a null never overwrites a known value. The journal no longer stores `ChangeEventHeader`, and the record ID joins the body as `Id`, so the applied change links the Salesforce ID. An applied change stores the merged record state in `sync_record_state`, and the planner reads it as the current state, so a field outside a sparse row is still known. A delete is planned before the payload check, so a sparse delete tombstones the link instead of becoming a no-op. Gap events, events that name several records, and sparse events for a record that force-sync never saw are quarantined with the new `ForceSyncError::UncapturableCdcEvent`. See [ADR-037](docs/adr/037-cdc-sparse-change-events.md).
+
 ### Added
 
 #### `force-sync`
@@ -21,6 +26,7 @@ Durable sync on autumn-harvest. See [ADR-036](docs/adr/036-durable-sync-on-autum
 - Durable Salesforce Change Data Capture: `DurableSync::with_cdc(source, streams)` follows each `CdcStream` in one long-running `force_sync_cdc_stream` workflow (`force-sync-cdc-{stream}`), kept running by the `force_sync_cdc_supervisor` schedule. A restart resumes from the checkpoint with no lost or duplicate event. New config: `cdc_window`, `cdc_supervise_interval`, `cdc_windows_per_run`, `cdc_error_backoff`.
 - `capture_cdc_window` and `SyncEngine::run_cdc_window`: one bounded CDC capture window from the checkpoint. An event that can never be captured, such as one without the external ID field, goes to `sync_dead_letter` and the checkpoint moves past it.
 - CDC capture stores the latest replay ID of each keepalive as the checkpoint (`capture_cdc_window` and `capture_stream`). The first window of a `CdcStart::Latest` stream with no checkpoint stays open up to `FIRST_POSITION_WAIT` until it has a position, so a quiet stream never skips the events between windows.
+- Live CDC contract test, `force-sync/tests/live_cdc.rs`: a real create, sparse update and delete through `run_cdc_window` and the durable `with_cdc` runtime. Opt in with `SF_SYNC_CDC=1` and `FORCE_SYNC_TEST_DATABASE_URL`; it runs in the nightly live-contract workflow (ADR-033).
 - `CdcSource` trait, implemented for `force_pubsub::PubSubHandler`, with `CdcStream`, `CdcStart`, `CdcWindow`, `CdcWindowReport`, `CdcWindowEnd`, and `CdcEventStream`.
 - New opt-in `durable` feature: runs capture, apply and reconcile as [autumn-harvest](https://crates.io/crates/autumn-harvest) 0.7 workflows. Needs Rust 1.88 or later.
   - `durable::DurableSync` with `start()` (a standalone harvest worker and scheduler on the `force-sync` queue) and `register(HarvestBuilder)` (add durable sync to an existing harvest app).

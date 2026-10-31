@@ -15,7 +15,7 @@ use serde_json::{Value, json};
 
 use force_sync::{
     CdcEventStream, CdcSource, CdcStart, CdcStream, CdcWindow, CdcWindowEnd, ForceSyncError,
-    ObjectSync, PgStore, capture_cdc_window,
+    ObjectSync, PgStore, SyncEngine, capture_cdc_window,
 };
 
 type Item = Result<PubSubEvent<Value>, PubSubError>;
@@ -286,7 +286,7 @@ async fn event_without_external_id_is_quarantined_and_does_not_wedge_the_stream(
         .await?;
     assert_eq!(row.get::<_, Option<String>>(0).as_deref(), Some("tenant"));
     assert_eq!(row.get::<_, Option<String>>(1).as_deref(), Some("Account"));
-    assert!(row.get::<_, String>(2).contains("external_id"));
+    assert!(row.get::<_, String>(2).contains("no ExternalId__c value"));
     assert_eq!(row.get::<_, Option<String>>(3).as_deref(), Some("Acme 1"));
     Ok(())
 }
@@ -462,5 +462,479 @@ async fn fresh_latest_stream_holds_its_first_window_until_it_can_resume()
     );
     assert_eq!(report.end, CdcWindowEnd::Deadline);
     assert_eq!(checkpoint(&pool).await?, Some(5));
+    Ok(())
+}
+
+// ── Sparse change events, shaped as Salesforce sends them ────────────
+//
+// An update or delete event carries the changed fields only. Every other
+// field is null, the external ID included. The record ID is in
+// `ChangeEventHeader.recordIds`.
+
+const RECORD_ID: &str = "001000000000001AAA";
+
+// Every script item is a `Result`, so this helper returns one too.
+#[allow(clippy::unnecessary_wraps)]
+fn cdc(replay: u8, change_type: &str, record_ids: &[&str], body: &Value) -> Item {
+    let mut payload = body.clone();
+    payload["ChangeEventHeader"] = json!({
+        "entityName": "Account",
+        "changeType": change_type,
+        "recordIds": record_ids,
+        "commitTimestamp": 1_704_067_200_000_i64,
+    });
+    Ok(PubSubEvent::Event(EventMessage {
+        payload,
+        replay_id: ReplayId::from_bytes(vec![replay]),
+        schema_id: "schema-1".to_owned(),
+        event_id: format!("evt-{replay}"),
+    }))
+}
+
+async fn capture_script(
+    store: &PgStore,
+    items: Vec<Item>,
+) -> Result<force_sync::CdcWindowReport, ForceSyncError> {
+    let source = ScriptedSource::new(vec![items], true);
+    capture_cdc_window(
+        store,
+        source.as_ref(),
+        &account_stream(),
+        &account(),
+        short_window(100),
+    )
+    .await
+}
+
+/// The journal rows, oldest first, as `(external_id, operation, payload)`.
+async fn journal_rows(
+    pool: &deadpool_postgres::Pool,
+) -> Result<Vec<(String, String, Value)>, ForceSyncError> {
+    Ok(pool
+        .get()
+        .await?
+        .query(
+            "select external_id, operation, payload::text from sync_journal order by journal_id",
+            &[],
+        )
+        .await?
+        .iter()
+        .map(|row| {
+            let payload: String = row.get(2);
+            (
+                row.get(0),
+                row.get(1),
+                serde_json::from_str(&payload).unwrap_or(Value::Null),
+            )
+        })
+        .collect())
+}
+
+async fn dead_letter_messages(
+    pool: &deadpool_postgres::Pool,
+) -> Result<Vec<String>, ForceSyncError> {
+    Ok(pool
+        .get()
+        .await?
+        .query(
+            "select error_message from sync_dead_letter order by dead_letter_id",
+            &[],
+        )
+        .await?
+        .iter()
+        .map(|row| row.get(0))
+        .collect())
+}
+
+#[tokio::test]
+#[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
+async fn sparse_update_after_a_create_resolves_its_key_by_record_id() -> Result<(), ForceSyncError>
+{
+    let (pool, store) = fresh_store().await?;
+    let report = capture_script(
+        &store,
+        vec![
+            cdc(
+                1,
+                "CREATE",
+                &[RECORD_ID],
+                &json!({"ExternalId__c": "ext-1", "Name": "Acme", "Phone": null}),
+            ),
+            cdc(
+                2,
+                "UPDATE",
+                &[RECORD_ID],
+                &json!({"ExternalId__c": null, "Name": null, "Phone": "555-0100"}),
+            ),
+        ],
+    )
+    .await?;
+
+    assert_eq!(report.captured, 2, "{report:?}");
+    assert_eq!(
+        report.quarantined,
+        0,
+        "{:?}",
+        dead_letter_messages(&pool).await?
+    );
+    let rows = journal_rows(&pool).await?;
+    assert_eq!(rows.len(), 2);
+    assert_eq!(
+        rows[0],
+        (
+            "ext-1".to_owned(),
+            "upsert".to_owned(),
+            json!({"Id": RECORD_ID, "ExternalId__c": "ext-1", "Name": "Acme", "Phone": null}),
+        ),
+        "a create keeps its nulls, drops the header and carries the record ID"
+    );
+    assert_eq!(
+        rows[1],
+        (
+            "ext-1".to_owned(),
+            "upsert".to_owned(),
+            json!({"Id": RECORD_ID, "Phone": "555-0100"}),
+        ),
+        "an update keeps only the changed fields"
+    );
+    Ok(())
+}
+
+#[tokio::test]
+#[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
+async fn sparse_update_resolves_its_key_from_a_linked_record() -> Result<(), ForceSyncError> {
+    let (pool, store) = fresh_store().await?;
+    // The record was created from Postgres, so only its link knows the ID.
+    store
+        .put_link(&force_sync::SyncLink {
+            tenant: "tenant".to_owned(),
+            object_name: "Account".to_owned(),
+            external_id: "ext-pg".to_owned(),
+            salesforce_id: Some(RECORD_ID.to_owned()),
+            postgres_id: None,
+            last_source: Some("postgres".to_owned()),
+            last_source_cursor: None,
+            last_payload_hash: None,
+            tombstone: false,
+        })
+        .await?;
+
+    let report = capture_script(
+        &store,
+        vec![cdc(
+            1,
+            "UPDATE",
+            &[RECORD_ID],
+            &json!({"ExternalId__c": null, "Name": "Renamed"}),
+        )],
+    )
+    .await?;
+
+    assert_eq!(
+        report.captured,
+        1,
+        "{:?}",
+        dead_letter_messages(&pool).await?
+    );
+    let rows = journal_rows(&pool).await?;
+    assert_eq!(rows[0].0, "ext-pg");
+    assert_eq!(rows[0].2, json!({"Id": RECORD_ID, "Name": "Renamed"}));
+    Ok(())
+}
+
+#[tokio::test]
+#[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
+async fn sparse_delete_resolves_its_key_by_record_id() -> Result<(), ForceSyncError> {
+    let (pool, store) = fresh_store().await?;
+    let report = capture_script(
+        &store,
+        vec![
+            cdc(
+                1,
+                "CREATE",
+                &[RECORD_ID],
+                &json!({"ExternalId__c": "ext-1", "Name": "Acme"}),
+            ),
+            cdc(
+                2,
+                "DELETE",
+                &[RECORD_ID],
+                &json!({"ExternalId__c": null, "Name": null}),
+            ),
+        ],
+    )
+    .await?;
+
+    assert_eq!(
+        report.captured,
+        2,
+        "{:?}",
+        dead_letter_messages(&pool).await?
+    );
+    let rows = journal_rows(&pool).await?;
+    assert_eq!(
+        rows[1],
+        (
+            "ext-1".to_owned(),
+            "delete".to_owned(),
+            json!({"Id": RECORD_ID}),
+        )
+    );
+    Ok(())
+}
+
+#[tokio::test]
+#[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
+async fn sparse_update_of_an_unknown_record_is_quarantined() -> Result<(), ForceSyncError> {
+    let (pool, store) = fresh_store().await?;
+    let report = capture_script(
+        &store,
+        vec![cdc(
+            1,
+            "UPDATE",
+            &[RECORD_ID],
+            &json!({"ExternalId__c": null, "Name": "Renamed"}),
+        )],
+    )
+    .await?;
+
+    assert_eq!(report.quarantined, 1);
+    let messages = dead_letter_messages(&pool).await?;
+    assert!(messages[0].contains(RECORD_ID), "{messages:?}");
+    assert!(messages[0].contains("ExternalId__c"), "{messages:?}");
+    assert_eq!(checkpoint(&pool).await?, Some(1));
+    Ok(())
+}
+
+#[tokio::test]
+#[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
+async fn an_event_for_several_records_is_quarantined() -> Result<(), ForceSyncError> {
+    let (pool, store) = fresh_store().await?;
+    let report = capture_script(
+        &store,
+        vec![cdc(
+            1,
+            "UPDATE",
+            &[RECORD_ID, "001000000000002AAA"],
+            &json!({"ExternalId__c": null, "Phone": "555-0100"}),
+        )],
+    )
+    .await?;
+
+    assert_eq!(report.quarantined, 1);
+    assert_eq!(report.captured, 0);
+    let messages = dead_letter_messages(&pool).await?;
+    assert!(messages[0].contains("2 records"), "{messages:?}");
+    Ok(())
+}
+
+#[tokio::test]
+#[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
+async fn a_gap_event_is_quarantined() -> Result<(), ForceSyncError> {
+    let (pool, store) = fresh_store().await?;
+    let report = capture_script(
+        &store,
+        vec![
+            cdc(
+                1,
+                "CREATE",
+                &[RECORD_ID],
+                &json!({"ExternalId__c": "ext-1", "Name": "Acme"}),
+            ),
+            cdc(2, "GAP_UPDATE", &[RECORD_ID], &json!({})),
+        ],
+    )
+    .await?;
+
+    assert_eq!(report.captured, 1);
+    assert_eq!(report.quarantined, 1);
+    let messages = dead_letter_messages(&pool).await?;
+    assert!(messages[0].contains("GAP_UPDATE"), "{messages:?}");
+    Ok(())
+}
+
+#[tokio::test]
+#[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
+async fn a_captured_create_projects_its_record_id_onto_the_link() -> Result<(), ForceSyncError> {
+    let (pool, store) = fresh_store().await?;
+    capture_script(
+        &store,
+        vec![cdc(
+            1,
+            "CREATE",
+            &[RECORD_ID],
+            &json!({"ExternalId__c": "ext-1", "Name": "Acme"}),
+        )],
+    )
+    .await?;
+
+    let client = force::client::builder()
+        .authenticate(StaticAuth)
+        .build()
+        .await
+        .unwrap_or_else(|error| panic!("client: {error}"));
+    let engine = force_sync::SyncEngine::builder(client)
+        .postgres(store.clone())
+        .object(account())
+        .build()?;
+    assert_eq!(engine.run_apply_once().await?, 1);
+
+    let link = store
+        .get_link("tenant", "Account", "ext-1")
+        .await?
+        .unwrap_or_else(|| panic!("the applied create must leave a link"));
+    assert_eq!(link.salesforce_id.as_deref(), Some(RECORD_ID));
+    let _ = pool;
+    Ok(())
+}
+
+async fn engine_for(
+    store: &PgStore,
+    object: ObjectSync,
+) -> Result<SyncEngine<StaticAuth>, ForceSyncError> {
+    let client = force::client::builder()
+        .authenticate(StaticAuth)
+        .build()
+        .await
+        .unwrap_or_else(|error| panic!("client: {error}"));
+    force_sync::SyncEngine::builder(client)
+        .postgres(store.clone())
+        .object(object)
+        .build()
+}
+
+async fn capture_and_apply(
+    store: &PgStore,
+    engine: &SyncEngine<StaticAuth>,
+    object: &ObjectSync,
+    items: Vec<Item>,
+) -> Result<(), ForceSyncError> {
+    let source = ScriptedSource::new(vec![items], true);
+    capture_cdc_window(
+        store,
+        source.as_ref(),
+        &account_stream(),
+        object,
+        short_window(100),
+    )
+    .await?;
+    while engine.run_apply_once().await? > 0 {}
+    Ok(())
+}
+
+async fn task_outcomes(
+    pool: &deadpool_postgres::Pool,
+) -> Result<Vec<(String, Option<String>)>, ForceSyncError> {
+    Ok(pool
+        .get()
+        .await?
+        .query(
+            "select status, last_error from sync_task where task_kind = 'apply' order by task_id",
+            &[],
+        )
+        .await?
+        .iter()
+        .map(|row| (row.get(0), row.get(1)))
+        .collect())
+}
+
+#[tokio::test]
+#[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
+async fn a_sparse_delete_of_an_applied_record_tombstones_its_link() -> Result<(), ForceSyncError> {
+    let (_pool, store) = fresh_store().await?;
+    let engine = engine_for(&store, account()).await?;
+    capture_and_apply(
+        &store,
+        &engine,
+        &account(),
+        vec![cdc(
+            1,
+            "CREATE",
+            &[RECORD_ID],
+            &json!({"ExternalId__c": "ext-1", "Name": "Acme"}),
+        )],
+    )
+    .await?;
+    // On a second subscription, as in production, the delete arrives later.
+    capture_and_apply(
+        &store,
+        &engine,
+        &account(),
+        vec![cdc(
+            2,
+            "DELETE",
+            &[RECORD_ID],
+            &json!({"ExternalId__c": null, "Name": null}),
+        )],
+    )
+    .await?;
+
+    let link = store
+        .get_link("tenant", "Account", "ext-1")
+        .await?
+        .unwrap_or_else(|| panic!("the record must stay linked"));
+    assert!(
+        link.tombstone,
+        "a sparse delete must tombstone the link: {link:?}"
+    );
+    Ok(())
+}
+
+#[tokio::test]
+#[ignore = "requires FORCE_SYNC_TEST_DATABASE_URL"]
+async fn applied_sparse_changes_accumulate_the_record_state() -> Result<(), ForceSyncError> {
+    let (pool, store) = fresh_store().await?;
+    let object = account().field_owner("Phone", force_sync::Owner::Salesforce);
+    let engine = engine_for(&store, object.clone()).await?;
+    capture_and_apply(
+        &store,
+        &engine,
+        &object,
+        vec![cdc(
+            1,
+            "CREATE",
+            &[RECORD_ID],
+            &json!({"ExternalId__c": "ext-1", "Name": "Acme", "Phone": "555-0100"}),
+        )],
+    )
+    .await?;
+    capture_and_apply(
+        &store,
+        &engine,
+        &object,
+        vec![cdc(
+            2,
+            "UPDATE",
+            &[RECORD_ID],
+            &json!({"ExternalId__c": null, "Name": null, "Phone": "555-0199"}),
+        )],
+    )
+    .await?;
+    // `Name` has no owner and the record state knows it, so changing it is a
+    // conflict. A planner that saw only the last sparse row would miss it.
+    capture_and_apply(
+        &store,
+        &engine,
+        &object,
+        vec![cdc(
+            3,
+            "UPDATE",
+            &[RECORD_ID],
+            &json!({"ExternalId__c": null, "Name": "Renamed", "Phone": null}),
+        )],
+    )
+    .await?;
+
+    let outcomes = task_outcomes(&pool).await?;
+    assert_eq!(outcomes[0], ("done".to_owned(), None), "{outcomes:?}");
+    assert_eq!(outcomes[1], ("done".to_owned(), None), "{outcomes:?}");
+    assert_eq!(outcomes[2].0, "failed", "{outcomes:?}");
+    assert!(
+        outcomes[2]
+            .1
+            .as_deref()
+            .is_some_and(|error| error.contains("Name")),
+        "{outcomes:?}"
+    );
     Ok(())
 }

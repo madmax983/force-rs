@@ -6,6 +6,7 @@ pub(crate) mod dead_letter;
 pub(crate) mod journal;
 pub(crate) mod link;
 pub(crate) mod migrate;
+pub(crate) mod record_map;
 pub(crate) mod store;
 pub(crate) mod task_queue;
 

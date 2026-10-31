@@ -49,7 +49,13 @@ pub(crate) enum ApplyPlan {
     /// No write is required. Acknowledge the task.
     Noop,
     /// The change came from Salesforce. Project the link locally.
-    ProjectLocal,
+    ProjectLocal {
+        /// The merged record state to store, or `None` for a delete.
+        ///
+        /// A plan recorded before this field existed reads as `None`.
+        #[serde(default)]
+        payload: Option<Value>,
+    },
     /// Write the change to Salesforce.
     Remote(RemoteCall),
 }
@@ -90,6 +96,14 @@ pub(crate) enum RemoteCall {
 }
 
 impl RemoteCall {
+    /// The merged record state that an upsert writes.
+    pub(crate) const fn payload(&self) -> Option<&Value> {
+        match self {
+            Self::RestUpsert { payload, .. } | Self::BulkUpsert { payload, .. } => Some(payload),
+            Self::Delete { .. } => None,
+        }
+    }
+
     /// Whether the call removes the record.
     pub(crate) const fn is_delete(&self) -> bool {
         matches!(self, Self::Delete { .. })
@@ -178,7 +192,11 @@ pub(crate) fn plan_apply(
     }
 
     if envelope.source() == SourceSystem::Salesforce {
-        return Ok(ApplyPlan::ProjectLocal);
+        let payload = match envelope.operation() {
+            ChangeOperation::Upsert => decision.payload,
+            ChangeOperation::Delete => None,
+        };
+        return Ok(ApplyPlan::ProjectLocal { payload });
     }
 
     let object_name = envelope.sync_key().object_name().to_owned();
@@ -359,9 +377,42 @@ mod tests {
                     ChangeOperation::Upsert,
                     None
                 ),
-                ApplyPlan::ProjectLocal
+                ApplyPlan::ProjectLocal {
+                    payload: Some(json!({"Name": "Merged"}))
+                }
             );
         }
+    }
+
+    #[test]
+    fn a_local_projection_carries_the_merged_state_except_for_a_delete() {
+        let merged = json!({"Name": "Acme", "Phone": "555-0100"});
+        let decision = |payload: Option<Value>| PlanDecision {
+            lane: ApplyLane::Rest,
+            payload,
+            conflicts: Vec::new(),
+        };
+        let upsert = envelope(SourceSystem::Salesforce, ChangeOperation::Upsert);
+        let delete = envelope(SourceSystem::Salesforce, ChangeOperation::Delete);
+        let object = object();
+
+        let planned = plan_apply(decision(Some(merged.clone())), &upsert, None, &object);
+        assert!(
+            matches!(&planned, Ok(ApplyPlan::ProjectLocal { payload: Some(p) }) if *p == merged),
+            "{planned:?}"
+        );
+        let planned = plan_apply(decision(Some(merged)), &delete, None, &object);
+        assert!(
+            matches!(planned, Ok(ApplyPlan::ProjectLocal { payload: None })),
+            "{planned:?}"
+        );
+    }
+
+    #[test]
+    fn a_plan_recorded_without_a_payload_still_reads() {
+        let plan: ApplyPlan = serde_json::from_value(json!({"kind": "project_local"}))
+            .unwrap_or_else(|error| panic!("old plan: {error}"));
+        assert_eq!(plan, ApplyPlan::ProjectLocal { payload: None });
     }
 
     #[test]
@@ -545,7 +596,9 @@ mod tests {
                 plan: ApplyPlan::Noop,
             },
             ApplyResolution::Local {
-                plan: ApplyPlan::ProjectLocal,
+                plan: ApplyPlan::ProjectLocal {
+                    payload: Some(json!({"Name": "Acme"})),
+                },
             },
             ApplyResolution::Remote {
                 call: RemoteCall::BulkUpsert {

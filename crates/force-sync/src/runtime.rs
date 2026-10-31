@@ -353,7 +353,7 @@ impl<A: Authenticator> SyncEngine<A> {
                     .await?;
                 Ok(false)
             }
-            ApplyPlan::ProjectLocal => {
+            ApplyPlan::ProjectLocal { payload } => {
                 let Some(subject) = subject else {
                     return self.fail_missing_journal(lease_owner, task_id).await;
                 };
@@ -367,6 +367,9 @@ impl<A: Authenticator> SyncEngine<A> {
                     matches!(subject.envelope.operation(), ChangeOperation::Delete),
                 );
                 self.store.put_link(&link).await?;
+                if let Some(payload) = payload {
+                    self.put_record_state(subject, payload).await?;
+                }
                 self.store.ack_task_for_worker(lease_owner, task_id).await?;
                 Ok(true)
             }
@@ -375,6 +378,20 @@ impl<A: Authenticator> SyncEngine<A> {
                 value: format!("remote call without an outcome: {call:?}"),
             }),
         }
+    }
+
+    /// Stores the merged record state that an applied change produced.
+    ///
+    /// The next plan of the record reads it as the current state.
+    async fn put_record_state(
+        &self,
+        subject: &ApplySubject,
+        payload: &Value,
+    ) -> Result<(), ForceSyncError> {
+        let key = subject.envelope.sync_key();
+        self.store
+            .put_record_state(key.tenant(), key.object_name(), key.external_id(), payload)
+            .await
     }
 
     async fn finalize_remote(
@@ -402,6 +419,9 @@ impl<A: Authenticator> SyncEngine<A> {
                     call.is_delete(),
                 );
                 self.store.put_link(&link).await?;
+                if let Some(payload) = call.payload() {
+                    self.put_record_state(subject, payload).await?;
+                }
                 self.store.ack_task_for_worker(lease_owner, task_id).await?;
                 Ok(true)
             }
@@ -472,7 +492,7 @@ impl<A: Authenticator> SyncEngine<A> {
                     j.observed_at,
                     j.operation,
                     j.payload::text as payload_json,
-                    applied.payload::text as current_payload_json
+                    coalesce(state.payload, applied.payload)::text as current_payload_json
                  from sync_task t
                  join sync_journal j
                    on (t.payload->>'journal_id')::bigint = j.journal_id
@@ -480,6 +500,10 @@ impl<A: Authenticator> SyncEngine<A> {
                    on link.tenant = j.tenant
                   and link.object_name = j.object_name
                   and link.external_id = j.external_id
+                 left join sync_record_state state
+                   on state.tenant = j.tenant
+                  and state.object_name = j.object_name
+                  and state.external_id = j.external_id
                  left join lateral (
                     select payload
                     from sync_journal applied

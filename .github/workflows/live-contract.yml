@@ -14,6 +14,21 @@ jobs:
     name: Salesforce Live Contract
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # The force-sync CDC tier journals real change events into Postgres.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: force_sync_live
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d force_sync_live"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     env:
       # ── JWT Bearer (primary, renewable) ──
       SF_JWT_CLIENT_ID: ${{ secrets.SF_JWT_CLIENT_ID }}
@@ -56,6 +71,18 @@ jobs:
       # Pub/Sub unary contract smoke. Topic must exist and be accessible.
       SF_PUBSUB_ENDPOINT: ${{ vars.SF_PUBSUB_ENDPOINT || 'https://api.pubsub.salesforce.com:7443' }}
       SF_PUBSUB_TOPIC: ${{ vars.SF_PUBSUB_TOPIC || secrets.SF_PUBSUB_TOPIC }}
+
+      # force-sync CDC tier. Opt in with SF_SYNC_CDC=1 once Change Data
+      # Capture is on for the object. Each delivered event counts against the
+      # org's daily CDC delivery allocation; a filtered custom channel in
+      # SF_SYNC_CDC_TOPIC keeps a shared org's deliveries near zero.
+      SF_SYNC_CDC: ${{ vars.SF_SYNC_CDC || '0' }}
+      SF_SYNC_CDC_OBJECT: ${{ vars.SF_SYNC_CDC_OBJECT }}
+      SF_SYNC_CDC_EXTERNAL_ID_FIELD: ${{ vars.SF_SYNC_CDC_EXTERNAL_ID_FIELD }}
+      SF_SYNC_CDC_UPDATE_FIELD: ${{ vars.SF_SYNC_CDC_UPDATE_FIELD }}
+      SF_SYNC_CDC_RECORD_JSON: ${{ vars.SF_SYNC_CDC_RECORD_JSON }}
+      SF_SYNC_CDC_TOPIC: ${{ vars.SF_SYNC_CDC_TOPIC }}
+      FORCE_SYNC_TEST_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/force_sync_live
 
       # ── Tiered live-contract harness (ADR-033) ──
       # Core-tier upsert externals (optional; live_core upsert skips when unset).
@@ -129,6 +156,9 @@ jobs:
 
       - name: Run Pub/Sub live tests
         run: cargo test -p force-pubsub --test live_salesforce_pubsub -- --ignored --test-threads=1
+
+      - name: Run force-sync CDC live tests
+        run: cargo test -p force-sync --features durable --test live_cdc -- --ignored --test-threads=1
 
       - name: Cleanup private key
         if: always()

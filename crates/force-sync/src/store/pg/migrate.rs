@@ -10,6 +10,10 @@ const MIGRATIONS: &[(i32, &str)] = &[
         2,
         include_str!("../../../migrations/0002_force_sync_outbox.sql"),
     ),
+    (
+        3,
+        include_str!("../../../migrations/0003_salesforce_record_map.sql"),
+    ),
 ];
 
 /// Applies the force-sync schema migrations in version order.
