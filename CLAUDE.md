@@ -578,6 +578,8 @@ use force::testing::{MockForceClient, MockAuthenticator};
 - [x] Durable Salesforce CDC capture: one `force_sync_cdc_stream` workflow per stream (bounded, heartbeated capture windows from the checkpoint, continue-as-new), kept running by the `force_sync_cdc_supervisor` schedule
   - [x] `CdcSource` trait (implemented for `PubSubHandler`), `CdcStream`, `capture_cdc_window` / `SyncEngine::run_cdc_window`
   - [x] Poison CDC events quarantined to `sync_dead_letter` with the checkpoint advanced in the same transaction
+  - [x] Sparse update/delete events resolved by record ID (`sync_salesforce_record` map, then `sync_link`); unchanged nulls dropped - See [ADR-037](docs/adr/037-cdc-sparse-change-events.md)
+  - [x] Live CDC contract test (`force-sync/tests/live_cdc.rs`, tier `SF_SYNC_CDC=1`)
 - [x] Multi-shard harvest placement: `DurableSync::new_sharded(engine, ShardedDbPool, ShardRouter)`, router-picked shard per workflow ID, worker and scheduler across every shard, `harvest_sharded_pool` helper
 
 ### Phase 7: Winter '27 (API v68.0) - See [ADR-035](docs/adr/035-winter-27-v68-adoption.md)
@@ -812,6 +814,7 @@ Significant architectural decisions are documented in `docs/adr/`:
 - [ADR-032](docs/adr/032-soap-api-design.md) - SOAP Partner API design (untyped generic client, OAuth in SessionHeader, INVALID_SESSION retry)
 - [ADR-035](docs/adr/035-winter-27-v68-adoption.md) - Winter '27 (API v68.0) adoption (v68 default, latest alias, new surfaces, DPoP guard)
 - [ADR-036](docs/adr/036-durable-sync-on-autumn-harvest.md) - Durable force-sync on autumn-harvest (feature `durable`: per-task apply workflows, scheduled pump/reconcile)
+- [ADR-037](docs/adr/037-cdc-sparse-change-events.md) - Sparse Salesforce change events in force-sync capture (record-ID key resolution, null stripping)
 
 ## Contributing
 

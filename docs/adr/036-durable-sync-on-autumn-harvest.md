@@ -151,9 +151,12 @@ sequenceDiagram
   its settings through a recorded activity. A config change therefore
   reaches the stream at its next run, and a removed stream ends there.
 - **A poison event cannot wedge a stream.** An event that can never be
-  captured, such as one without the external ID field, goes to
-  `sync_dead_letter` and the checkpoint moves past it, in the same
-  transaction. A configuration or database error fails the window instead.
+  captured goes to `sync_dead_letter` and the checkpoint moves past it, in
+  the same transaction. A configuration or database error fails the window
+  instead.
+- **Sparse events resolve by record ID.** An update or delete event carries
+  the changed fields only. Capture resolves its key from the record ID in the
+  header. See [ADR-037](037-cdc-sparse-change-events.md).
 - **Pluggable source.** `CdcSource` is a trait. `force_pubsub::PubSubHandler`
   implements it, and a test or another transport can provide its own.
 
@@ -260,7 +263,10 @@ workflow lands on shard 0, as before.
 - `tests/cdc_window.rs` (Postgres): a window resumes from the checkpoint,
   stops at its limits, quarantines an event without an external ID and keeps
   going, counts a redelivery as a duplicate, and keeps committed events when
-  the stream fails.
+  the stream fails. Its sparse-event tests are listed in ADR-037.
+- `tests/live_cdc.rs` (live, opt-in with `SF_SYNC_CDC=1`): real change events
+  from an org, through `run_cdc_window` and through the durable `with_cdc`
+  runtime.
 - `src/durable/tests.rs` shard tests: one pool keeps every workflow on
   shard 0, a pick is stable and encoded in the execution ID, two shards
   both take work, every task of one record shares a shard, and a router

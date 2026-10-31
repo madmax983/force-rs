@@ -68,6 +68,7 @@ ADRs follow this structure:
 | [034](034-marketing-cloud-engagement-crate.md) | Create `force-marketingcloud` as a Standalone Engagement Crate | Accepted | 2026-07-12 |
 | [035](035-winter-27-v68-adoption.md) | Winter '27 (API v68.0) Adoption | Accepted | 2026-10-28 |
 | [036](036-durable-sync-on-autumn-harvest.md) | Durable force-sync on autumn-harvest | Accepted | 2026-10-30 |
+| [037](037-cdc-sparse-change-events.md) | Sparse Salesforce change events in force-sync capture | Accepted | 2026-10-31 |
 
 ## Decision Process
 

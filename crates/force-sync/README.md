@@ -85,8 +85,11 @@ What it does:
   long-running `force_sync_cdc_stream` workflow. It reads bounded windows
   from the stream checkpoint, and each event commits its journal row, apply
   task and checkpoint together. A restart resumes from the checkpoint with no
-  lost or duplicate event. An event that can never be captured, such as one
-  without the external ID field, goes to `sync_dead_letter`. Keepalives
+  lost or duplicate event. An update or delete event carries the changed
+  fields only, so capture resolves its key from the record ID in the event
+  header ([ADR-037](../../docs/adr/037-cdc-sparse-change-events.md)). An
+  event that can never be captured, such as a gap event or one for a record
+  that force-sync never saw, goes to `sync_dead_letter`. Keepalives
   move the checkpoint too, so a quiet `Latest` stream resumes with no gap.
   The
   `force_sync_cdc_supervisor` schedule keeps every stream workflow running.

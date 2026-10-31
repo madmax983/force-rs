@@ -53,6 +53,7 @@ Add sibling live-test binaries plus a shared harness module, leaving
 | Account Engagement | `live_account_engagement` | `SF_AE_BUSINESS_UNIT_ID` |
 | Marketing Cloud | `live_marketingcloud` | `MC_TENANT_SUBDOMAIN` + `MC_CLIENT_ID` + `MC_CLIENT_SECRET` (+ optional `MC_ACCOUNT_ID`, `MC_SCOPE`, `MC_AUTH_URL`) |
 | REST upsert (optional) | `live_core` | `SF_UPSERT_SOBJECT` + `SF_UPSERT_EXT_FIELD` + `SF_UPSERT_EXT_VALUE` |
+| force-sync CDC | `force-sync` `live_cdc` | `SF_SYNC_CDC=1` + `FORCE_SYNC_TEST_DATABASE_URL` (+ optional `SF_SYNC_CDC_OBJECT`, `SF_SYNC_CDC_EXTERNAL_ID_FIELD`, `SF_SYNC_CDC_UPDATE_FIELD`, `SF_SYNC_CDC_RECORD_JSON`, `SF_SYNC_CDC_TOPIC`, `SF_PUBSUB_ENDPOINT`). CDC must be on for the object. See [ADR-037](037-cdc-sparse-change-events.md). |
 
 ## Principles
 

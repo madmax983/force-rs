@@ -82,6 +82,15 @@ pub enum ForceSyncError {
         value: String,
     },
 
+    /// A Salesforce change event cannot become a record change.
+    ///
+    /// CDC capture moves such an event to `sync_dead_letter`.
+    #[error("uncapturable CDC event: {reason}")]
+    UncapturableCdcEvent {
+        /// Why capture cannot use the event.
+        reason: String,
+    },
+
     /// The durable runtime (feature `durable`) could not build, start, or stop.
     #[error("durable runtime error: {0}")]
     Durable(String),
