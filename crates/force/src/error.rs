@@ -303,6 +303,38 @@ mod tests {
     use crate::test_utils::must::Must;
 
     #[test]
+    fn test_auth_hint_invalid_grant_generic() {
+        let err = AuthenticationError::TokenRequestFailed("invalid_grant: other".to_string());
+        let shown = err.to_string();
+        assert!(shown.contains("Verify the flow is enabled"));
+        assert!(shown.contains("07-troubleshooting.md"));
+    }
+
+    #[test]
+    fn test_auth_hint_absent_for_unrecognised_failure() {
+        let err = AuthenticationError::TokenRequestFailed("server_error".to_string());
+        assert_eq!(err.to_string(), "OAuth token request failed: server_error");
+    }
+
+    #[test]
+    fn test_http_hint_status_404_without_code() {
+        let err = HttpError::StatusError {
+            status_code: 404,
+            message: "gone".to_string(),
+        };
+        assert!(err.to_string().contains("custom objects end in __c"));
+    }
+
+    #[test]
+    fn test_http_hint_absent_for_other_status() {
+        let err = HttpError::StatusError {
+            status_code: 500,
+            message: "boom".to_string(),
+        };
+        assert_eq!(err.to_string(), "HTTP 500: boom");
+    }
+
+    #[test]
     fn test_authentication_error_display() {
         let err = AuthenticationError::TokenRequestFailed("invalid_grant".to_string());
         assert!(
