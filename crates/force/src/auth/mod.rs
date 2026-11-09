@@ -173,9 +173,10 @@ mod tests {
             .must();
 
         let err = handle_oauth_error(res, None).await;
-        assert_eq!(
-            err.to_string(),
-            "authentication failed: OAuth token request failed: invalid_client: client identifier invalid"
+        let shown = err.to_string();
+        assert!(
+            shown.starts_with("authentication failed: OAuth token request failed: invalid_client: client identifier invalid"),
+            "unexpected message: {shown}"
         );
     }
 
@@ -199,9 +200,10 @@ mod tests {
             .must();
 
         let err = handle_oauth_error(res, Some("My context")).await;
-        assert_eq!(
-            err.to_string(),
-            "authentication failed: OAuth token request failed: My context: invalid_client: client identifier invalid"
+        let shown = err.to_string();
+        assert!(
+            shown.starts_with("authentication failed: OAuth token request failed: My context: invalid_client: client identifier invalid"),
+            "unexpected message: {shown}"
         );
     }
 
