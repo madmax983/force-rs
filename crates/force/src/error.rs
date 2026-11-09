@@ -61,11 +61,46 @@ pub enum ForceError {
     Soap(#[from] crate::api::soap::SoapFault),
 }
 
+/// Troubleshooting page linked from hinted error messages.
+const TROUBLESHOOTING_URL: &str =
+    "https://github.com/madmax983/force-rs/blob/main/docs/guide/07-troubleshooting.md";
+
+/// Fix hint appended (display only) to recognised OAuth token failures.
+///
+/// The stored message is untouched; unrecognised failures get no hint.
+fn auth_hint(msg: &str) -> String {
+    let l = msg.to_lowercase();
+    let fix = if l.contains("invalid_client_id") || l.contains("invalid_client") {
+        "Check the consumer key and secret (Connected App > Manage Consumer Details)"
+    } else if l.contains("client credentials user") || l.contains("no client credentials") {
+        "Set a 'Run As' user in the Connected App's Client Credentials Flow settings"
+    } else if l.contains("invalid_grant") {
+        "Verify the flow is enabled for the Connected App and the credentials, user and login URL match the org"
+    } else {
+        return String::new();
+    };
+    format!(" -- {fix}. See {TROUBLESHOOTING_URL}")
+}
+
+/// Fix hint appended (display only) to recognised Salesforce REST error codes.
+fn http_hint(status: u16, msg: &str) -> String {
+    let fix = if msg.contains("API_DISABLED_FOR_ORG") {
+        "Enable API access: use an org edition with API access and grant the 'API Enabled' permission"
+    } else if msg.contains("MALFORMED_QUERY") {
+        "Check the SOQL syntax and that field and object API names exist"
+    } else if msg.contains("NOT_FOUND") || status == 404 {
+        "Check the sObject or record API name (custom objects end in __c) and the API version"
+    } else {
+        return String::new();
+    };
+    format!(" -- {fix}. See {TROUBLESHOOTING_URL}")
+}
+
 /// Authentication-related errors.
 #[derive(Debug, thiserror::Error)]
 pub enum AuthenticationError {
     /// OAuth token request failed.
-    #[error("OAuth token request failed: {0}")]
+    #[error("OAuth token request failed: {0}{hint}", hint = auth_hint(.0))]
     TokenRequestFailed(String),
 
     /// Invalid credentials provided.
@@ -107,7 +142,7 @@ pub enum HttpError {
     RequestFailed(#[from] reqwest::Error),
 
     /// HTTP status code indicates an error.
-    #[error("HTTP {status_code}: {message}")]
+    #[error("HTTP {status_code}: {message}{hint}", hint = http_hint(*.status_code, .message))]
     StatusError {
         /// The HTTP status code.
         status_code: u16,
@@ -268,9 +303,44 @@ mod tests {
     use crate::test_utils::must::Must;
 
     #[test]
+    fn test_auth_hint_invalid_grant_generic() {
+        let err = AuthenticationError::TokenRequestFailed("invalid_grant: other".to_string());
+        let shown = err.to_string();
+        assert!(shown.contains("Verify the flow is enabled"));
+        assert!(shown.contains("07-troubleshooting.md"));
+    }
+
+    #[test]
+    fn test_auth_hint_absent_for_unrecognised_failure() {
+        let err = AuthenticationError::TokenRequestFailed("server_error".to_string());
+        assert_eq!(err.to_string(), "OAuth token request failed: server_error");
+    }
+
+    #[test]
+    fn test_http_hint_status_404_without_code() {
+        let err = HttpError::StatusError {
+            status_code: 404,
+            message: "gone".to_string(),
+        };
+        assert!(err.to_string().contains("custom objects end in __c"));
+    }
+
+    #[test]
+    fn test_http_hint_absent_for_other_status() {
+        let err = HttpError::StatusError {
+            status_code: 500,
+            message: "boom".to_string(),
+        };
+        assert_eq!(err.to_string(), "HTTP 500: boom");
+    }
+
+    #[test]
     fn test_authentication_error_display() {
         let err = AuthenticationError::TokenRequestFailed("invalid_grant".to_string());
-        assert_eq!(err.to_string(), "OAuth token request failed: invalid_grant");
+        assert!(
+            err.to_string()
+                .starts_with("OAuth token request failed: invalid_grant")
+        );
     }
 
     #[test]
@@ -285,7 +355,7 @@ mod tests {
             status_code: 404,
             message: "Resource not found".to_string(),
         };
-        assert_eq!(err.to_string(), "HTTP 404: Resource not found");
+        assert!(err.to_string().starts_with("HTTP 404: Resource not found"));
     }
 
     #[test]

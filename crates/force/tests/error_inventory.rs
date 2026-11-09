@@ -171,7 +171,7 @@ async fn error_message_inventory() {
     let min: usize = std::env::var("ONRAMP_INVENTORY_MIN_FULL")
         .ok()
         .and_then(|v| v.parse().ok())
-        .unwrap_or(0);
+        .unwrap_or(5);
     assert!(
         full >= min,
         "only {full} fully-informative rows, need {min}"
