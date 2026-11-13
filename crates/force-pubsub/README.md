@@ -19,23 +19,25 @@
 ## Quick Start
 
 ```rust
-use force_pubsub::{PubSubConfig, PubSubHandler, ReplayPreset};
+use futures::StreamExt;
+use force_pubsub::{PubSubConfig, PubSubHandler, PubSubEvent, ReplayPreset};
 
-// Build a force Session first (see force crate docs)
-let session = /* ... */;
-
-let config = PubSubConfig::default();
-let handler = PubSubHandler::connect(session, config).await?;
+// `client` is an authenticated `force::client::ForceClient` (see the force crate docs).
+let handler = PubSubHandler::connect(client.session(), PubSubConfig::default()).await?;
 
 // Subscribe to Change Data Capture events
 let mut stream = handler
-    .subscribe("/data/AccountChangeEvent", ReplayPreset::Latest, None)
+    .subscribe("/data/AccountChangeEvent", ReplayPreset::Latest)
     .await?;
 
-while let Some(event) = stream.next().await {
-    println!("Received: {:?}", event?);
+while let Some(item) = stream.next().await {
+    if let PubSubEvent::Event(msg) = item? {
+        println!("event_id={}", msg.event_id);
+    }
 }
 ```
+
+Add `futures` to your `Cargo.toml` for `StreamExt`.
 
 ## Dependencies
 
