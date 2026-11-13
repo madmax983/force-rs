@@ -41,3 +41,10 @@
 **Finding:** Missing mutation test coverage in `upsert_with_retry_class` and `validate_query_input_len`. The `MAX_QUERY_INPUT_BYTES` threshold tests were weak, and the response limit calculation in `upsert` lacked explicit bound verification.
 **Evidence:** 5+ surviving mutants around `100 * 1024 * 1024` limit calculation in `upsert` paths. Surviving `>=` mutant on `validate_query_input_len`.
 **Recommendation:** Ensure exact boundary coverage in threshold validation methods (like EXACT max allowed size), and explicitly cover payload too large errors (`HttpError::PayloadTooLarge`) by setting up mocks with very large mock response data.
+
+**[Elenchus: force::api::soap::types Test Quality Audit]**
+**Module:** `crates/force/src/api/soap/types.rs`
+**Severity:** 🔴 Critical
+**Finding:** `cargo mutants` exposed that `SObject` builder and getter methods lacked explicit tests, meaning the core logic of `with_field`, `with_null_field`, `set_field`, `get`, and `id` were unverified.
+**Evidence:** 10 surviving mutants in `SObject::with_field`, `SObject::with_null_field`, `SObject::set_field`, `SObject::get`, and `SObject::id`.
+**Recommendation:** Added explicit tests (`test_sobject_with_field`, `test_sobject_with_null_field`, `test_sobject_set_field`, `test_sobject_get`, `test_sobject_id`) to verify correct manipulation of fields and null lists, and to kill surviving mutants.

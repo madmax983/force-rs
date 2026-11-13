@@ -288,3 +288,50 @@ pub struct DescribeGlobalResult {
     /// The objects available in the org.
     pub sobjects: Vec<DescribeGlobalSObject>,
 }
+
+#[cfg(all(test, feature = "soap"))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_sobject_with_field() {
+        let obj = SObject::new("Account").with_field("Name", "Acme");
+        assert_eq!(obj.fields.len(), 1);
+        assert_eq!(obj.fields[0].0, "Name");
+        assert_eq!(obj.fields[0].1, Some("Acme".to_string()));
+    }
+
+    #[test]
+    fn test_sobject_with_null_field() {
+        let obj = SObject::new("Account").with_null_field("Description");
+        assert_eq!(obj.fields_to_null.len(), 1);
+        assert_eq!(obj.fields_to_null[0], "Description");
+    }
+
+    #[test]
+    fn test_sobject_set_field() {
+        let mut obj = SObject::new("Account");
+        obj.set_field("Website", "example.com");
+        assert_eq!(obj.fields.len(), 1);
+        assert_eq!(obj.fields[0].0, "Website");
+        assert_eq!(obj.fields[0].1, Some("example.com".to_string()));
+    }
+
+    #[test]
+    fn test_sobject_get() {
+        let obj = SObject::new("Account")
+            .with_field("Name", "Acme")
+            .with_field("Type", "Prospect");
+        assert_eq!(obj.get("Name"), Some("Acme"));
+        assert_eq!(obj.get("Type"), Some("Prospect"));
+        assert_eq!(obj.get("Missing"), None);
+    }
+
+    #[test]
+    fn test_sobject_id() {
+        let mut obj = SObject::new("Account");
+        assert_eq!(obj.id(), None);
+        obj.set_field("Id", "001000000000000AAA");
+        assert_eq!(obj.id(), Some("001000000000000AAA"));
+    }
+}
